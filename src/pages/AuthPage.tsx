@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
@@ -29,13 +29,13 @@ const AuthPage = () => {
         return null;
     }
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
         setError(null);
-    };
+    }, []);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
@@ -64,17 +64,17 @@ const AuthPage = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isLoginMode, formData]);
 
-    const toggleMode = () => {
-        setMode(isLoginMode ? 'signup' : 'login');
+    const toggleMode = useCallback(() => {
+        setMode(prev => prev === 'login' ? 'signup' : 'login');
         setFormData(INITIAL_FORM_DATA);
         setError(null);
-    };
+    }, []);
 
-    const handleGoogleLogin = () => {
+    const handleGoogleLogin = useCallback(() => {
         window.location.href = authService.getGoogleLoginUrl();
-    };
+    }, []);
 
     return (
         <div className="auth-page">

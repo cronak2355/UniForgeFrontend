@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 const Integration = () => {
     return (
         <section id="integration" className="integration">
@@ -28,4 +30,4 @@ const Integration = () => {
     );
 };
 
-export default Integration;
+export default memo(Integration);

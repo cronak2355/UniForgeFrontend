@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { authService, type User } from '../services/authService';
 
 interface AuthContextType {
@@ -34,39 +34,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadUser();
     }, []);
 
-    const login = async (email: string, password: string) => {
+    const login = useCallback(async (email: string, password: string) => {
         const response = await authService.login({ email, password });
         setUser(response.user);
-    };
+    }, []);
 
-    const signup = async (email: string, password: string, name: string) => {
+    const signup = useCallback(async (email: string, password: string, name: string) => {
         const response = await authService.signup({ email, password, name });
         setUser(response.user);
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         authService.logout();
         setUser(null);
-    };
+    }, []);
 
-    const handleOAuthCallback = async (token: string) => {
+    const handleOAuthCallback = useCallback(async (token: string) => {
         authService.handleOAuthCallback(token);
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+        user,
+        isLoading,
+        isAuthenticated: user !== null,
+        login,
+        signup,
+        logout,
+        handleOAuthCallback,
+    }), [user, isLoading, login, signup, logout, handleOAuthCallback]);
 
     return (
-        <AuthContext.Provider
-            value={{
-                user,
-                isLoading,
-                isAuthenticated: user !== null,
-                login,
-                signup,
-                logout,
-                handleOAuthCallback,
-            }}
-        >
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

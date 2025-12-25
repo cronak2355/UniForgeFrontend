@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { memo } from 'react';
 
 const CallToAction = () => {
     return (
@@ -13,4 +14,4 @@ const CallToAction = () => {
     );
 };
 
-export default CallToAction;
+export default memo(CallToAction);

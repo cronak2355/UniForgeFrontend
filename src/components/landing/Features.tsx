@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 const Features = () => {
     return (
         <section id="features" className="features">
@@ -34,4 +36,4 @@ const Features = () => {
     );
 };
 
-export default Features;
+export default memo(Features);
