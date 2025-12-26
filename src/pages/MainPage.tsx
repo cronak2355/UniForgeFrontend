@@ -42,7 +42,8 @@ const MainPage = () => {
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
-            color: 'white'
+            color: 'white',
+            position: 'relative'
         }}>
             <header style={{
                 display: 'flex',
@@ -50,12 +51,17 @@ const MainPage = () => {
                 alignItems: 'center',
                 padding: '1rem 2rem',
                 border: 'none',
-                margin: '20px auto 0',
+                position: 'absolute',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
                 width: '95%',
                 maxWidth: '1200px',
                 borderRadius: '16px',
-                backgroundColor: '#0a0a0a',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+                backgroundColor: 'rgba(10, 10, 10, 0.85)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                zIndex: 100
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
