@@ -243,7 +243,7 @@ const MainPage = () => {
                 <p className="hero-subtitle">빈 캔버스에서 시작하거나, 수백 개의 템플릿을 활용해보세요.</p>
 
                 <div className="nav-cards-container">
-                    <div className="nav-card" onClick={() => console.log('Create Project')}>
+                    <div className="nav-card" onClick={() => { }}>
                         <i className="fa-solid fa-wrench nav-card-icon"></i>
                         <h3 className="nav-card-title">에디터</h3>
                         <p className="nav-card-desc">강력한 툴로 복잡한 로직과<br />디자인을 구현하세요.</p>
