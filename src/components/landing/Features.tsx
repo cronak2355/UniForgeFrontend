@@ -37,14 +37,18 @@ const Features = () => {
                         fill="none"
                         strokeWidth="2"
                     />
-                    {/* 은은한 배경 라인 (거의 안 보임) */}
+                    {/* 오른쪽 위 → 왼쪽 아래 대각선 곡선 */}
                     <path
-                        className="ribbon-path-bg"
-                        d="M0,180 Q400,0 800,180 T1600,180"
-                        stroke="#ffffff"
-                        strokeWidth="1"
+                        className="ribbon-path-diagonal"
+                        d="M1500,-20 C1200,80 900,180 600,220 C300,260 100,300 -50,380"
                         fill="none"
-                        opacity="0.05"
+                        strokeWidth="1.5"
+                    />
+                    <path
+                        className="ribbon-path-diagonal-2"
+                        d="M1520,40 C1150,120 850,200 500,270 C200,330 50,350 -50,400"
+                        fill="none"
+                        strokeWidth="1"
                     />
                 </svg>
             </div>
