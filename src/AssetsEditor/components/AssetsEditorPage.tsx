@@ -1,75 +1,59 @@
 // src/AssetsEditor/components/AssetsEditorPage.tsx
 
-import { AssetsEditorProvider } from '../context/AssetsEditorContext';
-import {Canvas} from './Canvas';
-import Toolbar from './Toolbar';
-import ExportPanel from './ExportPanel';
+import { AssetsEditorProvider, useAssetsEditor } from '../context/AssetsEditorContext';
+import { Canvas } from './Canvas';
+import { LeftToolbar } from './LeftToolbar';
+import { RightPanel } from './RightPanel';
 
-export default function AssetEditorPage() {
+function EditorLayout() {
+  const { pixelSize, zoom } = useAssetsEditor();
+  
+  return (
+    <div className="h-screen flex flex-col bg-black text-white select-none">
+      {/* Header */}
+      <header className="h-11 flex items-center justify-between px-4 bg-black border-b border-neutral-800">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-[#2563eb] flex items-center justify-center">
+            <span className="text-white text-xs font-bold">U</span>
+          </div>
+          <span className="text-sm font-medium text-white">Uniforge</span>
+        </div>
+        <div className="text-sm text-neutral-500">
+          Untitled
+        </div>
+        <button className="px-3 py-1.5 bg-[#2563eb] text-white text-xs font-medium hover:bg-[#3b82f6] transition-colors">
+          Export
+        </button>
+      </header>
+
+      {/* Main 3-column layout */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* Left: Frames + Tools + Colors */}
+        <LeftToolbar />
+        
+        {/* Center: Canvas */}
+        <div className="flex-1 flex items-center justify-center bg-neutral-950 overflow-hidden">
+          <Canvas />
+        </div>
+        
+        {/* Right: Preview + Layers + Palettes */}
+        <RightPanel />
+      </main>
+
+      {/* Status bar */}
+      <footer className="h-6 flex items-center justify-end px-4 bg-black border-t border-neutral-800 text-xs text-neutral-500 gap-4">
+        <span className="text-[#3b82f6]">{zoom.toFixed(0)}x</span>
+        <span>{pixelSize}×{pixelSize}</span>
+        <span>Frame 1/1</span>
+      </footer>
+    </div>
+  );
+}
+
+export function AssetsEditorPage() {
   return (
     <AssetsEditorProvider>
-      <div className="h-screen w-screen overflow-hidden bg-black flex flex-col">
-        {/* Header */}
-        <header className="h-14 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M12 2L2 7L12 12L22 7L12 2Z"
-                fill="#3b82f6"
-              />
-              <path
-                d="M2 17L12 22L22 17"
-                stroke="#60a5fa"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 12L12 17L22 12"
-                stroke="#2563eb"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="text-white font-semibold">Uniforge</span>
-          </div>
-
-          {/* Center - File Info */}
-          <div className="flex items-center gap-4">
-            <span className="text-neutral-500 text-sm">Asset Editor</span>
-            <div className="w-px h-4 bg-neutral-800" />
-            <span className="text-neutral-600 text-xs font-mono">128 × 128</span>
-          </div>
-
-          {/* Right - Status */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500" />
-              <span className="text-neutral-500 text-xs">Ready</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <div className="flex-1 grid grid-cols-[240px_1fr_280px] divide-x divide-neutral-800">
-          {/* Left: Toolbar */}
-          <Toolbar />
-
-          {/* Center: Canvas */}
-          <Canvas />
-
-          {/* Right: Export Panel */}
-          <ExportPanel />
-        </div>
-      </div>
+      <EditorLayout />
     </AssetsEditorProvider>
   );
 }

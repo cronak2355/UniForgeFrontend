@@ -17,12 +17,14 @@ export class PixelEngine {
   private viewCtx: CanvasRenderingContext2D;
   
   private resolution: number;
-  private zoomFactor: number;
 
   constructor(canvas: HTMLCanvasElement, resolution: PixelSize = 64) {
     this.resolution = resolution;
-    this.zoomFactor = this.calculateZoom(resolution);
     this.viewCanvas = canvas;
+    
+    // 캔버스 크기는 해상도와 동일하게 (줌은 CSS로 처리)
+    canvas.width = resolution;
+    canvas.height = resolution;
     
     const viewCtx = canvas.getContext('2d', { willReadFrequently: true });
     if (!viewCtx) throw new Error('Failed to get view canvas context');
@@ -44,35 +46,18 @@ export class PixelEngine {
     this.clear();
   }
 
-  private calculateZoom(resolution: PixelSize): number {
-    // 캔버스 표시 크기를 ~400px로 유지
-    if (resolution === 32) return 12;
-    if (resolution === 64) return 6;
-    return 3; // 128
-  }
-
-  getDisplaySize(): number {
-    return this.resolution * this.zoomFactor;
-  }
-
   getResolution(): number {
     return this.resolution;
   }
 
-  getZoomFactor(): number {
-    return this.zoomFactor;
-  }
-
   changeResolution(newResolution: PixelSize): void {
     this.resolution = newResolution;
-    this.zoomFactor = this.calculateZoom(newResolution);
     
     this.workCanvas.width = newResolution;
     this.workCanvas.height = newResolution;
     
-    const displaySize = this.getDisplaySize();
-    this.viewCanvas.width = displaySize;
-    this.viewCanvas.height = displaySize;
+    this.viewCanvas.width = newResolution;
+    this.viewCanvas.height = newResolution;
     
     this.pixelBuffer = new Uint8ClampedArray(newResolution * newResolution * 4);
     
@@ -82,10 +67,11 @@ export class PixelEngine {
     this.clear();
   }
 
-  private viewToPixel(viewX: number, viewY: number): { x: number; y: number } {
+  // 뷰 좌표를 픽셀 좌표로 변환 (줌 팩터는 외부에서 전달)
+  viewToPixel(viewX: number, viewY: number, zoom: number): { x: number; y: number } {
     return {
-      x: Math.floor(viewX / this.zoomFactor),
-      y: Math.floor(viewY / this.zoomFactor),
+      x: Math.floor(viewX / zoom),
+      y: Math.floor(viewY / zoom),
     };
   }
 
@@ -97,8 +83,7 @@ export class PixelEngine {
     return (y * this.resolution + x) * 4;
   }
 
-  drawPixel(viewX: number, viewY: number, color: RGBA): void {
-    const { x, y } = this.viewToPixel(viewX, viewY);
+  drawPixelAt(x: number, y: number, color: RGBA): void {
     if (!this.isInBounds(x, y)) return;
 
     const idx = this.getBufferIndex(x, y);
@@ -110,8 +95,7 @@ export class PixelEngine {
     this.render();
   }
 
-  erasePixel(viewX: number, viewY: number): void {
-    const { x, y } = this.viewToPixel(viewX, viewY);
+  erasePixelAt(x: number, y: number): void {
     if (!this.isInBounds(x, y)) return;
 
     const idx = this.getBufferIndex(x, y);
@@ -123,8 +107,7 @@ export class PixelEngine {
     this.render();
   }
 
-  getPixelColor(viewX: number, viewY: number): RGBA {
-    const { x, y } = this.viewToPixel(viewX, viewY);
+  getPixelColorAt(x: number, y: number): RGBA {
     if (!this.isInBounds(x, y)) return { r: 0, g: 0, b: 0, a: 0 };
 
     const idx = this.getBufferIndex(x, y);
@@ -146,12 +129,8 @@ export class PixelEngine {
     imageData.data.set(this.pixelBuffer);
     this.workCtx.putImageData(imageData, 0, 0);
 
-    this.viewCtx.clearRect(0, 0, this.viewCanvas.width, this.viewCanvas.height);
-    this.viewCtx.drawImage(
-      this.workCanvas,
-      0, 0, this.resolution, this.resolution,
-      0, 0, this.viewCanvas.width, this.viewCanvas.height
-    );
+    this.viewCtx.clearRect(0, 0, this.resolution, this.resolution);
+    this.viewCtx.drawImage(this.workCanvas, 0, 0);
   }
 
   async exportAsBase64(): Promise<string> {

@@ -46,6 +46,10 @@ interface AssetsEditorContextType {
   pixelSize: PixelSize;
   setPixelSize: (size: PixelSize) => void;
   
+  // Zoom
+  zoom: number;
+  setZoom: (zoom: number) => void;
+  
   // Actions
   clear: () => void;
   clearCanvas: () => void;
@@ -74,25 +78,28 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const [currentTool, setCurrentTool] = useState<Tool>('brush');
   const [currentColor, setCurrentColor] = useState<RGBA>({ r: 255, g: 255, b: 255, a: 255 });
   const [pixelSize, setPixelSizeState] = useState<PixelSize>(64);
+  const [zoom, setZoomState] = useState(8); // 줌은 CSS용 상태만
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 줌 변경 - CSS만 변경, 엔진은 건드리지 않음
+  const setZoom = useCallback((newZoom: number) => {
+    const clampedZoom = Math.min(20, Math.max(2, newZoom));
+    setZoomState(clampedZoom);
+  }, []);
+
+  // 엔진 초기화
   const initEngine = useCallback(() => {
     if (!canvasRef.current) return;
-    
-    const displaySize = pixelSize * (pixelSize === 32 ? 12 : pixelSize === 64 ? 6 : 3);
-    canvasRef.current.width = displaySize;
-    canvasRef.current.height = displaySize;
+    if (engineRef.current) return;
     
     engineRef.current = new PixelEngine(canvasRef.current, pixelSize);
   }, [pixelSize]);
 
+  // 해상도 변경
   const setPixelSize = useCallback((size: PixelSize) => {
     setPixelSizeState(size);
-    if (engineRef.current && canvasRef.current) {
-      const displaySize = size * (size === 32 ? 12 : size === 64 ? 6 : 3);
-      canvasRef.current.width = displaySize;
-      canvasRef.current.height = displaySize;
+    if (canvasRef.current) {
       engineRef.current = new PixelEngine(canvasRef.current, size);
     }
   }, []);
@@ -108,18 +115,18 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       const rect = canvasRef.current.getBoundingClientRect();
       const scaleX = canvasRef.current.width / rect.width;
       const scaleY = canvasRef.current.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
+      const x = Math.floor((e.clientX - rect.left) * scaleX);
+      const y = Math.floor((e.clientY - rect.top) * scaleY);
 
       switch (currentTool) {
         case 'brush':
-          engineRef.current.drawPixel(x, y, currentColor);
+          engineRef.current.drawPixelAt(x, y, currentColor);
           break;
         case 'eraser':
-          engineRef.current.erasePixel(x, y);
+          engineRef.current.erasePixelAt(x, y);
           break;
         case 'eyedropper':
-          const color = engineRef.current.getPixelColor(x, y);
+          const color = engineRef.current.getPixelColorAt(x, y);
           if (color.a > 0) {
             setCurrentColor(color);
             setCurrentTool('brush');
@@ -150,7 +157,6 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       
       // Get pixel data and draw to engine
       const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
-      const zoomFactor = pixelSize === 32 ? 12 : pixelSize === 64 ? 6 : 3;
       
       for (let y = 0; y < pixelSize; y++) {
         for (let x = 0; x < pixelSize; x++) {
@@ -162,7 +168,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
             a: imageData.data[idx + 3],
           };
           if (color.a > 0) {
-            engineRef.current.drawPixel(x * zoomFactor, y * zoomFactor, color);
+            engineRef.current.drawPixelAt(x, y, color);
           }
         }
       }
@@ -228,6 +234,9 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         // Resolution
         pixelSize,
         setPixelSize,
+        // Zoom
+        zoom,
+        setZoom,
         // Actions (with aliases)
         clear: clearCanvas,
         clearCanvas,
