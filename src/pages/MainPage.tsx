@@ -8,6 +8,17 @@ const MainPage = () => {
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // 더미 데이터: 인기 게임
+    const POPULAR_GAMES = [
+        { title: "Neon Racer 2077", author: "CyberDev", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=300" },
+        { title: "Mystic Forest RPG", author: "FantasyWorks", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=300" },
+        { title: "Space Commander", author: "StarLab", image: "https://images.unsplash.com/photo-1534237710431-e2fc698436d0?auto=format&fit=crop&q=80&w=300" },
+        { title: "Pixel Dungeon", author: "RetroKing", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=300" },
+        { title: "Sky Island", author: "CloudBreaker", image: "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&q=80&w=300" },
+        { title: "Shadow Ninja", author: "DarkBlade", image: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=300" },
+        { title: "Block Builder", author: "VoxelMaster", image: "https://images.unsplash.com/photo-1574169208507-84376194878a?auto=format&fit=crop&q=80&w=300" },
+    ];
+
     const handleLogout = () => {
         logout();
         navigate('/');
@@ -348,6 +359,40 @@ const MainPage = () => {
                                 color: '#555',
                                 fontSize: '0.9rem'
                             }}>새 프로젝트를 만들어 게임 개발을 시작하세요!</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 인기 게임 섹션 (Marquee) */}
+                <div style={{ marginTop: '60px' }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '24px'
+                    }}>
+                        <h2 style={{
+                            fontSize: '1.3rem',
+                            fontWeight: 600,
+                            color: '#fff'
+                        }}>🔥 지금 뜨는 인기 게임</h2>
+                        <span style={{
+                            color: '#666',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer'
+                        }} onClick={() => navigate('/marketplace')}>더보기 &gt;</span>
+                    </div>
+
+                    <div className="marquee-container">
+                        <div className="marquee-content">
+                            {/* 무한 스크롤을 위해 데이터 2배로 렌더링 */}
+                            {[...POPULAR_GAMES, ...POPULAR_GAMES].map((game, index) => (
+                                <div key={index} className="game-card-marquee">
+                                    <img src={game.image} alt={game.title} className="game-bg" />
+                                    <div className="game-title">{game.title}</div>
+                                    <div className="game-author">by {game.author}</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
