@@ -265,7 +265,7 @@ const MainPage = () => {
             <main style={{
                 maxWidth: '1200px',
                 width: '95%',
-                margin: '160px auto 60px', /* Add top margin for overlapping cards */
+                margin: '110px auto 60px', /* Reduced top margin from 160px */
                 padding: '0 20px',
                 flex: 1
             }}>
