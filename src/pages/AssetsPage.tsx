@@ -42,7 +42,7 @@ const AssetsPage = () => {
                     fontSize: '4rem',
                     marginBottom: '1rem'
                 }}>🎨</div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 600 }}>에셋 스토어</h1>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 600 }}>Store</h1>
                 <p style={{ color: '#888', fontSize: '1.1rem' }}>
                     다양한 게임 에셋을 탐색하고 다운로드하세요.
                 </p>

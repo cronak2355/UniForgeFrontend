@@ -42,7 +42,7 @@ const MarketplacePage = () => {
                     fontSize: '4rem',
                     marginBottom: '1rem'
                 }}>🎮</div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 600 }}>게임 마켓플레이스</h1>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 600 }}>Explore</h1>
                 <p style={{ color: '#888', fontSize: '1.1rem' }}>
                     Uniforge로 만든 게임들을 탐색하고 플레이하세요.
                 </p>

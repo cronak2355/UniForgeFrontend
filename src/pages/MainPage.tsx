@@ -49,52 +49,56 @@ const MainPage = () => {
                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
                         <span className="gradient-text">Uniforge</span>
                     </div>
-                    <nav style={{ display: 'flex', gap: '1.5rem' }}>
+                    <nav style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
                             onClick={() => navigate('/assets')}
                             style={{
                                 background: 'transparent',
                                 border: 'none',
-                                color: '#888',
-                                fontSize: '0.95rem',
+                                color: '#b0b0b0',
+                                fontSize: '1rem',
+                                fontWeight: 500,
                                 cursor: 'pointer',
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                transition: 'all 0.2s'
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.3px'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.color = '#fff';
                                 e.currentTarget.style.backgroundColor = '#1a1a1a';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#888';
+                                e.currentTarget.style.color = '#b0b0b0';
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            에셋
+                            Store
                         </button>
                         <button
                             onClick={() => navigate('/marketplace')}
                             style={{
                                 background: 'transparent',
                                 border: 'none',
-                                color: '#888',
-                                fontSize: '0.95rem',
+                                color: '#b0b0b0',
+                                fontSize: '1rem',
+                                fontWeight: 500,
                                 cursor: 'pointer',
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                transition: 'all 0.2s'
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.3px'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.color = '#fff';
                                 e.currentTarget.style.backgroundColor = '#1a1a1a';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#888';
+                                e.currentTarget.style.color = '#b0b0b0';
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            게임 마켓플레이스
+                            Explore
                         </button>
                     </nav>
                 </div>
