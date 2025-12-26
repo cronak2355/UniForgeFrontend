@@ -49,7 +49,7 @@ const MainPage = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '1rem 2rem',
-                border: '1px solid #333',
+                border: 'none',
                 margin: '20px auto 0',
                 width: '95%',
                 maxWidth: '1200px',
