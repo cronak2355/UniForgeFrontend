@@ -6,22 +6,20 @@ import {
   useState,
   useRef,
   useCallback,
+  useEffect,
   type ReactNode,
 } from 'react';
 import { PixelEngine, type RGBA, type PixelSize } from '../engine/PixelEngine';
+import type { Frame } from '../engine/FrameManager';
 
-export type Tool = 'brush' | 'eraser' | 'eyedropper';
+export type Tool = 'brush' | 'eraser' | 'eyedropper' | 'fill';
 
 interface Asset {
   id: string;
   name: string;
   type: 'character' | 'object' | 'tile';
   imageData: string;
-  stats: {
-    hp: number;
-    speed: number;
-    attack: number;
-  };
+  stats: { hp: number; speed: number; attack: number };
   createdAt: Date;
 }
 
@@ -30,30 +28,55 @@ interface AssetsEditorContextType {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   initEngine: () => void;
   
-  // Tool state (aliased for compatibility)
+  // Tool state
   tool: Tool;
   setTool: (tool: Tool) => void;
   currentTool: Tool;
   setCurrentTool: (tool: Tool) => void;
   
-  // Color state (aliased for compatibility)
+  // Color state
   color: RGBA;
   setColor: (color: RGBA) => void;
   currentColor: RGBA;
   setCurrentColor: (color: RGBA) => void;
   
-  // Resolution
+  // Resolution & Zoom
   pixelSize: PixelSize;
   setPixelSize: (size: PixelSize) => void;
-  
-  // Zoom
   zoom: number;
   setZoom: (zoom: number) => void;
   
-  // Actions
+  // Canvas Actions
   clear: () => void;
   clearCanvas: () => void;
-  handleCanvasInteraction: (e: React.MouseEvent<HTMLCanvasElement>) => void;
+  
+  // Pointer Events
+  handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  handlePointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  handlePointerUp: () => void;
+  
+  // Undo / Redo
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  historyState: { undoCount: number; redoCount: number };
+  
+  // Frame Management
+  frames: Frame[];
+  currentFrameIndex: number;
+  maxFrames: number;
+  addFrame: () => void;
+  deleteFrame: (index: number) => void;
+  duplicateFrame: (index: number) => void;
+  selectFrame: (index: number) => void;
+  getFrameThumbnail: (index: number) => string | null;
+  
+  // Animation Preview
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  fps: number;
+  setFps: (fps: number) => void;
   
   // AI Image
   loadAIImage: (blob: Blob) => Promise<void>;
@@ -78,64 +101,223 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const [currentTool, setCurrentTool] = useState<Tool>('brush');
   const [currentColor, setCurrentColor] = useState<RGBA>({ r: 255, g: 255, b: 255, a: 255 });
   const [pixelSize, setPixelSizeState] = useState<PixelSize>(64);
-  const [zoom, setZoomState] = useState(8); // 줌은 CSS용 상태만
+  const [zoom, setZoomState] = useState(8);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [historyState, setHistoryState] = useState({ undoCount: 0, redoCount: 0 });
+  
+  // Frame state
+  const [frames, setFrames] = useState<Frame[]>([]);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const [maxFrames, setMaxFrames] = useState(4);
+  
+  // Animation state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [fps, setFps] = useState(8);
+  
+  const isDrawingRef = useRef(false);
 
-  // 줌 변경 - CSS만 변경, 엔진은 건드리지 않음
-  const setZoom = useCallback((newZoom: number) => {
-    const clampedZoom = Math.min(20, Math.max(2, newZoom));
-    setZoomState(clampedZoom);
+  // 프레임 상태 동기화
+  const syncFrameState = useCallback(() => {
+    if (!engineRef.current) return;
+    setFrames([...engineRef.current.getAllFrames()]);
+    setCurrentFrameIndex(engineRef.current.getCurrentFrameIndex());
+    setMaxFrames(engineRef.current.maxFrames);
   }, []);
 
-  // 엔진 초기화
-  const initEngine = useCallback(() => {
-    if (!canvasRef.current) return;
-    if (engineRef.current) return;
-    
-    engineRef.current = new PixelEngine(canvasRef.current, pixelSize);
-  }, [pixelSize]);
+  // 히스토리 상태 업데이트
+  const updateHistoryState = useCallback(() => {
+    if (!engineRef.current) return;
+    setCanUndo(engineRef.current.canUndo());
+    setCanRedo(engineRef.current.canRedo());
+    const state = engineRef.current.getHistoryState();
+    setHistoryState({ undoCount: state.undoCount, redoCount: state.redoCount });
+  }, []);
 
-  // 해상도 변경
+  const setZoom = useCallback((newZoom: number) => {
+    setZoomState(Math.min(20, Math.max(2, newZoom)));
+  }, []);
+
+  const initEngine = useCallback(() => {
+    if (!canvasRef.current || engineRef.current) return;
+    engineRef.current = new PixelEngine(canvasRef.current, pixelSize, 50);
+    updateHistoryState();
+    syncFrameState();
+  }, [pixelSize, updateHistoryState, syncFrameState]);
+
   const setPixelSize = useCallback((size: PixelSize) => {
     setPixelSizeState(size);
     if (canvasRef.current) {
-      engineRef.current = new PixelEngine(canvasRef.current, size);
+      engineRef.current = new PixelEngine(canvasRef.current, size, 50);
+      updateHistoryState();
+      syncFrameState();
     }
-  }, []);
+  }, [updateHistoryState, syncFrameState]);
 
   const clearCanvas = useCallback(() => {
     engineRef.current?.clear();
+    updateHistoryState();
+  }, [updateHistoryState]);
+
+  // ==================== Frame Management ====================
+
+  const addFrame = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.addFrame();
+    syncFrameState();
+  }, [syncFrameState]);
+
+  const deleteFrame = useCallback((index: number) => {
+    if (!engineRef.current) return;
+    engineRef.current.deleteFrame(index);
+    syncFrameState();
+    updateHistoryState();
+  }, [syncFrameState, updateHistoryState]);
+
+  const duplicateFrame = useCallback((index: number) => {
+    if (!engineRef.current) return;
+    engineRef.current.duplicateFrame(index);
+    syncFrameState();
+  }, [syncFrameState]);
+
+  const selectFrame = useCallback((index: number) => {
+    if (!engineRef.current) return;
+    engineRef.current.selectFrame(index);
+    syncFrameState();
+    updateHistoryState();
+  }, [syncFrameState, updateHistoryState]);
+
+  const getFrameThumbnail = useCallback((index: number): string | null => {
+    if (!engineRef.current) return null;
+    return engineRef.current.generateFrameThumbnail(index, 48);
   }, []);
 
-  const handleCanvasInteraction = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!engineRef.current || !canvasRef.current) return;
+  // 좌표 계산 헬퍼
+  const getPixelCoords = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = canvasRef.current.width / rect.width;
+    const scaleY = canvasRef.current.height / rect.height;
+    return {
+      x: Math.floor((e.clientX - rect.left) * scaleX),
+      y: Math.floor((e.clientY - rect.top) * scaleY),
+    };
+  }, []);
 
-      const rect = canvasRef.current.getBoundingClientRect();
-      const scaleX = canvasRef.current.width / rect.width;
-      const scaleY = canvasRef.current.height / rect.height;
-      const x = Math.floor((e.clientX - rect.left) * scaleX);
-      const y = Math.floor((e.clientY - rect.top) * scaleY);
+  // 픽셀 그리기/지우기 실행
+  const executeToolAt = useCallback((x: number, y: number) => {
+    if (!engineRef.current) return;
 
-      switch (currentTool) {
-        case 'brush':
-          engineRef.current.drawPixelAt(x, y, currentColor);
-          break;
-        case 'eraser':
-          engineRef.current.erasePixelAt(x, y);
-          break;
-        case 'eyedropper':
-          const color = engineRef.current.getPixelColorAt(x, y);
-          if (color.a > 0) {
-            setCurrentColor(color);
-            setCurrentTool('brush');
-          }
-          break;
+    switch (currentTool) {
+      case 'brush':
+        engineRef.current.drawPixelAt(x, y, currentColor);
+        break;
+      case 'eraser':
+        engineRef.current.erasePixelAt(x, y);
+        break;
+      case 'fill':
+        engineRef.current.floodFill(x, y, currentColor);
+        break;
+      case 'eyedropper':
+        const color = engineRef.current.getPixelColorAt(x, y);
+        if (color.a > 0) {
+          setCurrentColor(color);
+          setCurrentTool('brush');
+        }
+        break;
+    }
+  }, [currentTool, currentColor]);
+
+  // ==================== Pointer Events ====================
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+    
+    const coords = getPixelCoords(e);
+    if (!coords || !engineRef.current) return;
+
+    isDrawingRef.current = true;
+
+    if (currentTool === 'fill') {
+      engineRef.current.beginStroke('fill');
+      executeToolAt(coords.x, coords.y);
+      engineRef.current.endStroke();
+      isDrawingRef.current = false;
+      updateHistoryState();
+      syncFrameState(); // 썸네일 업데이트
+      return;
+    }
+
+    if (currentTool === 'eyedropper') {
+      executeToolAt(coords.x, coords.y);
+      isDrawingRef.current = false;
+      return;
+    }
+
+    const actionType = currentTool === 'eraser' ? 'erase' : 'stroke';
+    engineRef.current.beginStroke(actionType);
+    executeToolAt(coords.x, coords.y);
+  }, [currentTool, getPixelCoords, executeToolAt, updateHistoryState, syncFrameState]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    if (currentTool !== 'brush' && currentTool !== 'eraser') return;
+
+    const coords = getPixelCoords(e);
+    if (!coords) return;
+
+    executeToolAt(coords.x, coords.y);
+  }, [currentTool, getPixelCoords, executeToolAt]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDrawingRef.current) return;
+    
+    isDrawingRef.current = false;
+    engineRef.current?.endStroke();
+    updateHistoryState();
+    syncFrameState(); // 썸네일 업데이트
+  }, [updateHistoryState, syncFrameState]);
+
+  // ==================== Undo / Redo ====================
+
+  const undo = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.undo();
+    updateHistoryState();
+    syncFrameState();
+  }, [updateHistoryState, syncFrameState]);
+
+  const redo = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.redo();
+    updateHistoryState();
+    syncFrameState();
+  }, [updateHistoryState, syncFrameState]);
+
+  // ==================== Keyboard Shortcuts ====================
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modKey && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
       }
-    },
-    [currentTool, currentColor]
-  );
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  // ==================== AI Image ====================
 
   const loadAIImage = useCallback(async (blob: Blob) => {
     if (!engineRef.current) return;
@@ -144,38 +326,26 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     try {
       const imageBitmap = await createImageBitmap(blob);
       
-      // Create temp canvas to extract pixel data
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = pixelSize;
       tempCanvas.height = pixelSize;
       const tempCtx = tempCanvas.getContext('2d');
       if (!tempCtx) throw new Error('Failed to get temp context');
       
-      // Draw scaled and pixelated
       tempCtx.imageSmoothingEnabled = false;
       tempCtx.drawImage(imageBitmap, 0, 0, pixelSize, pixelSize);
       
-      // Get pixel data and draw to engine
       const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
       
-      for (let y = 0; y < pixelSize; y++) {
-        for (let x = 0; x < pixelSize; x++) {
-          const idx = (y * pixelSize + x) * 4;
-          const color: RGBA = {
-            r: imageData.data[idx],
-            g: imageData.data[idx + 1],
-            b: imageData.data[idx + 2],
-            a: imageData.data[idx + 3],
-          };
-          if (color.a > 0) {
-            engineRef.current.drawPixelAt(x, y, color);
-          }
-        }
-      }
+      engineRef.current.applyAIImage(imageData);
+      updateHistoryState();
+      syncFrameState();
     } finally {
       setIsLoading(false);
     }
-  }, [pixelSize]);
+  }, [pixelSize, updateHistoryState, syncFrameState]);
+
+  // ==================== Export ====================
 
   const downloadWebP = useCallback(async (filename: string) => {
     if (!engineRef.current) return;
@@ -212,7 +382,6 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadAsset = useCallback((id: string) => {
-    // TODO: Load asset onto canvas
     console.log('Load asset:', id);
   }, []);
 
@@ -221,33 +390,44 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       value={{
         canvasRef,
         initEngine,
-        // Tool (with aliases)
         tool: currentTool,
         setTool: setCurrentTool,
         currentTool,
         setCurrentTool,
-        // Color (with aliases)
         color: currentColor,
         setColor: setCurrentColor,
         currentColor,
         setCurrentColor,
-        // Resolution
         pixelSize,
         setPixelSize,
-        // Zoom
         zoom,
         setZoom,
-        // Actions (with aliases)
         clear: clearCanvas,
         clearCanvas,
-        handleCanvasInteraction,
-        // AI
+        handlePointerDown,
+        handlePointerMove,
+        handlePointerUp,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        historyState,
+        frames,
+        currentFrameIndex,
+        maxFrames,
+        addFrame,
+        deleteFrame,
+        duplicateFrame,
+        selectFrame,
+        getFrameThumbnail,
+        isPlaying,
+        setIsPlaying,
+        fps,
+        setFps,
         loadAIImage,
         isLoading,
-        // Export
         downloadWebP,
         saveToLibrary,
-        // Library
         assets,
         deleteAsset,
         loadAsset,

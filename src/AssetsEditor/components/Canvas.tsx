@@ -7,7 +7,9 @@ export function Canvas() {
   const { 
     canvasRef, 
     initEngine, 
-    handleCanvasInteraction, 
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
     pixelSize,
     zoom,
     setZoom
@@ -20,7 +22,6 @@ export function Canvas() {
 
   const displaySize = pixelSize * zoom;
 
-  // 마운트 시 엔진 초기화
   useEffect(() => {
     initEngine();
   }, [initEngine]);
@@ -33,7 +34,7 @@ export function Canvas() {
   };
 
   // 패닝 (중간 버튼)
-  const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleContainerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button === 1) {
       e.preventDefault();
       setIsPanning(true);
@@ -41,7 +42,7 @@ export function Canvas() {
     }
   };
 
-  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isPanning) {
       const dx = e.clientX - lastPanPos.current.x;
       const dy = e.clientY - lastPanPos.current.y;
@@ -50,22 +51,19 @@ export function Canvas() {
     }
   };
 
-  const handleContainerMouseUp = () => {
+  const handleContainerPointerUp = () => {
     setIsPanning(false);
   };
 
-  // 캔버스 드로잉 이벤트
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button === 0) {
-      handleCanvasInteraction(e);
-    }
-  };
-
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.buttons === 1 && !isPanning) {
-      handleCanvasInteraction(e);
-    }
-  };
+  // 캔버스 Pointer Up (window에서도 처리)
+  useEffect(() => {
+    const handleGlobalPointerUp = () => {
+      handlePointerUp();
+    };
+    
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    return () => window.removeEventListener('pointerup', handleGlobalPointerUp);
+  }, [handlePointerUp]);
 
   // 체커보드 패턴 크기
   const checkerSize = Math.max(8, zoom);
@@ -75,16 +73,16 @@ export function Canvas() {
       ref={containerRef}
       className="relative"
       onWheel={handleWheel}
-      onMouseDown={handleContainerMouseDown}
-      onMouseMove={handleContainerMouseMove}
-      onMouseUp={handleContainerMouseUp}
-      onMouseLeave={handleContainerMouseUp}
+      onPointerDown={handleContainerPointerDown}
+      onPointerMove={handleContainerPointerMove}
+      onPointerUp={handleContainerPointerUp}
+      onPointerLeave={handleContainerPointerUp}
       style={{
         transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
         cursor: isPanning ? 'grabbing' : 'crosshair',
       }}
     >
-      {/* 체커보드 배경 (밝은 대비) */}
+      {/* 체커보드 배경 */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -114,13 +112,14 @@ export function Canvas() {
       {/* 메인 캔버스 */}
       <canvas
         ref={canvasRef}
-        onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleCanvasMouseMove}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
         style={{
           position: 'relative',
           imageRendering: 'pixelated',
           width: displaySize,
           height: displaySize,
+          touchAction: 'none', // 터치 스크롤 방지
         }}
       />
 
