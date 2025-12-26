@@ -1,42 +1,67 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* src/App.css */
+
+/* Reset default styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+::-webkit-scrollbar-thumb {
+  background: #262626;
 }
 
-.card {
-  padding: 2em;
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
 }
 
-.read-the-docs {
-  color: #888;
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  background: transparent;
 }
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #262626;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  margin-top: -4px;
+  cursor: pointer;
+}
+
+
+/* ## 최종 레이아웃 구조
+```
+┌─────────────────────────────────────────────────────────┐
+│ [Logo] Uniforge    │  Asset Editor │ 128×128  │ ● Ready │  ← Header (h-14)
+├──────────┬─────────────────────────────────┬────────────┤
+│ TOOLS    │  [Grid] [6x]           [x, y]   │ EXPORT    │
+│ ●○◉      ├─────────────────────────────────┤           │
+│          │                                 │ Name      │
+│ COLOR    │                                 │ Type      │
+│ [■][□]   │        128×128 Canvas          │           │
+│ ████████ │        (with grid overlay)      │ Stats     │
+│          │                                 │ HP ═══    │
+│ AI GEN   │                                 │ SPD ═══   │
+│ [______] │                                 │ ATK ═══   │
+│ [Generate]│                                │           │
+│          ├─────────────────────────────────┤ [Export]  │
+│ [Clear]  │  WebP • 128×128               │           │
+│          │                                 │ ASSETS    │
+└──────────┴─────────────────────────────────┴────────────┘ */
