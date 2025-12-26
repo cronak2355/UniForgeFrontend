@@ -807,7 +807,7 @@ footer {
     display: flex;
     gap: 24px;
     position: absolute;
-    bottom: -80px;
+    bottom: -40px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
@@ -836,8 +836,9 @@ footer {
 }
 
 .nav-card-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
+    font-size: 2rem;
     margin-bottom: 16px;
     color: #3b82f6;
     fill: currentColor;
