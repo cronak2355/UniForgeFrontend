@@ -244,17 +244,17 @@ const MainPage = () => {
 
                 <div className="nav-cards-container">
                     <div className="nav-card" onClick={() => console.log('Create Project')}>
-                        <div className="nav-card-icon">🛠️</div>
+                        <i className="fa-solid fa-wrench nav-card-icon"></i>
                         <h3 className="nav-card-title">에디터</h3>
                         <p className="nav-card-desc">강력한 툴로 복잡한 로직과<br />디자인을 구현하세요.</p>
                     </div>
                     <div className="nav-card" onClick={() => navigate('/marketplace')}>
-                        <div className="nav-card-icon">🧭</div>
+                        <i className="fa-regular fa-compass nav-card-icon"></i>
                         <h3 className="nav-card-title">구경하기</h3>
                         <p className="nav-card-desc">다른 크리에이터들의<br />멋진 작품을 둘러보세요.</p>
                     </div>
                     <div className="nav-card" onClick={() => navigate('/assets')}>
-                        <div className="nav-card-icon">🏪</div>
+                        <i className="fa-solid fa-store nav-card-icon"></i>
                         <h3 className="nav-card-title">에셋 스토어</h3>
                         <p className="nav-card-desc">프로젝트에 필요한 리소스를<br />쉽게 찾아보세요.</p>
                     </div>
@@ -268,28 +268,7 @@ const MainPage = () => {
                 padding: '0 20px',
                 flex: 1
             }}>
-                {/* 인기 게임 섹션 */}
-                <div className="section-header-modern">
-                    <div className="section-bar"></div>
-                    <h2 className="section-title-modern">인기 게임 (Popular)</h2>
-                </div>
-
-                <div className="modern-grid">
-                    {POPULAR_GAMES.slice(0, 4).map((game, index) => (
-                        <div key={index} className="modern-card">
-                            <img src={game.image} alt={game.title} className="modern-card-img" />
-                            <div className="modern-card-info">
-                                <div className="modern-card-title">{game.title}</div>
-                                <div className="modern-card-meta">
-                                    <span>👤 {game.author}</span>
-                                    <span>♥ 1.2k</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* 내 프로젝트 섹션 (새로 나온 게임 대신) */}
+                {/* 내 프로젝트 섹션 (My Projects) */}
                 <div className="section-header-modern">
                     <div className="section-bar"></div>
                     <h2 className="section-title-modern">내 프로젝트 (My Projects)</h2>
@@ -315,6 +294,34 @@ const MainPage = () => {
                             fontSize: '0.9rem'
                         }}>상단의 '에디터'를 통해 새로운 게임을 만들어보세요!</p>
                     </div>
+                </div>
+
+                {/* 인기 게임 섹션 (Popular Games) */}
+                <div className="section-header-modern">
+                    <div className="section-bar"></div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <h2 className="section-title-modern">인기 게임 (Popular)</h2>
+                        <span style={{
+                            color: '#666',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer'
+                        }} onClick={() => navigate('/marketplace')}>더보기 &gt;</span>
+                    </div>
+                </div>
+
+                <div className="horizontal-scroll-container">
+                    {POPULAR_GAMES.map((game, index) => (
+                        <div key={index} className="horizontal-card">
+                            <img src={game.image} alt={game.title} />
+                            <div className="horizontal-card-info">
+                                <div className="modern-card-title">{game.title}</div>
+                                <div className="modern-card-meta">
+                                    <span>👤 {game.author}</span>
+                                    <span>♥ {Math.floor(Math.random() * 1000) + 500}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </main>
         </div>
