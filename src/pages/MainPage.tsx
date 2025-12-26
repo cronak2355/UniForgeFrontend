@@ -7,6 +7,18 @@ const MainPage = () => {
     const navigate = useNavigate();
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [titleWord, setTitleWord] = useState('나만의');
+    const titleWords = ['나만의', '간단히', '혼자서', '가볍게'];
+
+    // 타이틀 애니메이션 효과
+    useEffect(() => {
+        let index = 0;
+        const interval = setInterval(() => {
+            index = (index + 1) % titleWords.length;
+            setTitleWord(titleWords[index]);
+        }, 2500);
+        return () => clearInterval(interval);
+    }, []);
 
     // 더미 데이터: 인기 게임
     const POPULAR_GAMES = [
@@ -69,31 +81,6 @@ const MainPage = () => {
                     </div>
                     <nav style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
-                            onClick={() => navigate('/assets')}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#b0b0b0',
-                                fontSize: '1rem',
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                padding: '10px 16px',
-                                borderRadius: '8px',
-                                transition: 'all 0.2s',
-                                letterSpacing: '0.3px'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#fff';
-                                e.currentTarget.style.backgroundColor = '#1a1a1a';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#b0b0b0';
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                        >
-                            Store
-                        </button>
-                        <button
                             onClick={() => navigate('/marketplace')}
                             style={{
                                 background: 'transparent',
@@ -116,7 +103,32 @@ const MainPage = () => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            Explore
+                            마켓플레이스
+                        </button>
+                        <button
+                            onClick={() => navigate('/library')}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#b0b0b0',
+                                fontSize: '1rem',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.3px'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#fff';
+                                e.currentTarget.style.backgroundColor = '#1a1a1a';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.color = '#b0b0b0';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            라이브러리
                         </button>
                     </nav>
                 </div>
@@ -246,24 +258,29 @@ const MainPage = () => {
                 </div>
             </header>
             <div className="hero-banner">
-                <h1 className="hero-title">나만의 게임 만들기</h1>
+                <h1 className="hero-title">
+                    <span key={titleWord} className="hero-title-animated">{titleWord}</span> 게임 만들기
+                </h1>
                 <p className="hero-subtitle">빈 캔버스에서 시작하거나, 수백 개의 템플릿을 활용해보세요.</p>
 
-                <div className="nav-cards-container">
-                    <div className="nav-card" onClick={() => { }}>
-                        <i className="fa-solid fa-wrench nav-card-icon"></i>
-                        <h3 className="nav-card-title">에디터</h3>
-                        <p className="nav-card-desc">강력한 툴로 복잡한 로직과<br />디자인을 구현하세요.</p>
+                <div className="triangle-nav-container">
+                    <div className="triangle-nav-item left" onClick={() => navigate('/marketplace')}>
+                        <div className="triangle-nav-content">
+                            <i className="fa-regular fa-compass"></i>
+                            <span>구경하기</span>
+                        </div>
                     </div>
-                    <div className="nav-card" onClick={() => navigate('/marketplace')}>
-                        <i className="fa-regular fa-compass nav-card-icon"></i>
-                        <h3 className="nav-card-title">구경하기</h3>
-                        <p className="nav-card-desc">다른 크리에이터들의<br />멋진 작품을 둘러보세요.</p>
+                    <div className="triangle-nav-item center" onClick={() => { }}>
+                        <div className="triangle-nav-content">
+                            <i className="fa-solid fa-wrench"></i>
+                            <span>에디터</span>
+                        </div>
                     </div>
-                    <div className="nav-card" onClick={() => navigate('/assets')}>
-                        <i className="fa-solid fa-store nav-card-icon"></i>
-                        <h3 className="nav-card-title">에셋 스토어</h3>
-                        <p className="nav-card-desc">프로젝트에 필요한 리소스를<br />쉽게 찾아보세요.</p>
+                    <div className="triangle-nav-item right" onClick={() => navigate('/assets')}>
+                        <div className="triangle-nav-content">
+                            <i className="fa-solid fa-store"></i>
+                            <span>에셋 스토어</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -271,7 +288,7 @@ const MainPage = () => {
             <main style={{
                 maxWidth: '1200px',
                 width: '95%',
-                margin: '110px auto 60px', /* Reduced top margin from 160px */
+                margin: '80px auto 60px',
                 padding: '0 20px',
                 flex: 1
             }}>

@@ -1,3 +1,6 @@
+/* Pretendard Font Import */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
 /* Uniforge Professional Dark Theme (Black/White/Blue) */
 :root {
     --bg-color: #000000;
@@ -22,7 +25,7 @@
 
 html,
 body {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-main);
     line-height: 1.6;
@@ -798,6 +801,25 @@ footer {
     text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
+.hero-title-animated {
+    display: inline-block;
+    animation: slideDown 0.5s ease-out;
+    color: var(--accent-color);
+    min-width: 100px;
+}
+
+@keyframes slideDown {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .hero-subtitle {
     font-size: 1.1rem;
     color: #e0e0e0;
@@ -805,7 +827,97 @@ footer {
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* Navigation Cards (Overlay) */
+/* Triangle Navigation Container */
+.triangle-nav-container {
+    position: absolute;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 200px;
+    z-index: 10;
+}
+
+.triangle-nav-item {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #0F0F10;
+    border: 1px solid #1f1f1f;
+}
+
+.triangle-nav-item.left {
+    clip-path: polygon(0 0, 50% 100%, 0 100%);
+}
+
+.triangle-nav-item.center {
+    clip-path: polygon(50% 0, 100% 0, 50% 100%, 0 0);
+}
+
+.triangle-nav-item.right {
+    clip-path: polygon(100% 0, 100% 100%, 50% 100%);
+}
+
+.triangle-nav-item:hover {
+    background: #1a1a2e;
+}
+
+.triangle-nav-item.left:hover {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0F0F10 100%);
+}
+
+.triangle-nav-item.center:hover {
+    background: linear-gradient(180deg, #2563eb 0%, #0F0F10 100%);
+}
+
+.triangle-nav-item.right:hover {
+    background: linear-gradient(225deg, #1e3a5f 0%, #0F0F10 100%);
+}
+
+.triangle-nav-content {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.triangle-nav-item.left .triangle-nav-content {
+    left: 15%;
+    top: 60%;
+    transform: translate(-50%, -50%);
+}
+
+.triangle-nav-item.center .triangle-nav-content {
+    left: 50%;
+    top: 35%;
+    transform: translate(-50%, -50%);
+}
+
+.triangle-nav-item.right .triangle-nav-content {
+    left: 85%;
+    top: 60%;
+    transform: translate(-50%, -50%);
+}
+
+.triangle-nav-content i {
+    font-size: 1.8rem;
+    color: #3b82f6;
+}
+
+.triangle-nav-item:hover .triangle-nav-content i {
+    color: #60a5fa;
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+}
+
+/* Old Navigation Cards (kept for reference) */
 .nav-cards-container {
     display: flex;
     gap: 24px;
