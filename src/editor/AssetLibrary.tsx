@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Asset } from "../data/Asset"
-export function AssetLibrary() {
-  // assets: <string, Asset>
-  const [assets, setAssets] = useState<Record<string, Asset>>({});
+type Props = {
+  onChangeValue: (selectedAsset: Asset) => void;
+  assets: Asset[];
+};
 
-  // 현재 선택된 태그
+export function AssetLibrary({ onChangeValue, assets }: Props) {
   const [currentTag, setCurrentTag] = useState<"Tile" | "Sfx">("Tile");
 
   return (
@@ -13,12 +14,11 @@ export function AssetLibrary() {
         <span onClick={() => setCurrentTag("Tile")}>Tile</span>
         <span onClick={() => setCurrentTag("Sfx")}>Sfx</span>
       </div>
-
       <div className="editor-assets-grid">
         {Object.values(assets)
-          .filter(asset => asset.tag === currentTag)
+          .filter(asset => asset.tag == currentTag)
           .map(asset => (
-            <div key={asset.id} className="asset-item" />
+            <img src={asset.url} key={asset.id} className="asset-item" onClick={ () => onChangeValue(asset) } />
           ))}
       </div>
     </>

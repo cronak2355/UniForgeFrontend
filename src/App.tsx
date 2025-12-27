@@ -1,6 +1,37 @@
-import "./App.css";
+import './App.css'
+import { useContext, useState } from "react";
+import type { Asset } from "./data/Asset";
+import { AssetLibrary } from "./editor/AssetLibrary";
+import { PhaserCanvas } from "./editor/PhaserCanvas"
 
 function App() {
+  const [useAssets, SetUseAssets] = useState<Asset[]>([
+    {
+      id: 0,
+      tag: "Tile",
+      url: "TestAsset.webp",
+      name: "grass"
+    },
+    {
+      id: 1,
+      tag: "Tile",
+      url: "TestAsset2.webp",
+      name: "dirt"
+    },
+    {
+      id: 2,
+      tag: "Tile",
+      url: "TestAsset3.webp",
+      name: "water"
+    },
+  ]);
+  const [currentAsset, SetAsset] = useState<Asset | null>(null);
+
+  const handleCurrentAsset = (selectedAsset: Asset) => 
+  {
+    SetAsset(selectedAsset)
+  };
+
   return (
     <div className="editor-root">
       <div className="editor-topbar">
@@ -15,10 +46,7 @@ function App() {
         </div>
 
         <div className="editor-camera">
-          <div className="editor-camera-header">Camera</div>
-          <div className="editor-camera-viewport">
-            {/* PhaserCanvas 삽입 */}
-          </div>
+            <PhaserCanvas assets={useAssets} selected_asset={currentAsset}/>
         </div>
 
         <div className="editor-panel right">
@@ -27,15 +55,7 @@ function App() {
       </div>
 
       <div className="editor-assets">
-        <div className="editor-assets-tabs">
-          <span>Tile</span>
-          <span>Sfx</span>
-        </div>
-        <div className="editor-assets-grid">
-          <div className="asset-item" />
-          <div className="asset-item" />
-          <div className="asset-item" />
-        </div>
+        <AssetLibrary assets={useAssets} onChangeValue={handleCurrentAsset} />
       </div>
     </div>
   );
