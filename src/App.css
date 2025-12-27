@@ -1,42 +1,147 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* src/App.css */
+
+/* ===== Root ===== */
+.editor-root {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* ===== Top Bar ===== */
+.editor-topbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid #1f2933;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.editor-topbar span {
+  margin-right: 16px;
+  font-size: 13px;
+  color: #9ca3af;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ===== Main Layout ===== */
+.editor-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
-.card {
-  padding: 2em;
+/* ===== Side Panels ===== */
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  background: #000000;
 }
 
-.read-the-docs {
-  color: #888;
+.editor-panel.left {
+  width: 220px;
+  border-right: 1px solid #1f2933;
+}
+
+.editor-panel.right {
+  width: 260px;
+  border-left: 1px solid #1f2933;
+}
+
+.editor-panel-header {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #60a5fa;
+  border-bottom: 1px solid #1f2933;
+}
+
+/* ===== Camera ===== */
+.editor-camera {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.editor-camera-header {
+  font-size: 12px;
+  color: #60a5fa;
+  margin-bottom: 6px;
+}
+
+.editor-camera-viewport {
+  flex: 1;
+  background: #000000;
+  border: 1px solid #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== Assets ===== */
+.editor-assets {
+  height: 160px;
+  border-top: 1px solid #1f2933;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-assets-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1f2933;
+}
+
+.editor-assets-tabs span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.editor-assets-grid {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+.asset-item {
+  width: 64px;
+  height: 64px;
+  border: 1px solid #3b82f6;
+  background: #000000;
+}
+
+.editor-item{
+  border: 1px solid #3b82f6;
+  border-bottom: none;
+}
+
+.px-1{
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.d-flex{
+  display: flex;
+}
+
+.justify-content-center {
+  justify-content: center;
+}
+
+.justify-content-left {
+  justify-content: left;
+}
+
+.justify-content-center {
+  justify-content: right;
+}
+
+.align-item-center {
+  align-items: center;
+}
+
+.mx-1{
+  margin: 0 10px;
 }
