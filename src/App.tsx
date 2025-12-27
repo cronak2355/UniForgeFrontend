@@ -10,19 +10,22 @@ function App() {
       id: 0,
       tag: "Tile",
       url: "TestAsset.webp",
-      name: "grass"
+      name: "grass",
+      idx: 0
     },
     {
       id: 1,
       tag: "Tile",
       url: "TestAsset2.webp",
-      name: "dirt"
+      name: "dirt",
+      idx: 0
     },
     {
       id: 2,
       tag: "Tile",
       url: "TestAsset3.webp",
-      name: "water"
+      name: "water",
+      idx: 0
     },
   ]);
   const [currentAsset, SetAsset] = useState<Asset | null>(null);
