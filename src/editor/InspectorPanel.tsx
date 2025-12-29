@@ -1,20 +1,42 @@
-import type { EditorEntity } from "./EditorLayout";
+import type { EditorEntity } from "./EditorState";
 
+type Props = {
+    selectedId: string | null;
+    entities: EditorEntity[];
+};
 
-export function InspectorPanel({ entity }: { entity: EditorEntity | null }) {
+export function InspectorPanel({
+    selectedId,
+    entities,
+}: Props) {
+    if (!selectedId) {
+        return <div className="inspector-empty">No selection</div>;
+    }
+
+    const entity = entities.find((e) => e.id === selectedId);
+
+    if (!entity) {
+        return <div className="inspector-empty">Invalid selection</div>;
+    }
+
     return (
-        <div className="w-72 border-l border-white p-2">
-            <div className="mb-2">Inspector</div>
-            {entity ? (
+        <div className="inspector-content">
+            <div>
+                <strong>ID</strong>
+                <div>{entity.id}</div>
+            </div>
+
+            <div>
+                <strong>Type</strong>
+                <div>{entity.type}</div>
+            </div>
+
+            <div>
+                <strong>Position</strong>
                 <div>
-                    <div>ID: {entity.id}</div>
-                    <div>Name: {entity.name}</div>
-                    <div>X: {entity.x}</div>
-                    <div>Y: {entity.y}</div>
+                    x: {Math.round(entity.x)}, y: {Math.round(entity.y)}
                 </div>
-            ) : (
-                <div>No selection</div>
-            )}
+            </div>
         </div>
     );
 }

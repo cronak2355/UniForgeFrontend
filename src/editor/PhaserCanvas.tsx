@@ -92,6 +92,10 @@ function redrawGrid(scene: Phaser.Scene) {
     gridGfx.strokePath();
   }
 }
+import type { EditorEntity } from "./EditorState";
+
+
+
 class EditorScene extends Phaser.Scene {
 	
     private ready = false;

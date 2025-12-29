@@ -1,22 +1,25 @@
-import type { EditorEntity } from "./EditorLayout";
+import type { EditorEntity } from "./EditorState";
 
+type Props = {
+    entities: EditorEntity[];
+    selectedId: string | null;
+    onSelect: (id: string) => void;
+};
 
 export function HierarchyPanel({
     entities,
     selectedId,
-    onSelect
-}: {
-    entities: EditorEntity[];
-    selectedId: string | null;
-    onSelect: (id: string) => void;
-}) {
+    onSelect,
+}: Props) {
     return (
-        <div className="w-60 border-r border-white p-2">
-            <div className="mb-2">Hierarchy</div>
-            {entities.map(e => (
+        <div className="hierarchy-list">
+            {entities.map((e) => (
                 <div
                     key={e.id}
-                    className={`cursor-pointer ${selectedId === e.id ? "bg-white text-black" : ""}`}
+                    className={
+                        "hierarchy-item" +
+                        (e.id === selectedId ? " selected" : "")
+                    }
                     onClick={() => onSelect(e.id)}
                 >
                     {e.name}
