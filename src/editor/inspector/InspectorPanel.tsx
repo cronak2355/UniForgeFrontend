@@ -11,7 +11,16 @@ import type { EditorEvent } from "../types/Event";
  * - Variables 편집
  * - Events 편집
  */
+type Props = {
+  selectedId: string | null;
+  entities: EditorEntity[];
+};
 
+export function InspectorPanel({
+  selectedId,
+  entities,
+}: Props) {
+  
 export function InspectorPanel({
   entity,
   onUpdateEntity,
