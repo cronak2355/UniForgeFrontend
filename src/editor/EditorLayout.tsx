@@ -5,15 +5,13 @@ import { CameraView } from "./CameraView";
 import { AssetPanel } from "./AssetPanel";
 import { InspectorPanel } from "./InspectorPanel";
 
-const initialScene: SceneState = {
-    entities: [],
-};
+const initialScene: SceneState = { entities: [] };
 
 export function EditorLayout() {
     const [scene, setScene] = useState<SceneState>(initialScene);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const addEntity = (entity: Omit<EditorEntity, "name">) => {
+    const addEntity = (entity: EditorEntity) => {
         setScene((prev) => {
             const sameTypeCount = prev.entities.filter(
                 (e) => e.type === entity.type
@@ -25,29 +23,27 @@ export function EditorLayout() {
                     : `${entity.type} (${sameTypeCount})`;
 
             return {
-                ...prev,
-                entities: [
-                    ...prev.entities,
-                    {
-                        ...entity,
-                        name,
-                    },
-                ],
+                entities: [...prev.entities, { ...entity, name }],
             };
         });
     };
 
+    const moveEntity = (id: string, x: number, y: number) => {
+        setScene((prev) => ({
+            entities: prev.entities.map((e) =>
+                e.id === id ? { ...e, x, y } : e
+            ),
+        }));
+    };
 
     return (
         <div className="editor-root">
-            {/* TopBar */}
             <div className="editor-topbar">
                 <span>file</span>
                 <span>assets</span>
                 <span>edit</span>
             </div>
 
-            {/* Main */}
             <div className="editor-main">
                 <div className="editor-panel">
                     <div className="editor-panel-header">Hierarchy</div>
@@ -61,6 +57,7 @@ export function EditorLayout() {
                 <CameraView
                     entities={scene.entities}
                     onCreateEntity={addEntity}
+                    onMoveEntity={moveEntity}
                 />
 
                 <div className="editor-panel right">
@@ -70,10 +67,8 @@ export function EditorLayout() {
                         entities={scene.entities}
                     />
                 </div>
-
             </div>
 
-            {/* Bottom */}
             <AssetPanel />
         </div>
     );
