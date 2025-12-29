@@ -19,6 +19,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        if (import.meta.env.DEV) {
+            setUser({
+                id: 'dev-user',
+                email: 'dev@uniforge.com',
+                name: 'Dev Tester',
+                profileImage: null,
+            } as unknown as User);
+    
+            setIsLoading(false);
+            return;
+        }
         // 앱 시작 시 현재 사용자 정보 로드
         const loadUser = async () => {
             try {
