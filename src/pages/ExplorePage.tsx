@@ -40,14 +40,54 @@ const ExplorePage = () => {
     ];
 
     const GAMES = [
-        { title: "Neon Racer 2077", author: "CyberDev", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", likes: 1250, players: "5.2k", type: "레이싱" },
-        { title: "Mystic Forest RPG", author: "FantasyWorks", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", likes: 890, players: "1.2k", type: "RPG" },
-        { title: "Space Commander", author: "StarLab", image: "https://images.unsplash.com/photo-1534237710431-e2fc698436d0?auto=format&fit=crop&q=80&w=400", likes: 2100, players: "10k+", type: "전략" },
+        // 액션 (Action)
+        { title: "Neon Racer 2077", author: "CyberDev", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", likes: 1250, players: "5.2k", type: "액션" },
         { title: "Pixel Dungeon", author: "RetroKing", image: "https://images.unsplash.com/photo-1614726365723-49cfae96ac6d?auto=format&fit=crop&q=80&w=400", likes: 1540, players: "3.5k", type: "액션" },
-        { title: "Sky Island", author: "CloudBreaker", image: "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&q=80&w=400", likes: 3200, players: "15k+", type: "어드벤처" },
         { title: "Shadow Ninja", author: "DarkBlade", image: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=400", likes: 670, players: "800+", type: "액션" },
-        { title: "Block Builder", author: "VoxelMaster", image: "https://images.unsplash.com/photo-1574169208507-84376194878a?auto=format&fit=crop&q=80&w=400", likes: 4500, players: "22k+", type: "샌드박스" },
+        { title: "Cyber Slasher", author: "FutureSoft", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", likes: 920, players: "1.2k", type: "액션" },
+        { title: "Gun Master", author: "ShooterPro", image: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=400", likes: 450, players: "300+", type: "액션" },
+
+        // RPG
+        { title: "Mystic Forest RPG", author: "FantasyWorks", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", likes: 890, players: "1.2k", type: "RPG" },
+        { title: "Dragon Slayer", author: "MythicGames", image: "https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?auto=format&fit=crop&q=80&w=400", likes: 2100, players: "5k+", type: "RPG" },
+        { title: "Elden Quest", author: "SoulStudio", image: "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?auto=format&fit=crop&q=80&w=400", likes: 3200, players: "10k+", type: "RPG" },
+        { title: "Pixel Tales", author: "BitStory", image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=400", likes: 540, players: "900+", type: "RPG" },
+        { title: "Kingdom Hearts VR", author: "DisneyFan", image: "https://images.unsplash.com/photo-1627856013091-fdf74c725545?auto=format&fit=crop&q=80&w=400", likes: 1800, players: "3k+", type: "RPG" },
+
+        // 전략 (Strategy)
+        { title: "Space Commander", author: "StarLab", image: "https://images.unsplash.com/photo-1534237710431-e2fc698436d0?auto=format&fit=crop&q=80&w=400", likes: 2100, players: "10k+", type: "전략" },
+        { title: "Tower Defense X", author: "StrategyPro", image: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?auto=format&fit=crop&q=80&w=400", likes: 1200, players: "4.5k", type: "전략" },
+        { title: "Empire Builder", author: "CivMasters", image: "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=400", likes: 850, players: "2k+", type: "전략" },
+        { title: "Chess Master 3000", author: "BoardKing", image: "https://images.unsplash.com/photo-1586165368502-1bad197a6461?auto=format&fit=crop&q=80&w=400", likes: 300, players: "100+", type: "전략" },
+        { title: "Galaxy Wars", author: "SpaceDev", image: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=400", likes: 1500, players: "6k+", type: "전략" },
+
+        // 아케이드 (Arcade)
+        { title: "Block Breaker", author: "RetroFun", image: "https://images.unsplash.com/photo-1551103782-8ab07afd45c1?auto=format&fit=crop&q=80&w=400", likes: 600, players: "1.5k", type: "아케이드" },
+        { title: "Pac-Man 3D", author: "NamcoFan", image: "https://images.unsplash.com/photo-1505356822725-08ad25f3ffe4?auto=format&fit=crop&q=80&w=400", likes: 900, players: "2k+", type: "아케이드" },
+        { title: "Pinball Wizard", author: "BallMaster", image: "https://images.unsplash.com/photo-1585507765055-e7cb2f283d02?auto=format&fit=crop&q=80&w=400", likes: 400, players: "500+", type: "아케이드" },
+        { title: "Tetris Ultimate", author: "BlockLover", image: "https://images.unsplash.com/photo-1605347086577-706b21474ed7?auto=format&fit=crop&q=80&w=400", likes: 1100, players: "3k+", type: "아케이드" },
+        { title: "Space Invaders Reborn", author: "Shooter88", image: "https://images.unsplash.com/photo-1563207153-f403bf289096?auto=format&fit=crop&q=80&w=400", likes: 750, players: "1k+", type: "아케이드" },
+
+        // 시뮬레이션 (Simulation)
+        { title: "City Skylines Mobile", author: "SimCityFan", image: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&q=80&w=400", likes: 1300, players: "4k", type: "시뮬레이션" },
+        { title: "Farming Simulator 2025", author: "FarmLife", image: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&q=80&w=400", likes: 800, players: "2.5k", type: "시뮬레이션" },
+        { title: "Flight Sim Pro", author: "PilotDev", image: "https://images.unsplash.com/photo-1436891624295-923ea2263398?auto=format&fit=crop&q=80&w=400", likes: 1500, players: "3k+", type: "시뮬레이션" },
+        { title: "Chef Life", author: "CookingMama", image: "https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&q=80&w=400", likes: 600, players: "1k+", type: "시뮬레이션" },
+        { title: "Block Builder", author: "VoxelMaster", image: "https://images.unsplash.com/photo-1574169208507-84376194878a?auto=format&fit=crop&q=80&w=400", likes: 4500, players: "22k+", type: "시뮬레이션" },
+
+        // 스포츠 (Sports)
+        { title: "Street Soccer", author: "GoalKicker", image: "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&q=80&w=400", likes: 700, players: "1.8k", type: "스포츠" },
+        { title: "NBA Jam", author: "DunkMaster", image: "https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&q=80&w=400", likes: 1200, players: "3k+", type: "스포츠" },
+        { title: "Golf It", author: "HoleInOne", image: "https://images.unsplash.com/photo-1535131749050-aac1f17e0c0d?auto=format&fit=crop&q=80&w=400", likes: 400, players: "800+", type: "스포츠" },
+        { title: "Tennis World", author: "AceServer", image: "https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&q=80&w=400", likes: 550, players: "1k+", type: "스포츠" },
+        { title: "Skate Park 3D", author: "SkaterBoy", image: "https://images.unsplash.com/photo-1520045864985-a00583299d63?auto=format&fit=crop&q=80&w=400", likes: 900, players: "2.2k", type: "스포츠" },
+
+        // 공포 (Horror)
         { title: "Zombie Survival", author: "UndeadGames", image: "https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&q=80&w=400", likes: 980, players: "2.1k", type: "공포" },
+        { title: "Silent Hill PT", author: "HorrorFan", image: "https://images.unsplash.com/photo-1518780664697-55e3ad937233?auto=format&fit=crop&q=80&w=400", likes: 1500, players: "5k+", type: "공포" },
+        { title: "Dark Woods", author: "CreepySoft", image: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=400", likes: 600, players: "1.2k", type: "공포" },
+        { title: "Ghost Hunter", author: "SpiritSeeker", image: "https://images.unsplash.com/photo-1505672675380-4d2d9529488f?auto=format&fit=crop&q=80&w=400", likes: 450, players: "800+", type: "공포" },
+        { title: "Haunted House", author: "ScareMaster", image: "https://images.unsplash.com/photo-1513205792079-a787332f1430?auto=format&fit=crop&q=80&w=400", likes: 780, players: "1.5k", type: "공포" },
     ];
 
     return (

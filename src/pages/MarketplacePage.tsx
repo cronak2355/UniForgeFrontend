@@ -42,14 +42,37 @@ const MarketplacePage = () => {
     ];
 
     const MARKET_ITEMS = [
-        { title: "Neon City Pack", author: "CyberArt", price: "무료", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "에셋" },
-        { title: "Fantasy Knight", author: "PixelForge", price: "₩15,000", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "캐릭터" },
+        // 3D 에셋
+        { title: "Neon City Pack", author: "CyberArt", price: "무료", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "3D 에셋" },
+        { title: "Low Poly Vehicles", author: "PolyWorks", price: "₩12,000", image: "https://images.unsplash.com/photo-1555620950-c8d030999557?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "3D 에셋" },
+        { title: "Medieval Castle Kit", author: "CastleBuilder", price: "₩25,000", image: "https://images.unsplash.com/photo-1599596446733-ee31cb9f257f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "3D 에셋" },
+        { title: "Modern Furniture", author: "Interiors", price: "₩8,000", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "3D 에셋" },
+        { title: "Sci-Fi Weapons", author: "GunSmith", price: "₩15,000", image: "https://images.unsplash.com/photo-1624638760924-44ed5b07223e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "3D 에셋" },
+
+        // 2D 스프라이트
+        { title: "Fantasy Knight", author: "PixelForge", price: "₩15,000", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "2D 스프라이트" },
+        { title: "Dungeon Tileset", author: "TileMaster", price: "무료", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", rating: 4.4, type: "2D 스프라이트" },
+        { title: "Retro Platformer", author: "RetroGamer", price: "₩10,000", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "2D 스프라이트" },
+        { title: "RPG Icons Pack", author: "IconFactory", price: "₩5,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "2D 스프라이트" },
+        { title: "Pixel Monsters", author: "MonsterMaker", price: "₩8,000", image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "2D 스프라이트" },
+
+        // 오디오
+        { title: "Forest Ambience", author: "SoundScape", price: "₩10,000", image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "오디오" },
+        { title: "Epic Orchestral", author: "ComposerX", price: "₩30,000", image: "https://images.unsplash.com/photo-1507838153414-b4b713384ebd?auto=format&fit=crop&q=80&w=400", rating: 5.0, type: "오디오" },
+        { title: "SFX Bundle", author: "AudioLab", price: "₩20,000", image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "오디오" },
+        { title: "Horror Sounds", author: "ScaryAudio", price: "₩12,000", image: "https://images.unsplash.com/photo-1514320291840-2e0a962daecb?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "오디오" },
+        { title: "Casual Loops", author: "HappyTunes", price: "무료", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "오디오" },
+
+        // VFX
+        { title: "Magic Spells FX", author: "VFXWizard", price: "₩18,000", image: "https://images.unsplash.com/photo-1504910793664-9051fb278a9c?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX" },
+        { title: "Explosion Pack", author: "BoomMaster", price: "₩15,000", image: "https://images.unsplash.com/photo-1496337589254-7e19d01cec44?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "VFX" },
+        { title: "Weather System", author: "NatureFX", price: "₩22,000", image: "https://images.unsplash.com/photo-1515690241747-493238f4674a?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "VFX" },
+        { title: "Sci-Fi Particles", author: "FutureFS", price: "₩14,000", image: "https://images.unsplash.com/photo-1481697943534-ea60b58e6532?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "VFX" },
+        { title: "Water Shaders", author: "LiquidArt", price: "₩10,000", image: "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX" },
+
+        // UI & Template
         { title: "Space Shooter Template", author: "GameDevPro", price: "₩49,900", image: "https://images.unsplash.com/photo-1614726365723-49cfae96ac6d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "템플릿" },
         { title: "Ultimate RPG UI", author: "InterfaceMaster", price: "₩25,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "UI" },
-        { title: "Forest Ambience", author: "SoundScape", price: "₩10,000", image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "오디오" },
-        { title: "Low Poly Vehicles", author: "PolyWorks", price: "₩12,000", image: "https://images.unsplash.com/photo-1555620950-c8d030999557?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "에셋" },
-        { title: "Dungeon Tileset", author: "TileMaster", price: "무료", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", rating: 4.4, type: "에셋" },
-        { title: "Epic Orchestral", author: "ComposerX", price: "₩30,000", image: "https://images.unsplash.com/photo-1507838153414-b4b713384ebd?auto=format&fit=crop&q=80&w=400", rating: 5.0, type: "오디오" },
     ];
 
     return (
