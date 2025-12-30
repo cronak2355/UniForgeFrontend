@@ -18,7 +18,7 @@ export default function EditorLayout() {
 
     const [selectedEntity, setSelectedEntity] = useState<EditorEntity | null>(null);
     //    const [assets, setAssets] = useState<Asset[]>([
-    const [assets, _setAssets] = useState<Asset[]>([
+    const [assets] = useState<Asset[]>([
         {
             id: 0,
             name: "testAsset1",

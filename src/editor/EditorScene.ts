@@ -96,11 +96,11 @@ export class EditorScene extends Phaser.Scene {
     const feedPointer = (clientX: number, clientY: number) => {
       const { x, y, inside } = getCanvasPos(clientX, clientY);
 
-      const p = this.input.activePointer;
-      (p as any).x = x;
-      (p as any).y = y;
+      const p = this.input.activePointer as Phaser.Input.Pointer & { x: number; y: number };
+      p.x = x;
+      p.y = y;
 
-      return { p, inside };
+      return { p: this.input.activePointer, inside };
     };
 
     const onWinPointerDown = (e: PointerEvent) => {
@@ -163,7 +163,7 @@ export class EditorScene extends Phaser.Scene {
       window.removeEventListener("pointerdown", onWinPointerDown);
       window.removeEventListener("pointermove", onWinPointerMove);
       window.removeEventListener("pointerup", onWinPointerUp);
-      window.removeEventListener("wheel", onWinWheel as any);
+      window.removeEventListener("wheel", onWinWheel);
     });
 
     // ✅ (선택) 테스트용 단축키
@@ -232,7 +232,10 @@ export class EditorScene extends Phaser.Scene {
 
   private hitTest(pointer: Phaser.Input.Pointer): Phaser.GameObjects.GameObject[] {
     // hitTestPointer는 setInteractive()된 애들만 잡힘
-    return ((this.input as any).hitTestPointer(pointer) as Phaser.GameObjects.GameObject[]) || [];
+    const inputPlugin = this.input as Phaser.Input.InputPlugin & {
+      hitTestPointer: (pointer: Phaser.Input.Pointer) => Phaser.GameObjects.GameObject[];
+    };
+    return inputPlugin.hitTestPointer(pointer) || [];
   }
 
   /**
@@ -245,10 +248,14 @@ export class EditorScene extends Phaser.Scene {
     const hits = this.hitTest(p);
 
     // 에셋 UI 찾기
-    const assetObj = hits.find((obj) => (obj as any).getData?.("uiType") === "asset");
+    const assetObj = hits.find((obj) => {
+      const gameObj = obj as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
+      return gameObj.getData?.("uiType") === "asset";
+    });
     if (!assetObj) return false;
 
-    const assetId = (assetObj as any).getData?.("assetId");
+    const assetGameObj = assetObj as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
+    const assetId = assetGameObj.getData?.("assetId");
 
     // 엔티티를 현재 커서 월드 위치에 생성
     const world = this.cameras.main.getWorldPoint(p.x, p.y);
@@ -257,7 +264,8 @@ export class EditorScene extends Phaser.Scene {
     ent.setInteractive({ useHandCursor: true });
 
     // id / assetId 저장
-    ent.setData("id", (crypto as any).randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`);
+    const cryptoWithUUID = crypto as Crypto & { randomUUID?: () => string };
+    ent.setData("id", cryptoWithUUID.randomUUID ? cryptoWithUUID.randomUUID() : `${Date.now()}_${Math.random()}`);
     ent.setData("assetId", assetId);
 
     this.entityGroup.add(ent);
@@ -283,16 +291,20 @@ export class EditorScene extends Phaser.Scene {
     let bestDepth = -Infinity;
 
     for (const obj of entities) {
-      const anyObj = obj as any;
-      if (!obj.active || anyObj.visible === false) continue;
+      const gameObj = obj as Phaser.GameObjects.GameObject & {
+        visible?: boolean;
+        getBounds?: () => Phaser.Geom.Rectangle;
+        depth?: number;
+      };
+      if (!obj.active || gameObj.visible === false) continue;
 
       const bounds: Phaser.Geom.Rectangle | null =
-        typeof anyObj.getBounds === "function" ? anyObj.getBounds() : null;
+        typeof gameObj.getBounds === "function" ? gameObj.getBounds() : null;
 
       if (!bounds) continue;
 
       if (bounds.contains(world.x, world.y)) {
-        const d = anyObj.depth ?? 0;
+        const d = gameObj.depth ?? 0;
         if (d >= bestDepth) {
           bestDepth = d;
           best = obj;
