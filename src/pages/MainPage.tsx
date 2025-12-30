@@ -302,7 +302,7 @@ const MainPage = () => {
                         </div>
                     </div>
 
-                    <div className="action-card primary" onClick={() => { }}>
+                    <div className="action-card primary" onClick={() => { navigate('/editor') }}>
                         <div className="action-card-icon">
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
                         </div>
