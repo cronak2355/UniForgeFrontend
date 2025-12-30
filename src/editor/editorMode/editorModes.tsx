@@ -225,3 +225,111 @@ export class DragDropMode extends EditorMode {
         // 드래그 드랍만 할 거면 스크롤 무시
     }
 }
+
+export class EntityEditMode implements EditorMode {
+    private dragging = false;
+    private selected: Phaser.GameObjects.GameObject | null = null;
+
+    private offsetX = 0;
+    private offsetY = 0;
+
+    private snapToGrid = true;
+    enter(scene: Phaser.Scene): void {}
+    exit(scene: Phaser.Scene): void {}
+    update(scene: Phaser.Scene, dt: number): void {}
+    onPointerDown(scene: EditorScene, p: Phaser.Input.Pointer): void {
+        const world = scene.cameras.main.getWorldPoint(p.x, p.y);
+
+        const target = this.pickEntity(scene, world.x, world.y);
+        if (!target) {
+        this.selected = null;
+        this.dragging = false;
+        return;
+        }
+
+        this.selected = target;
+        this.dragging = true;
+
+        const pos = this.getXY(target);
+        this.offsetX = world.x - pos.x;
+        this.offsetY = world.y - pos.y;
+    }
+
+    onPointerMove(scene: EditorScene, p: Phaser.Input.Pointer): void {
+        if (!this.dragging || !this.selected) return;
+
+        const world = scene.cameras.main.getWorldPoint(p.x, p.y);
+        this.setXY(this.selected, world.x - this.offsetX, world.y - this.offsetY);
+    }
+
+    onPointerUp(scene: EditorScene, p: Phaser.Input.Pointer): void {
+        if (!this.selected) return;
+
+        if (this.dragging && this.snapToGrid) {
+            const pos = this.getXY(this.selected);
+            const snapped = this.snapCenterToGrid(pos.x, pos.y, 32);
+            this.setXY(this.selected, snapped.x, snapped.y);
+        }
+
+        this.dragging = false;
+
+        // ✅ 여기서만 React/상태 갱신 콜백 걸면 좋음(드래그 중엔 X)
+        // const id = (this.selected as any).getData?.("id");
+        // scene.onEntityMoved?.(id, (this.selected as any).x, (this.selected as any).y);
+    }
+
+    onScroll(scene: EditorScene, deltaY: number): void {
+        // 엔티티 모드에서는 스크롤을 막고 싶으면 그냥 return
+        // 카메라 줌도 같이 허용하고 싶으면 여기서 카메라 줌 로직 호출
+    }
+
+    // --------- util ---------
+
+    private pickEntity(scene: EditorScene, x: number, y: number): Phaser.GameObjects.GameObject | null {
+        const entities = scene.entityGroup.getChildren() as Phaser.GameObjects.GameObject[];
+        if (!entities.length) return null;
+
+        let best: Phaser.GameObjects.GameObject | null = null;
+        let bestDepth = -Infinity;
+
+        for (const obj of entities) {
+            const anyObj = obj as any;
+            if (!obj.active || anyObj.visible === false) continue;
+
+            const bounds: Phaser.Geom.Rectangle | null =
+                typeof anyObj.getBounds === "function"
+                ? anyObj.getBounds()
+                : (anyObj.width != null && anyObj.height != null)
+                    ? new Phaser.Geom.Rectangle(anyObj.x - anyObj.width * 0.5, anyObj.y - anyObj.height * 0.5, anyObj.width, anyObj.height)
+                    : null;
+
+            if (!bounds) continue;
+
+            if (bounds.contains(x, y)) {
+                const d = anyObj.depth ?? 0;
+                if (d >= bestDepth) {
+                    bestDepth = d;
+                    best = obj;
+                }
+            }
+        }
+        return best;
+    }
+
+    private getXY(obj: Phaser.GameObjects.GameObject): { x: number; y: number } {
+        const anyObj = obj as any;
+        return { x: anyObj.x ?? 0, y: anyObj.y ?? 0 };
+    }
+
+    private setXY(obj: Phaser.GameObjects.GameObject, x: number, y: number): void {
+        const anyObj = obj as any;
+        anyObj.x = x;
+        anyObj.y = y;
+    }
+
+    private snapCenterToGrid(x: number, y: number, grid: number) {
+        const sx = Math.floor(x / grid) * grid + grid / 2;
+        const sy = Math.floor(y / grid) * grid + grid / 2;
+        return { x: sx, y: sy };
+    }
+}
