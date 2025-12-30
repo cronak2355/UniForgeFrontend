@@ -3,17 +3,20 @@ import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
 
 //가장 에디터 모드의 가장 틀이 되는 얘
+//가장 에디터 모드의 가장 틀이 되는 얘
 //모든 에디터 모드를 새로 만들 때는 얘를 상속받아서 만들어야 함.
+/* eslint-disable @typescript-eslint/no-unused-vars */
 export abstract class EditorMode {
-    enter(..._args: any[]) { }
-    exit(..._args: any[]) { }
+    enter(scene: Phaser.Scene) { }
+    exit(scene: Phaser.Scene) { }
 
-    onPointerDown(..._args: any[]) { }
-    onPointerMove(..._args: any[]) { }
-    onPointerUp(..._args: any[]) { }
-    onScroll(..._args: any[]) { }
-    update(..._args: any[]) { }
+    onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    onScroll(scene: Phaser.Scene, deltaY: number) { }
+    update(scene: Phaser.Scene, dt: number) { }
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
 //기본 에디터 모드
 //드래그를 했을 때, 씬 뷰가 움직이도록만 하는 모드임
 //우선 가장 기본적인것만 추가했음 나중에 추가해야하면 알아서 추가 하도록
