@@ -1,11 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
 
 //가장 에디터 모드의 가장 틀이 되는 얘
-//가장 에디터 모드의 가장 틀이 되는 얘
 //모든 에디터 모드를 새로 만들 때는 얘를 상속받아서 만들어야 함.
-/* eslint-disable @typescript-eslint/no-unused-vars */
 export abstract class EditorMode {
     enter(scene: Phaser.Scene) { }
     exit(scene: Phaser.Scene) { }
@@ -16,7 +15,6 @@ export abstract class EditorMode {
     onScroll(scene: Phaser.Scene, deltaY: number) { }
     update(scene: Phaser.Scene, dt: number) { }
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 //기본 에디터 모드
 //드래그를 했을 때, 씬 뷰가 움직이도록만 하는 모드임
 //우선 가장 기본적인것만 추가했음 나중에 추가해야하면 알아서 추가 하도록
@@ -90,7 +88,7 @@ export class TilingMode extends EditorMode {
         worldPoint.y = worldPoint.y / 32;
         this.preview.fill(-1);
         switch (this.curTilingType) {
-            case "":
+            case "": {
                 if (!this.isDrag)
                     return;
                 const x = (worldPoint.x - this.prevX) / 2;
@@ -102,6 +100,7 @@ export class TilingMode extends EditorMode {
                 this.prevX = worldPoint.x;
                 this.prevY = worldPoint.y;
                 break;
+            }
             case "drawing":
                 if (this.isDrag) {
                     this.lastX = Math.floor(worldPoint.x)
