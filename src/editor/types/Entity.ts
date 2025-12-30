@@ -1,5 +1,6 @@
 import type { EditorVariable } from "./Variable";
 import type { EditorEvent } from "./Event";
+
 export type EditorEntity = {
     id: string;
     type: string;
