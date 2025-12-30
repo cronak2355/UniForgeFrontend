@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
@@ -6,13 +5,20 @@ import type { EditorEntity } from "../types/Entity";
 //가장 에디터 모드의 가장 틀이 되는 얘
 //모든 에디터 모드를 새로 만들 때는 얘를 상속받아서 만들어야 함.
 export abstract class EditorMode {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     enter(scene: Phaser.Scene) { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     exit(scene: Phaser.Scene) { }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onScroll(scene: Phaser.Scene, deltaY: number) { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     update(scene: Phaser.Scene, dt: number) { }
 }
 //기본 에디터 모드
