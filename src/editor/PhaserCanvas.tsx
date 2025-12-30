@@ -19,7 +19,10 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
     const sceneRef = useRef<EditorScene | null>(null);
     const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
     const gameRef = useRef<Phaser.Game | null>(null);
-
+    const changeEditorMode = (mode: EditorMode) => {
+        setEditorMode(mode);
+        sceneRef.current?.setEditorMode(mode);
+    }
     useEffect(() => {
         if (!ref.current) return;
         if (gameRef.current) return;
@@ -112,8 +115,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
             return;
         if (selected_asset == null) {
             const cm = new CameraMode()
-            sceneRef.current?.setEditorMode(cm);
-            setEditorMode(cm);
+            changeEditorMode(cm);
         }
         else if (selected_asset?.tag == "Tile") {
             const tm = new TilingMode()
@@ -122,21 +124,18 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
             tm.preview = sceneRef.current.previewlayer;
             const tiling = currentEditorMode as TilingMode;
             tm.curTilingType = tiling.curTilingType;
-            sceneRef.current?.setEditorMode(tm);
-            setEditorMode(tm);
+            changeEditorMode(tm);
         }
     }, [selected_asset, currentEditorMode])
     useEffect(() => {
         if (draggedAsset == null) {
             const cm = new CameraMode()
-            setEditorMode(cm)
-            sceneRef.current?.setEditorMode(cm);
+            changeEditorMode(cm)
             return;
         }
         const mode = new DragDropMode();
         mode.asset = draggedAsset;
-        sceneRef.current?.setEditorMode(mode);
-        setEditorMode(mode);
+        changeEditorMode(mode);
     }, [draggedAsset])
     return (
         <div className="flex-1 p-2">
