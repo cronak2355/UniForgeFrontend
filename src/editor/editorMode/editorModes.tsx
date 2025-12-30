@@ -51,7 +51,7 @@ export class CameraMode extends EditorMode {
         this.prevY = worldPoint.y;
         //일단 비워둠    
     }
-    onPointerUp(_scene: Phaser.Scene, _p: Phaser.Input.Pointer): void {
+    onPointerUp() {
         this.isDrag = false;
         //일단 비워둠 나중에 기능 넣어야 하면 넣기
         this.prevX = 0;
@@ -140,7 +140,7 @@ export class TilingMode extends EditorMode {
                 break;
         }
     }
-    onPointerUp(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
+    onPointerUp() {
         this.isDrag = false;
         this.prevX = 0;
         this.prevY = 0;
@@ -158,11 +158,11 @@ export class DragDropMode extends EditorMode {
     private ghost: Phaser.GameObjects.Image | null = null;
 
     // enter/exit/update는 필요없다 했으니 비워둠
-    enter(_scene: Phaser.Scene) { }
-    exit(_scene: Phaser.Scene) { }
-    update(_scene: Phaser.Scene, _dt: number) { }
+    enter() { }
+    exit() { }
+    update() { }
 
-    onPointerDown(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
+    onPointerDown() {
         // 굳이 할 일 없음. (원하면 여기서 ghost를 미리 만들 수도 있음)
     }
 
@@ -232,7 +232,7 @@ export class DragDropMode extends EditorMode {
         // scene.input.setDefaultCursor('default');
     }
 
-    onScroll(_scene: Phaser.Scene, _deltaY: number) {
+    onScroll() {
         // 드래그 드랍만 할 거면 스크롤 무시
     }
 }
@@ -245,9 +245,9 @@ export class EntityEditMode implements EditorMode {
     private offsetY = 0;
 
     private snapToGrid = true;
-    enter(_scene: Phaser.Scene): void { }
-    exit(_scene: Phaser.Scene): void { }
-    update(_scene: Phaser.Scene, _dt: number): void { }
+    enter() { }
+    exit() { }
+    update() { }
     onPointerDown(scene: EditorScene, p: Phaser.Input.Pointer): void {
         const world = scene.cameras.main.getWorldPoint(p.x, p.y);
 
@@ -273,7 +273,7 @@ export class EntityEditMode implements EditorMode {
         this.setXY(this.selected, world.x - this.offsetX, world.y - this.offsetY);
     }
 
-    onPointerUp(_: EditorScene, __: Phaser.Input.Pointer): void {
+    onPointerUp() {
         if (!this.selected) return;
 
         if (this.dragging && this.snapToGrid) {
@@ -289,7 +289,7 @@ export class EntityEditMode implements EditorMode {
         // scene.onEntityMoved?.(id, (this.selected as any).x, (this.selected as any).y);
     }
 
-    onScroll(_scene: EditorScene, _deltaY: number): void {
+    onScroll(): void {
         // 엔티티 모드에서는 스크롤을 막고 싶으면 그냥 return
         // 카메라 줌도 같이 허용하고 싶으면 여기서 카메라 줌 로직 호출
     }

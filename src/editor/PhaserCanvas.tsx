@@ -135,8 +135,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
             tm.curTilingType = tiling?.curTilingType; // 없을 수도 있으니 옵셔널 체이닝
             changeEditorMode(tm);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected_asset]) // currentEditorMode 의존성 제거, changeEditorMode는 내부 함수라 경고 뜰 수 있어 disable 처리
+    }, [selected_asset]) // currentEditorMode 의존성 제거
 
     useEffect(() => {
         if (draggedAsset == null) {
@@ -147,7 +146,6 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
         const mode = new DragDropMode();
         mode.asset = draggedAsset;
         changeEditorMode(mode);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draggedAsset])
     return (
         <div className="flex-1 p-2">
