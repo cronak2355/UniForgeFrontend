@@ -13,7 +13,7 @@ export class EditorScene extends Phaser.Scene {
     public entityGroup!:Phaser.GameObjects.Group;
     
     onReady!: (scene: EditorScene, callback:() => void) => Promise<void>;
-
+    onSelectEntity?: (entity: EditorEntity) => void;
 
     constructor() {
         super("EditorScene");

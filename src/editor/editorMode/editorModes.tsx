@@ -1,5 +1,7 @@
 import type { Asset } from "../types/Asset";
+import { assetToEntity } from "../utils/assetToEntity"
 import { EditorScene } from "../EditorScene";
+import type { EditorEntity } from "../types/Entity";
 
 //가장 에디터 모드의 가장 틀이 되는 얘
 //모든 에디터 모드를 새로 만들 때는 얘를 상속받아서 만들어야 함.
@@ -208,6 +210,24 @@ export class DragDropMode extends EditorMode {
     created.setInteractive();
     // (선택) EditorScene에 entityGroups 같은 컨테이너가 있으면 거기에 넣기
     const es = scene as EditorScene;
+
+    created.on("pointerdown", () => {
+        console.log("🟢 [DragDropMode] object clicked");
+
+        console.log("asset:", this.asset);
+        const entity: EditorEntity = {
+    
+          id: crypto.randomUUID(),
+          type: this.asset!.tag,
+          name: this.asset!.name,
+          x: created.x,
+          y: created.y,
+          variables: [],
+          events: [],
+        };
+    
+        es.onSelectEntity?.(entity);
+      });
     if (es.entityGroup) es.entityGroup.add(created);
 
     // ✅ ghost 제거
