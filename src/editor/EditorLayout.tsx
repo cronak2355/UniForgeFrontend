@@ -6,6 +6,7 @@ import { AssetPanel } from "./AssetPanel";
 import type { EditorEntity } from "./types/Entity";
 import { CameraView } from "./CameraView";
 import type { Asset } from "./types/Asset";
+import { PhaserCanvas } from "./PhaserCanvas";
 //import { InspectorPanel } from "./InspectorPanel";
 
 const initialScene: SceneState = { entities: [] };
@@ -43,9 +44,17 @@ export default function EditorLayout() {
             url: "placeholder.png",
             idx: -1
         },
+        {
+            id: 4,
+            name: "dragon",
+            tag: "Character",
+            url: "RedDragon.webp",
+            idx: -1
+        },
     ]);
+    const [draggedgAsset, setDraggedgAsset] = useState<Asset | null>(null);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-    const changeSelectedAsset = (asset:Asset) =>
+    const changeSelectedAsset = (asset:Asset | null) =>
     {
         if (asset == selectedAsset)
         {
@@ -53,7 +62,18 @@ export default function EditorLayout() {
             return;
         }
         setSelectedAsset(asset)
-    }   
+    }
+    const changeDraggAsset = (
+    asset: Asset | null,
+    options?: { defer?: boolean }) => {
+        if (options?.defer) {
+            requestAnimationFrame(() => {
+            setDraggedgAsset(asset);
+            });
+        } else {
+            setDraggedgAsset(asset);
+        }
+    };
     const handleUpdateEntity = (updated: EditorEntity) => {
         setEntities(prev =>
             prev.map(e => (e.id === updated.id ? updated : e))
@@ -105,12 +125,12 @@ export default function EditorLayout() {
                         />
                     </div>
 
-                    <CameraView
+                    {/* <CameraView
                         entities={scene.entities}
                         onCreateEntity={addEntity}
                         onMoveEntity={moveEntity}
-                    />
-                    {/* <PhaserCanvas assets={assets} selected_asset={selectedAsset} /> */}
+                    /> */}
+                    <PhaserCanvas assets={assets} selected_asset={selectedAsset} addEntity={addEntity} draggedAsset={draggedgAsset} /> 
 
                     <div className="editor-panel right">
                         <div className="editor-panel-header">Inspector</div>
@@ -120,7 +140,10 @@ export default function EditorLayout() {
                         />
                     </div>
                 </div>
-                 <AssetPanel assets={assets} onChangeValue={setSelectedAsset}/>
+                <AssetPanel 
+                    assets={assets}
+                    changeSelectedAsset={changeSelectedAsset}
+                    changeDraggAsset={changeDraggAsset}/>
             </div>
         </div>
     );

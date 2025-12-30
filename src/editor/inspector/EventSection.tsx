@@ -43,12 +43,6 @@ export function EventSection({
         <div key={e.id} className="event-item">
           <div className="event-row">
             <span className="event-label">Trigger</span>
-
-            /**
-            * Trigger / Action 변경 시
-            * 상위 InspectorPanel로 변경된 이벤트를 전달
-            */
-
             <select
               value={e.trigger}
               onChange={ev =>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
-import {EditorMode, CameraMode, TilingMode} from "./editorMode/editorModes"
+import {EditorMode, CameraMode, TilingMode, DragDropMode} from "./editorMode/editorModes"
 import type { Asset } from "./types/Asset"
 import type { EditorEntity } from "./types/Entity";
 
@@ -9,6 +9,8 @@ let gridGfx: Phaser.GameObjects.Graphics;
 type Props = {
     assets:Asset[];
     selected_asset:Asset | null;
+    addEntity:(entity: EditorEntity) =>void;
+    draggedAsset:Asset | null
 };
 const tileSize = 32;
 function loadImages(scene: Phaser.Scene, assets: Asset[]) {
@@ -98,7 +100,6 @@ function redrawGrid(scene: Phaser.Scene) {
 class EditorScene extends Phaser.Scene {
 	
     private ready = false;
-    private entityGroups!: Phaser.GameObjects.Container;
     private editorMode:EditorMode = new CameraMode();
 	private map!: Phaser.Tilemaps.Tilemap;
   	private tileset!: Phaser.Tilemaps.Tileset;
@@ -119,27 +120,77 @@ class EditorScene extends Phaser.Scene {
         gridGfx = this.add.graphics();
         gridGfx.setDepth(9999); // 항상 위에 보이게 (필요하면)
 		// tilesKey는 "로드한 이미지 키" (예: "tiles")
-		this.entityGroups = this.add.container(0, 0);
 		
-        //마우스 다운
-        this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-            this.editorMode.onPointerDown(this, pointer);
-        });
+        const getCanvasPos = (clientX: number, clientY: number) => {
+        const rect = this.sys.game.canvas.getBoundingClientRect();
 
-        // 2) 마우스 업
-        this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-            this.editorMode.onPointerUp(this, pointer);
-        });
+        // ✅ inside는 "client 좌표"로 rect에 직접 비교 (이게 제일 안 헷갈림)
+        const inside =
+            clientX >= rect.left &&
+            clientX <= rect.right &&
+            clientY >= rect.top &&
+            clientY <= rect.bottom;
+        // ✅ Phaser에 넘길 좌표는 "캔버스 픽셀 좌표"로 변환
+        // rect.width/height는 CSS 픽셀, canvas.width/height는 실제 렌더 픽셀(DPR 반영)
+        const x = (clientX - rect.left) * (this.sys.game.canvas.width / rect.width);
+        const y = (clientY - rect.top) * (this.sys.game.canvas.height / rect.height);
 
-        // 3) 마우스 움직이기
-        this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-            this.editorMode.onPointerMove(this, pointer);
-        });
+        return { x, y, inside, rect };
+        };
 
-        // 4) 휠 줌
-        this.input.on("wheel",(pointer: Phaser.Input.Pointer, _objs: any, _dx: number, dy: number) => {
-            this.editorMode.onScroll(this, dy);
-        });
+        const feedPointer = (clientX: number, clientY: number) => {
+            const { x, y, inside } = getCanvasPos(clientX, clientY);
+
+            // Phaser 캔버스 밖이면 굳이 모드에 안 보내고 싶으면 여기서 막아도 됨
+            // (드래그 중 프리뷰를 캔버스 밖에서 끄고 싶으면 inside 체크 활용)
+            const p = this.input.activePointer;
+
+            // ★ 핵심: activePointer에 좌표를 "주입"
+            // TS 상 readonly일 수 있어서 any 캐스팅
+            (p as any).x = x;
+            (p as any).y = y;
+
+            // world 좌표가 모드에서 필요하면 모드 내부에서 getWorldPoint 쓰면 됨
+            return { p, inside };
+        };
+        const onWinPointerDown = (e: PointerEvent) => {
+            // 캔버스 밖에서 눌린 건 무시하고 싶으면:
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+            
+            if (!inside) return;
+            console.log(this.editorMode)
+            this.editorMode.onPointerDown(this, p);
+        };
+
+        const onWinPointerMove = (e: PointerEvent) => {
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+            // inside 조건을 줄지 말지는 니 UX 선택임.
+            // - inside 체크하면: 캔버스 밖에선 모드 move 안 감
+            // - 체크 안 하면: 캔버스 밖에서도 계속 move 들어감 (드래그 취소 처리 등에 유용)
+            // 여기선 일단 inside 아니면 return 걸어둘게.
+            if (!inside) return;
+
+            this.editorMode.onPointerMove(this, p);
+        };
+
+        const onWinPointerUp = (e: PointerEvent) => {
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+
+            // up은 inside 아니어도 처리하고 싶을 때가 많음(드래그 종료)
+            // 여기선 무조건 보냄
+            console.log("dfdfd")
+            this.editorMode.onPointerUp(this, p);
+        };
+
+        const onWinWheel = (e: WheelEvent) => {
+            const { inside } = getCanvasPos(e.clientX, e.clientY);
+            if (!inside) return;
+
+            // 페이지 스크롤 방지 (passive:false 필수)
+            e.preventDefault();
+
+            this.editorMode.onScroll(this, e.deltaY);
+        };
 		this.onReady(this, () =>{
             this.map = this.make.tilemap({
                 tileWidth: tileSize,
@@ -155,6 +206,18 @@ class EditorScene extends Phaser.Scene {
 			this.baselayer.setDepth(0);
 			this.previewlayer.setDepth(1);
 		});
+        window.addEventListener("pointerdown", onWinPointerDown, {capture: true});
+        window.addEventListener("pointermove", onWinPointerMove, {capture: true});
+        window.addEventListener("pointerup", onWinPointerUp, {capture: true});
+        window.addEventListener("wheel", onWinWheel, { passive: false });
+
+        // 씬 종료/재시작 때 누수 방지
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            window.removeEventListener("pointerdown", onWinPointerDown);
+            window.removeEventListener("pointermove", onWinPointerMove);
+            window.removeEventListener("pointerup", onWinPointerUp);
+            window.removeEventListener("wheel", onWinWheel as any);
+        });
     }
 
     updateEntities(entities: EditorEntity[]) {
@@ -181,7 +244,7 @@ class EditorScene extends Phaser.Scene {
     }
 }
 
-export function PhaserCanvas({ assets, selected_asset }: Props) {
+export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<EditorScene | null>(null);
     const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
@@ -273,8 +336,14 @@ export function PhaserCanvas({ assets, selected_asset }: Props) {
 		//console.log(selected_asset?.tag)
 		//console.log(sceneRef)
 		if (sceneRef.current == null)
-				return;
-		if (selected_asset?.tag == "Tile")
+            return;
+        if (selected_asset == null)
+        {
+            const cm = new CameraMode()
+            sceneRef.current?.setEditorMode(cm);
+            setEditorMode(cm);
+        }
+		else if (selected_asset?.tag == "Tile")
 		{
 			const tm = new TilingMode()
 			tm.tile = selected_asset.idx;
@@ -286,6 +355,20 @@ export function PhaserCanvas({ assets, selected_asset }: Props) {
 			setEditorMode(tm);
 		}
 	}, [selected_asset])
+    useEffect( () =>{
+        console.log("dasfdfad")
+		if (draggedAsset == null)
+        {
+            const cm =new CameraMode()
+            setEditorMode(cm)
+            sceneRef.current?.setEditorMode(cm);    
+            return;
+        }
+        const mode = new DragDropMode();
+        mode.asset = draggedAsset;
+        sceneRef.current?.setEditorMode(mode);
+        setEditorMode(mode);
+	}, [draggedAsset])
     return (
         <div className="flex-1 p-2">
             <div className="border border-white px-2 py-1 mb-2 w-fit d-flex justify-content-left">
@@ -293,29 +376,29 @@ export function PhaserCanvas({ assets, selected_asset }: Props) {
                 { currentEditorMode instanceof TilingMode &&
                     <div className="border border-white mx-1">
 					<button
-					onClick={() => {
-                        const tm = new TilingMode()
-                        tm.curTilingType = currentEditorMode.curTilingType == "drawing" ? "" : "drawing"
-                        tm.tile = selected_asset!.idx;
-                        tm.base = sceneRef.current!.baselayer;
-                        tm.preview = sceneRef.current!.previewlayer;
-                        console.log(sceneRef.current);
-                        sceneRef.current?.setEditorMode(tm);
-                        setEditorMode(tm);
-                    }}
+                        onClick={() => {
+                            const tm = new TilingMode()
+                            tm.curTilingType = currentEditorMode.curTilingType == "drawing" ? "" : "drawing"
+                            tm.tile = selected_asset!.idx;
+                            tm.base = sceneRef.current!.baselayer;
+                            tm.preview = sceneRef.current!.previewlayer;
+                            console.log(sceneRef.current);
+                            sceneRef.current?.setEditorMode(tm);
+                            setEditorMode(tm);
+                        }}
 					>
 					그리기
 					</button>
 					<button
-					onClick={() => {
+					    onClick={() => {
 						const tm = new TilingMode()
-                        tm.curTilingType = currentEditorMode.curTilingType == "erase" ? "" : "erase"
-                        tm.tile = selected_asset!.idx;
-                        tm.base = sceneRef.current!.baselayer;
-                        tm.preview = sceneRef.current!.previewlayer;
+                            tm.curTilingType = currentEditorMode.curTilingType == "erase" ? "" : "erase"
+                            tm.tile = selected_asset!.idx;
+                            tm.base = sceneRef.current!.baselayer;
+                            tm.preview = sceneRef.current!.previewlayer;
 
-                        sceneRef.current?.setEditorMode(tm);
-                        setEditorMode(tm);
+                            sceneRef.current?.setEditorMode(tm);
+                            setEditorMode(tm);
 					}}>
 					지우기
 					</button>
@@ -324,7 +407,11 @@ export function PhaserCanvas({ assets, selected_asset }: Props) {
                 
             </div>
 
-            <div ref={ref} />
+            <div ref={ref} onMouseLeave={ () =>{
+                if (!sceneRef.current)
+                    return;
+                sceneRef.current.previewlayer.fill(-1)
+            }}/>
         </div>
     );
 }

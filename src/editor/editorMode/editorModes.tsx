@@ -158,3 +158,72 @@ export class TilingMode extends EditorMode
         scene.cameras.main.setZoom(zoom)
     }
 }
+
+export class DragDropMode extends EditorMode {
+  public asset: Asset | null = null; // ✅ 외부에서 현재 드래그 에셋 주입
+
+  private ghost: Phaser.GameObjects.Image | null = null;
+
+  // enter/exit/update는 필요없다 했으니 비워둠
+  enter(scene: Phaser.Scene) {}
+  exit(scene: Phaser.Scene) {}
+  update(scene: Phaser.Scene, dt: number) {}
+
+  onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
+    // 굳이 할 일 없음. (원하면 여기서 ghost를 미리 만들 수도 있음)
+  }
+
+  onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
+    console.log("adfaf")
+    if (!this.asset) return;
+
+    const key = this.asset.name;
+    if (!scene.textures.exists(key)) return;
+
+    const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
+
+    // ghost 없으면 생성
+    if (!this.ghost) {
+        this.ghost = scene.add.image(wp.x, wp.y, key);
+        this.ghost.setAlpha(0.6);
+        this.ghost.setDepth(9999);
+        this.ghost.setOrigin(0.5, 0.5);
+    } else {
+        // 있으면 위치만 갱신
+        this.ghost.setPosition(wp.x, wp.y);   
+    }
+  }
+
+  onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
+    console.log("dfdf")
+    if (!this.asset) return;
+
+    const key = this.asset.name;
+    if (!scene.textures.exists(key)) return;
+
+    const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
+
+    // ✅ 실제 생성
+    const created = scene.add.image(wp.x, wp.y, key);
+    created.setDepth(10);
+    created.setOrigin(0.5, 0.5);
+
+    // (선택) EditorScene에 entityGroups 같은 컨테이너가 있으면 거기에 넣기
+    const es = scene as any;
+    if (es.entityGroups) es.entityGroups.add(created);
+
+    // ✅ ghost 제거
+    if (this.ghost) {
+      this.ghost.destroy();
+      this.ghost = null;
+    }
+
+    // (선택) 여기서 모드 종료/asset 비우기 하고 싶으면:
+    // this.asset = null;
+        // scene.input.setDefaultCursor('default');
+    }
+
+    onScroll(scene: Phaser.Scene, deltaY: number) {
+        // 드래그 드랍만 할 거면 스크롤 무시
+    }
+}
