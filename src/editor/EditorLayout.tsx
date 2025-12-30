@@ -3,8 +3,7 @@ import type { SceneState } from "./EditorState";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
-import type { EditorEntity } from "./types/Entity";
-import { CameraView } from "./CameraView";
+import type { EditorEntity } from "./types/Entity"
 import type { Asset } from "./types/Asset";
 import { PhaserCanvas } from "./PhaserCanvas";
 //import { InspectorPanel } from "./InspectorPanel";

@@ -1,100 +1,185 @@
-import Phaser from "phaser";
+import { EditorMode, CameraMode } from "./editorMode/editorModes";
 import type { EditorEntity } from "./types/Entity";
 
-/**
- * EditorScene
- * - 에디터에서 엔티티(스프라이트)를 표시하고 드래그로 이동할 수 있게 하는 Phaser 씬입니다.
- * - 외부에서 엔티티 목록을 전달하면 `syncEntities`로 씬 내 오브젝트를 동기화합니다.
- */
+const tileSize = 32;
 export class EditorScene extends Phaser.Scene {
-    // id -> Phaser Image 맵 (씬 내에 표시된 엔티티들)
-    private sprites = new Map<string, Phaser.GameObjects.Image>();
-
-    // 외부(호스트 컴포넌트)에게 엔티티가 이동되었음을 알리기 위한 콜백
-    public onEntityMove?: (id: string, x: number, y: number) => void;
-
-    // 드래그-드랍용 미리보기(유령) 이미지
-    private ghost?: Phaser.GameObjects.Image;
-
-    // 씬이 준비(생성)되었는지 여부
     private ready = false;
+    private editorMode:EditorMode = new CameraMode();
+    private map!: Phaser.Tilemaps.Tilemap;
+    private tileset!: Phaser.Tilemaps.Tileset;
+    private gridGfx!: Phaser.GameObjects.Graphics;
+    public baselayer!: Phaser.Tilemaps.TilemapLayer;
+    public previewlayer!: Phaser.Tilemaps.TilemapLayer;
+    public entityGroup!:Phaser.GameObjects.Group;
+    
+    onReady!: (scene: EditorScene, callback:() => void) => Promise<void>;
 
-    // 씬이 아직 준비되지 않은 상태에서 전달된 엔티티 목록을 임시로 보관
-    private pendingEntities: EditorEntity[] | null = null;
 
-    // 리소스 미리 로드 (플레이스홀더 이미지)
-    preload() {
-        this.load.image("preview", "placeholder.png");
+    constructor() {
+        super("EditorScene");
     }
 
-    // 씬 생성 시 초기화
+
     create() {
+        //타일 맵 만들기!
         this.ready = true;
+        //this.input.enabled = false;
+        this.gridGfx = this.add.graphics();
+        this.gridGfx.setDepth(9999); // 항상 위에 보이게 (필요하면)
+        // tilesKey는 "로드한 이미지 키" (예: "tiles")
+        this.entityGroup = this.add.group()
+        const getCanvasPos = (clientX: number, clientY: number) => {
+        const rect = this.sys.game.canvas.getBoundingClientRect();
 
-        // 준비되기 전에 전달된 엔티티가 있다면 동기화 처리
-        if (this.pendingEntities) {
-            this.syncEntities(this.pendingEntities);
-            this.pendingEntities = null;
-        }
-    }
+        // ✅ inside는 "client 좌표"로 rect에 직접 비교 (이게 제일 안 헷갈림)
+        const inside =
+            clientX >= rect.left &&
+            clientX <= rect.right &&
+            clientY >= rect.top &&
+            clientY <= rect.bottom;
+        // ✅ Phaser에 넘길 좌표는 "캔버스 픽셀 좌표"로 변환
+        // rect.width/height는 CSS 픽셀, canvas.width/height는 실제 렌더 픽셀(DPR 반영)
+        const x = (clientX - rect.left) * (this.sys.game.canvas.width / rect.width);
+        const y = (clientY - rect.top) * (this.sys.game.canvas.height / rect.height);
 
-    /**
-     * 씬 내 표시된 엔티티를 주어진 목록으로 동기화
-     * - 씬이 준비되지 않았으면 목록을 보관만 함
-     * - 준비되었으면 기존 자식/스프라이트를 제거하고 새로 생성
-     */
-    syncEntities(entities: EditorEntity[]) {
-        if (!this.ready) {
-            this.pendingEntities = entities;
-            return;
-        }
+        return { x, y, inside, rect };
+        };
 
-        // 기존 표시 객체 제거
-        this.children.removeAll();
-        this.sprites.clear();
+        const feedPointer = (clientX: number, clientY: number) => {
+            const { x, y, inside } = getCanvasPos(clientX, clientY);
 
-        // 새 엔티티마다 이미지 생성 및 드래그 가능 설정
-        entities.forEach((e) => {
-            const sprite = this.add.image(e.x, e.y, "preview");
-            sprite.setData("id", e.id);
-            sprite.setInteractive({ draggable: true });
+            // Phaser 캔버스 밖이면 굳이 모드에 안 보내고 싶으면 여기서 막아도 됨
+            // (드래그 중 프리뷰를 캔버스 밖에서 끄고 싶으면 inside 체크 활용)
+            const p = this.input.activePointer;
 
-            // Phaser 입력 시스템에 드래그 가능 대상으로 등록
-            this.input.setDraggable(sprite);
+            // ★ 핵심: activePointer에 좌표를 "주입"
+            // TS 상 readonly일 수 있어서 any 캐스팅
+            (p as any).x = x;
+            (p as any).y = y;
 
-            // 드래그 중에는 위치를 업데이트
-            sprite.on("drag", (_p: any, x: number, y: number) => {
-                sprite.setPosition(x, y);
+            // world 좌표가 모드에서 필요하면 모드 내부에서 getWorldPoint 쓰면 됨
+            return { p, inside };
+        };
+        const onWinPointerDown = (e: PointerEvent) => {
+            // 캔버스 밖에서 눌린 건 무시하고 싶으면:
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+            
+            if (!inside) return;
+            this.editorMode.onPointerDown(this, p);
+        };
+
+        const onWinPointerMove = (e: PointerEvent) => {
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+            // inside 조건을 줄지 말지는 니 UX 선택임.
+            // - inside 체크하면: 캔버스 밖에선 모드 move 안 감
+            // - 체크 안 하면: 캔버스 밖에서도 계속 move 들어감 (드래그 취소 처리 등에 유용)
+            // 여기선 일단 inside 아니면 return 걸어둘게.
+            if (!inside) return;
+
+            this.editorMode.onPointerMove(this, p);
+        };
+
+        const onWinPointerUp = (e: PointerEvent) => {
+            const { p, inside } = feedPointer(e.clientX, e.clientY);
+
+            // up은 inside 아니어도 처리하고 싶을 때가 많음(드래그 종료)
+            // 여기선 무조건 보냄
+            this.editorMode.onPointerUp(this, p);
+        };
+
+        const onWinWheel = (e: WheelEvent) => {
+            const { inside } = getCanvasPos(e.clientX, e.clientY);
+            if (!inside) return;
+
+            // 페이지 스크롤 방지 (passive:false 필수)
+            e.preventDefault();
+
+            this.editorMode.onScroll(this, e.deltaY);
+        };
+        this.onReady(this, () =>{
+            this.map = this.make.tilemap({
+                tileWidth: tileSize,
+                tileHeight: tileSize,
+                width: 200,
+                height: 200,
             });
 
-            // 드래그가 끝나면 외부 콜백으로 새 위치 알림
-            sprite.on("dragend", () => {
-                this.onEntityMove?.(e.id, sprite.x, sprite.y);
-            });
+            this.tileset = this.map.addTilesetImage("tiles", "tiles", tileSize, tileSize)!;
+            //레이어 만들기 (실제로 화면에 그려지는 대상)
+            this.baselayer = this.map.createBlankLayer("base", this.tileset, 0, 0)!;
+            this.previewlayer = this.map.createBlankLayer("preview", this.tileset,0 , 0)!;
+            this.baselayer.setDepth(0);
+            this.previewlayer.setDepth(1);
+        });
+        window.addEventListener("pointerdown", onWinPointerDown, {capture: true});
+        window.addEventListener("pointermove", onWinPointerMove, {capture: true});
+        window.addEventListener("pointerup", onWinPointerUp, {capture: true});
+        window.addEventListener("wheel", onWinWheel, { passive: false });
 
-            this.sprites.set(e.id, sprite);
+        // 씬 종료/재시작 때 누수 방지
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            window.removeEventListener("pointerdown", onWinPointerDown);
+            window.removeEventListener("pointermove", onWinPointerMove);
+            window.removeEventListener("pointerup", onWinPointerUp);
+            window.removeEventListener("wheel", onWinWheel as any);
+        });
+        this.entityGroup.getChildren().forEach(c => {
+            c.on
         });
     }
 
-    /**
-     * 마우스나 드래그 과정에서 위치를 시각적으로 보여주기 위한 유령(ghost) 표시
-     * - 아직 씬이 준비되지 않았다면 무시
-     */
-    showGhost(x: number, y: number) {
+    updateEntities(entities: EditorEntity[]) {
         if (!this.ready) return;
 
-        if (!this.ghost) {
-            this.ghost = this.add.image(x, y, "preview");
-            this.ghost.setAlpha(0.5); // 반투명
-            this.ghost.setScale(0.5); // 작게 표시
-        } else {
-            this.ghost.setPosition(x, y);
-        }
+        this.children.removeAll();
+        entities.forEach(e => {
+            const rect = this.add.rectangle(e.x, e.y, 40, 40, 0xffffff);
+            rect.setData("id", e.id);
+        });
     }
-
-    // 유령 제거
-    hideGhost() {
-        this.ghost?.destroy();
-        this.ghost = undefined;
+    setEditorMode(mode:EditorMode)
+    {
+        this.editorMode = mode;
+    }
+    getEditorMode()
+    {
+        return this.editorMode;
+    }
+    //이 친구는 아예 테스트용도로만 쓰임 나중에 지울 것
+    update()
+    {
+        this.redrawGrid()
+    }
+    //그리드를 그리는 얘
+    redrawGrid() {
+      const cam = this.cameras.main;
+      const view = cam.worldView; // 현재 카메라가 보는 월드 영역
+    
+      // 보이는 영역을 tileSize 경계로 스냅
+      const left = Math.floor(view.x / tileSize) * tileSize;
+      const right = Math.ceil((view.x + view.width) / tileSize) * tileSize;
+      const top = Math.floor(view.y / tileSize) * tileSize;
+      const bottom = Math.ceil((view.y + view.height) / tileSize) * tileSize;
+    
+      this.gridGfx.clear();
+    
+      // 선 스타일 (두께 1, 색은 아무거나)
+      this.gridGfx.lineStyle(1, 0xffffff, 0.15);
+    
+      // 세로선
+      for (let x = left; x <= right; x += tileSize) {
+        this.gridGfx.beginPath();
+        this.gridGfx.moveTo(x, top);
+        this.gridGfx.lineTo(x, bottom);
+        this.gridGfx.strokePath();
+      }
+    
+      // 가로선
+      for (let y = top; y <= bottom; y += tileSize) {
+        this.gridGfx.beginPath();
+        this.gridGfx.moveTo(left, y);
+        this.gridGfx.lineTo(right, y);
+        this.gridGfx.strokePath();
+      }
     }
 }

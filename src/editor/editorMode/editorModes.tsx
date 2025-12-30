@@ -1,5 +1,5 @@
-
 import type { Asset } from "../types/Asset";
+import { EditorScene } from "../EditorScene";
 
 //가장 에디터 모드의 가장 틀이 되는 얘
 //모든 에디터 모드를 새로 만들 때는 얘를 상속받아서 만들어야 함.
@@ -174,7 +174,6 @@ export class DragDropMode extends EditorMode {
   }
 
   onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
-    console.log("adfaf")
     if (!this.asset) return;
 
     const key = this.asset.name;
@@ -195,7 +194,6 @@ export class DragDropMode extends EditorMode {
   }
 
   onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
-    console.log("dfdf")
     if (!this.asset) return;
 
     const key = this.asset.name;
@@ -207,10 +205,10 @@ export class DragDropMode extends EditorMode {
     const created = scene.add.image(wp.x, wp.y, key);
     created.setDepth(10);
     created.setOrigin(0.5, 0.5);
-
+    created.setInteractive();
     // (선택) EditorScene에 entityGroups 같은 컨테이너가 있으면 거기에 넣기
-    const es = scene as any;
-    if (es.entityGroups) es.entityGroups.add(created);
+    const es = scene as EditorScene;
+    if (es.entityGroup) es.entityGroup.add(created);
 
     // ✅ ghost 제거
     if (this.ghost) {
