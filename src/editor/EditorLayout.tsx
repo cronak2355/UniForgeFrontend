@@ -53,21 +53,19 @@ export default function EditorLayout() {
     ]);
     const [draggedgAsset, setDraggedgAsset] = useState<Asset | null>(null);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-    const changeSelectedAsset = (asset:Asset | null) =>
-    {
-        if (asset == selectedAsset)
-        {
+    const changeSelectedAsset = (asset: Asset | null) => {
+        if (asset == selectedAsset) {
             setSelectedAsset(null)
             return;
         }
         setSelectedAsset(asset)
     }
     const changeDraggAsset = (
-    asset: Asset | null,
-    options?: { defer?: boolean }) => {
+        asset: Asset | null,
+        options?: { defer?: boolean }) => {
         if (options?.defer) {
             requestAnimationFrame(() => {
-            setDraggedgAsset(asset);
+                setDraggedgAsset(asset);
             });
         } else {
             setDraggedgAsset(asset);
@@ -129,7 +127,15 @@ export default function EditorLayout() {
                         onCreateEntity={addEntity}
                         onMoveEntity={moveEntity}
                     /> */}
-                    <PhaserCanvas assets={assets} selected_asset={selectedAsset} addEntity={addEntity} draggedAsset={draggedgAsset} /> 
+                    <PhaserCanvas
+                        assets={assets}
+                        selected_asset={selectedAsset}
+                        draggedAsset={draggedgAsset}
+                        addEntity={(entity) => {
+                            console.log("🟣 [EditorLayout] selected entity:", entity);
+                            setSelectedEntity(entity);
+                        }}
+                    />
 
                     <div className="editor-panel right">
                         <div className="editor-panel-header">Inspector</div>
@@ -139,10 +145,10 @@ export default function EditorLayout() {
                         />
                     </div>
                 </div>
-                <AssetPanel 
+                <AssetPanel
                     assets={assets}
                     changeSelectedAsset={changeSelectedAsset}
-                    changeDraggAsset={changeDraggAsset}/>
+                    changeDraggAsset={changeDraggAsset} />
             </div>
         </div>
     );

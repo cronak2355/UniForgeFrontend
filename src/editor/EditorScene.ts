@@ -5,6 +5,7 @@ import type { EditorEntity } from "./types/Entity";
 const tileSize = 32;
 
 export class EditorScene extends Phaser.Scene {
+
   private ready = false;
   private editorMode: EditorMode = new CameraMode();
 
@@ -22,7 +23,7 @@ export class EditorScene extends Phaser.Scene {
   // onEntityMoved?: (id: string, x: number, y: number) => void;
 
   onReady!: (scene: EditorScene, callback: () => void) => Promise<void>;
-
+  onSelectEntity?: (entity: EditorEntity) => void;
   constructor() {
     super("EditorScene");
   }
