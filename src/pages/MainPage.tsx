@@ -18,7 +18,7 @@ const MainPage = () => {
             setTitleWord(titleWords[index]);
         }, 2500);
         return () => clearInterval(interval);
-    }, []);
+    }, [titleWords]);
 
     // 더미 데이터: 인기 게임
     const POPULAR_GAMES = [
@@ -302,7 +302,7 @@ const MainPage = () => {
                         </div>
                     </div>
 
-                    <div className="action-card primary" onClick={() => { }}>
+                    <div className="action-card primary" onClick={() => { navigate('/editor') }}>
                         <div className="action-card-icon">
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
                         </div>

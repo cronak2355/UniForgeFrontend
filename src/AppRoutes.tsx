@@ -9,6 +9,8 @@ import ExplorePage from './pages/ExplorePage';
 import LibraryPage from './pages/LibraryPage';
 import Loading from './components/common/Loading';
 import { useAuth } from './contexts/AuthContext';
+import "./App.css";
+import EditorLayout from "./editor/EditorLayout";
 
 function AppRoutes() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -27,6 +29,7 @@ function AppRoutes() {
             <Route path="/library" element={isAuthenticated ? <LibraryPage /> : <Navigate to="/auth" replace />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/oauth/callback" element={<OAuthCallback />} />
+            <Route path="/editor" element={isAuthenticated ? <EditorLayout/> : <Navigate to="/auth" replace/>} />
         </Routes>
     );
 }

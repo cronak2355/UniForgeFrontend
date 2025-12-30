@@ -7,8 +7,9 @@ const MarketplacePage = () => {
     const navigate = useNavigate();
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [selectedCategory, setSelectedCategory] = useState("추천");
-
+    const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+    const [selectedType, setSelectedType] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState("전체");
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -30,50 +31,71 @@ const MarketplacePage = () => {
         { id: "급상승", icon: "fa-solid fa-chart-line" },
         { id: "신규", icon: "fa-solid fa-sparkles" },
         { type: "divider" },
-        { id: "액션", icon: "fa-solid fa-khanda" },
-        { id: "RPG", icon: "fa-solid fa-shield-halved" },
-        { id: "전략", icon: "fa-solid fa-chess" },
-        { id: "퍼즐", icon: "fa-solid fa-puzzle-piece" },
+        { kind: "genre", id: "액션", icon: "fa-solid fa-khanda" },
+        { kind: "genre", id: "RPG", icon: "fa-solid fa-shield-halved" },
+        { kind: "genre", id: "전략", icon: "fa-solid fa-chess" },
+        { kind: "genre", id: "퍼즐", icon: "fa-solid fa-puzzle-piece" },
         { type: "divider" },
-        { id: "3D 에셋", icon: "fa-solid fa-cube" },
-        { id: "2D 스프라이트", icon: "fa-solid fa-image" },
-        { id: "오디오", icon: "fa-solid fa-music" },
-        { id: "VFX", icon: "fa-solid fa-wand-magic-sparkles" }
+        { kind: "type", id: "3D 에셋", icon: "fa-solid fa-cube" },
+        { kind: "type", id: "2D 스프라이트", icon: "fa-solid fa-image" },
+        { kind: "type", id: "오디오", icon: "fa-solid fa-music" },
+        { kind: "type", id: "VFX", icon: "fa-solid fa-wand-magic-sparkles" },
     ];
 
     const MARKET_ITEMS = [
         // 3D 에셋
-        { title: "Neon City Pack", author: "CyberArt", price: "무료", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "3D 에셋" },
-        { title: "Low Poly Vehicles", author: "PolyWorks", price: "₩12,000", image: "https://images.unsplash.com/photo-1555620950-c8d030999557?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "3D 에셋" },
-        { title: "Medieval Castle Kit", author: "CastleBuilder", price: "₩25,000", image: "https://images.unsplash.com/photo-1599596446733-ee31cb9f257f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "3D 에셋" },
-        { title: "Modern Furniture", author: "Interiors", price: "₩8,000", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "3D 에셋" },
-        { title: "Sci-Fi Weapons", author: "GunSmith", price: "₩15,000", image: "https://images.unsplash.com/photo-1624638760924-44ed5b07223e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "3D 에셋" },
+        { title: "Neon City Pack", author: "CyberArt", price: "무료", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "3D 에셋", genre: "액션" },
+        { title: "Low Poly Vehicles", author: "PolyWorks", price: "₩12,000", image: "https://images.unsplash.com/photo-1555620950-c8d030999557?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "3D 에셋", genre: "레이싱" },
+        { title: "Medieval Castle Kit", author: "CastleBuilder", price: "₩25,000", image: "https://images.unsplash.com/photo-1599596446733-ee31cb9f257f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "3D 에셋", genre: "RPG" },
+        { title: "Modern Furniture", author: "Interiors", price: "₩8,000", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "3D 에셋", genre: "시뮬레이션" },
+        { title: "Sci-Fi Weapons", author: "GunSmith", price: "₩15,000", image: "https://images.unsplash.com/photo-1624638760924-44ed5b07223e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "3D 에셋", genre: "액션" },
 
         // 2D 스프라이트
-        { title: "Fantasy Knight", author: "PixelForge", price: "₩15,000", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "2D 스프라이트" },
-        { title: "Dungeon Tileset", author: "TileMaster", price: "무료", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", rating: 4.4, type: "2D 스프라이트" },
-        { title: "Retro Platformer", author: "RetroGamer", price: "₩10,000", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "2D 스프라이트" },
-        { title: "RPG Icons Pack", author: "IconFactory", price: "₩5,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "2D 스프라이트" },
-        { title: "Pixel Monsters", author: "MonsterMaker", price: "₩8,000", image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "2D 스프라이트" },
+        { title: "Fantasy Knight", author: "PixelForge", price: "₩15,000", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "2D 스프라이트", genre: "RPG" },
+        { title: "Dungeon Tileset", author: "TileMaster", price: "무료", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", rating: 4.4, type: "2D 스프라이트", genre: "RPG" },
+        { title: "Retro Platformer", author: "RetroGamer", price: "₩10,000", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "2D 스프라이트", genre: "액션" },
+        { title: "RPG Icons Pack", author: "IconFactory", price: "₩5,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "2D 스프라이트", genre: "RPG" },
+        { title: "Pixel Monsters", author: "MonsterMaker", price: "₩8,000", image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "2D 스프라이트", genre: "RPG" },
 
         // 오디오
-        { title: "Forest Ambience", author: "SoundScape", price: "₩10,000", image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "오디오" },
-        { title: "Epic Orchestral", author: "ComposerX", price: "₩30,000", image: "https://images.unsplash.com/photo-1507838153414-b4b713384ebd?auto=format&fit=crop&q=80&w=400", rating: 5.0, type: "오디오" },
-        { title: "SFX Bundle", author: "AudioLab", price: "₩20,000", image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "오디오" },
-        { title: "Horror Sounds", author: "ScaryAudio", price: "₩12,000", image: "https://images.unsplash.com/photo-1514320291840-2e0a962daecb?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "오디오" },
-        { title: "Casual Loops", author: "HappyTunes", price: "무료", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "오디오" },
+        { title: "Forest Ambience", author: "SoundScape", price: "₩10,000", image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "오디오", genre: "시뮬레이션" },
+        { title: "Epic Orchestral", author: "ComposerX", price: "₩30,000", image: "https://images.unsplash.com/photo-1507838153414-b4b713384ebd?auto=format&fit=crop&q=80&w=400", rating: 5.0, type: "오디오", genre: "RPG" },
+        { title: "SFX Bundle", author: "AudioLab", price: "₩20,000", image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "오디오", genre: "액션" },
+        { title: "Horror Sounds", author: "ScaryAudio", price: "₩12,000", image: "https://images.unsplash.com/photo-1514320291840-2e0a962daecb?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "오디오", genre: "공포" },
+        { title: "Casual Loops", author: "HappyTunes", price: "무료", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "오디오", genre: "퍼즐" },
 
         // VFX
-        { title: "Magic Spells FX", author: "VFXWizard", price: "₩18,000", image: "https://images.unsplash.com/photo-1504910793664-9051fb278a9c?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX" },
-        { title: "Explosion Pack", author: "BoomMaster", price: "₩15,000", image: "https://images.unsplash.com/photo-1496337589254-7e19d01cec44?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "VFX" },
-        { title: "Weather System", author: "NatureFX", price: "₩22,000", image: "https://images.unsplash.com/photo-1515690241747-493238f4674a?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "VFX" },
-        { title: "Sci-Fi Particles", author: "FutureFS", price: "₩14,000", image: "https://images.unsplash.com/photo-1481697943534-ea60b58e6532?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "VFX" },
-        { title: "Water Shaders", author: "LiquidArt", price: "₩10,000", image: "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX" },
+        { title: "Magic Spells FX", author: "VFXWizard", price: "₩18,000", image: "https://images.unsplash.com/photo-1504910793664-9051fb278a9c?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX", genre: "RPG" },
+        { title: "Explosion Pack", author: "BoomMaster", price: "₩15,000", image: "https://images.unsplash.com/photo-1496337589254-7e19d01cec44?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "VFX", genre: "액션" },
+        { title: "Weather System", author: "NatureFX", price: "₩22,000", image: "https://images.unsplash.com/photo-1515690241747-493238f4674a?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "VFX", genre: "시뮬레이션" },
+        { title: "Sci-Fi Particles", author: "FutureFS", price: "₩14,000", image: "https://images.unsplash.com/photo-1481697943534-ea60b58e6532?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "VFX", genre: "전략" },
+        { title: "Water Shaders", author: "LiquidArt", price: "₩10,000", image: "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX", genre: "퍼즐" },
 
         // UI & Template
         { title: "Space Shooter Template", author: "GameDevPro", price: "₩49,900", image: "https://images.unsplash.com/photo-1614726365723-49cfae96ac6d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "템플릿" },
         { title: "Ultimate RPG UI", author: "InterfaceMaster", price: "₩25,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "UI" },
     ];
+    const filteredItems = MARKET_ITEMS.filter(item => {
+        // 1️⃣ 특수 카테고리
+        if (selectedCategory === "추천") return true;
+        if (selectedCategory === "전체") {
+            // genre/type 필터는 계속 적용
+        }
+        if (selectedCategory === "급상승") {
+            if (item.rating < 4.7) return false;
+        }
+        if (selectedCategory === "신규") {
+            return true; // 나중에 createdAt으로 교체
+        }
+
+        // 2️⃣ 장르
+        if (selectedGenre && item.genre !== selectedGenre) return false;
+
+        // 3️⃣ 타입
+        if (selectedType && item.type !== selectedType) return false;
+
+        return true;
+    });
 
     return (
         <div style={{
@@ -207,23 +229,48 @@ const MarketplacePage = () => {
                     overflowY: 'auto'
                 }}>
                     <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {CATEGORIES.map((cat, index) => (
-                            cat.type === 'divider' ? (
-                                <div key={index} style={{ height: '1px', backgroundColor: '#222', margin: '10px 0' }}></div>
-                            ) : (
+                        {CATEGORIES.map((cat, index) => {
+                            if (cat.type === 'divider') {
+                                return (
+                                    <div
+                                        key={index}
+                                        style={{ height: '1px', backgroundColor: '#222', margin: '10px 0' }}
+                                    />
+                                );
+                            }
+
+                            // ✅ 여기!!! (cat을 쓸 수 있는 범위)
+                            const isActive =
+                                (!cat.kind && selectedCategory === cat.id) ||
+                                (cat.kind === "genre" && selectedGenre === cat.id) ||
+                                (cat.kind === "type" && selectedType === cat.id);
+
+                            return (
                                 <button
                                     key={cat.id}
-                                    onClick={() => setSelectedCategory(cat.id!)}
+                                    onClick={() => {
+                                        if (cat.kind === "genre") {
+                                            setSelectedGenre(cat.id!);
+                                            setSelectedCategory("전체");
+                                        } else if (cat.kind === "type") {
+                                            setSelectedType(cat.id!);
+                                            setSelectedCategory("전체");
+                                        } else {
+                                            setSelectedCategory(cat.id!);
+                                            setSelectedGenre(null);
+                                            setSelectedType(null);
+                                        }
+                                    }}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '12px',
                                         padding: '10px 16px',
-                                        backgroundColor: selectedCategory === cat.id ? '#1a1a1a' : 'transparent',
+                                        backgroundColor: isActive ? '#1a1a1a' : 'transparent',
                                         border: '1px solid',
-                                        borderColor: selectedCategory === cat.id ? '#333' : 'transparent',
+                                        borderColor: isActive ? '#333' : 'transparent',
                                         borderRadius: '8px',
-                                        color: selectedCategory === cat.id ? 'white' : '#888',
+                                        color: isActive ? 'white' : '#888',
                                         fontSize: '0.95rem',
                                         cursor: 'pointer',
                                         textAlign: 'left',
@@ -231,23 +278,23 @@ const MarketplacePage = () => {
                                         width: '100%'
                                     }}
                                     onMouseEnter={e => {
-                                        if (selectedCategory !== cat.id) {
+                                        if (!isActive) {
                                             e.currentTarget.style.backgroundColor = '#111';
                                             e.currentTarget.style.color = '#ccc';
                                         }
                                     }}
                                     onMouseLeave={e => {
-                                        if (selectedCategory !== cat.id) {
+                                        if (!isActive) {
                                             e.currentTarget.style.backgroundColor = 'transparent';
                                             e.currentTarget.style.color = '#888';
                                         }
                                     }}
                                 >
-                                    <i className={cat.icon} style={{ width: '20px', textAlign: 'center' }}></i>
+                                    <i className={cat.icon} style={{ width: '20px', textAlign: 'center' }} />
                                     <span>{cat.id}</span>
                                 </button>
-                            )
-                        ))}
+                            );
+                        })}
                     </nav>
                 </aside>
 
@@ -321,7 +368,7 @@ const MarketplacePage = () => {
                         gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                         gap: '24px'
                     }}>
-                        {MARKET_ITEMS.map((item, index) => (
+                        {filteredItems.map((item, index) => (
                             <div
                                 key={index}
                                 style={{
