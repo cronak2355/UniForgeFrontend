@@ -297,21 +297,32 @@ export class EntityEditMode implements EditorMode {
         let best: Phaser.GameObjects.GameObject | null = null;
         let bestDepth = -Infinity;
 
+        // 필요한 속성 정의
+        type TargetObj = Phaser.GameObjects.GameObject & {
+            visible?: boolean;
+            width?: number;
+            height?: number;
+            x?: number;
+            y?: number;
+            depth?: number;
+            getBounds?: () => Phaser.Geom.Rectangle;
+        };
+
         for (const obj of entities) {
-            const anyObj = obj as any;
-            if (!obj.active || anyObj.visible === false) continue;
+            const target = obj as unknown as TargetObj;
+            if (!obj.active || target.visible === false) continue;
 
             const bounds: Phaser.Geom.Rectangle | null =
-                typeof anyObj.getBounds === "function"
-                    ? anyObj.getBounds()
-                    : (anyObj.width != null && anyObj.height != null)
-                        ? new Phaser.Geom.Rectangle(anyObj.x - anyObj.width * 0.5, anyObj.y - anyObj.height * 0.5, anyObj.width, anyObj.height)
+                typeof target.getBounds === "function"
+                    ? target.getBounds()
+                    : (target.width != null && target.height != null && target.x != null && target.y != null)
+                        ? new Phaser.Geom.Rectangle(target.x - target.width * 0.5, target.y - target.height * 0.5, target.width, target.height)
                         : null;
 
             if (!bounds) continue;
 
             if (bounds.contains(x, y)) {
-                const d = anyObj.depth ?? 0;
+                const d = target.depth ?? 0;
                 if (d >= bestDepth) {
                     bestDepth = d;
                     best = obj;
@@ -322,14 +333,14 @@ export class EntityEditMode implements EditorMode {
     }
 
     private getXY(obj: Phaser.GameObjects.GameObject): { x: number; y: number } {
-        const anyObj = obj as any;
-        return { x: anyObj.x ?? 0, y: anyObj.y ?? 0 };
+        const t = obj as unknown as Phaser.GameObjects.Components.Transform;
+        return { x: t.x ?? 0, y: t.y ?? 0 };
     }
 
     private setXY(obj: Phaser.GameObjects.GameObject, x: number, y: number): void {
-        const anyObj = obj as any;
-        anyObj.x = x;
-        anyObj.y = y;
+        const t = obj as unknown as Phaser.GameObjects.Components.Transform;
+        t.x = x;
+        t.y = y;
     }
 
     private snapCenterToGrid(x: number, y: number, grid: number) {
