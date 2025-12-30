@@ -265,7 +265,7 @@ export class EntityEditMode implements EditorMode {
         this.setXY(this.selected, world.x - this.offsetX, world.y - this.offsetY);
     }
 
-    onPointerUp(scene: EditorScene, p: Phaser.Input.Pointer): void {
+    onPointerUp(_: EditorScene, __: Phaser.Input.Pointer): void {
         if (!this.selected) return;
 
         if (this.dragging && this.snapToGrid) {
