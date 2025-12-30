@@ -2,6 +2,7 @@ import { VariableSection } from "./VariableSection";
 import type { EditorEntity } from "../types/Entity";
 import { EventSection } from "./EventSection";
 import type { EditorEvent } from "../types/Event";
+import { InspectorScroll } from "./InspectorScroll";
 
 /**
  * InspectorPanel
@@ -79,12 +80,9 @@ export function InspectorPanel({
         </div>
       </section>
 
-      {/* VARIABLES */}
-      <div className="inspector-scroll">
+      {/* VARIABLES & EVENTS */}
+      <InspectorScroll>
         <section className="inspector-section">
-          {/* 변수 목록과 추가/수정 핸들러 전달
-              - onAdd: 새 변수를 기본값으로 추가
-              - onUpdate: 특정 변수를 업데이트 */}
           <VariableSection
             variables={entity.variables}
             onAdd={() => {
@@ -112,20 +110,14 @@ export function InspectorPanel({
           />
         </section>
 
-        {/* EVENTS */}
         <section className="inspector-section opacity-50">
-          {/* 이벤트 섹션
-              - onAdd: 새로운 이벤트 추가 (handleAddEvent)
-              - onUpdate: 이벤트 업데이트 처리 (handleUpdateEvent)
-              - 현재 섹션은 `opacity-50`로 시각적으로 구분 */}
-          <div className="inspector-section-title"></div>
           <EventSection
             events={entity.events}
             onAdd={handleAddEvent}
             onUpdate={handleUpdateEvent}
           />
         </section>
-      </div>
+      </InspectorScroll>
     </div>
   );
 }

@@ -141,7 +141,10 @@ export default function EditorLayout() {
                         <div className="editor-panel-header">Inspector</div>
                         <InspectorPanel
                             entity={selectedEntity}
-                            onUpdateEntity={handleUpdateEntity}
+                            onUpdateEntity={(updatedEntity) => {
+                                console.log("UPDATED ENTITY", updatedEntity);
+                                setSelectedEntity(updatedEntity);
+                              }}
                         />
                     </div>
                 </div>
