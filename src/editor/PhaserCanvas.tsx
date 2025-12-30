@@ -18,7 +18,14 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
     const ref = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<EditorScene | null>(null);
     const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
+    const modeRef = useRef<EditorMode>(currentEditorMode);
     const gameRef = useRef<Phaser.Game | null>(null);
+
+    // modeRef 동기화
+    useEffect(() => {
+        modeRef.current = currentEditorMode;
+    }, [currentEditorMode]);
+
     const changeEditorMode = (mode: EditorMode) => {
         setEditorMode(mode);
         sceneRef.current?.setEditorMode(mode);
@@ -122,11 +129,15 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
             tm.tile = selected_asset.idx;
             tm.base = sceneRef.current.baselayer;
             tm.preview = sceneRef.current.previewlayer;
-            const tiling = currentEditorMode as TilingMode;
-            tm.curTilingType = tiling.curTilingType;
+
+            // ref를 통해 현재 모드 접근 (의존성 루프 방지)
+            const tiling = modeRef.current as TilingMode;
+            tm.curTilingType = tiling?.curTilingType; // 없을 수도 있으니 옵셔널 체이닝
             changeEditorMode(tm);
         }
-    }, [selected_asset, currentEditorMode])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected_asset]) // currentEditorMode 의존성 제거, changeEditorMode는 내부 함수라 경고 뜰 수 있어 disable 처리
+
     useEffect(() => {
         if (draggedAsset == null) {
             const cm = new CameraMode()
@@ -136,6 +147,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
         const mode = new DragDropMode();
         mode.asset = draggedAsset;
         changeEditorMode(mode);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draggedAsset])
     return (
         <div className="flex-1 p-2">
