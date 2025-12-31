@@ -10,7 +10,7 @@ export interface RGBA {
   a: number;
 }
 
-export type PixelSize = 32 | 64 | 128;
+export type PixelSize = 128 | 256 | 512;
 
 export class PixelEngine {
   private workCanvas: HTMLCanvasElement;
@@ -21,7 +21,7 @@ export class PixelEngine {
   private historyManager: HistoryManager;
   private frameManager: FrameManager;
 
-  constructor(canvas: HTMLCanvasElement, resolution: PixelSize = 64, maxHistory = 50) {
+  constructor(canvas: HTMLCanvasElement, resolution: PixelSize = 128, maxHistory = 50) {
     this.resolution = resolution;
     this.viewCanvas = canvas;
     this.historyManager = new HistoryManager(maxHistory);

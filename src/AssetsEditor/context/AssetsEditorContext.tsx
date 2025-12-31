@@ -80,7 +80,10 @@ interface AssetsEditorContextType {
   
   // AI Image
   loadAIImage: (blob: Blob) => Promise<void>;
+  applyImageData: (imageData: ImageData) => void;
+  getWorkCanvas: () => HTMLCanvasElement | null;
   isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
   
   // Export
   downloadWebP: (filename: string) => Promise<void>;
@@ -100,7 +103,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   
   const [currentTool, setCurrentTool] = useState<Tool>('brush');
   const [currentColor, setCurrentColor] = useState<RGBA>({ r: 255, g: 255, b: 255, a: 255 });
-  const [pixelSize, setPixelSizeState] = useState<PixelSize>(64);
+  const [pixelSize, setPixelSizeState] = useState<PixelSize>(128);
   const [zoom, setZoomState] = useState(8);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -346,6 +349,27 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [pixelSize, updateHistoryState, syncFrameState]);
 
+  const applyImageData = useCallback((imageData: ImageData) => {
+    if (!engineRef.current) return;
+    engineRef.current.applyAIImage(imageData);
+    updateHistoryState();
+    syncFrameState();
+  }, [updateHistoryState, syncFrameState]);
+
+  const getWorkCanvas = useCallback((): HTMLCanvasElement | null => {
+    if (!engineRef.current) return null;
+    // 현재 프레임의 캔버스 스냅샷 생성
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = pixelSize;
+    tempCanvas.height = pixelSize;
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx || !canvasRef.current) return null;
+    
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(canvasRef.current, 0, 0, pixelSize, pixelSize);
+    return tempCanvas;
+  }, [pixelSize]);
+
   // ==================== Export ====================
 
   const downloadWebP = useCallback(async (filename: string) => {
@@ -426,7 +450,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         fps,
         setFps,
         loadAIImage,
+        applyImageData,
+        getWorkCanvas,
         isLoading,
+        setIsLoading,
         downloadWebP,
         saveToLibrary,
         assets,

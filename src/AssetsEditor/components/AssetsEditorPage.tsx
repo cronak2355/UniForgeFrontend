@@ -65,7 +65,7 @@ function EditorContent() {
         <LeftToolbar />
 
         {/* Center: Canvas */}
-        <div className="flex-1 flex items-center justify-center bg-neutral-900 overflow-hidden">
+        <div className="flex-1 relative bg-neutral-900 overflow-hidden">
           <Canvas />
         </div>
 

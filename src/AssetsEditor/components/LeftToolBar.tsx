@@ -39,7 +39,7 @@ export function LeftToolbar() {
 
   const tools = [
     { id: 'brush', icon: '✏️', label: 'Pen (P)' },
-    { id: 'eraser', icon: '⬜', label: 'Eraser (E)' },
+    { id: 'eraser', icon: '⌫', label: 'Eraser (E)' },
     { id: 'eyedropper', icon: '💧', label: 'Picker (O)' },
     { id: 'fill', icon: '🪣', label: 'Fill (B)' },
   ] as const;
@@ -154,7 +154,7 @@ export function LeftToolbar() {
       <div className="p-3 border-b border-neutral-800">
         <div className="text-xs text-neutral-500 mb-2">Canvas</div>
         <div className="flex gap-1">
-          {([32, 64, 128] as const).map((size) => (
+          {([128, 256, 512] as const).map((size) => (
             <button
               key={size}
               onClick={() => setPixelSize(size)}
@@ -228,7 +228,7 @@ export function LeftToolbar() {
       </div>
 
       {/* Color */}
-      <div className="p-3 flex-1 overflow-hidden">
+      <div className="p-3 border-b border-neutral-800">
         <div className="text-xs text-neutral-500 mb-2">Color</div>
         
         {/* Current Color Display */}
@@ -262,6 +262,55 @@ export function LeftToolbar() {
               style={{ backgroundColor: color }}
             />
           ))}
+        </div>
+      </div>
+
+      {/* Shortcuts Guide */}
+      <div className="p-3 border-t border-neutral-800 flex-1 overflow-y-auto">
+        <div className="text-xs text-neutral-500 mb-2">Shortcuts</div>
+        <div className="space-y-1 text-[10px]">
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Pan</span>
+            <span className="text-neutral-400">RMB Drag</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Zoom</span>
+            <span className="text-neutral-400">Scroll</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Move</span>
+            <span className="text-neutral-400">Arrow Keys</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Reset View</span>
+            <span className="text-neutral-400">Home</span>
+          </div>
+          <div className="border-t border-neutral-800 my-1.5" />
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Pen</span>
+            <span className="text-neutral-400">P</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Eraser</span>
+            <span className="text-neutral-400">E</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Picker</span>
+            <span className="text-neutral-400">O</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Fill</span>
+            <span className="text-neutral-400">B</span>
+          </div>
+          <div className="border-t border-neutral-800 my-1.5" />
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Undo</span>
+            <span className="text-neutral-400">Ctrl+Z</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500">Redo</span>
+            <span className="text-neutral-400">Ctrl+Shift+Z</span>
+          </div>
         </div>
       </div>
 
