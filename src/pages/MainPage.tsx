@@ -2,20 +2,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 
+const TITLE_WORDS = ['나만의', '간단히', '혼자서', '가볍게'];
+
 const MainPage = () => {
     const { logout, user } = useAuth();
     const navigate = useNavigate();
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [titleWord, setTitleWord] = useState('나만의');
-    const titleWords = ['나만의', '간단히', '혼자서', '가볍게'];
 
     // 타이틀 애니메이션 효과
     useEffect(() => {
         let index = 0;
         const interval = setInterval(() => {
-            index = (index + 1) % titleWords.length;
-            setTitleWord(titleWords[index]);
+            index = (index + 1) % TITLE_WORDS.length;
+            setTitleWord(TITLE_WORDS[index]);
         }, 2500);
         return () => clearInterval(interval);
     }, []);

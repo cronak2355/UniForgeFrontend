@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SceneState } from "./EditorState";
+//import type { SceneState } from "./EditorState";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
@@ -8,13 +8,17 @@ import type { Asset } from "./types/Asset";
 import { PhaserCanvas } from "./PhaserCanvas";
 //import { InspectorPanel } from "./InspectorPanel";
 
-const initialScene: SceneState = { entities: [] };
+//const initialScene: SceneState = { entities: [] };
+
 
 export default function EditorLayout() {
-    const [entities, setEntities] = useState<EditorEntity[]>([]);
-    const [scene, setScene] = useState<SceneState>(initialScene);
+    const [entities] = useState<EditorEntity[]>([]);
+
+    //    const [scene, setScene] = useState<SceneState>(initialScene);
+
     const [selectedEntity, setSelectedEntity] = useState<EditorEntity | null>(null);
-    const [assets, setAssets] = useState<Asset[]>([
+    //    const [assets, setAssets] = useState<Asset[]>([
+    const [assets] = useState<Asset[]>([
         {
             id: 0,
             name: "testAsset1",
@@ -71,36 +75,36 @@ export default function EditorLayout() {
             setDraggedgAsset(asset);
         }
     };
-    const handleUpdateEntity = (updated: EditorEntity) => {
-        setEntities(prev =>
-            prev.map(e => (e.id === updated.id ? updated : e))
-        );
-    };
+    //    const handleUpdateEntity = (updated: EditorEntity) => {
+    //        setEntities(prev =>
+    //            prev.map(e => (e.id === updated.id ? updated : e))
+    //        );
+    //    };
 
-    const addEntity = (entity: EditorEntity) => {
-        setScene((prev) => {
-            const sameTypeCount = prev.entities.filter(
-                (e) => e.type === entity.type
-            ).length;
+    //    const addEntity = (entity: EditorEntity) => {
+    //        setScene((prev) => {
+    //            const sameTypeCount = prev.entities.filter(
+    //                (e) => e.type === entity.type
+    //            ).length;
+    //
+    //            const name =
+    //                sameTypeCount === 0
+    //                    ? entity.type
+    //                    : `${entity.type} (${sameTypeCount})`;
+    //
+    //            return {
+    //                entities: [...prev.entities, { ...entity, name }],
+    //            };
+    //        });
+    //    };
 
-            const name =
-                sameTypeCount === 0
-                    ? entity.type
-                    : `${entity.type} (${sameTypeCount})`;
-
-            return {
-                entities: [...prev.entities, { ...entity, name }],
-            };
-        });
-    };
-
-    const moveEntity = (id: string, x: number, y: number) => {
-        setScene((prev) => ({
-            entities: prev.entities.map((e) =>
-                e.id === id ? { ...e, x, y } : e
-            ),
-        }));
-    };
+    //    const moveEntity = (id: string, x: number, y: number) => {
+    //        setScene((prev) => ({
+    //            entities: prev.entities.map((e) =>
+    //                e.id === id ? { ...e, x, y } : e
+    //            ),
+    //        }));
+    //    };
 
     return (
         <div className="w-screen h-screen bg-black text-white flex flex-col">
@@ -144,7 +148,7 @@ export default function EditorLayout() {
                             onUpdateEntity={(updatedEntity) => {
                                 console.log("UPDATED ENTITY", updatedEntity);
                                 setSelectedEntity(updatedEntity);
-                              }}
+                            }}
                         />
                     </div>
                 </div>

@@ -19,14 +19,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (import.meta.env.DEV) {
+        if (import.meta.env.DEV) { // 지우셈 임시계정임                                                                                                                                                                                                                                     
             setUser({
                 id: 'dev-user',
                 email: 'dev@uniforge.com',
                 name: 'Dev Tester',
                 profileImage: null,
             } as unknown as User);
-    
+
             setIsLoading(false);
             return;
         }

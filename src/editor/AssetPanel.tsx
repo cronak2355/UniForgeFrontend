@@ -9,7 +9,7 @@ type Props = {
 
 export function AssetPanel({ changeSelectedAsset, assets, changeDraggAsset }: Props) {
   const [currentTag, setCurrentTag] = useState<string>("Tile");
-  const onGlobalPointerUp = (e:PointerEvent) =>{
+  const onGlobalPointerUp = () => {
     changeDraggAsset(null);
     window.removeEventListener("pointerup", onGlobalPointerUp)
   }
@@ -49,10 +49,10 @@ export function AssetPanel({ changeSelectedAsset, assets, changeDraggAsset }: Pr
                 changeDraggAsset(asset);
               }}
 
-              onPointerUp={(e) => {
+              onPointerUp={() => {
                 console.log("pointer up");
-                
-                
+
+
                 // 선택사항: 명시적으로 해제
                 //try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
               }}

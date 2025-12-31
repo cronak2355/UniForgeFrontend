@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { EditorMode, CameraMode, TilingMode, DragDropMode } from "./editorMode/editorModes"
@@ -14,60 +15,22 @@ type Props = {
     onSelectEntity?: (entity: EditorEntity) => void;
 };
 
-function loadImages(scene: Phaser.Scene, assets: Asset[]) {
-    return new Promise<void>((resolve, reject) => {
-        let pending = 0;
-
-        const onFileComplete = (key: string) => {
-            pending--;
-            if (pending === 0) {
-                cleanup();
-                resolve();
-            }
-        };
-
-        const onError = () => {
-            cleanup();
-            reject(new Error("asset load error"));
-        };
-
-        const cleanup = () => {
-            scene.load.off(Phaser.Loader.Events.FILE_COMPLETE, onFileComplete);
-            scene.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
-        };
-
-        // 이벤트 등록
-        scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, onFileComplete);
-        scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
-
-        // 큐에 추가
-        for (let i = 0; i < assets.length; i++) {
-            const asset = assets[i];
-
-            // 이미 있으면 스킵
-            if (scene.textures.exists(asset.name)) continue;
-
-            scene.load.image(asset.name, asset.url);
-            pending++;
-        }
-
-        // 로드할 게 없으면 바로 끝
-        if (pending === 0) {
-            cleanup();
-            resolve();
-            return;
-        }
-
-        // 로더 시작
-        scene.load.start();
-    });
-}
 export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<EditorScene | null>(null);
     const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
+    const modeRef = useRef<EditorMode>(currentEditorMode);
     const gameRef = useRef<Phaser.Game | null>(null);
 
+    // modeRef 동기화
+    useEffect(() => {
+        modeRef.current = currentEditorMode;
+    }, [currentEditorMode]);
+
+    const changeEditorMode = (mode: EditorMode) => {
+        setEditorMode(mode);
+        sceneRef.current?.setEditorMode(mode);
+    }
     useEffect(() => {
         if (!ref.current) return;
         if (gameRef.current) return;
@@ -153,38 +116,37 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
         return () => {
             game.destroy(true);
         }
-    }, []);
+    }, [addEntity, assets]);
 
     useEffect(() => {
         if (sceneRef.current == null)
             return;
         if (selected_asset == null) {
             const cm = new CameraMode()
-            sceneRef.current?.setEditorMode(cm);
-            setEditorMode(cm);
+            changeEditorMode(cm);
         }
         else if (selected_asset?.tag == "Tile") {
             const tm = new TilingMode()
             tm.tile = selected_asset.idx;
             tm.base = sceneRef.current.baselayer;
             tm.preview = sceneRef.current.previewlayer;
-            const tiling = currentEditorMode as TilingMode;
-            tm.curTilingType = tiling.curTilingType;
-            sceneRef.current?.setEditorMode(tm);
-            setEditorMode(tm);
+
+            // ref를 통해 현재 모드 접근 (의존성 루프 방지)
+            const tiling = modeRef.current as TilingMode;
+            tm.curTilingType = tiling?.curTilingType; // 없을 수도 있으니 옵셔널 체이닝
+            changeEditorMode(tm);
         }
-    }, [selected_asset])
+    }, [selected_asset]) // currentEditorMode 의존성 제거
+
     useEffect(() => {
         if (draggedAsset == null) {
             const cm = new CameraMode()
-            setEditorMode(cm)
-            sceneRef.current?.setEditorMode(cm);
+            changeEditorMode(cm)
             return;
         }
         const mode = new DragDropMode();
         mode.asset = draggedAsset;
-        sceneRef.current?.setEditorMode(mode);
-        setEditorMode(mode);
+        changeEditorMode(mode);
     }, [draggedAsset])
     return (
         <div className="flex-1 p-2">
