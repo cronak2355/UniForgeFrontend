@@ -1,16 +1,5 @@
 import type { EditorEntity } from "./types/Entity";
-
-// Entry Style Colors
-const colors = {
-    bgPrimary: '#0d1117',
-    bgSecondary: '#161b22',
-    bgTertiary: '#21262d',
-    borderColor: '#30363d',
-    borderAccent: '#1f6feb',
-    accentLight: '#58a6ff',
-    textPrimary: '#f0f6fc',
-    textSecondary: '#8b949e',
-};
+import { colors } from "./constants/colors";
 
 type Props = {
     entities: EditorEntity[];

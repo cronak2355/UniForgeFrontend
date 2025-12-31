@@ -2,6 +2,7 @@
  * UniForge Editor - Entry Style Design
  * 파란색 + 검은색 사각 테두리 스타일
  */
+@import url('../styles/main.css');
 
 :root {
     /* Entry Style Colors */

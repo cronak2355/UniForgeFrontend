@@ -5,14 +5,13 @@ import { EditorMode, CameraMode, TilingMode, DragDropMode } from "./editorMode/e
 import type { Asset } from "./types/Asset"
 import type { EditorEntity } from "./types/Entity";
 import { EditorScene } from "./EditorScene";
+import { colors } from "./constants/colors";
 
 type Props = {
     assets: Asset[];
     selected_asset: Asset | null;
     addEntity: (entity: EditorEntity) => void;
-    draggedAsset: Asset | null
-
-    onSelectEntity?: (entity: EditorEntity) => void;
+    draggedAsset: Asset | null;
 };
 
 export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
@@ -39,7 +38,6 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
 
         // addEntity = “Inspector에서 볼 대상”
         scene.onSelectEntity = (entity) => {
-            console.log("🔵 [PhaserCanvas] received entity:", entity);
             addEntity(entity); // or onSelectEntity(entity)
         };
 
@@ -114,7 +112,6 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
 
 
         return () => {
-            console.log("ㅇㄻㄴㅇㄹ")
             game.destroy(true);
         }
     }, []);
@@ -153,17 +150,6 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
         mode.asset = draggedAsset;
         changeEditorMode(mode);
     }, [draggedAsset])
-    // Entry Style Colors
-    const colors = {
-        bgPrimary: '#0d1117',
-        bgSecondary: '#161b22',
-        bgTertiary: '#21262d',
-        borderColor: '#30363d',
-        borderAccent: '#1f6feb',
-        accentLight: '#58a6ff',
-        textPrimary: '#f0f6fc',
-        textSecondary: '#8b949e',
-    };
 
     return (
         <div style={{

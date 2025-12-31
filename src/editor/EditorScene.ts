@@ -78,8 +78,6 @@ export class EditorScene extends Phaser.Scene {
     this.assetGroup = this.add.group();
 
     const getCanvasPos = (clientX: number, clientY: number) => {
-      console.log("sys?", !!this.sys, "game?", !!this.sys?.game, "canvas?", !!this.sys?.game?.canvas);
-
       if (!this.sys.game.canvas)
         return;
       const rect = this.sys.game.canvas.getBoundingClientRect();

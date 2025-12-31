@@ -1,5 +1,4 @@
 import type { Asset } from "../types/Asset";
-//import { assetToEntity } from "../utils/assetToEntity"
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
 
@@ -200,11 +199,7 @@ export class DragDropMode extends EditorMode {
         const es = scene as EditorScene;
 
         created.on("pointerdown", () => {
-            console.log("🟢 [DragDropMode] object clicked");
-
-            console.log("asset:", this.asset);
             const entity: EditorEntity = {
-
                 id: crypto.randomUUID(),
                 type: this.asset!.tag,
                 name: this.asset!.name,

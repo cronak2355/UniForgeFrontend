@@ -1,29 +1,18 @@
 import { useState } from "react";
 import type { Asset } from "./types/Asset";
-
-// Entry Style Colors
-const colors = {
-  bgPrimary: '#0d1117',
-  bgSecondary: '#161b22',
-  bgTertiary: '#21262d',
-  borderColor: '#30363d',
-  borderAccent: '#1f6feb',
-  accentLight: '#58a6ff',
-  textPrimary: '#f0f6fc',
-  textSecondary: '#8b949e',
-};
+import { colors } from "./constants/colors";
 
 type Props = {
   changeSelectedAsset: (selectedAsset: Asset | null) => void;
   assets: Asset[];
-  changeDraggAsset: (asset: Asset | null, options?: { defer?: boolean }) => void;
+  changeDraggedAsset: (asset: Asset | null, options?: { defer?: boolean }) => void;
 };
 
-export function AssetPanel({ changeSelectedAsset, assets, changeDraggAsset }: Props) {
+export function AssetPanel({ changeSelectedAsset, assets, changeDraggedAsset }: Props) {
   const [currentTag, setCurrentTag] = useState<string>("Tile");
 
   const onGlobalPointerUp = () => {
-    changeDraggAsset(null);
+    changeDraggedAsset(null);
     window.removeEventListener("pointerup", onGlobalPointerUp);
   };
 
@@ -114,10 +103,10 @@ export function AssetPanel({ changeSelectedAsset, assets, changeDraggAsset }: Pr
                 e.stopPropagation();
                 if (asset.tag === "Tile") return;
                 window.addEventListener("pointerup", onGlobalPointerUp);
-                changeDraggAsset(asset);
+                changeDraggedAsset(asset);
               }}
-              onPointerUp={() => console.log("pointer up")}
-              onPointerCancel={() => changeDraggAsset(null)}
+              onPointerUp={() => { }}
+              onPointerCancel={() => changeDraggedAsset(null)}
               onClick={() => changeSelectedAsset(asset)}
             >
               <img
