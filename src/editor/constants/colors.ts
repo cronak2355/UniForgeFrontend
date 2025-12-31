@@ -1,17 +1,28 @@
-/**
- * 에디터 전역 색상 상수
- * Entry Style Color Palette
- */
+// UniForge Editor Color Palette (matches main.css theme)
 export const colors = {
-    bgPrimary: '#0d1117',      // 메인 배경 (깊은 검정)
-    bgSecondary: '#161b22',    // 패널 배경
-    bgTertiary: '#21262d',     // 호버/입력 배경
-    borderColor: '#30363d',    // 기본 테두리
-    borderAccent: '#1f6feb',   // 파란색 액센트 테두리
-    accentBlue: '#1f6feb',     // 주 파란색
-    accentLight: '#58a6ff',    // 밝은 파란색
-    textPrimary: '#f0f6fc',    // 기본 텍스트
-    textSecondary: '#8b949e',  // 부가 텍스트
-} as const;
+    // Background colors
+    bgPrimary: '#000000',
+    bgSecondary: '#141414',
+    bgTertiary: '#1f1f1f',
+    bgViewport: '#0a0a0a',  // 뷰포트 배경 (그리드가 보이도록 약간 밝음)
 
-export type EditorColors = typeof colors;
+    // Text colors
+    textPrimary: '#ffffff',
+    textSecondary: '#94a3b8',
+    textMuted: '#6b7280',
+
+    // Border colors
+    borderColor: '#333333',
+    borderAccent: '#2563eb',
+
+    // Accent colors (Blue theme)
+    accentPrimary: '#2563eb',
+    accentLight: '#60a5fa',
+    accentDark: '#1d4ed8',
+
+    // Status colors
+    success: '#22c55e',
+    warning: '#f59e0b',
+    error: '#ef4444',
+    info: '#3b82f6',
+};

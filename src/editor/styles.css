@@ -1,374 +1,104 @@
-/*
- * UniForge Editor - Entry Style Design
- * 파란색 + 검은색 사각 테두리 스타일
- */
-@import url('../styles/main.css');
+/* UniForge Editor Styles */
 
-:root {
-    /* Entry Style Colors */
-    --bg-primary: #1b1e24;
-    /* 메인 배경 (짙은 네이비) */
-    --bg-secondary: #252a33;
-    /* 패널 배경 */
-    --bg-tertiary: #2d333d;
-    /* 호버/선택 배경 */
-
-    --border-color: #3b4455;
-    /* 기본 테두리 */
-    --border-accent: #4c7bd9;
-    /* 파란색 액센트 테두리 */
-    --border-selected: #60a5fa;
-    /* 선택된 항목 테두리 */
-
-    --accent-blue: #4c7bd9;
-    /* 주 파란색 */
-    --accent-light: #60a5fa;
-    /* 밝은 파란색 */
-    --accent-dark: #3b5fc4;
-    /* 어두운 파란색 */
-
-    --text-primary: #ffffff;
-    /* 기본 텍스트 */
-    --text-secondary: #a8b5cc;
-    /* 부가 텍스트 */
-    --text-muted: #6b7a94;
-    /* 뮤트 텍스트 */
-
-    /* Spacing */
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 12px;
-    --spacing-lg: 16px;
-
-    /* Border */
-    --border-radius: 4px;
-    --border-width: 2px;
-
-    /* Layout */
-    --header-height: 44px;
-    --topbar-height: 32px;
-    --panel-header-height: 32px;
-    --sidebar-width: 220px;
-    --inspector-width: 280px;
-    --asset-panel-height: 160px;
+/* Gradient text for branding */
+.gradient-text {
+    background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
 }
 
-/* ===================================
-   Base Layout
-   =================================== */
-
-.editor-root {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    background: var(--bg-primary);
-    overflow: hidden;
-}
-
-/* Top Navigation Bar */
-.editor-topbar {
-    display: flex;
-    align-items: center;
-    height: var(--topbar-height);
-    background: var(--bg-secondary);
-    border-bottom: var(--border-width) solid var(--border-color);
-    padding: 0 var(--spacing-md);
-    gap: var(--spacing-lg);
-}
-
-.editor-topbar span {
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius);
-    transition: all 0.15s ease;
-}
-
-.editor-topbar span:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-/* ===================================
-   Main Editor Area
-   =================================== */
-
-.editor-main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-}
-
-/* ===================================
-   Panel Styles (Hierarchy, Inspector)
-   =================================== */
-
-.editor-panel {
-    width: var(--sidebar-width);
-    background: var(--bg-secondary);
-    border-right: var(--border-width) solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-}
-
-.editor-panel.right {
-    width: var(--inspector-width);
-    border-right: none;
-    border-left: var(--border-width) solid var(--border-color);
-}
-
-.editor-panel-header {
-    height: var(--panel-header-height);
-    display: flex;
-    align-items: center;
-    padding: 0 var(--spacing-md);
-    background: var(--bg-tertiary);
-    border-bottom: var(--border-width) solid var(--border-color);
-    color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* ===================================
-   Assets Panel (Bottom)
-   =================================== */
-
-.editor-assets-tabs {
-    display: flex;
-    background: var(--bg-secondary);
-    border-top: var(--border-width) solid var(--border-accent);
-    border-bottom: var(--border-width) solid var(--border-color);
-}
-
-.editor-assets-tabs span {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    border-right: 1px solid var(--border-color);
-    transition: all 0.15s ease;
-}
-
-.editor-assets-tabs span:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.editor-assets-tabs span.active {
-    color: var(--accent-light);
-    background: var(--bg-primary);
-    border-bottom: 2px solid var(--accent-blue);
-}
-
-.editor-assets-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md);
-    background: var(--bg-primary);
-    min-height: 100px;
-    max-height: var(--asset-panel-height);
-    overflow-y: auto;
-}
-
-.asset-item {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    background: var(--bg-secondary);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.asset-item:hover {
-    border-color: var(--border-accent);
-    transform: scale(1.05);
-}
-
-.asset-item.selected {
-    border-color: var(--border-selected);
-    box-shadow: 0 0 8px rgba(76, 123, 217, 0.5);
-}
-
-/* ===================================
-   Inspector Styles
-   =================================== */
-
-.inspector-root {
-    padding: var(--spacing-md);
-    color: var(--text-primary);
-    font-size: 13px;
-}
-
-.inspector-section {
-    margin-bottom: var(--spacing-lg);
-}
-
-.inspector-section-title {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent-light);
-    margin-bottom: var(--spacing-sm);
-    padding-bottom: var(--spacing-xs);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.inspector-row {
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-xs) 0;
-    gap: var(--spacing-sm);
-}
-
-.inspector-label {
-    flex: 0 0 80px;
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.inspector-input {
-    flex: 1;
-    background: var(--bg-primary);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    color: var(--text-primary);
-    font-size: 12px;
-}
-
-.inspector-input:focus {
-    outline: none;
-    border-color: var(--accent-blue);
-}
-
-/* Inspector Scrollable Content */
-.inspector-scroll {
-    max-height: calc(100vh - 300px);
-    overflow-y: auto;
-}
-
-/* ===================================
-   Editor Buttons
-   =================================== */
-
-.editor-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: var(--bg-tertiary);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-primary);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.editor-btn:hover {
-    background: var(--accent-blue);
-    border-color: var(--accent-light);
-}
-
-.editor-btn.primary {
-    background: var(--accent-blue);
-    border-color: var(--accent-blue);
-}
-
-.editor-btn.primary:hover {
-    background: var(--accent-dark);
-}
-
-/* Add Variable/Event Buttons */
-.add-btn {
-    width: 100%;
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
-    background: transparent;
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-muted);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.add-btn:hover {
-    border-color: var(--accent-blue);
-    color: var(--accent-light);
-    background: rgba(76, 123, 217, 0.1);
-}
-
-/* ===================================
-   Editor Item (Toolbar)
-   =================================== */
-
-.editor-item {
-    color: var(--text-secondary);
-    font-size: 12px;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius);
-    cursor: default;
-}
-
-/* ===================================
-   Scrollbar Styling
-   =================================== */
-
+/* Custom scrollbar for editor panels */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--bg-primary);
+    background: #16213e;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border-color);
+    background: #4a4a6a;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-blue);
+    background: #5b5b7b;
 }
 
-/* ===================================
-   Variable/Event Items
-   =================================== */
-
-.variable-item,
-.event-item {
-    background: var(--bg-primary);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
+/* Panel item hover effects */
+.panel-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
 }
 
-.variable-item:hover,
-.event-item:hover {
-    border-color: var(--border-accent);
+.panel-item:hover {
+    background-color: rgba(122, 58, 237, 0.1);
 }
 
-.variable-row,
-.event-row {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-xs);
+.panel-item.selected {
+    background-color: rgba(122, 58, 237, 0.2);
+    border-left: 2px solid #7c3aed;
 }
 
-.variable-row:last-child,
-.event-row:last-child {
-    margin-bottom: 0;
+/* Button styles */
+.editor-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.editor-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+.editor-button:active {
+    transform: translateY(0);
+}
+
+/* Input field styles */
+.editor-input {
+    padding: 8px 12px;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #e8e8e8;
+    font-size: 13px;
+    transition: border-color 0.2s ease;
+}
+
+.editor-input:focus {
+    outline: none;
+    border-color: #7c3aed;
+}
+
+/* Asset card styles */
+.asset-card {
+    border-radius: 8px;
+    overflow: hidden;
+    background: #16213e;
+    border: 1px solid #2d2d44;
+    transition: all 0.2s ease;
+}
+
+.asset-card:hover {
+    border-color: #7c3aed;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.asset-card.selected {
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.3);
 }

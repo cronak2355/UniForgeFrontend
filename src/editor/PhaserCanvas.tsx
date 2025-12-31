@@ -237,7 +237,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 ref={ref}
                 style={{
                     flex: 1,
-                    background: colors.bgPrimary,
+                    background: colors.bgViewport,
                     border: `2px solid ${colors.borderColor}`,
                     borderRadius: '6px',
                     overflow: 'hidden',
