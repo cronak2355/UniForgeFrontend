@@ -150,6 +150,9 @@ export class EditorScene extends Phaser.Scene {
     };
 
     const feedPointer = (clientX: number, clientY: number) => {
+      if (!this.input?.activePointer) {
+        return { p: null as unknown as Phaser.Input.Pointer, inside: false };
+      }
       const result = getCanvasPos(clientX, clientY);
       if (!result) {
         return { p: this.input.activePointer, inside: false };
