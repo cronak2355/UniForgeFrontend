@@ -44,8 +44,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
 
         // addEntity = hierarchy/inspector update on new entities
         scene.onSelectEntity = (entity) => {
-            console.log("🔵 [PhaserCanvas] received entity:", entity);
-            addEntity(entity); // or onSelectEntity(entity)
+            console.log("[PhaserCanvas] received entity:", entity);
+            addEntity(entity);
+            core.setSelectedEntity(entity);
         };
 
         const config: Phaser.Types.Core.GameConfig = {

@@ -200,6 +200,17 @@ function EditorLayoutInner() {
                                 core.sendContextToEditorModeStateMachine(ctx);
                             }}
                         />
+                        <HierarchyPanel
+                            entities={entities}
+                            selectedId={selectedEntity?.id ?? null}
+                            onSelect={(e) => {
+                                core.setSelectedEntity(e as any);
+                                setLocalSelectedEntity(e as any);
+                                const cm = new CameraMode();
+                                const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
+                                core.sendContextToEditorModeStateMachine(ctx);
+                            }}
+                        />
                     </div>
                 </div>
 
@@ -254,6 +265,7 @@ function EditorLayoutInner() {
                         <InspectorPanel
                             entity={localSelectedEntity}
                             onUpdateEntity={(updatedEntity) => {
+                                core.addEntity(updatedEntity as any);
                                 core.setSelectedEntity(updatedEntity as any);
                                 setLocalSelectedEntity(updatedEntity);
                             }}

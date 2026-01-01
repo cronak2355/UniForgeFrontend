@@ -242,6 +242,7 @@ export class DragDropMode extends EditorMode {
             y: created.y,
             variables: [],
             events: [],
+            components: [],
         };
 
         // Notify React side immediately about the created entity so Hierarchy updates
@@ -301,7 +302,7 @@ export class EntityEditMode implements EditorMode {
         this.setXY(this.selected, world.x - this.offsetX, world.y - this.offsetY);
     }
 
-    onPointerUp(__scene: EditorScene, __p: Phaser.Input.Pointer): void {
+    onPointerUp(scene: EditorScene, __p: Phaser.Input.Pointer): void {
         if (!this.selected) return;
 
         if (this.dragging && this.snapToGrid) {
@@ -312,9 +313,21 @@ export class EntityEditMode implements EditorMode {
 
         this.dragging = false;
 
-        // ???ш린?쒕쭔 React/?곹깭 媛깆떊 肄쒕갚 嫄몃㈃ 醫뗭쓬(?쒕옒洹?以묒뿏 X)
-        // const id = (this.selected as any).getData?.("id");
-        // scene.onEntityMoved?.(id, (this.selected as any).x, (this.selected as any).y);
+        // Sync to EditorCore
+        const id = (this.selected as any).getData?.("id");
+        if (id && scene.editorCore) {
+            const entity = scene.editorCore.getEntities().get(id);
+            if (entity) {
+                // Update specific properties (position)
+                const transform = this.selected as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform;
+                entity.x = transform.x ?? entity.x;
+                entity.y = transform.y ?? entity.y;
+
+                // Commit back to core
+                scene.editorCore.addEntity(entity);
+                scene.editorCore.setSelectedEntity(entity);
+            }
+        }
     }
 
     onScroll(_scene: EditorScene, _deltaY: number): void {

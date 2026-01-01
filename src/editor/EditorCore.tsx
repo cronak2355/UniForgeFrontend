@@ -1,4 +1,4 @@
-﻿import { CameraMode, EditorMode, DragDropMode, TilingMode, EntityEditMode } from "./editorMode/editorModes";
+import { CameraMode, EditorMode, DragDropMode, TilingMode, EntityEditMode } from "./editorMode/editorModes";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 

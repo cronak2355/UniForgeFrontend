@@ -2,8 +2,15 @@
 import { EditorMode, CameraMode, EntityEditMode, DragDropMode, TilingMode } from "./editorMode/editorModes";
 import type { EditorEntity } from "./types/Entity";
 import type { EditorState, EditorContext } from "./EditorCore";
+import type { EditorComponent, AutoRotateComponent, PulseComponent } from "./types/Component";
 
 const tileSize = 32;
+
+type RuntimeComponent = {
+  comp: EditorComponent;
+  target: any;
+  initialScale?: { x: number, y: number }; // for Pulse
+};
 
 export class EditorScene extends Phaser.Scene {
 
@@ -23,8 +30,9 @@ export class EditorScene extends Phaser.Scene {
 
   public entityGroup!: Phaser.GameObjects.Group;
   public assetGroup!: Phaser.GameObjects.Group;
-  // (?좏깮) ?쒕엻 ?꾨즺 ???몃?(React)濡??뚮━怨??띠쑝硫???肄쒕갚 ?ъ슜
-  // onEntityMoved?: (id: string, x: number, y: number) => void;
+
+  // Optimization: Cached list of active components to avoid iterating all entities
+  private runtimeComponents: RuntimeComponent[] = [];
 
   onReady!: (scene: EditorScene, callback: () => void) => Promise<void>;
   onSelectEntity?: (entity: EditorEntity) => void;
@@ -176,42 +184,42 @@ export class EditorScene extends Phaser.Scene {
         const cm: EditorContext = { currentMode: new CameraMode(), mouse: "mouseup" };
         this.editorCore?.sendContextToEditorModeStateMachine(cm);
       }
-      
+
 
       // ??1) ?먯뀑 UI ?대┃/?쒕옒洹??쒖옉?대㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯 + ?앹꽦(+?쒕옒洹??쒖옉)
-        if (this.tryEnterEntityEditFromAsset(p)) {
-          this.editorCore?.sendContextToEditorModeStateMachine({
-            currentMode: new EntityEditMode(),
-            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
-            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-            currentSelecedEntity: this.getEntityUnderPointer(p),
-            mouse: "mousedown",
-          });
-          const next = this.editorCore?.getEditorMode();
-          if (next) this.setEditorMode(next);
-          return;
-        }
-
-      // ??2) 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯?댁꽌 ?쒕옒洹??쒖옉
-        if (this.tryEnterEntityEditFromEntity(p)) {
-          this.editorCore?.sendContextToEditorModeStateMachine({
-            currentMode: new EntityEditMode(),
-            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
-            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-            currentSelecedEntity: this.getEntityUnderPointer(p),
-            mouse: "mousedown",
-          });
-          const next = this.editorCore?.getEditorMode();
-          if (next) this.setEditorMode(next);
-          return;
-        }
-
-      // ??3) 洹??몃뒗 ?꾩옱 紐⑤뱶???꾩엫
-        this.editorMode.onPointerDown(this, p);
-        this.editorCore?.sendContextToEditorModeStateMachine(buildContext(p, "mousedown"));
+      if (this.tryEnterEntityEditFromAsset(p)) {
+        this.editorCore?.sendContextToEditorModeStateMachine({
+          currentMode: new EntityEditMode(),
+          currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+          currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+          currentSelecedEntity: this.getEntityUnderPointer(p),
+          mouse: "mousedown",
+        });
         const next = this.editorCore?.getEditorMode();
         if (next) this.setEditorMode(next);
-      };
+        return;
+      }
+
+      // ??2) 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯?댁꽌 ?쒕옒洹??쒖옉
+      if (this.tryEnterEntityEditFromEntity(p)) {
+        this.editorCore?.sendContextToEditorModeStateMachine({
+          currentMode: new EntityEditMode(),
+          currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+          currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+          currentSelecedEntity: this.getEntityUnderPointer(p),
+          mouse: "mousedown",
+        });
+        const next = this.editorCore?.getEditorMode();
+        if (next) this.setEditorMode(next);
+        return;
+      }
+
+      // ??3) 洹??몃뒗 ?꾩옱 紐⑤뱶???꾩엫
+      this.editorMode.onPointerDown(this, p);
+      this.editorCore?.sendContextToEditorModeStateMachine(buildContext(p, "mousedown"));
+      const next = this.editorCore?.getEditorMode();
+      if (next) this.setEditorMode(next);
+    };
 
     const onWinPointerMove = (e: PointerEvent) => {
       const { p, inside } = feedPointer(e.clientX, e.clientY);
@@ -313,20 +321,64 @@ export class EditorScene extends Phaser.Scene {
     for (const c of old) c.destroy();
     this.entityGroup.clear(false);
 
+    // Reset runtime components
+    this.runtimeComponents = [];
+
     entities.forEach((e) => {
       const rect = this.add.rectangle(e.x, e.y, 40, 40, 0xffffff);
       rect.setData("id", e.id);
       rect.setInteractive({ useHandCursor: true });
+      rect.setName(e.name); // Phaser Name
 
       this.entityGroup.add(rect);
+
+      // Populate runtime components (Optimization)
+      if (e.components) {
+        e.components.forEach((comp) => {
+          this.runtimeComponents.push({
+            comp,
+            target: rect,
+            initialScale: { x: rect.scaleX, y: rect.scaleY },
+          });
+        });
+      }
     });
   }
 
   // -----------------------
   // update / grid
   // -----------------------
-  update() {
+  update(time: number, delta: number) {
     this.redrawGrid();
+
+    // Optimized Component System Loop
+    // Only iterates active components
+    const dt = delta / 1000; // seconds
+
+    for (const rc of this.runtimeComponents) {
+      if (!rc.target.active) continue;
+
+      switch (rc.comp.type) {
+        case "AutoRotate": {
+          const c = rc.comp as AutoRotateComponent;
+          // Rotate target
+          rc.target.angle += c.speed * dt;
+          break;
+        }
+        case "Pulse": {
+          const c = rc.comp as PulseComponent;
+          // Pulse scale
+          // simple sine wave based on time
+          const t = time / 1000 * c.speed;
+          const scaleRange = (c.maxScale - c.minScale) / 2;
+          const baseScale = (c.maxScale + c.minScale) / 2;
+          const currentScale = baseScale + Math.sin(t) * scaleRange;
+
+          rc.target.setScale(currentScale);
+          break;
+        }
+      }
+    }
   }
 
   redrawGrid() {
@@ -413,6 +465,7 @@ export class EditorScene extends Phaser.Scene {
       y: transform.y ?? world.y,
       variables: [],
       events: [],
+      components: [],
     };
   }
 
