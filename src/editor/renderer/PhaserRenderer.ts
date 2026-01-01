@@ -183,7 +183,7 @@ export class PhaserRenderer implements IRenderer {
     // ===== Entity Management - ID 동기화 보장 =====
 
     spawn(id: string, type: string, x: number, y: number, z: number = 0, options?: SpawnOptions): void {
-        if (!this.scene) {
+        if (!this.scene || !this.scene.textures) {
             console.error("[PhaserRenderer] Cannot spawn: scene not initialized");
             return;
         }

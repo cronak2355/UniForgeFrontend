@@ -1,171 +1,344 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useRef, useState } from "react";
-import Phaser from "phaser";
-import { EditorMode, CameraMode, TilingMode, DragDropMode } from "./editorMode/editorModes"
-import { useEditorCore } from "../contexts/EditorCoreContext";
-import { EditorState, type EditorContext } from "./EditorCore";
-import type { Asset } from "./types/Asset"
+﻿import { useEffect, useRef, useState } from "react";
+import { useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
+import { GameCore } from "./core/GameCore";
+import { PhaserRenderer } from "./renderer/PhaserRenderer";
+import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
-import { EditorScene } from "./EditorScene";
-import { colors } from "./constants/colors";
+import type { TilePlacement } from "./EditorCore";
+
+const TILE_SIZE = 32;
+const TILESET_COLS = 16;
 
 type Props = {
     assets: Asset[];
     selected_asset: Asset | null;
     addEntity: (entity: EditorEntity) => void;
-    draggedAsset: Asset | null
+    draggedAsset: Asset | null;
     onSelectEntity?: (entity: EditorEntity) => void;
 };
+
+async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
+    const tileAssets = assets.filter((asset) => asset.tag === "Tile");
+    if (tileAssets.length === 0) return null;
+
+    const tilesetcanvas = document.createElement("canvas");
+    tilesetcanvas.width = TILE_SIZE * TILESET_COLS;
+    tilesetcanvas.height = Math.ceil(tileAssets.length / TILESET_COLS) * TILE_SIZE;
+
+    const ctx = tilesetcanvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+
+    let idx = 0;
+    for (const asset of tileAssets) {
+        asset.idx = idx;
+
+        const img = new Image();
+        img.src = asset.url;
+        await img.decode();
+
+        const x = (idx % TILESET_COLS) * TILE_SIZE;
+        const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
+        ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+
+        idx++;
+    }
+
+    return tilesetcanvas;
+}
+
+function indexTiles(tiles: TilePlacement[]) {
+    const map = new Map<string, TilePlacement>();
+    for (const t of tiles) {
+        map.set(`${t.x},${t.y}`, t);
+    }
+    return map;
+}
 
 export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
-    const sceneRef = useRef<EditorScene | null>(null);
-    const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
-    const modeRef = useRef<EditorMode>(currentEditorMode);
-    const gameRef = useRef<Phaser.Game | null>(null);
+    const { tiles, entities } = useEditorCoreSnapshot();
+    const rendererRef = useRef<PhaserRenderer | null>(null);
+    const gameCoreRef = useRef<GameCore | null>(null);
+    const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
+    const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+    const isPointerDownRef = useRef(false);
+    const cameraDragRef = useRef(false);
+    const dragEntityIdRef = useRef<string | null>(null);
+    const ghostIdRef = useRef<string | null>(null);
+    const rendererReadyRef = useRef(false);
+    const selectedAssetRef = useRef<Asset | null>(selected_asset);
+    const draggedAssetRef = useRef<Asset | null>(draggedAsset);
+    const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
+    const addEntityRef = useRef(addEntity);
 
-    // modeRef ?숆린??
+    const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
+
     useEffect(() => {
-        modeRef.current = currentEditorMode;
-    }, [currentEditorMode]);
+        selectedAssetRef.current = selected_asset;
+    }, [selected_asset]);
 
-    const changeEditorMode = (mode: EditorMode) => {
-        setEditorMode(mode);
-        sceneRef.current!.setEditorMode(mode);
-    }
+    useEffect(() => {
+        draggedAssetRef.current = draggedAsset;
+    }, [draggedAsset]);
+
+    useEffect(() => {
+        tilingTypeRef.current = tilingType;
+    }, [tilingType]);
+
+    useEffect(() => {
+        addEntityRef.current = addEntity;
+    }, [addEntity]);
+
     useEffect(() => {
         if (!ref.current) return;
-        if (gameRef.current) return;
-        const scene = new EditorScene();
-        sceneRef.current = scene;
-        // inject core so scene can forward context to the EditorState FSM
-        scene.editorCore = core;
+        if (rendererRef.current) return;
 
-        // addEntity = hierarchy/inspector update on new entities
-        scene.onSelectEntity = (entity) => {
-            console.log("[PhaserCanvas] received entity:", entity);
-            addEntity(entity);
-            core.setSelectedEntity(entity);
+        const renderer = new PhaserRenderer();
+        rendererRef.current = renderer;
+        const gameCore = new GameCore(renderer);
+        gameCoreRef.current = gameCore;
+
+        let active = true;
+
+        (async () => {
+            await renderer.init(ref.current as HTMLElement);
+            if (!active) return;
+
+            for (const asset of assets) {
+                if (asset.tag === "Tile") continue;
+                await renderer.loadTexture(asset.name, asset.url);
+            }
+
+            const tilesetCanvas = await buildTilesetCanvas(assets);
+            if (tilesetCanvas) {
+                renderer.addCanvasTexture("tiles", tilesetCanvas);
+                renderer.initTilemap("tiles");
+            }
+
+            for (const t of tiles) {
+                renderer.setTile(t.x, t.y, t.tile);
+            }
+
+            for (const e of entities) {
+                gameCore.createEntity(e.id, e.type, e.x, e.y, {
+                    name: e.name,
+                    texture: e.name,
+                    variables: e.variables,
+                    components: [],
+                });
+            }
+
+            rendererReadyRef.current = true;
+        })();
+
+        renderer.onEntityClick = (id) => {
+            const ent = core.getEntities().get(id);
+            if (ent) {
+                core.setSelectedEntity(ent);
+            }
+            dragEntityIdRef.current = id;
         };
 
-        const config: Phaser.Types.Core.GameConfig = {
-            type: Phaser.AUTO,
-            scale: { mode: Phaser.Scale.RESIZE },
-            parent: ref.current,
-            scene: [scene],
-            audio: {
-                noAudio: true
+        renderer.onPointerDown = (worldX, worldY) => {
+            isPointerDownRef.current = true;
+            lastPointerRef.current = { x: worldX, y: worldY };
+
+            const selectedAsset = selectedAssetRef.current;
+            const activeTilingType = tilingTypeRef.current;
+            const activeDragged = draggedAssetRef.current;
+            if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0 && activeTilingType) {
+                const tx = Math.floor(worldX / TILE_SIZE);
+                const ty = Math.floor(worldY / TILE_SIZE);
+                if (activeTilingType === "drawing") {
+                    renderer.setTile(tx, ty, selectedAsset.idx);
+                    core.setTile(tx, ty, selectedAsset.idx);
+                } else if (activeTilingType === "erase") {
+                    renderer.removeTile(tx, ty);
+                    core.removeTile(tx, ty);
+                }
+                return;
+            }
+
+            if (activeDragged && activeDragged.tag !== "Tile") {
+                return;
+            }
+
+            if (dragEntityIdRef.current) {
+                return;
+            }
+
+            cameraDragRef.current = true;
+        };
+
+        renderer.onPointerMove = (worldX, worldY) => {
+            const prev = lastPointerRef.current;
+            lastPointerRef.current = { x: worldX, y: worldY };
+
+            const selectedAsset = selectedAssetRef.current;
+            const activeTilingType = tilingTypeRef.current;
+            const activeDragged = draggedAssetRef.current;
+            if (activeDragged && activeDragged.tag !== "Tile") {
+                if (!ghostIdRef.current) {
+                    const ghostId = `__ghost__${crypto.randomUUID()}`;
+                    ghostIdRef.current = ghostId;
+                    renderer.spawn(ghostId, activeDragged.tag, worldX, worldY, 9999, {
+                        texture: activeDragged.name,
+                        width: 40,
+                        height: 40,
+                        color: 0xffffff,
+                    });
+                } else {
+                    renderer.update(ghostIdRef.current, worldX, worldY, 9999);
+                }
+                return;
+            }
+
+            if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0) {
+                const tx = Math.floor(worldX / TILE_SIZE);
+                const ty = Math.floor(worldY / TILE_SIZE);
+                if (!activeTilingType) {
+                    renderer.setPreviewTile(tx, ty, selectedAsset.idx);
+                } else if (isPointerDownRef.current) {
+                    if (activeTilingType === "drawing") {
+                        renderer.setTile(tx, ty, selectedAsset.idx);
+                        core.setTile(tx, ty, selectedAsset.idx);
+                    } else if (activeTilingType === "erase") {
+                        renderer.removeTile(tx, ty);
+                        core.removeTile(tx, ty);
+                    }
+                }
+                return;
+            }
+
+            if (dragEntityIdRef.current && isPointerDownRef.current) {
+                const id = dragEntityIdRef.current;
+                const ent = core.getEntities().get(id);
+                if (ent) {
+                    const updated: EditorEntity = { ...ent, x: worldX, y: worldY };
+                    core.addEntity(updated as EditorEntity & { id: string });
+                }
+                gameCore.moveEntity(id, worldX, worldY);
+                return;
+            }
+
+            if (cameraDragRef.current && prev) {
+                const dx = (worldX - prev.x) / 2;
+                const dy = (worldY - prev.y) / 2;
+                const cam = renderer.getCameraPosition();
+                renderer.setCameraPosition(cam.x - dx, cam.y - dy);
             }
         };
 
-        const game = new Phaser.Game(config);
-        gameRef.current = game;
-        scene.onReady = async (es: EditorScene, callback: () => void) => {
-            const tileSize = 32;
-            const cols = 16;
+        renderer.onPointerUp = (worldX, worldY) => {
+            const activeDragged = draggedAssetRef.current;
+            if (activeDragged && activeDragged.tag !== "Tile") {
+                if (ghostIdRef.current) {
+                    renderer.remove(ghostIdRef.current);
+                    ghostIdRef.current = null;
+                }
 
-            // 1) ??쇰쭔 移댁슫?명빐??罹붾쾭???ш린 寃곗젙
-            let tileCount = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag === "Tile") tileCount++;
+                const id = crypto.randomUUID();
+                const created: EditorEntity = {
+                    id,
+                    type: activeDragged.tag,
+                    name: activeDragged.name,
+                    x: worldX,
+                    y: worldY,
+                    z: 0,
+                    components: [],
+                    modules: [],
+                    variables: [],
+                    events: [],
+                };
+                addEntityRef.current(created);
+                gameCore.createEntity(created.id, created.type, created.x, created.y, {
+                    name: created.name,
+                    texture: created.name,
+                    variables: created.variables,
+                    components: [],
+                });
             }
 
-            const tilesetcanvas = document.createElement("canvas");
-            tilesetcanvas.width = tileSize * cols;
-            tilesetcanvas.height = Math.ceil(tileCount / cols) * tileSize;
-
-            const ctx = tilesetcanvas.getContext("2d");
-            if (!ctx) throw new Error("no 2d context");
-
-            // 2) ??? 罹붾쾭?ㅼ뿉 ?ｊ퀬 idx 遺??
-            let idx = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag !== "Tile") continue;
-
-                assets[i].idx = idx;
-
-                const img = new Image();
-                img.src = assets[i].url;
-                await img.decode();
-
-                const x = (idx % cols) * tileSize;
-                const y = Math.floor(idx / cols) * tileSize;
-                ctx.drawImage(img, x, y, tileSize, tileSize);
-
-                idx++;
-            }
-
-            // 3) 罹붾쾭?ㅻ? ?띿뒪泥섎줈 ?깅줉(??쇱뀑 ??
-            const tilesetKey = "tiles";
-            if (es.textures.exists(tilesetKey)) es.textures.remove(tilesetKey);
-            es.textures.addCanvas(tilesetKey, tilesetcanvas);
-
-            // 4) ????꾨땶 ?좊뱾: 濡쒕뜑???깅줉 (?먯뿉 ?ｋ뒗 嫄?留욌뒗?? 蹂꾨룄 ?쒕?湲??먥?留먭퀬 濡쒕뜑 ??
-            let normalPending = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag === "Tile") continue;
-
-                if (es.textures.exists(assets[i].name)) continue;
-                es.load.image(assets[i].name, assets[i].url);
-                normalPending++;
-            }
-            // 5) ?덉쑝硫?start ?댁쨾???ㅼ젣濡?濡쒕뱶??
-            if (normalPending > 0) {
-                es.load.start();
-            }
-            callback();
-            // ?댁젣 tilesetKey濡?tilemap 留뚮뱾怨??곕㈃ ??
+            renderer.clearPreviewTile();
+            isPointerDownRef.current = false;
+            cameraDragRef.current = false;
+            dragEntityIdRef.current = null;
         };
 
+        renderer.onScroll = (deltaY) => {
+            const dy = Math.exp(deltaY * -(1 / 1000));
+            const zoom = Math.min(Math.max(renderer.getCameraZoom() * dy, 0.1), 10);
+            renderer.setCameraZoom(zoom);
+        };
 
         return () => {
-            game.destroy(true);
-        }
+            active = false;
+            gameCoreRef.current?.destroy();
+            renderer.destroy();
+            rendererRef.current = null;
+            gameCoreRef.current = null;
+        };
     }, []);
 
     useEffect(() => {
-        if (sceneRef.current == null)
-            return;
-        if (selected_asset == null) {
-            const cm = new CameraMode()
-            setEditorMode(cm);
-            sceneRef.current!.setEditorMode(cm);
-            const ctx: EditorContext = { currentMode: cm, mouse: "mousemove" };
-            core.sendContextToEditorModeStateMachine(ctx);
-        }
-        else if (selected_asset?.tag == "Tile") {
-            const tm = new TilingMode()
-            tm.tile = selected_asset.idx;
-            tm.base = sceneRef.current.baselayer;
-            tm.preview = sceneRef.current.previewlayer;
+        const renderer = rendererRef.current;
+        if (!renderer || !rendererReadyRef.current) return;
 
-            // ref瑜??듯빐 ?꾩옱 紐⑤뱶 ?묎렐 (?섏〈??猷⑦봽 諛⑹?)
-            const tiling = modeRef.current as TilingMode;
-            tm.curTilingType = tiling?.curTilingType; // ?놁쓣 ?섎룄 ?덉쑝???듭뀛??泥댁씠??
-            setEditorMode(tm);
-            sceneRef.current?.setEditorMode(tm);
-            const ctx: EditorContext = { currentMode: tm, currentSelectedAsset: selected_asset, mouse: "mousemove" };
-            core.sendContextToEditorModeStateMachine(ctx);
+        const nextTiles = indexTiles(tiles);
+        const prevTiles = prevTilesRef.current;
+
+        for (const [key, prev] of prevTiles.entries()) {
+            if (!nextTiles.has(key)) {
+                renderer.removeTile(prev.x, prev.y);
+            }
         }
-    }, [selected_asset]) // currentEditorMode ?섏〈???쒓굅
+
+        for (const t of nextTiles.values()) {
+            renderer.setTile(t.x, t.y, t.tile);
+        }
+
+        prevTilesRef.current = nextTiles;
+    }, [tiles]);
 
     useEffect(() => {
-        if (sceneRef.current == null)
-            return;
-        if (draggedAsset == null) {
-            const cm = new CameraMode()
-            changeEditorMode(cm)
-            const ctx: EditorContext = { currentMode: cm, mouse: "mousemove" };
-            core.sendContextToEditorModeStateMachine(ctx);
-            return;
+        const gameCore = gameCoreRef.current;
+        if (!gameCore || !rendererReadyRef.current) return;
+
+        const nextIds = new Set(entities.map((e) => e.id));
+        const current = gameCore.getAllEntities();
+
+        for (const id of current.keys()) {
+            if (!nextIds.has(id)) {
+                gameCore.removeEntity(id);
+            }
         }
-        const mode = new DragDropMode();
-        mode.asset = draggedAsset;
-        changeEditorMode(mode);
-        const ctx: EditorContext = { currentMode: mode, currentDraggingAsset: draggedAsset, mouse: "mousemove" };
-        core.sendContextToEditorModeStateMachine(ctx);
-    }, [draggedAsset])
+
+        for (const ent of entities) {
+            if (!gameCore.hasEntity(ent.id)) {
+                gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
+                    name: ent.name,
+                    texture: ent.name,
+                    variables: ent.variables,
+                    components: [],
+                });
+            } else {
+                gameCore.moveEntity(ent.id, ent.x, ent.y);
+            }
+        }
+    }, [entities]);
+
+    // Entry Style Colors
+    const colors = {
+        bgPrimary: '#0d1117',
+        bgSecondary: '#161b22',
+        bgTertiary: '#21262d',
+        borderColor: '#30363d',
+        borderAccent: '#1f6feb',
+        accentLight: '#58a6ff',
+        textPrimary: '#f0f6fc',
+        textSecondary: '#8b949e',
+    };
 
     return (
         <div style={{
@@ -194,7 +367,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                     Camera
                 </span>
 
-                {currentEditorMode instanceof TilingMode && (
+                {selected_asset?.tag === "Tile" && (
                     <div style={{
                         display: 'flex',
                         gap: '4px',
@@ -203,18 +376,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                         borderLeft: `1px solid ${colors.borderColor}`,
                     }}>
                         <button
-                            onClick={() => {
-                                const tm = new TilingMode();
-                                tm.curTilingType = currentEditorMode.curTilingType === "drawing" ? "" : "drawing";
-                                tm.tile = selected_asset!.idx;
-                                tm.base = sceneRef.current!.baselayer;
-                                tm.preview = sceneRef.current!.previewlayer;
-                                changeEditorMode(tm);
-                            }}
+                            onClick={() => setTilingType((prev) => (prev === "drawing" ? "" : "drawing"))}
                             style={{
                                 padding: '6px 12px',
                                 fontSize: '12px',
-                                background: currentEditorMode.curTilingType === "drawing" ? colors.borderAccent : colors.bgTertiary,
+                                background: tilingType === "drawing" ? colors.borderAccent : colors.bgTertiary,
                                 border: `1px solid ${colors.borderColor}`,
                                 borderRadius: '4px',
                                 color: colors.textPrimary,
@@ -224,18 +390,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                             그리기
                         </button>
                         <button
-                            onClick={() => {
-                                const tm = new TilingMode();
-                                tm.curTilingType = currentEditorMode.curTilingType === "erase" ? "" : "erase";
-                                tm.tile = selected_asset!.idx;
-                                tm.base = sceneRef.current!.baselayer;
-                                tm.preview = sceneRef.current!.previewlayer;
-                                changeEditorMode(tm);
-                            }}
+                            onClick={() => setTilingType((prev) => (prev === "erase" ? "" : "erase"))}
                             style={{
                                 padding: '6px 12px',
                                 fontSize: '12px',
-                                background: currentEditorMode.curTilingType === "erase" ? '#da3633' : colors.bgTertiary,
+                                background: tilingType === "erase" ? '#da3633' : colors.bgTertiary,
                                 border: `1px solid ${colors.borderColor}`,
                                 borderRadius: '4px',
                                 color: colors.textPrimary,
@@ -253,17 +412,15 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 ref={ref}
                 style={{
                     flex: 1,
-                    background: colors.bgViewport,
+                    background: colors.bgPrimary,
                     border: `2px solid ${colors.borderColor}`,
                     borderRadius: '6px',
                     overflow: 'hidden',
                 }}
                 onMouseLeave={() => {
-                    if (!sceneRef.current) return;
-                    sceneRef.current.previewlayer?.fill(-1);
+                    rendererRef.current?.clearPreviewTile();
                 }}
             />
         </div>
     );
 }
-

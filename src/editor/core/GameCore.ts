@@ -7,6 +7,7 @@
 
 import type { IRenderer } from "../renderer/IRenderer";
 import type { EditorComponent, AutoRotateComponent, PulseComponent } from "../types/Component";
+import type { EditorVariable } from "../types/Variable";
 
 /**
  * 게임 엔티티 데이터 구조 (순수 JavaScript 객체)
@@ -21,7 +22,8 @@ export interface GameEntity {
     rotation: number;
     scaleX: number;
     scaleY: number;
-    scaleZ: number;  // 3D 확장성 지원
+    scaleZ: number;
+    variables: EditorVariable[];
     components: EditorComponent[];
 }
 
@@ -34,8 +36,13 @@ export interface CreateEntityOptions {
     rotation?: number;
     scaleX?: number;
     scaleY?: number;
-    scaleZ?: number;  // 3D 확장성 지원
+    scaleZ?: number;
+    variables?: EditorVariable[];
     components?: EditorComponent[];
+    texture?: string;
+    width?: number;
+    height?: number;
+    color?: number;
 }
 
 /**
@@ -80,6 +87,7 @@ export class GameCore {
      * @param type 엔티티 타입
      * @param x X 좌표
      * @param y Y 좌표
+     * @param z Z 좌표
      * @param options 추가 옵션
      * @returns 생성 성공 여부
      */
@@ -107,6 +115,7 @@ export class GameCore {
             scaleX: options.scaleX ?? 1,
             scaleY: options.scaleY ?? 1,
             scaleZ: options.scaleZ ?? 1,
+            variables: options.variables ?? [],
             components: options.components ?? [],
         };
 
@@ -114,7 +123,12 @@ export class GameCore {
         this.entities.set(id, entity);
 
         // 2. 렌더러에 스폰 요청
-        this.renderer.spawn(id, type, x, y, entity.z);
+        this.renderer.spawn(id, type, x, y, entity.z, {
+            texture: options.texture,
+            width: options.width,
+            height: options.height,
+            color: options.color,
+        });
 
         // 3. 컴포넌트 런타임 등록
         this.registerComponentRuntimes(entity);

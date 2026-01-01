@@ -38,6 +38,7 @@ function EditorLayoutInner() {
     const coreDirect = useEditorCore();
 
     const [mode, setMode] = useState<Mode>("dev");
+    const [runSession, setRunSession] = useState(0);
 
     const changeSelectedAssetHandler = (a: any) => {
         core.setSelectedAsset(a);
@@ -116,7 +117,13 @@ function EditorLayoutInner() {
                             cursor: 'pointer',
                         }}
                         onClick={() => {
-                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
+                            setMode((prev) => {
+                                const next = prev === "dev" ? "run" : "dev";
+                                if (next === "run") {
+                                    setRunSession((v) => v + 1);
+                                }
+                                return next;
+                            });
                         }}
                     >
                         {mode === "dev" ? "실행" : "편집"}
@@ -223,7 +230,7 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                        <RunTimeCanvas />
+                        <RunTimeCanvas key={`run-${runSession}`} />
                     )}
                 </div>
 
