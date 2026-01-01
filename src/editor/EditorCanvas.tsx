@@ -196,6 +196,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
     useEffect(() => {
         if (sceneRef.current == null)
             return;
+        if (!sceneRef.current.ready) return; // Wait for scene to be ready
+
         if (selected_asset == null) {
             const cm = new CameraMode()
             setEditorMode(cm);
@@ -204,20 +206,26 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             core.sendContextToEditorModeStateMachine(ctx);
         }
         else if (selected_asset?.tag == "Tile") {
+            // Make sure layers are initialized
+            if (!sceneRef.current.baselayer || !sceneRef.current.previewlayer) {
+                console.warn("Tile layers not yet initialized");
+                return;
+            }
+
             const tm = new TilingMode()
             tm.tile = selected_asset.idx;
             tm.base = sceneRef.current.baselayer;
             tm.preview = sceneRef.current.previewlayer;
 
-            // ref瑜??듯빐 ?꾩옱 紐⑤뱶 ?묎렐 (?섏〈??猷⑦봽 諛⑹?)
+            // Keep previous tiling type if available
             const tiling = modeRef.current as TilingMode;
-            tm.curTilingType = tiling?.curTilingType; // ?놁쓣 ?섎룄 ?덉쑝???듭뀛??泥댁씠??
+            tm.curTilingType = tiling?.curTilingType || "";
             setEditorMode(tm);
             sceneRef.current?.setEditorMode(tm);
             const ctx: EditorContext = { currentMode: tm, currentSelectedAsset: selected_asset, mouse: "mousemove" };
             core.sendContextToEditorModeStateMachine(ctx);
         }
-    }, [selected_asset, core]) // currentEditorMode ?섏〈???쒓굅
+    }, [selected_asset, core])
 
     useEffect(() => {
         if (sceneRef.current == null)
