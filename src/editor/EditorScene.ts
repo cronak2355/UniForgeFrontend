@@ -187,39 +187,39 @@ export class EditorScene extends Phaser.Scene {
 
 
       // ??1) ?먯뀑 UI ?대┃/?쒕옒洹??쒖옉?대㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯 + ?앹꽦(+?쒕옒洹??쒖옉)
-        if (this.tryEnterEntityEditFromAsset(p)) {
-          this.editorCore?.sendContextToEditorModeStateMachine({
-            currentMode: new EntityEditMode(),
-            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
-            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-            currentSelecedEntity: this.getEntityUnderPointer(p),
-            mouse: "mousedown",
-          });
-          const next = this.editorCore?.getEditorMode();
-          if (next) this.setEditorMode(next);
-          return;
-        }
-
-      // ??2) 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯?댁꽌 ?쒕옒洹??쒖옉
-        if (this.tryEnterEntityEditFromEntity(p)) {
-          this.editorCore?.sendContextToEditorModeStateMachine({
-            currentMode: new EntityEditMode(),
-            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
-            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-            currentSelecedEntity: this.getEntityUnderPointer(p),
-            mouse: "mousedown",
-          });
-          const next = this.editorCore?.getEditorMode();
-          if (next) this.setEditorMode(next);
-          return;
-        }
-
-      // ??3) 洹??몃뒗 ?꾩옱 紐⑤뱶???꾩엫
-        this.editorMode.onPointerDown(this, p);
-        this.editorCore?.sendContextToEditorModeStateMachine(buildContext(p, "mousedown"));
+      if (this.tryEnterEntityEditFromAsset(p)) {
+        this.editorCore?.sendContextToEditorModeStateMachine({
+          currentMode: new EntityEditMode(),
+          currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+          currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+          currentSelecedEntity: this.getEntityUnderPointer(p),
+          mouse: "mousedown",
+        });
         const next = this.editorCore?.getEditorMode();
         if (next) this.setEditorMode(next);
-      };
+        return;
+      }
+
+      // ??2) 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯?댁꽌 ?쒕옒洹??쒖옉
+      if (this.tryEnterEntityEditFromEntity(p)) {
+        this.editorCore?.sendContextToEditorModeStateMachine({
+          currentMode: new EntityEditMode(),
+          currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+          currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+          currentSelecedEntity: this.getEntityUnderPointer(p),
+          mouse: "mousedown",
+        });
+        const next = this.editorCore?.getEditorMode();
+        if (next) this.setEditorMode(next);
+        return;
+      }
+
+      // ??3) 洹??몃뒗 ?꾩옱 紐⑤뱶???꾩엫
+      this.editorMode.onPointerDown(this, p);
+      this.editorCore?.sendContextToEditorModeStateMachine(buildContext(p, "mousedown"));
+      const next = this.editorCore?.getEditorMode();
+      if (next) this.setEditorMode(next);
+    };
 
     const onWinPointerMove = (e: PointerEvent) => {
       const { p, inside } = feedPointer(e.clientX, e.clientY);
@@ -465,6 +465,7 @@ export class EditorScene extends Phaser.Scene {
       y: transform.y ?? world.y,
       variables: [],
       events: [],
+      components: [],
     };
   }
 
