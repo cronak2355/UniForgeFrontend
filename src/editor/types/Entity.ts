@@ -1,6 +1,7 @@
 import type { EditorVariable } from "./Variable";
 import type { EditorEvent } from "./Event";
 import type { EditorComponent } from "./Component";
+import type { EditorModule } from "./Module";
 
 export type EditorEntity = {
     id: string;
@@ -12,4 +13,5 @@ export type EditorEntity = {
     variables: EditorVariable[];
     events: EditorEvent[];
     components: EditorComponent[];
+    modules: EditorModule[];  // StatusModule, KineticModule 등
 };

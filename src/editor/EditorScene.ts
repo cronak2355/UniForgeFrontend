@@ -480,6 +480,7 @@ export class EditorScene extends Phaser.Scene {
       variables: [],
       events: [],
       components: [],
+      modules: [],
     };
   }
 
