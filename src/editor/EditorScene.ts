@@ -2,8 +2,15 @@ import Phaser from "phaser";
 import { EditorMode, CameraMode, EntityEditMode } from "./editorMode/editorModes";
 import type { EditorEntity } from "./types/Entity";
 import type { EditorState, EditorContext } from "./EditorCore";
+import type { EditorComponent, AutoRotateComponent, PulseComponent } from "./types/Component";
 
 const tileSize = 32;
+
+type RuntimeComponent = {
+  comp: EditorComponent;
+  target: any;
+  initialScale?: { x: number, y: number }; // for Pulse
+};
 
 export class EditorScene extends Phaser.Scene {
 
@@ -21,8 +28,9 @@ export class EditorScene extends Phaser.Scene {
 
   public entityGroup!: Phaser.GameObjects.Group;
   public assetGroup!: Phaser.GameObjects.Group;
-  // (선택) 드랍 완료 후 외부(React)로 알리고 싶으면 이 콜백 사용
-  // onEntityMoved?: (id: string, x: number, y: number) => void;
+
+  // Optimization: Cached list of active components to avoid iterating all entities
+  private runtimeComponents: RuntimeComponent[] = [];
 
   onReady!: (scene: EditorScene, callback: () => void) => Promise<void>;
   onSelectEntity?: (entity: EditorEntity) => void;
@@ -133,7 +141,7 @@ export class EditorScene extends Phaser.Scene {
         const cm: EditorContext = { currentMode: new CameraMode(), mouse: "mouseup" };
         this.editorCore?.sendContextToEditorModeStateMachine(cm);
       }
-      
+
 
       // ✅ 1) 에셋 UI 클릭/드래그 시작이면 -> 엔티티 모드로 진입 + 생성(+드래그 시작)
       if (this.tryEnterEntityEditFromAsset(p)) return;
@@ -158,7 +166,7 @@ export class EditorScene extends Phaser.Scene {
         currentSelecedEntity: this.editorCore?.getSelectedEntity() ?? undefined,
         mouse: "mousemove",
       };
-      
+
       this.editorMode.onPointerMove(this, p);
       this.editorCore?.sendContextToEditorModeStateMachine(ctx);
     };
@@ -235,20 +243,64 @@ export class EditorScene extends Phaser.Scene {
     for (const c of old) c.destroy();
     this.entityGroup.clear(false);
 
+    // Reset runtime components
+    this.runtimeComponents = [];
+
     entities.forEach((e) => {
       const rect = this.add.rectangle(e.x, e.y, 40, 40, 0xffffff);
       rect.setData("id", e.id);
       rect.setInteractive({ useHandCursor: true });
+      rect.setName(e.name); // Phaser Name
 
       this.entityGroup.add(rect);
+
+      // Populate runtime components (Optimization)
+      if (e.components) {
+        e.components.forEach((comp) => {
+          this.runtimeComponents.push({
+            comp,
+            target: rect,
+            initialScale: { x: rect.scaleX, y: rect.scaleY },
+          });
+        });
+      }
     });
   }
 
   // -----------------------
   // update / grid
   // -----------------------
-  update() {
+  update(time: number, delta: number) {
     this.redrawGrid();
+
+    // Optimized Component System Loop
+    // Only iterates active components
+    const dt = delta / 1000; // seconds
+
+    for (const rc of this.runtimeComponents) {
+      if (!rc.target.active) continue;
+
+      switch (rc.comp.type) {
+        case "AutoRotate": {
+          const c = rc.comp as AutoRotateComponent;
+          // Rotate target
+          rc.target.angle += c.speed * dt;
+          break;
+        }
+        case "Pulse": {
+          const c = rc.comp as PulseComponent;
+          // Pulse scale
+          // simple sine wave based on time
+          const t = time / 1000 * c.speed;
+          const scaleRange = (c.maxScale - c.minScale) / 2;
+          const baseScale = (c.maxScale + c.minScale) / 2;
+          const currentScale = baseScale + Math.sin(t) * scaleRange;
+
+          rc.target.setScale(currentScale);
+          break;
+        }
+      }
+    }
   }
 
   redrawGrid() {

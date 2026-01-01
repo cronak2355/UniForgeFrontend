@@ -3,6 +3,9 @@ import type { EditorEntity } from "../types/Entity";
 import { EventSection } from "./EventSection";
 import type { EditorEvent } from "../types/Event";
 import { InspectorScroll } from "./InspectorScroll";
+import { ComponentSection } from "./ComponentSection";
+import type { EditorComponent } from "../types/Component";
+
 
 // Entry Style Colors
 const colors = {
@@ -155,6 +158,31 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             events={entity.events}
             onAdd={handleAddEvent}
             onUpdate={handleUpdateEvent}
+          />
+        </div>
+        <div style={{ marginBottom: "16px" }}>
+          <ComponentSection
+            components={entity.components || []}
+            onAdd={(comp) => {
+              onUpdateEntity({
+                ...entity,
+                components: [...(entity.components || []), comp],
+              });
+            }}
+            onUpdate={(updatedComp) => {
+              onUpdateEntity({
+                ...entity,
+                components: (entity.components || []).map((c) =>
+                  c.id === updatedComp.id ? updatedComp : c
+                ),
+              });
+            }}
+            onRemove={(id) => {
+              onUpdateEntity({
+                ...entity,
+                components: (entity.components || []).filter((c) => c.id !== id),
+              });
+            }}
           />
         </div>
       </InspectorScroll>
