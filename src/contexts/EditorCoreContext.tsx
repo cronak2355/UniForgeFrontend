@@ -4,12 +4,12 @@ import { EditorState, editorCore } from "../editor/EditorCore";
 const EditorCoreContext = createContext<EditorState>(editorCore);
 
 export function EditorCoreProvider({ children }: { children: React.ReactNode }) {
-  return <EditorCoreContext.Provider value={editorCore}>{children}</EditorCoreContext.Provider>;
+    return <EditorCoreContext.Provider value={editorCore}>{children}</EditorCoreContext.Provider>;
 }
 
 export function useEditorCore(): EditorState {
-  const ctx = useContext(EditorCoreContext);
-  return ctx;
+    const ctx = useContext(EditorCoreContext);
+    return ctx;
 }
 
 // 편리한 훅: EditorState를 구독하고 스냅샷을 반환
@@ -19,10 +19,10 @@ export function useEditorCoreSnapshot() {
     useEffect(() => {
         const unsub = core.subscribe(() => setVersion((v) => v + 1));
         return () => {
-        unsub();
+            unsub();
         };
     }, [core]);
-    
+
     return {
         core,
         assets: Array.from(core.getAssets()),
@@ -32,6 +32,6 @@ export function useEditorCoreSnapshot() {
         draggedAsset: core.getDraggedAsset(),
         selectedEntity: core.getSelectedEntity(),
         editorMode: core.getEditorMode(),
-        
+
     };
 }

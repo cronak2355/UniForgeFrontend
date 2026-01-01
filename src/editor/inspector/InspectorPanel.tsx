@@ -167,7 +167,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                 ),
               });
             }}
-            onRemove={(id) => {
+            onDelete={(id) => {
               onUpdateEntity({
                 ...entity,
                 components: (entity.components || []).filter((c) => c.id !== id),

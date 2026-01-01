@@ -10,6 +10,9 @@ const MarketplacePage = () => {
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("전체");
+
+    // Todo: define item type properly
+    const [selectedItem, setSelectedItem] = useState<any>(null);
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -20,6 +23,18 @@ const MarketplacePage = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Prevent scrolling when modal is open
+    useEffect(() => {
+        if (selectedItem) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'auto';
+        }
+        return () => {
+            document.body.style.overflow = 'auto';
+        }
+    }, [selectedItem]);
 
     const handleLogout = () => {
         logout();
@@ -121,11 +136,12 @@ const MarketplacePage = () => {
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                     <div
-                        style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer' }}
+                        style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         onClick={() => navigate('/main')}
                     >
+                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
                         <span className="gradient-text">Uniforge</span>
-                        <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>마켓플레이스</span>
+                        <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>에셋 플레이스</span>
                     </div>
 
                     {/* Search Bar */}
@@ -380,6 +396,7 @@ const MarketplacePage = () => {
                                     transition: 'transform 0.2s, border-color 0.2s',
                                     position: 'relative'
                                 }}
+                                onClick={() => setSelectedItem(item)}
                                 onMouseEnter={e => {
                                     e.currentTarget.style.transform = 'translateY(-4px)';
                                     e.currentTarget.style.borderColor = '#444';
@@ -416,12 +433,139 @@ const MarketplacePage = () => {
                                     </div>
                                 </div>
                             </div>
+
                         ))}
                     </div>
 
                 </main>
-            </div>
-        </div>
+            </div >
+
+            {/* Asset Detail Modal */}
+            {
+                selectedItem && (
+                    <div style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '2rem'
+                    }} onClick={() => setSelectedItem(null)}>
+                        <div style={{
+                            backgroundColor: '#111',
+                            border: '1px solid #333',
+                            borderRadius: '16px',
+                            width: '100%',
+                            maxWidth: '900px',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            display: 'flex',
+                            position: 'relative',
+                            boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+                        }} onClick={e => e.stopPropagation()}>
+
+                            {/* Close Button */}
+                            <button
+                                onClick={() => setSelectedItem(null)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '16px',
+                                    right: '16px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#666',
+                                    fontSize: '1.5rem',
+                                    cursor: 'pointer',
+                                    zIndex: 10
+                                }}
+                            >
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+
+                            {/* Left: Image */}
+                            <div style={{ width: '50%', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <img
+                                    src={selectedItem.image}
+                                    alt={selectedItem.title}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                            </div>
+
+                            {/* Right: Info */}
+                            <div style={{ width: '50%', padding: '2rem', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ marginBottom: 'auto' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                        <span style={{
+                                            backgroundColor: '#2563eb', color: 'white', padding: '4px 8px',
+                                            borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600
+                                        }}>
+                                            {selectedItem.type}
+                                        </span>
+                                        <span style={{ color: '#666', fontSize: '0.9rem' }}>{selectedItem.genre}</span>
+                                    </div>
+
+                                    <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>{selectedItem.title}</h2>
+                                    <p style={{ color: '#888', marginBottom: '1.5rem' }}>by {selectedItem.author}</p>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24', marginBottom: '1.5rem' }}>
+                                        <i className="fa-solid fa-star"></i>
+                                        <span style={{ fontWeight: 600 }}>{selectedItem.rating}</span>
+                                        <span style={{ color: '#666' }}>(128 reviews)</span>
+                                    </div>
+
+                                    <p style={{ color: '#ccc', lineHeight: '1.6', marginBottom: '2rem' }}>
+                                        이 에셋은 유니포지 마켓플레이스에서 엄선된 고품질 에셋입니다.
+                                        프로젝트에 바로 적용하여 시간을 절약하고 퀄리티를 높여보세요.
+                                        포함된 파일: FBX, OBJ, PNG 텍스처 등.
+                                    </p>
+                                </div>
+
+                                <div style={{ borderTop: '1px solid #222', paddingTop: '1.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <span style={{ color: '#888' }}>가격</span>
+                                        <span style={{ fontSize: '1.5rem', fontWeight: 700, color: selectedItem.price === '무료' ? '#22c55e' : 'white' }}>
+                                            {selectedItem.price}
+                                        </span>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            alert(`${selectedItem.title}이(가) 라이브러리에 다운로드되었습니다.`);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            backgroundColor: '#2563eb',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '16px',
+                                            borderRadius: '8px',
+                                            fontSize: '1rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                                    >
+                                        <i className="fa-solid fa-download"></i>
+                                        라이브러리에 담기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

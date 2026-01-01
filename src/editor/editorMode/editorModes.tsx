@@ -94,7 +94,9 @@ export class TilingMode extends EditorMode {
             return;
         const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
         const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
-        this.preview.fill(-1);
+        if (this.preview) {
+            try { this.preview.fill(-1); } catch { /* ignore */ }
+        }
         switch (this.curTilingType) {
             case "": {
                 if (!this.isDrag)

@@ -1,4 +1,3 @@
-
 export type ComponentType = "AutoRotate" | "Pulse";
 
 export interface BaseComponent {

@@ -77,7 +77,8 @@ const MainPage = () => {
                 zIndex: 100
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
                         <span className="gradient-text">Uniforge</span>
                     </div>
                     <nav style={{ display: 'flex', gap: '0.5rem' }}>
@@ -104,7 +105,7 @@ const MainPage = () => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            둘러보기
+                            게임 플레이스
                         </button>
                         <button
                             onClick={() => navigate('/marketplace')}
@@ -129,7 +130,7 @@ const MainPage = () => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            마켓플레이스
+                            에셋 플레이스
                         </button>
                         <button
                             onClick={() => navigate('/library')}
@@ -316,12 +317,12 @@ const MainPage = () => {
                         </div>
                     </div>
 
-                    <div className="action-card" onClick={() => navigate('/assets')}>
+                    <div className="action-card" onClick={() => navigate('/marketplace')}>
                         <div className="action-card-icon">
                             <i className="fa-solid fa-puzzle-piece"></i>
                         </div>
                         <div className="action-card-content">
-                            <h3>에셋 스토어</h3>
+                            <h3>에셋 플레이스</h3>
                             <p>고퀄리티 에셋으로 게임을 빠르게 완성하세요</p>
                         </div>
                         <div className="action-card-arrow">
