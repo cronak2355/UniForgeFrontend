@@ -7,9 +7,10 @@ import type { EditorEntity } from "./types/Entity";
 import { EditorCanvas } from "./EditorCanvas";
 import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
-import { EditorCoreProvider, useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
+import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
+import type { Asset } from "./types/Asset";
 
 // Entry Style Color Palette
 const colors = {
@@ -36,19 +37,18 @@ type Mode = "dev" | "run";
 
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
-    const coreDirect = useEditorCore();
     const navigate = useNavigate();
 
     const [mode, setMode] = useState<Mode>("dev");
 
-    const changeSelectedAssetHandler = (a: any) => {
+    const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
         const ctx: EditorContext = { currentMode: cm, currentSelectedAsset: a ?? undefined, mouse: "mousemove" };
         core.sendContextToEditorModeStateMachine(ctx);
     };
 
-    const changeDraggedAssetHandler = (a: any) => {
+    const changeDraggedAssetHandler = (a: Asset | null) => {
         core.setDraggedAsset(a);
         if (a == null) {
             const cm = new CameraMode();
@@ -66,78 +66,6 @@ function EditorLayoutInner() {
     useEffect(() => {
         setLocalSelectedEntity(selectedEntity);
     }, [selectedEntity]);
-
-    const handleUpdateAssetColor = (assetId: number, color: string) => {
-        // This seems to be missing in the remote context or handled differently. 
-        // For now, we'll assume the context handles asset updates or we might need to implement a core method.
-        // Looking at the remote code, 'setAssets' wasn't exposed from useEditorCoreSnapshot in the conflict block 
-        // but 'assets' was. 
-        // If this functionality is critical, it needs to be added to EditorCore. 
-        // For now, I will comment it out or leave it no-op if no setter exists, 
-        // but the conflict showed `handleUpdateAssetColor` definition in the remote block. 
-        // Wait, looking at lines 86-90 in the file content I viewed:
-        // const handleUpdateAssetColor = ... setAssets ...
-        // BUT setAssets is NOT defined in EditorLayoutInner scope in the Remote version (it comes from useEditorCoreSnapshot?).
-        // Actually, looking at line 55: const { ..., assets ... } = useEditorCoreSnapshot();
-        // It returns 'assets' (value), not 'setAssets' (setter).
-        // So `handleUpdateAssetColor` in the remote code (lines 86-90) would fail if `setAssets` isn't defined.
-        // Let's check if `setAssets` was defined in the remote block.
-        // It wasn't visible in the view_file output for EditorLayoutInner.
-        // Wait, the conflict block 8e9a... started at line 44.
-        // Lines 54-101 were NOT in a conflict block?
-        // Ah, the file content I saw had `<<<<<<<` at line 1 and `=======` at line 4, etc.
-        // BUT lines 54-367 were displayed as if they were part of the file.
-        // Wait, lines 86-90:
-        // const handleUpdateAssetColor = (assetId: number, color: string) => {
-        //    setAssets(prev => ...
-        // };
-        // This code uses `setAssets`. But `setAssets` is NOT defined in `EditorLayoutInner`.
-        // This implies the REMOTE code (or the result of me viewing the file with conflicts) might be broken or I missed where setAssets comes from.
-        // In the `HEAD` version, `setAssets` came from `useState`.
-        // In `EditorLayoutInner`, `assets` comes from `useEditorCoreSnapshot`.
-        // `useEditorCoreSnapshot` likely returns immutable snapshot.
-        // To update assets, we should use `core.updateAsset(...)` or similar?
-        // Since I can't see `EditorCoreContext` definition, I will assume for now that I should NOT include `handleUpdateAssetColor` 
-        // OR I should use `coreDirect` if available.
-        // However, I must resolve the conflict in `EditorLayout.tsx`. 
-        // The conflict was mainly in the Imports, the Component definition, and the Header.
-        // The body of `EditorLayoutInner` seems to be what was common or what was in the file 'base'?
-        // No, `EditorLayoutInner` was introduced by the Remote change.
-        // So the lines 54+ are from the Remote?
-        // If so, `setAssets` usage there is suspicious.
-        // Let's look closer at line 87: `setAssets(prev => ...)`
-        // If `setAssets` is not defined, this will error.
-        // Maybe `setAssets` IS defined in `useEditorCoreSnapshot`?
-        // Line 55: `const { core, assets, ... } = ...`
-        // It does not destructure `setAssets`.
-        // I will remove `handleUpdateAssetColor` usage for now to avoid build errors, 
-        // or just log a warning, as `EditorCore` seems to be the source of truth now.
-        // Actually, looking at the Remote conflict block `>>>>>>>`, it ended at line 166.
-        // The logic for `EditorLayoutInner` (lines 54+) *followed* the conflict block?
-        // No, `>>>>>>>` was at 166 (inside the header).
-        // There was another `<<<<<<<` at line 32?
-        // It seems there were MULTIPLE conflict blocks.
-        // Block 1: Lines 1-6 (Imports)
-        // Block 2: Lines 32-50 (Component Body vs Inner wrapper)
-        // Block 3: Lines 111-166 (Header Logo)
-        // Block 4: Lines 297-315 (Bottom Panel vs Runtime Canvas)
-
-        // Lines 54-110 were NOT marked as conflict. This means they matched in both or were part of the merge base?
-        // Wait, if `EditorLayoutInner` didn't exist in HEAD, how can lines 54-110 be conflict-free?
-        // They must exist in the file *after* git tried to auto-merge what it could.
-        // Since Remote introduced `EditorLayoutInner`, and HEAD didn't have it, git might have just appended it?
-        // No, `EditorLayoutInner` is used in the Remote's `EditorLayout` (Line 46).
-        // So `EditorLayoutInner` MUST be defined.
-        // The fact that lines 54-110 are there suggests they are part of the file now.
-        // But `setAssets` is used in line 87.
-        // If `setAssets` is not defined in `EditorLayoutInner`, it's a bug in the Remote code (or the merge result).
-        // I will comment out the `handleUpdateAssetColor` implementation detail to prevent crash, 
-        // or check if `core` has a method for it.
-        // Re-reading line 54: `function EditorLayoutInner() {`
-        // I will trust the Remote's intention but fix the `setAssets` missing issue if obvious.
-        // I'll assume `core` should handle it.
-        console.warn("Asset color update not implemented in new Core");
-    };
 
     return (
         <div style={{

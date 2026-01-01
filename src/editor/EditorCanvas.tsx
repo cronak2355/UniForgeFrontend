@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { EditorMode, CameraMode, TilingMode, DragDropMode } from "./editorMode/editorModes"
 import { useEditorCore } from "../contexts/EditorCoreContext";
-import { EditorState, type EditorContext } from "./EditorCore";
+import { type EditorContext } from "./EditorCore";
 import type { Asset } from "./types/Asset"
 import type { EditorEntity } from "./types/Entity";
 import { EditorScene } from "./EditorScene";
@@ -65,7 +65,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             const tileSize = 32;
             const cols = 16;
 
-            // 1) ??쇰쭔 移댁슫?명빐??罹붾쾭???ш린 寃곗젙
+            // 1) ?€?쇰쭔 移댁슫?명빐??罹붾쾭???ш린 寃곗젙
             let tileCount = 0;
             for (let i = 0; i < assets.length; i++) {
                 if (assets[i].tag === "Tile") tileCount++;
@@ -78,7 +78,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             const ctx = tilesetcanvas.getContext("2d");
             if (!ctx) throw new Error("no 2d context");
 
-            // 2) ??? 罹붾쾭?ㅼ뿉 ?ｊ퀬 idx 遺??
+            // 2) ?€?? 罹붾쾭?ㅼ뿉 ?ｊ퀬 idx 遺€??
             let idx = 0;
             for (let i = 0; i < assets.length; i++) {
                 if (assets[i].tag !== "Tile") continue;
@@ -108,12 +108,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 idx++;
             }
 
-            // 3) 罹붾쾭?ㅻ? ?띿뒪泥섎줈 ?깅줉(??쇱뀑 ??
+            // 3) 罹붾쾭?ㅻ? ?띿뒪泥섎줈 ?깅줉(?€?쇱뀑 ??
             const tilesetKey = "tiles";
             if (es.textures.exists(tilesetKey)) es.textures.remove(tilesetKey);
             es.textures.addCanvas(tilesetKey, tilesetcanvas);
 
-            // 4) ????꾨땶 ?좊뱾: 濡쒕뜑???깅줉 (?먯뿉 ?ｋ뒗 嫄?留욌뒗?? 蹂꾨룄 ?쒕?湲??먥?留먭퀬 濡쒕뜑 ??
+            // 4) ?€???꾨땶 ?좊뱾: 濡쒕뜑???깅줉 (?먯뿉 ?ｋ뒗 嫄?留욌뒗?? 蹂꾨룄 ?쒕?湲??먥€?留먭퀬 濡쒕뜑 ??
             let normalPending = 0;
             for (let i = 0; i < assets.length; i++) {
                 if (assets[i].tag === "Tile") continue;
@@ -134,7 +134,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         return () => {
             game.destroy(true);
         }
-    }, []);
+    }, [core, addEntity, assets]);
 
     useEffect(() => {
         if (sceneRef.current == null)
@@ -160,7 +160,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             const ctx: EditorContext = { currentMode: tm, currentSelectedAsset: selected_asset, mouse: "mousemove" };
             core.sendContextToEditorModeStateMachine(ctx);
         }
-    }, [selected_asset]) // currentEditorMode ?섏〈???쒓굅
+    }, [selected_asset, core]) // currentEditorMode ?섏〈???쒓굅
 
     useEffect(() => {
         if (sceneRef.current == null)
@@ -177,7 +177,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         changeEditorMode(mode);
         const ctx: EditorContext = { currentMode: mode, currentDraggingAsset: draggedAsset, mouse: "mousemove" };
         core.sendContextToEditorModeStateMachine(ctx);
-    }, [draggedAsset])
+    }, [draggedAsset, core])
 
     return (
         <div style={{
