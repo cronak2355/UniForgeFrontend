@@ -138,9 +138,10 @@ const ExplorePage = () => {
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                     <div
-                        style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer' }}
+                        style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         onClick={() => navigate('/main')}
                     >
+                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
                         <span className="gradient-text">Uniforge</span>
                         <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>게임 플레이스</span>
                     </div>

@@ -77,7 +77,8 @@ const MainPage = () => {
                 zIndex: 100
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
                         <span className="gradient-text">Uniforge</span>
                     </div>
                     <nav style={{ display: 'flex', gap: '0.5rem' }}>
