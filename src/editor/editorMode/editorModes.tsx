@@ -244,6 +244,7 @@ export class DragDropMode extends EditorMode {
             variables: [],
             events: [],
             components: [],
+            modules: [],
         };
 
         // Notify React side immediately about the created entity so Hierarchy updates

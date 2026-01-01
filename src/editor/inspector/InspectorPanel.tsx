@@ -5,7 +5,8 @@ import type { EditorEvent } from "../types/Event";
 import { InspectorScroll } from "./InspectorScroll";
 import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
-import type { EditorComponent } from "../types/Component";
+import { ModuleSection } from "./ModuleSection";
+import type { EditorModule } from "../types/Module";
 
 
 type Props = {
@@ -170,6 +171,31 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               onUpdateEntity({
                 ...entity,
                 components: (entity.components || []).filter((c) => c.id !== id),
+              });
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: "16px" }}>
+          <ModuleSection
+            modules={entity.modules || []}
+            onAdd={(mod) => {
+              onUpdateEntity({
+                ...entity,
+                modules: [...(entity.modules || []), mod],
+              });
+            }}
+            onUpdate={(updatedMod) => {
+              onUpdateEntity({
+                ...entity,
+                modules: (entity.modules || []).map((m) =>
+                  m.id === updatedMod.id ? updatedMod : m
+                ),
+              });
+            }}
+            onRemove={(id) => {
+              onUpdateEntity({
+                ...entity,
+                modules: (entity.modules || []).filter((m) => m.id !== id),
               });
             }}
           />
