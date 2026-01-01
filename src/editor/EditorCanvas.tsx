@@ -20,10 +20,18 @@ type Props = {
 export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
+    const coreRef = useRef(core);
     const sceneRef = useRef<EditorScene | null>(null);
     const [currentEditorMode, setEditorMode] = useState<EditorMode>(() => new CameraMode());
     const modeRef = useRef<EditorMode>(currentEditorMode);
     const gameRef = useRef<Phaser.Game | null>(null);
+    const addEntityRef = useRef(addEntity);
+    const assetsRef = useRef(assets);
+
+    // Keep refs updated
+    useEffect(() => { coreRef.current = core; }, [core]);
+    useEffect(() => { addEntityRef.current = addEntity; }, [addEntity]);
+    useEffect(() => { assetsRef.current = assets; }, [assets]);
 
     // modeRef ?숆린??
     useEffect(() => {
@@ -40,13 +48,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         const scene = new EditorScene();
         sceneRef.current = scene;
         // inject core so scene can forward context to the EditorState FSM
-        scene.editorCore = core;
+        scene.editorCore = coreRef.current;
 
         // addEntity = hierarchy/inspector update on new entities
         scene.onSelectEntity = (entity) => {
             console.log("[PhaserCanvas] received entity:", entity);
-            addEntity(entity);
-            core.setSelectedEntity(entity);
+            addEntityRef.current(entity);
+            coreRef.current.setSelectedEntity(entity);
         };
 
         const config: Phaser.Types.Core.GameConfig = {
@@ -65,10 +73,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             const tileSize = 32;
             const cols = 16;
 
-            // 1) ?€?쇰쭔 移댁슫?명빐??罹붾쾭???ш린 寃곗젙
+            // 1) 타일만 카운트해서 캔버스 크기 결정
             let tileCount = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag === "Tile") tileCount++;
+            const currentAssets = assetsRef.current;
+            for (let i = 0; i < currentAssets.length; i++) {
+                if (currentAssets[i].tag === "Tile") tileCount++;
             }
 
             const tilesetcanvas = document.createElement("canvas");
@@ -78,51 +87,51 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             const ctx = tilesetcanvas.getContext("2d");
             if (!ctx) throw new Error("no 2d context");
 
-            // 2) ?€?? 罹붾쾭?ㅼ뿉 ?ｊ퀬 idx 遺€??
+            // 2) 타일 캔버스에 쓰고 idx 부여
             let idx = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag !== "Tile") continue;
+            for (let i = 0; i < currentAssets.length; i++) {
+                if (currentAssets[i].tag !== "Tile") continue;
 
-                assets[i].idx = idx;
+                currentAssets[i].idx = idx;
 
                 const x = (idx % cols) * tileSize;
                 const y = Math.floor(idx / cols) * tileSize;
 
-                if (assets[i].url) {
+                if (currentAssets[i].url) {
                     try {
                         const img = new Image();
-                        img.src = assets[i].url;
+                        img.src = currentAssets[i].url;
                         await img.decode();
                         ctx.drawImage(img, x, y, tileSize, tileSize);
                     } catch (e) {
-                        console.error(`Failed to load tile image: ${assets[i].name}`, e);
+                        console.error(`Failed to load tile image: ${currentAssets[i].name}`, e);
                         // 실패 시 대체 색상
                         ctx.fillStyle = '#ff00ff';
                         ctx.fillRect(x, y, tileSize, tileSize);
                     }
-                } else if (assets[i].color) {
-                    ctx.fillStyle = assets[i].color || '#ffffff';
+                } else if (currentAssets[i].color) {
+                    ctx.fillStyle = currentAssets[i].color || '#ffffff';
                     ctx.fillRect(x, y, tileSize, tileSize);
                 }
 
                 idx++;
             }
 
-            // 3) 罹붾쾭?ㅻ? ?띿뒪泥섎줈 ?깅줉(?€?쇱뀑 ??
+            // 3) 캔버스를 텍스처로 등록(타일셋 생성)
             const tilesetKey = "tiles";
             if (es.textures.exists(tilesetKey)) es.textures.remove(tilesetKey);
             es.textures.addCanvas(tilesetKey, tilesetcanvas);
 
-            // 4) ?€???꾨땶 ?좊뱾: 濡쒕뜑???깅줉 (?먯뿉 ?ｋ뒗 嫄?留욌뒗?? 蹂꾨룄 ?쒕?湲??먥€?留먭퀬 濡쒕뜑 ??
+            // 4) 타일 아닌 애셋들: 로더에 등록
             let normalPending = 0;
-            for (let i = 0; i < assets.length; i++) {
-                if (assets[i].tag === "Tile") continue;
+            for (let i = 0; i < currentAssets.length; i++) {
+                if (currentAssets[i].tag === "Tile") continue;
 
-                if (es.textures.exists(assets[i].name)) continue;
-                es.load.image(assets[i].name, assets[i].url);
+                if (es.textures.exists(currentAssets[i].name)) continue;
+                es.load.image(currentAssets[i].name, currentAssets[i].url);
                 normalPending++;
             }
-            // 5) ?덉쑝硫?start ?댁쨾???ㅼ젣濡?濡쒕뱶??
+            // 5) 있으면 start 호출해서 실제로 로드
             if (normalPending > 0) {
                 es.load.start();
             }
@@ -133,9 +142,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
 
         return () => {
             game.destroy(true);
+            gameRef.current = null;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [core, addEntity]);
+    }, []);
 
     useEffect(() => {
         if (sceneRef.current == null)
