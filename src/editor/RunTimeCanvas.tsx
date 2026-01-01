@@ -9,6 +9,7 @@ const TILE_SIZE = 32;
 const TILESET_COLS = 16;
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
+    // 타일 에셋을 하나의 캔버스로 합쳐 타일셋 텍스처를 만든다.
     const tileAssets = assets.filter((asset) => asset.tag === "Tile");
     if (tileAssets.length === 0) return null;
 
@@ -38,6 +39,7 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
 }
 
 function indexTiles(tiles: TilePlacement[]) {
+    // 타일 배열을 좌표 키 맵으로 변환해 diff 계산에 사용한다.
     const map = new Map<string, TilePlacement>();
     for (const t of tiles) {
         map.set(`${t.x},${t.y}`, t);
@@ -53,6 +55,7 @@ export function RunTimeCanvas() {
     const { assets, tiles, entities } = useEditorCoreSnapshot();
 
     useEffect(() => {
+        // 런타임 렌더러/게임코어 초기화 (최초 1회)
         if (!ref.current) return;
         if (rendererRef.current) return;
 
@@ -64,37 +67,49 @@ export function RunTimeCanvas() {
         let active = true;
 
         (async () => {
+            // 렌더러 초기화 후 텍스처/타일셋/초기 상태를 로드한다.
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
 
             for (const asset of assets) {
+                // 타일은 타일셋 캔버스로 처리하므로 비타일만 로드한다.
                 if (asset.tag === "Tile") continue;
                 await renderer.loadTexture(asset.name, asset.url);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(assets);
             if (tilesetCanvas) {
+                // 타일셋 텍스처 등록 후 타일맵 생성
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
             }
 
             for (const t of tiles) {
+                // 저장된 타일 배치 복원
                 renderer.setTile(t.x, t.y, t.tile);
             }
 
             for (const e of entities) {
+                // 저장된 엔티티 생성
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
                     texture: e.name,
                     variables: e.variables,
-                    components: [],
+                    components: e.components,
                 });
             }
+
+            // 런타임 업데이트 루프 연결 (컴포넌트 처리)
+            renderer.onUpdateCallback = (time, delta) => {
+                gameCore.update(time, delta);
+            };
         })();
 
         return () => {
+            // 언마운트 시 리소스 정리
             active = false;
             gameCoreRef.current?.destroy();
+            renderer.onUpdateCallback = undefined;
             renderer.destroy();
             rendererRef.current = null;
             gameCoreRef.current = null;
@@ -102,6 +117,7 @@ export function RunTimeCanvas() {
     }, []);
 
     useEffect(() => {
+        // 타일 변경사항만 반영 (추가/삭제 diff)
         const renderer = rendererRef.current;
         if (!renderer) return;
 

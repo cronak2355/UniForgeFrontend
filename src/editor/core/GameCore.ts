@@ -19,7 +19,9 @@ export interface GameEntity {
     x: number;
     y: number;
     z: number;  // 기본값 0, Phaser에서는 depth로 사용
-    rotation: number;
+    rotationX: number;
+    rotationY: number;
+    rotationZ: number;
     scaleX: number;
     scaleY: number;
     scaleZ: number;
@@ -33,7 +35,9 @@ export interface GameEntity {
 export interface CreateEntityOptions {
     name?: string;
     z?: number;
-    rotation?: number;
+    rotationX?: number;
+    rotationY?: number;
+    rotationZ?: number;
     scaleX?: number;
     scaleY?: number;
     scaleZ?: number;
@@ -111,7 +115,9 @@ export class GameCore {
             x,
             y,
             z: options.z ?? 0,
-            rotation: options.rotation ?? 0,
+            rotationX: options.rotationX ?? 0,
+            rotationY: options.rotationY ?? 0,
+            rotationZ: options.rotationZ ?? 0,
             scaleX: options.scaleX ?? 1,
             scaleY: options.scaleY ?? 1,
             scaleZ: options.scaleZ ?? 1,
@@ -156,7 +162,7 @@ export class GameCore {
             entity.z = z;
         }
 
-        this.renderer.update(id, x, y, entity.z, entity.rotation);
+        this.renderer.update(id, x, y, entity.z, entity.rotationZ);
         this.notify();
     }
 
@@ -167,7 +173,7 @@ export class GameCore {
         const entity = this.entities.get(id);
         if (!entity) return;
 
-        entity.rotation = rotation;
+        entity.rotationZ = rotation;
         this.renderer.update(id, entity.x, entity.y, entity.z, rotation);
         this.notify();
     }
@@ -342,8 +348,9 @@ export class GameCore {
         switch (comp.type) {
             case "AutoRotate": {
                 const c = comp as AutoRotateComponent;
-                entity.rotation += c.speed * dt;
-                this.renderer.update(entity.id, entity.x, entity.y, entity.z, entity.rotation);
+                console.log(`skrr ${c.speed}`)
+                entity.rotationZ += c.speed * dt;
+                this.renderer.update(entity.id, entity.x, entity.y, entity.z, entity.rotationZ);
                 break;
             }
 
@@ -422,7 +429,7 @@ export class GameCore {
             this.createEntity(entityData.id, entityData.type, entityData.x, entityData.y, {
                 name: entityData.name,
                 z: entityData.z,
-                rotation: entityData.rotation,
+                rotationZ: entityData.rotationZ,
                 scaleX: entityData.scaleX,
                 scaleY: entityData.scaleY,
                 scaleZ: entityData.scaleZ,
