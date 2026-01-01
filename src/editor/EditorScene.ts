@@ -133,7 +133,7 @@ export class EditorScene extends Phaser.Scene {
 
     const getCanvasPos = (clientX: number, clientY: number) => {
 
-      if (!this.sys.game.canvas)
+      if (!this.sys?.game?.canvas)
         return;
       const rect = this.sys.game.canvas.getBoundingClientRect();
 
@@ -164,6 +164,7 @@ export class EditorScene extends Phaser.Scene {
     };
 
     const onWinPointerDown = (e: PointerEvent) => {
+      if (!this.ready) return;
       const { p, inside } = feedPointer(e.clientX, e.clientY);
       if (!inside) return;
 
@@ -222,6 +223,7 @@ export class EditorScene extends Phaser.Scene {
     };
 
     const onWinPointerMove = (e: PointerEvent) => {
+      if (!this.ready) return;
       const { p, inside } = feedPointer(e.clientX, e.clientY);
       if (!inside) return;
 
@@ -241,6 +243,7 @@ export class EditorScene extends Phaser.Scene {
     };
 
     const onWinPointerUp = (e: PointerEvent) => {
+      if (!this.ready) return;
       const { p } = feedPointer(e.clientX, e.clientY);
       // allow mode to transition before snapshotting context
       this.editorMode.onPointerUp(this, p);
@@ -257,6 +260,7 @@ export class EditorScene extends Phaser.Scene {
     };
 
     const onWinWheel = (e: WheelEvent) => {
+      if (!this.ready) return;
       const result = getCanvasPos(e.clientX, e.clientY);
       if (!result) return;
       if (!result.inside) return;
