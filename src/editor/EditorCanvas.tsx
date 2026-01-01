@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
 import { GameCore } from "./core/GameCore";
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
@@ -245,6 +245,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                     name: activeDragged.name,
                     x: worldX,
                     y: worldY,
+                    z: 0,
+                    components: [],
+                    modules: [],
                     variables: [],
                     events: [],
                 };
