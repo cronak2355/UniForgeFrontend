@@ -134,7 +134,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         return () => {
             game.destroy(true);
         }
-    }, [core, addEntity, assets]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [core, addEntity]);
 
     useEffect(() => {
         if (sceneRef.current == null)
