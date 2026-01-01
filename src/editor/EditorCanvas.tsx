@@ -271,8 +271,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                     overflow: 'hidden',
                 }}
                 onMouseLeave={() => {
-                    if (!sceneRef.current) return;
-                    sceneRef.current.previewlayer?.fill(-1);
+                    try {
+                        if (!sceneRef.current?.previewlayer) return;
+                        sceneRef.current.previewlayer.fill(-1);
+                    } catch {
+                        // Ignore errors when previewlayer is not initialized
+                    }
                 }}
             />
         </div>
