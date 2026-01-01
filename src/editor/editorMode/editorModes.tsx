@@ -72,23 +72,28 @@ export class TilingMode extends EditorMode {
     onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
         this.isDrag = true;
         const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
-        const x = worldPoint.x;
-        const y = worldPoint.y;
+        const es = scene as EditorScene;
+        const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
 
-        this.prevX = x
-        this.prevY = y
-        if (this.curTilingType == "drawing")
-            this.base.putTileAt(this.tile, Math.floor(x / 32), Math.floor(y / 32));
-        else if (this.curTilingType == "erase")
-            this.base.removeTileAt(Math.floor(x / 32), Math.floor(y / 32));
+        this.prevX = worldPoint.x
+        this.prevY = worldPoint.y
+        if (!tilePos) return;
+        const logicalX = tilePos.x - es.tileOffsetX;
+        const logicalY = tilePos.y - es.tileOffsetY;
+        if (this.curTilingType == "drawing") {
+            this.base.putTileAt(this.tile, tilePos.x, tilePos.y);
+            es.editorCore?.setTile(logicalX, logicalY, this.tile);
+        } else if (this.curTilingType == "erase") {
+            this.base.removeTileAt(tilePos.x, tilePos.y);
+            es.editorCore?.removeTile(logicalX, logicalY);
+        }
     }
     onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
         const es = scene as EditorScene;
         if (!es.ready)
             return;
         const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
-        worldPoint.x = worldPoint.x / 32;
-        worldPoint.y = worldPoint.y / 32;
+        const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
         this.preview.fill(-1);
         switch (this.curTilingType) {
             case "": {
@@ -105,32 +110,38 @@ export class TilingMode extends EditorMode {
                 break;
             }
             case "drawing":
+                if (!tilePos)
+                    return;
                 if (this.isDrag) {
-                    this.lastX = Math.floor(worldPoint.x)
-                    this.lastY = Math.floor(worldPoint.y)
+                    this.lastX = tilePos.x
+                    this.lastY = tilePos.y
                     this.base.putTileAt(this.tile, this.lastX, this.lastY);
+                    es.editorCore?.setTile(this.lastX - es.tileOffsetX, this.lastY - es.tileOffsetY, this.tile);
                 }
                 else {
                     if (!Number.isInteger(this.lastX) && !Number.isInteger(this.lastY)) {
-                        //珥덇린媛??ㅼ젙?댁＜湲?
-                        this.lastX = Math.floor(worldPoint.x)
-                        this.lastY = Math.floor(worldPoint.y)
+                        //초기값설정해주기
+                        this.lastX = tilePos.x
+                        this.lastY = tilePos.y
                         this.preview.putTileAt(this.tile, this.lastX, this.lastY);
                         return;
                     }
-                    //留덉?留?醫뚰몴? ?щ씪議뚯쓣 ?? ?먮옒 ?덈뜕 ??쇱쓣 ?놁븷怨? ??쇱쓣 ?덈줈 留뚮벀.
-                    if (this.lastX != worldPoint.x || this.lastY != worldPoint.y) {
-                        this.lastX = Math.floor(worldPoint.x)
-                        this.lastY = Math.floor(worldPoint.y)
+                    //마지막좌표를 고려해 이전 위치를 지우고 위치를 새로 만듦.
+                    if (this.lastX != tilePos.x || this.lastY != tilePos.y) {
+                        this.lastX = tilePos.x
+                        this.lastY = tilePos.y
                         this.preview.putTileAt(this.tile, this.lastX, this.lastY);
                     }
                 }
                 break;
             case "erase":
                 if (this.isDrag) {
-                    this.lastX = Math.floor(worldPoint.x)
-                    this.lastY = Math.floor(worldPoint.y)
+                    if (!tilePos)
+                        return;
+                    this.lastX = tilePos.x
+                    this.lastY = tilePos.y
                     this.base.removeTileAt(this.lastX, this.lastY);
+                    es.editorCore?.removeTile(this.lastX - es.tileOffsetX, this.lastY - es.tileOffsetY);
                 }
                 break;
             default:
@@ -156,7 +167,12 @@ export class DragDropMode extends EditorMode {
 
     // enter/exit/update???꾩슂?녿떎 ?덉쑝??鍮꾩썙??
     enter(_scene: Phaser.Scene) { }
-    exit(_scene: Phaser.Scene) { }
+    exit(_scene: Phaser.Scene) {
+        if (this.ghost) {
+            this.ghost.destroy();
+            this.ghost = null;
+        }
+    }
     update(_scene: Phaser.Scene, _dt: number) { }
 
     onPointerDown(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
@@ -184,10 +200,29 @@ export class DragDropMode extends EditorMode {
     }
 
     onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
-        if (!this.asset) return;
+        const es = scene as EditorScene;
+        const finalizeDrop = () => {
+            if (this.ghost) {
+                this.ghost.destroy();
+                this.ghost = null;
+            }
+            this.asset = null;
+            es.setCameraMode();
+            es.editorCore?.setDraggedAsset(null);
+            // sync core + FSM so React UI switches to CameraMode
+            es.editorCore?.sendContextToEditorModeStateMachine({ currentMode: new CameraMode(), mouse: "mouseup" });
+        };
+
+        if (!this.asset) {
+            finalizeDrop();
+            return;
+        }
 
         const key = this.asset.name;
-        if (!scene.textures.exists(key)) return;
+        if (!scene.textures.exists(key)) {
+            finalizeDrop();
+            return;
+        }
 
         const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
 
@@ -196,12 +231,11 @@ export class DragDropMode extends EditorMode {
         created.setDepth(10);
         created.setOrigin(0.5, 0.5);
         created.setInteractive();
+        created.setData("id", crypto.randomUUID());
         // (?좏깮) EditorScene??entityGroups 媛숈? 而⑦뀒?대꼫媛 ?덉쑝硫?嫄곌린???ｊ린
-        const es = scene as EditorScene;
-
         const entity: EditorEntity = {
 
-            id: crypto.randomUUID(),
+            id: created.getData("id"),
             type: this.asset!.tag,
             name: this.asset!.name,
             x: created.x,
@@ -224,16 +258,7 @@ export class DragDropMode extends EditorMode {
         });
         if (es.entityGroup) es.entityGroup.add(created);
 
-        if (this.ghost) {
-            this.ghost.destroy();
-            this.ghost = null;
-        }
-        // return to camera mode after drop
-        this.asset = null;
-        es.setCameraMode();
-        es.editorCore?.setDraggedAsset(null);
-        // sync core + FSM so React UI switches to CameraMode
-        es.editorCore?.sendContextToEditorModeStateMachine({ currentMode: new CameraMode(), mouse: "mouseup" });
+        finalizeDrop();
     }
 
     onScroll(_scene: Phaser.Scene, _deltaY: number) {
@@ -370,4 +395,8 @@ export class EntityEditMode implements EditorMode {
         return { x: sx, y: sy };
     }
 }
+
+
+
+
 

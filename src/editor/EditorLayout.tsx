@@ -1,15 +1,27 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
-import type { EditorEntity } from "./types/Entity"
-// Asset type imported via snapshot in hook; no direct type import needed here
-import { PhaserCanvas } from "./PhaserCanvas";
-import { colors } from "./constants/colors";
+import type { EditorEntity } from "./types/Entity";
+import { EditorCanvas } from "./EditorCanvas";
+import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
+
+// Entry Style Color Palette
+const colors = {
+    bgPrimary: '#0d1117',      // 메인 배경 (깊은 검정)
+    bgSecondary: '#161b22',    // 패널 배경
+    bgTertiary: '#21262d',     // 호버/입력 배경
+    borderColor: '#30363d',    // 기본 테두리
+    borderAccent: '#1f6feb',   // 파란색 액센트 테두리
+    accentBlue: '#1f6feb',     // 주 파란색
+    accentLight: '#58a6ff',    // 밝은 파란색
+    textPrimary: '#f0f6fc',    // 기본 텍스트
+    textSecondary: '#8b949e',  // 부가 텍스트
+};
 
 // Entry Style Color Palette
 const colors = {
@@ -32,9 +44,13 @@ export default function EditorLayout() {
     );
 }
 
+type Mode = "dev" | "run";
+
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
     const coreDirect = useEditorCore();
+
+    const [mode, setMode] = useState<Mode>("dev");
 
     const changeSelectedAssetHandler = (a: any) => {
         core.setSelectedAsset(a);
@@ -77,50 +93,48 @@ function EditorLayoutInner() {
                 height: '48px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 padding: '0 16px',
                 background: colors.bgSecondary,
                 borderBottom: `1px solid ${colors.borderColor}`,
             }}>
-                {/* Logo */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
-                    <div style={{ fontSize: '1.25rem' }}>
-                        <span className="gradient-text">Uniforge</span>
-                    </div>
-                </div>
-
-                {/* Profile Icon */}
-                <button
-                    style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        border: `2px solid ${colors.borderColor}`,
-                        backgroundColor: colors.bgTertiary,
-                        cursor: 'pointer',
-                        padding: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'border-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.accentLight}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.borderColor}
-                >
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke={colors.textSecondary}
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
+                {/* Logo with Cube Icon */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* Blue Cube SVG Icon */}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" fill={colors.borderAccent} />
+                        <path d="M12 2L3 7L12 12L21 7L12 2Z" fill={colors.accentLight} />
+                        <path d="M12 12V22L3 17V7L12 12Z" fill={colors.borderAccent} opacity="0.8" />
+                        <path d="M12 12V22L21 17V7L12 12Z" fill={colors.borderAccent} opacity="0.6" />
                     </svg>
-                </button>
+                    <span style={{
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        color: colors.textPrimary,
+                        letterSpacing: '0.3px',
+                    }}>
+                        Uniforge
+                    </span>
+                </div>
+                <div style={{ marginLeft: 'auto' }}>
+                    <button
+                        type="button"
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            background: colors.borderAccent,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: '6px',
+                            color: colors.textPrimary,
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
+                        }}
+                    >
+                        {mode === "dev" ? "실행" : "편집"}
+                    </button>
+                </div>
             </div>
 
             {/* ===== TOP MENU BAR ===== */}
@@ -164,7 +178,7 @@ function EditorLayoutInner() {
                 flex: 1,
                 overflow: 'hidden',
             }}>
-                {/* LEFT PANEL - Hierarchy (전체 높이) */}
+                {/* LEFT PANEL - Hierarchy */}
                 <div style={{
                     width: '200px',
                     background: colors.bgSecondary,
@@ -199,10 +213,21 @@ function EditorLayoutInner() {
                                 core.sendContextToEditorModeStateMachine(ctx);
                             }}
                         />
+                        <HierarchyPanel
+                            entities={entities}
+                            selectedId={selectedEntity?.id ?? null}
+                            onSelect={(e) => {
+                                core.setSelectedEntity(e as any);
+                                setLocalSelectedEntity(e as any);
+                                const cm = new CameraMode();
+                                const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
+                                core.sendContextToEditorModeStateMachine(ctx);
+                            }}
+                        />
                     </div>
                 </div>
 
-                {/* CENTER - Viewport + Assets */}
+                {/* CENTER - Phaser Canvas */}
                 <div style={{
                     flex: 1,
                     display: 'flex',
@@ -210,31 +235,23 @@ function EditorLayoutInner() {
                     background: colors.bgPrimary,
                     overflow: 'hidden',
                 }}>
-                    <PhaserCanvas
-                        assets={assets}
-                        selected_asset={selectedAsset}
-                        draggedAsset={draggedAsset}
-                        addEntity={(entity) => {
-                            console.log("🟣 [EditorLayout] new entity:", entity);
-                            core.addEntity(entity as any);
-                            core.setSelectedEntity(entity as any);
-                        }}
-                    />
-                </div>
-
-                    {/* Asset Panel (하단) */}
-                    <div style={{
-                        borderTop: `2px solid ${colors.borderAccent}`,
-                    }}>
-                        <AssetPanel
+                    {mode === "dev" ? (
+                        <EditorCanvas
                             assets={assets}
-                            changeSelectedAsset={changeSelectedAsset}
-                            changeDraggedAsset={changeDraggedAsset}
+                            selected_asset={selectedAsset}
+                            draggedAsset={draggedAsset}
+                            addEntity={(entity) => {
+                                console.log("? [EditorLayout] new entity:", entity);
+                                core.addEntity(entity as any);
+                                core.setSelectedEntity(entity as any);
+                            }}
                         />
-                    </div>
+                    ) : (
+                        <RunTimeCanvas />
+                    )}
                 </div>
 
-                {/* RIGHT PANEL - Inspector (전체 높이) */}
+                {/* RIGHT PANEL - Inspector */}
                 <div style={{
                     width: '280px',
                     background: colors.bgSecondary,
@@ -277,7 +294,7 @@ function EditorLayoutInner() {
                 <AssetPanel
                     assets={assets}
                     changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                    changeDraggAsset={(a) => changeDraggedAssetHandler(a)}
+                    changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
                 />
             </div>
         </div>

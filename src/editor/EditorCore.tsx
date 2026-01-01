@@ -15,43 +15,51 @@ export type EditorContext = {
     mouse:mouseEvent
 };
 
+export type TilePlacement = {
+  x: number;
+  y: number;
+  tile: number;
+};
+
 export class EditorState {
   private fsm: EditorStateMachine;
 
   // 로드된 에셋들(팔레트/라이브러리)
-    private assets: Asset[] = [
-        {
-            id: 0,
-            name: "test1",
-            tag: "Tile",
-            url: "TestAsset.webp",
-            idx: -1
-        },
-        {
-            id: 1,
-            name: "test2",
-            tag: "Tile",
-            url: "TestAsset2.webp",
-            idx: -1
-        },
-        {
-            id: 2,
-            name: "test3",
-            tag: "Tile",
-            url: "TestAsset3.webp",
-            idx: -1
-        },
-        {
-            id: 3,
-            name: "dragon",
-            tag: "Character",
-            url: "RedDragon.webp",
-            idx: -1
-        }
-    ];
+  private assets: Asset[] = [
+      {
+          id: 0,
+          name: "test1",
+          tag: "Tile",
+          url: "TestAsset.webp",
+          idx: -1
+      },
+      {
+          id: 1,
+          name: "test2",
+          tag: "Tile",
+          url: "TestAsset2.webp",
+          idx: -1
+      },
+      {
+          id: 2,
+          name: "test3",
+          tag: "Tile",
+          url: "TestAsset3.webp",
+          idx: -1
+      },
+      {
+          id: 3,
+          name: "dragon",
+          tag: "Character",
+          url: "RedDragon.webp",
+          idx: -1
+      }
+  ];
 
   // 씬에 배치된 엔티티들
   private entities: Map<string, EditorEntity>;
+  // placed tiles keyed by "x,y"
+  private tiles: Map<string, TilePlacement> = new Map();
 
   // 현재 모드
   private editormode: EditorMode;
@@ -129,6 +137,23 @@ export class EditorState {
     return this.entities;
   }
 
+  getTiles(): Map<string, TilePlacement> {
+    return this.tiles;
+  }
+
+  setTile(x: number, y: number, tile: number) {
+    const key = `${x},${y}`;
+    this.tiles.set(key, { x, y, tile });
+    this.notify();
+  }
+
+  removeTile(x: number, y: number) {
+    const key = `${x},${y}`;
+    if (this.tiles.delete(key)) {
+      this.notify();
+    }
+  }
+
   // --- state update ---
   sendContextToEditorModeStateMachine(context: EditorContext) {
     this.editormode = this.fsm.changeMode(context);
@@ -150,6 +175,7 @@ export class EditorState {
     this.notify();
   }
 }
+
 class EditorStateMachine
 {
     private cameraMode!:CameraMode;
@@ -172,31 +198,39 @@ class EditorStateMachine
     //받아온 context로 
     changeMode(context:EditorContext): EditorMode
     {
-        // console.log(`change context: ${context.currentMode.constructor.name}`)
-        // console.log(`change context: ${context.mouse}`)
+        
         let mode: EditorMode = this.cameraMode;
+
+        if (context.currentDraggingAsset) {
+            this.dragdropMode.asset = context.currentDraggingAsset;
+            return this.dragdropMode;
+        }
 
         if (context.currentMode instanceof CameraMode) {
             const m = this.changeModewhenCameraMode(context);
             mode = m ?? this.cameraMode;
         } else if (context.currentMode instanceof TilingMode) {
-            mode = this.tilingMode;
-            if (context.currentSelectedAsset) {
-            this.tilingMode.tile = context.currentSelectedAsset.idx;
-            }
+        if (context.currentSelectedAsset) {
+        mode = this.tilingMode;
+        this.tilingMode.tile = context.currentSelectedAsset.idx;
+        this.tilingMode.curTilingType = (context.currentMode as TilingMode).curTilingType;
+        } else {
+        mode = this.cameraMode;
+        }
         } else if (context.currentMode instanceof DragDropMode) {
-            mode = this.dragdropMode;
             if (context.currentDraggingAsset) {
+            mode = this.dragdropMode;
             (mode as DragDropMode).asset = context.currentDraggingAsset;
+            } else {
+            mode = this.cameraMode;
             }
         } else if (context.currentMode instanceof EntityEditMode) {
-            if (context.mouse === "mouseup")
-            {
+            mode = this.editMode;
+            if (context.mouse === "mouseup") {
                 mode = this.cameraMode;
-                console.log("dfadf");
             }
         }
-
+        console.log(`change context: ${mode.constructor.name}`)
       return mode;
     }
 
@@ -220,13 +254,13 @@ class EditorStateMachine
       }
 
       // 선택된 엔티티가 있으면 엔티티 편집 모드로 진입
-      if (context.currentSelecedEntity) {
+      if (context.currentSelecedEntity && context.mouse === "mousedown") {
         mode = this.editMode;
         return mode;
       }
 
       // 선택된 에셋이 있고 타일 인덱스가 유효하면 타일링 모드로 전환
-      if (context.currentSelectedAsset) {
+      if (context.currentSelectedAsset && context.mouse === "mousedown") {
         const a = context.currentSelectedAsset;
         if (typeof a.idx === "number" && a.idx >= 0) {
           mode = this.tilingMode;
@@ -239,3 +273,5 @@ class EditorStateMachine
       return mode;
     }
 }
+
+export const editorCore = new EditorState();

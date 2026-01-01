@@ -1,5 +1,5 @@
-import Phaser from "phaser";
-import { EditorMode, CameraMode, EntityEditMode } from "./editorMode/editorModes";
+﻿import Phaser from "phaser";
+import { EditorMode, CameraMode, EntityEditMode, DragDropMode, TilingMode } from "./editorMode/editorModes";
 import type { EditorEntity } from "./types/Entity";
 import type { EditorState, EditorContext } from "./EditorCore";
 import type { EditorComponent, AutoRotateComponent, PulseComponent } from "./types/Component";
@@ -25,6 +25,8 @@ export class EditorScene extends Phaser.Scene {
 
   public baselayer!: Phaser.Tilemaps.TilemapLayer;
   public previewlayer!: Phaser.Tilemaps.TilemapLayer;
+  public tileOffsetX = 0;
+  public tileOffsetY = 0;
 
   public entityGroup!: Phaser.GameObjects.Group;
   public assetGroup!: Phaser.GameObjects.Group;
@@ -39,10 +41,43 @@ export class EditorScene extends Phaser.Scene {
   }
 
   // -----------------------
-  // 모드 전환
+  // 紐⑤뱶 ?꾪솚
   // -----------------------
+  private ensureTilingLayers(mode: TilingMode) {
+    if (!mode.base && this.baselayer) {
+      mode.base = this.baselayer;
+    }
+    if (!mode.preview && this.previewlayer) {
+      mode.preview = this.previewlayer;
+    }
+  }
+
   setEditorMode(mode: EditorMode) {
+    if (mode instanceof TilingMode) {
+      this.ensureTilingLayers(mode);
+    }
+    if (this.editorMode.constructor === mode.constructor) {
+      if (this.editorMode instanceof DragDropMode && mode instanceof DragDropMode) {
+        this.editorMode.asset = mode.asset;
+      }
+      if (this.editorMode instanceof TilingMode && mode instanceof TilingMode) {
+        this.editorMode.tile = mode.tile;
+        if (mode.base && mode.preview) {
+          this.editorMode.base = mode.base;
+          this.editorMode.preview = mode.preview;
+        } else {
+          this.ensureTilingLayers(this.editorMode);
+        }
+        this.editorMode.curTilingType = mode.curTilingType;
+      }
+      return;
+    }
+    this.editorMode.exit(this);
     this.editorMode = mode;
+    if (this.editorMode instanceof TilingMode) {
+      this.ensureTilingLayers(this.editorMode);
+    }
+    this.editorMode.enter(this);
   }
 
   setCameraMode() {
@@ -57,12 +92,20 @@ export class EditorScene extends Phaser.Scene {
     return this.editorMode;
   }
 
+  worldToTileXY(worldX: number, worldY: number): { x: number; y: number } | null {
+    if (!this.map) return null;
+    const tx = Math.floor(worldX / tileSize) + this.tileOffsetX;
+    const ty = Math.floor(worldY / tileSize) + this.tileOffsetY;
+    if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return null;
+    return { x: tx, y: ty };
+  }
+
   // -----------------------
-  // 에셋 UI 등록
+  // ?먯뀑 UI ?깅줉
   // -----------------------
   /**
-   * 에셋(팔레트) 오브젝트를 클릭/드래그했을 때 EntityEditMode로 들어가게 하려면
-   * 에셋 UI 만들고 나서 이 함수 호출해줘.
+   * ?먯뀑(?붾젅?? ?ㅻ툕?앺듃瑜??대┃/?쒕옒洹명뻽????EntityEditMode濡??ㅼ뼱媛寃??섎젮硫?
+   * ?먯뀑 UI 留뚮뱾怨??섏꽌 ???⑥닔 ?몄텧?댁쨾.
    */
   registerAssetUI(obj: Phaser.GameObjects.GameObject, assetId: string) {
     const sprite = obj as Phaser.GameObjects.Sprite;
@@ -124,51 +167,77 @@ export class EditorScene extends Phaser.Scene {
       const { p, inside } = feedPointer(e.clientX, e.clientY);
       if (!inside) return;
 
-      // send context to core FSM
-      const ctx: EditorContext = {
+      const buildContext = (pointer: Phaser.Input.Pointer, mouse: "mousedown" | "mouseup" | "mousemove"): EditorContext => ({
         currentMode: this.editorMode,
         currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
         currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-        currentSelecedEntity: this.editorCore?.getSelectedEntity() ?? undefined,
-        mouse: "mousedown",
-      };
+        currentSelecedEntity: this.getEntityUnderPointer(pointer),
+        mouse,
+      });
 
       // If nothing is being dragged and no entity is selected, return to CameraMode
       const noDragged = !this.editorCore?.getDraggedAsset();
       const noSelectedEntity = !this.editorCore?.getSelectedEntity();
-      if (noDragged && noSelectedEntity) {
+      const noSelectedAsset = !this.editorCore?.getSelectedAsset();
+      if (noDragged && noSelectedEntity && noSelectedAsset) {
         this.setCameraMode();
         const cm: EditorContext = { currentMode: new CameraMode(), mouse: "mouseup" };
         this.editorCore?.sendContextToEditorModeStateMachine(cm);
       }
 
 
-      // ✅ 1) 에셋 UI 클릭/드래그 시작이면 -> 엔티티 모드로 진입 + 생성(+드래그 시작)
-      if (this.tryEnterEntityEditFromAsset(p)) return;
+      // ??1) ?먯뀑 UI ?대┃/?쒕옒洹??쒖옉?대㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯 + ?앹꽦(+?쒕옒洹??쒖옉)
+        if (this.tryEnterEntityEditFromAsset(p)) {
+          this.editorCore?.sendContextToEditorModeStateMachine({
+            currentMode: new EntityEditMode(),
+            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+            currentSelecedEntity: this.getEntityUnderPointer(p),
+            mouse: "mousedown",
+          });
+          const next = this.editorCore?.getEditorMode();
+          if (next) this.setEditorMode(next);
+          return;
+        }
 
-      // ✅ 2) 기존 엔티티를 눌렀으면 -> 엔티티 모드로 진입해서 드래그 시작
-      if (this.tryEnterEntityEditFromEntity(p)) return;
+      // ??2) 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃ -> ?뷀떚??紐⑤뱶濡?吏꾩엯?댁꽌 ?쒕옒洹??쒖옉
+        if (this.tryEnterEntityEditFromEntity(p)) {
+          this.editorCore?.sendContextToEditorModeStateMachine({
+            currentMode: new EntityEditMode(),
+            currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
+            currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
+            currentSelecedEntity: this.getEntityUnderPointer(p),
+            mouse: "mousedown",
+          });
+          const next = this.editorCore?.getEditorMode();
+          if (next) this.setEditorMode(next);
+          return;
+        }
 
-      // ✅ 3) 그 외는 현재 모드에 위임
-      this.editorMode.onPointerDown(this, p);
-      this.editorCore?.sendContextToEditorModeStateMachine(ctx);
-    };
+      // ??3) 洹??몃뒗 ?꾩옱 紐⑤뱶???꾩엫
+        this.editorMode.onPointerDown(this, p);
+        this.editorCore?.sendContextToEditorModeStateMachine(buildContext(p, "mousedown"));
+        const next = this.editorCore?.getEditorMode();
+        if (next) this.setEditorMode(next);
+      };
 
     const onWinPointerMove = (e: PointerEvent) => {
       const { p, inside } = feedPointer(e.clientX, e.clientY);
       if (!inside) return;
 
-      // update core FSM with mouse move
+      // update core FSM with refreshed context after pointer move
       const ctx: EditorContext = {
         currentMode: this.editorMode,
         currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
         currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-        currentSelecedEntity: this.editorCore?.getSelectedEntity() ?? undefined,
+        currentSelecedEntity: this.getEntityUnderPointer(p),
         mouse: "mousemove",
       };
+      this.editorCore?.sendContextToEditorModeStateMachine(ctx);
+      const nextMode = this.editorCore?.getEditorMode();
+      if (nextMode) this.setEditorMode(nextMode);
 
       this.editorMode.onPointerMove(this, p);
-      this.editorCore?.sendContextToEditorModeStateMachine(ctx);
     };
 
     const onWinPointerUp = (e: PointerEvent) => {
@@ -179,10 +248,12 @@ export class EditorScene extends Phaser.Scene {
         currentMode: this.editorMode,
         currentSelectedAsset: this.editorCore?.getSelectedAsset() ?? undefined,
         currentDraggingAsset: this.editorCore?.getDraggedAsset() ?? undefined,
-        currentSelecedEntity: this.editorCore?.getSelectedEntity() ?? undefined,
+        currentSelecedEntity: this.getEntityUnderPointer(p),
         mouse: "mouseup",
       };
       this.editorCore?.sendContextToEditorModeStateMachine(ctx);
+      const next = this.editorCore?.getEditorMode();
+      if (next) this.setEditorMode(next);
     };
 
     const onWinWheel = (e: WheelEvent) => {
@@ -206,6 +277,13 @@ export class EditorScene extends Phaser.Scene {
 
       this.baselayer = this.map.createBlankLayer("base", this.tileset, 0, 0)!;
       this.previewlayer = this.map.createBlankLayer("preview", this.tileset, 0, 0)!;
+
+      this.tileOffsetX = Math.floor(this.map.width / 2);
+      this.tileOffsetY = Math.floor(this.map.height / 2);
+      const offsetX = -this.tileOffsetX * tileSize;
+      const offsetY = -this.tileOffsetY * tileSize;
+      this.baselayer.setPosition(offsetX, offsetY);
+      this.previewlayer.setPosition(offsetX, offsetY);
 
       this.baselayer.setDepth(0);
       this.previewlayer.setDepth(1);
@@ -232,13 +310,13 @@ export class EditorScene extends Phaser.Scene {
   }
 
   // -----------------------
-  // 엔티티 갱신 (중요)
+  // ?뷀떚??媛깆떊 (以묒슂)
   // -----------------------
   updateEntities(entities: EditorEntity[]) {
     if (!this.ready) return;
 
-    // ❌ this.children.removeAll() 쓰면 grid/레이어도 날아갈 수 있음
-    // ✅ entityGroup만 싹 갈아끼우자
+    // ??this.children.removeAll() ?곕㈃ grid/?덉씠?대룄 ?좎븘媛????덉쓬
+    // ??entityGroup留???媛덉븘?쇱슦??
     const old = this.entityGroup.getChildren();
     for (const c of old) c.destroy();
     this.entityGroup.clear(false);
@@ -331,27 +409,75 @@ export class EditorScene extends Phaser.Scene {
   }
 
   // =========================================================
-  // 아래는 “에셋/엔티티 클릭 시 EntityEditMode로 자동 진입” 핵심
+  // ?꾨옒???쒖뿉???뷀떚???대┃ ??EntityEditMode濡??먮룞 吏꾩엯???듭떖
   // =========================================================
 
   private hitTest(pointer: Phaser.Input.Pointer): Phaser.GameObjects.GameObject[] {
-    // hitTestPointer는 setInteractive()된 애들만 잡힘
+    // hitTestPointer??setInteractive()???좊뱾留??≫옒
     const inputPlugin = this.input as Phaser.Input.InputPlugin & {
       hitTestPointer: (pointer: Phaser.Input.Pointer) => Phaser.GameObjects.GameObject[];
     };
     return inputPlugin.hitTestPointer(pointer) || [];
   }
 
+  private getEntityUnderPointer(pointer: Phaser.Input.Pointer): EditorEntity | undefined {
+    const entities = this.entityGroup?.getChildren() as Phaser.GameObjects.GameObject[] | undefined;
+    if (!entities || !entities.length) return undefined;
+
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    let best: Phaser.GameObjects.GameObject | null = null;
+    let bestDepth = -Infinity;
+
+    for (const obj of entities) {
+      const gameObj = obj as Phaser.GameObjects.GameObject & {
+        visible?: boolean;
+        getBounds?: () => Phaser.Geom.Rectangle;
+        depth?: number;
+      };
+      if (!obj.active || gameObj.visible === false) continue;
+
+      const bounds: Phaser.Geom.Rectangle | null =
+        typeof gameObj.getBounds === "function" ? gameObj.getBounds() : null;
+
+      if (!bounds) continue;
+
+      if (bounds.contains(world.x, world.y)) {
+        const d = gameObj.depth ?? 0;
+        if (d >= bestDepth) {
+          bestDepth = d;
+          best = obj;
+        }
+      }
+    }
+
+    if (!best) return undefined;
+    const id = (best as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown }).getData?.("id");
+    if (!id) return undefined;
+    const fromCore = this.editorCore?.getEntities().get(id as string);
+    if (fromCore) return fromCore;
+
+    const transform = best as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform;
+    return {
+      id: id as string,
+      type: "Unknown",
+      name: "Entity",
+      x: transform.x ?? world.x,
+      y: transform.y ?? world.y,
+      variables: [],
+      events: [],
+    };
+  }
+
   /**
-   * 에셋(팔레트)을 클릭/드래그 시작했으면:
-   * - 엔티티를 생성하고
-   * - EntityEditMode로 전환한 뒤
-   * - 같은 pointerDown을 넘겨서 “바로 드래그 시작”까지 이어감
+   * ?먯뀑(?붾젅?????대┃/?쒕옒洹??쒖옉?덉쑝硫?
+   * - ?뷀떚?곕? ?앹꽦?섍퀬
+   * - EntityEditMode濡??꾪솚????
+   * - 媛숈? pointerDown???섍꺼???쒕컮濡??쒕옒洹??쒖옉?앷퉴吏 ?댁뼱媛?
    */
   private tryEnterEntityEditFromAsset(p: Phaser.Input.Pointer): boolean {
     const hits = this.hitTest(p);
 
-    // 에셋 UI 찾기
+    // ?먯뀑 UI 李얘린
     const assetObj = hits.find((obj) => {
       const gameObj = obj as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
       return gameObj.getData?.("uiType") === "asset";
@@ -361,19 +487,19 @@ export class EditorScene extends Phaser.Scene {
     const assetGameObj = assetObj as Phaser.GameObjects.GameObject & { getData?: (key: string) => unknown };
     const assetId = assetGameObj.getData?.("assetId");
 
-    // 엔티티를 현재 커서 월드 위치에 생성
+    // ?뷀떚?곕? ?꾩옱 而ㅼ꽌 ?붾뱶 ?꾩튂???앹꽦
     const world = this.cameras.main.getWorldPoint(p.x, p.y);
 
     const ent = this.add.rectangle(world.x, world.y, 40, 40, 0xffffff);
     ent.setInteractive({ useHandCursor: true });
 
-    // id / assetId 저장
+    // id / assetId ???
     ent.setData("id", crypto.randomUUID());
     ent.setData("assetId", assetId);
 
     this.entityGroup.add(ent);
 
-    // EntityEditMode로 전환 후, 다운 이벤트 전달 → 즉시 드래그 이어짐
+    // EntityEditMode濡??꾪솚 ?? ?ㅼ슫 ?대깽???꾨떖 ??利됱떆 ?쒕옒洹??댁뼱吏?
     this.setEntityEditMode();
     this.editorMode.onPointerDown(this, p);
 
@@ -381,9 +507,9 @@ export class EditorScene extends Phaser.Scene {
   }
 
   /**
-   * 기존 엔티티를 눌렀으면:
-   * - EntityEditMode로 전환하고
-   * - 같은 pointerDown을 넘겨서 바로 드래그 되게 함
+   * 湲곗〈 ?뷀떚?곕? ?뚮??쇰㈃:
+   * - EntityEditMode濡??꾪솚?섍퀬
+   * - 媛숈? pointerDown???섍꺼??諛붾줈 ?쒕옒洹??섍쾶 ??
    */
   private tryEnterEntityEditFromEntity(p: Phaser.Input.Pointer): boolean {
     const world = this.cameras.main.getWorldPoint(p.x, p.y);
@@ -422,3 +548,5 @@ export class EditorScene extends Phaser.Scene {
     return true;
   }
 }
+
+

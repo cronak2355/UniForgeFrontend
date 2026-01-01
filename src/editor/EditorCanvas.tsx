@@ -17,7 +17,7 @@ type Props = {
     onSelectEntity?: (entity: EditorEntity) => void;
 };
 
-export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const sceneRef = useRef<EditorScene | null>(null);
@@ -221,7 +221,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
                                 cursor: 'pointer',
                             }}
                         >
-                            洹몃━湲?
+                            그리기
                         </button>
                         <button
                             onClick={() => {
@@ -242,7 +242,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
                                 cursor: 'pointer',
                             }}
                         >
-                            吏?곌린
+                            지우기
                         </button>
                     </div>
                 )}
