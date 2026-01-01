@@ -1,4 +1,4 @@
-import { CameraMode, EditorMode, DragDropMode, TilingMode, EntityEditMode } from "./editorMode/editorModes";
+﻿import { CameraMode, EditorMode, DragDropMode, TilingMode, EntityEditMode } from "./editorMode/editorModes";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 
@@ -150,6 +150,7 @@ export class EditorState {
     this.notify();
   }
 }
+
 class EditorStateMachine
 {
     private cameraMode!:CameraMode;
@@ -172,31 +173,39 @@ class EditorStateMachine
     //받아온 context로 
     changeMode(context:EditorContext): EditorMode
     {
-        // console.log(`change context: ${context.currentMode.constructor.name}`)
-        // console.log(`change context: ${context.mouse}`)
+        
         let mode: EditorMode = this.cameraMode;
+
+        if (context.currentDraggingAsset) {
+            this.dragdropMode.asset = context.currentDraggingAsset;
+            return this.dragdropMode;
+        }
 
         if (context.currentMode instanceof CameraMode) {
             const m = this.changeModewhenCameraMode(context);
             mode = m ?? this.cameraMode;
         } else if (context.currentMode instanceof TilingMode) {
-            mode = this.tilingMode;
-            if (context.currentSelectedAsset) {
-            this.tilingMode.tile = context.currentSelectedAsset.idx;
-            }
+        if (context.currentSelectedAsset) {
+        mode = this.tilingMode;
+        this.tilingMode.tile = context.currentSelectedAsset.idx;
+        this.tilingMode.curTilingType = (context.currentMode as TilingMode).curTilingType;
+        } else {
+        mode = this.cameraMode;
+        }
         } else if (context.currentMode instanceof DragDropMode) {
-            mode = this.dragdropMode;
             if (context.currentDraggingAsset) {
+            mode = this.dragdropMode;
             (mode as DragDropMode).asset = context.currentDraggingAsset;
+            } else {
+            mode = this.cameraMode;
             }
         } else if (context.currentMode instanceof EntityEditMode) {
-            if (context.mouse === "mouseup")
-            {
+            mode = this.editMode;
+            if (context.mouse === "mouseup") {
                 mode = this.cameraMode;
-                console.log("dfadf");
             }
         }
-
+        console.log(`change context: ${mode.constructor.name}`)
       return mode;
     }
 
@@ -220,13 +229,13 @@ class EditorStateMachine
       }
 
       // 선택된 엔티티가 있으면 엔티티 편집 모드로 진입
-      if (context.currentSelecedEntity) {
+      if (context.currentSelecedEntity && context.mouse === "mousedown") {
         mode = this.editMode;
         return mode;
       }
 
       // 선택된 에셋이 있고 타일 인덱스가 유효하면 타일링 모드로 전환
-      if (context.currentSelectedAsset) {
+      if (context.currentSelectedAsset && context.mouse === "mousedown") {
         const a = context.currentSelectedAsset;
         if (typeof a.idx === "number" && a.idx >= 0) {
           mode = this.tilingMode;
@@ -239,3 +248,5 @@ class EditorStateMachine
       return mode;
     }
 }
+
+export const editorCore = new EditorState();

@@ -157,7 +157,12 @@ export class DragDropMode extends EditorMode {
 
     // enter/exit/update???꾩슂?녿떎 ?덉쑝??鍮꾩썙??
     enter(_scene: Phaser.Scene) { }
-    exit(_scene: Phaser.Scene) { }
+    exit(_scene: Phaser.Scene) {
+        if (this.ghost) {
+            this.ghost.destroy();
+            this.ghost = null;
+        }
+    }
     update(_scene: Phaser.Scene, _dt: number) { }
 
     onPointerDown(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
@@ -185,10 +190,29 @@ export class DragDropMode extends EditorMode {
     }
 
     onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
-        if (!this.asset) return;
+        const es = scene as EditorScene;
+        const finalizeDrop = () => {
+            if (this.ghost) {
+                this.ghost.destroy();
+                this.ghost = null;
+            }
+            this.asset = null;
+            es.setCameraMode();
+            es.editorCore?.setDraggedAsset(null);
+            // sync core + FSM so React UI switches to CameraMode
+            es.editorCore?.sendContextToEditorModeStateMachine({ currentMode: new CameraMode(), mouse: "mouseup" });
+        };
+
+        if (!this.asset) {
+            finalizeDrop();
+            return;
+        }
 
         const key = this.asset.name;
-        if (!scene.textures.exists(key)) return;
+        if (!scene.textures.exists(key)) {
+            finalizeDrop();
+            return;
+        }
 
         const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
 
@@ -197,12 +221,11 @@ export class DragDropMode extends EditorMode {
         created.setDepth(10);
         created.setOrigin(0.5, 0.5);
         created.setInteractive();
+        created.setData("id", crypto.randomUUID());
         // (?좏깮) EditorScene??entityGroups 媛숈? 而⑦뀒?대꼫媛 ?덉쑝硫?嫄곌린???ｊ린
-        const es = scene as EditorScene;
-
         const entity: EditorEntity = {
 
-            id: crypto.randomUUID(),
+            id: created.getData("id"),
             type: this.asset!.tag,
             name: this.asset!.name,
             x: created.x,
@@ -224,16 +247,7 @@ export class DragDropMode extends EditorMode {
         });
         if (es.entityGroup) es.entityGroup.add(created);
 
-        if (this.ghost) {
-            this.ghost.destroy();
-            this.ghost = null;
-        }
-        // return to camera mode after drop
-        this.asset = null;
-        es.setCameraMode();
-        es.editorCore?.setDraggedAsset(null);
-        // sync core + FSM so React UI switches to CameraMode
-        es.editorCore?.sendContextToEditorModeStateMachine({ currentMode: new CameraMode(), mouse: "mouseup" });
+        finalizeDrop();
     }
 
     onScroll(_scene: Phaser.Scene, _deltaY: number) {
@@ -358,4 +372,8 @@ export class EntityEditMode implements EditorMode {
         return { x: sx, y: sy };
     }
 }
+
+
+
+
 

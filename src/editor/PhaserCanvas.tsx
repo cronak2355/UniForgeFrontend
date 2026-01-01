@@ -231,7 +231,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
                                 cursor: 'pointer',
                             }}
                         >
-                            洹몃━湲?
+                            그리기
                         </button>
                         <button
                             onClick={() => {
@@ -252,7 +252,7 @@ export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }
                                 cursor: 'pointer',
                             }}
                         >
-                            吏?곌린
+                            지우기
                         </button>
                     </div>
                 )}
