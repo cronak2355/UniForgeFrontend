@@ -1,4 +1,5 @@
-import { EditorComponent, ComponentDefaults } from "../types/Component";
+import type { EditorComponent } from "../types/Component";
+import { ComponentDefaults } from "../types/Component";
 import { colors } from "../constants/colors";
 
 type Props = {
