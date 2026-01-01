@@ -15,43 +15,51 @@ export type EditorContext = {
     mouse:mouseEvent
 };
 
+export type TilePlacement = {
+  x: number;
+  y: number;
+  tile: number;
+};
+
 export class EditorState {
   private fsm: EditorStateMachine;
 
   // 로드된 에셋들(팔레트/라이브러리)
-    private assets: Asset[] = [
-        {
-            id: 0,
-            name: "test1",
-            tag: "Tile",
-            url: "TestAsset.webp",
-            idx: -1
-        },
-        {
-            id: 1,
-            name: "test2",
-            tag: "Tile",
-            url: "TestAsset2.webp",
-            idx: -1
-        },
-        {
-            id: 2,
-            name: "test3",
-            tag: "Tile",
-            url: "TestAsset3.webp",
-            idx: -1
-        },
-        {
-            id: 3,
-            name: "dragon",
-            tag: "Character",
-            url: "RedDragon.webp",
-            idx: -1
-        }
-    ];
+  private assets: Asset[] = [
+      {
+          id: 0,
+          name: "test1",
+          tag: "Tile",
+          url: "TestAsset.webp",
+          idx: -1
+      },
+      {
+          id: 1,
+          name: "test2",
+          tag: "Tile",
+          url: "TestAsset2.webp",
+          idx: -1
+      },
+      {
+          id: 2,
+          name: "test3",
+          tag: "Tile",
+          url: "TestAsset3.webp",
+          idx: -1
+      },
+      {
+          id: 3,
+          name: "dragon",
+          tag: "Character",
+          url: "RedDragon.webp",
+          idx: -1
+      }
+  ];
 
   // 씬에 배치된 엔티티들
   private entities: Map<string, EditorEntity>;
+  // placed tiles keyed by "x,y"
+  private tiles: Map<string, TilePlacement> = new Map();
 
   // 현재 모드
   private editormode: EditorMode;
@@ -127,6 +135,23 @@ export class EditorState {
 
   getEntities(): Map<string, EditorEntity> {
     return this.entities;
+  }
+
+  getTiles(): Map<string, TilePlacement> {
+    return this.tiles;
+  }
+
+  setTile(x: number, y: number, tile: number) {
+    const key = `${x},${y}`;
+    this.tiles.set(key, { x, y, tile });
+    this.notify();
+  }
+
+  removeTile(x: number, y: number) {
+    const key = `${x},${y}`;
+    if (this.tiles.delete(key)) {
+      this.notify();
+    }
   }
 
   // --- state update ---

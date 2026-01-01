@@ -16,7 +16,7 @@ type Props = {
     onSelectEntity?: (entity: EditorEntity) => void;
 };
 
-export function PhaserCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const sceneRef = useRef<EditorScene | null>(null);

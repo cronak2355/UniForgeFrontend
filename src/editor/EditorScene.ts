@@ -18,6 +18,8 @@ export class EditorScene extends Phaser.Scene {
 
   public baselayer!: Phaser.Tilemaps.TilemapLayer;
   public previewlayer!: Phaser.Tilemaps.TilemapLayer;
+  public tileOffsetX = 0;
+  public tileOffsetY = 0;
 
   public entityGroup!: Phaser.GameObjects.Group;
   public assetGroup!: Phaser.GameObjects.Group;
@@ -80,6 +82,14 @@ export class EditorScene extends Phaser.Scene {
 
   getEditorMode() {
     return this.editorMode;
+  }
+
+  worldToTileXY(worldX: number, worldY: number): { x: number; y: number } | null {
+    if (!this.map) return null;
+    const tx = Math.floor(worldX / tileSize) + this.tileOffsetX;
+    const ty = Math.floor(worldY / tileSize) + this.tileOffsetY;
+    if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return null;
+    return { x: tx, y: ty };
   }
 
   // -----------------------
@@ -259,6 +269,13 @@ export class EditorScene extends Phaser.Scene {
 
       this.baselayer = this.map.createBlankLayer("base", this.tileset, 0, 0)!;
       this.previewlayer = this.map.createBlankLayer("preview", this.tileset, 0, 0)!;
+
+      this.tileOffsetX = Math.floor(this.map.width / 2);
+      this.tileOffsetY = Math.floor(this.map.height / 2);
+      const offsetX = -this.tileOffsetX * tileSize;
+      const offsetY = -this.tileOffsetY * tileSize;
+      this.baselayer.setPosition(offsetX, offsetY);
+      this.previewlayer.setPosition(offsetX, offsetY);
 
       this.baselayer.setDepth(0);
       this.previewlayer.setDepth(1);

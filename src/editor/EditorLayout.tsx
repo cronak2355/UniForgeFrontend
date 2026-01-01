@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
 import type { EditorEntity } from "./types/Entity"
 // Asset type imported via snapshot in hook; no direct type import needed here
-import { PhaserCanvas } from "./PhaserCanvas";
+import { EditorCanvas } from "./EditorCanvas";
+import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
@@ -30,10 +31,12 @@ export default function EditorLayout() {
         </EditorCoreProvider>
     );
 }
-
+type mode = "dev" | "run";
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
     const coreDirect = useEditorCore();
+
+    const [mode, setmode] = useState<mode>("dev");
 
     const changeSelectedAssetHandler = (a: any) => {
         core.setSelectedAsset(a);
@@ -97,6 +100,26 @@ function EditorLayoutInner() {
                     }}>
                         Uniforge
                     </span>
+                </div>
+                <div style={{ marginLeft: 'auto' }}>
+                    <button
+                        type="button"
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            background: colors.borderAccent,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: '6px',
+                            color: colors.textPrimary,
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                            setmode((prev) => (prev === "dev" ? "run" : "dev"));
+                        }}
+                    >
+                        {mode === "dev" ? "실행" : "편집"}
+                    </button>
                 </div>
             </div>
 
@@ -187,16 +210,20 @@ function EditorLayoutInner() {
                     background: colors.bgPrimary,
                     overflow: 'hidden',
                 }}>
-                    <PhaserCanvas
-                        assets={assets}
-                        selected_asset={selectedAsset}
-                        draggedAsset={draggedAsset}
-                        addEntity={(entity) => {
-                            console.log("🟣 [EditorLayout] new entity:", entity);
-                            core.addEntity(entity as any);
-                            core.setSelectedEntity(entity as any);
-                        }}
-                    />
+                    {mode === "dev" ? (
+                        <EditorCanvas
+                            assets={assets}
+                            selected_asset={selectedAsset}
+                            draggedAsset={draggedAsset}
+                            addEntity={(entity) => {
+                                core.addEntity(entity as any);
+                                core.setSelectedEntity(entity as any);
+                            }}
+                        />
+                    ) : (
+                        <RunTimeCanvas />
+                    )}
+                    
                 </div>
 
                 {/* RIGHT PANEL - Inspector */}
