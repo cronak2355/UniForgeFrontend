@@ -1,6 +1,4 @@
-import type { EditorModule } from "../../types/Module";
-import type { EditorEntity } from "../../types/Entity";
-import type { Vector3, IModule } from "../modules/IModule";
+import type { IModule } from "../modules/IModule";
 import type { StatusModule } from "../modules/StatusModule";
 import type { KineticModule } from "../modules/KineticModule";
 import type { CombatModule } from "../modules/CombatModule";

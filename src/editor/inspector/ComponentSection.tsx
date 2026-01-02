@@ -6,21 +6,22 @@ import type {
     PulseComponent
 } from "../types/Component";
 import { ComponentDefaults } from "../types/Component";
+import type { EditorEntity } from "../types/Entity";
 
 const colors = {
     bgPrimary: '#0d1117',
+    bgSecondary: '#161b22',
+    bgTertiary: '#21262d',
     borderColor: '#30363d',
     accentLight: '#58a6ff',
     textPrimary: '#f0f6fc',
     textSecondary: '#8b949e',
+    textMuted: '#6e7681',
     btnBg: '#21262d',
     btnHover: '#30363d',
     danger: '#da3633',
+    error: '#f85149',
 };
-
-import type { EditorEntity } from "../types/Entity"; // Import 추가
-
-// ...
 
 type Props = {
     entity: EditorEntity;
@@ -48,19 +49,25 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     };
 
     return (
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ padding: "12px 0", borderTop: `1px solid ${colors.borderColor}` }}>
             <div style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
                 marginBottom: "8px",
             }}>
-                <span style={{ fontSize: "12px", fontWeight: 600, color: colors.textSecondary }}>
+                <span style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: colors.accentLight,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px"
+                }}>
                     Components
                 </span>
                 <div style={{ display: "flex", gap: "4px" }}>
                     <button
-                        onClick={() => handleAddComponent("AutoRotate")}
+                        onClick={() => handleAdd("AutoRotate")}
                         style={{
                             padding: "4px 8px",
                             fontSize: "10px",
@@ -74,7 +81,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         + Rotate
                     </button>
                     <button
-                        onClick={() => handleAddComponent("Pulse")}
+                        onClick={() => handleAdd("Pulse")}
                         style={{
                             padding: "4px 8px",
                             fontSize: "10px",
@@ -117,11 +124,11 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                             {comp.type}
                         </span>
                         <button
-                            onClick={() => onDelete(comp.id)}
+                            onClick={() => onRemove(comp.id)}
                             style={{
                                 padding: "2px 6px",
                                 fontSize: "10px",
-                                background: colors.error,
+                                background: colors.danger,
                                 border: "none",
                                 borderRadius: "2px",
                                 color: "#fff",
@@ -138,8 +145,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                             <label style={{ fontSize: "10px", color: colors.textSecondary }}>Speed:</label>
                             <input
                                 type="number"
-                                value={comp.speed}
-                                onChange={(e) => onUpdate({ ...comp, speed: parseFloat(e.target.value) || 0 })}
+                                value={(comp as AutoRotateComponent).speed}
+                                onChange={(e) => onUpdate({ ...comp, speed: parseFloat(e.target.value) || 0 } as AutoRotateComponent)}
                                 style={{
                                     width: "60px",
                                     padding: "2px 4px",
@@ -159,8 +166,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                                 <label style={{ fontSize: "10px", color: colors.textSecondary, width: "60px" }}>Speed:</label>
                                 <input
                                     type="number"
-                                    value={comp.speed}
-                                    onChange={(e) => onUpdate({ ...comp, speed: parseFloat(e.target.value) || 0 })}
+                                    value={(comp as PulseComponent).speed}
+                                    onChange={(e) => onUpdate({ ...comp, speed: parseFloat(e.target.value) || 0 } as PulseComponent)}
                                     style={{
                                         width: "60px",
                                         padding: "2px 4px",
@@ -177,8 +184,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                                 <input
                                     type="number"
                                     step="0.1"
-                                    value={comp.minScale}
-                                    onChange={(e) => onUpdate({ ...comp, minScale: parseFloat(e.target.value) || 0 })}
+                                    value={(comp as PulseComponent).minScale}
+                                    onChange={(e) => onUpdate({ ...comp, minScale: parseFloat(e.target.value) || 0 } as PulseComponent)}
                                     style={{
                                         width: "60px",
                                         padding: "2px 4px",
@@ -195,8 +202,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                                 <input
                                     type="number"
                                     step="0.1"
-                                    value={comp.maxScale}
-                                    onChange={(e) => onUpdate({ ...comp, maxScale: parseFloat(e.target.value) || 0 })}
+                                    value={(comp as PulseComponent).maxScale}
+                                    onChange={(e) => onUpdate({ ...comp, maxScale: parseFloat(e.target.value) || 0 } as PulseComponent)}
                                     style={{
                                         width: "60px",
                                         padding: "2px 4px",
@@ -214,4 +221,4 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
             ))}
         </div>
     );
-}
+});

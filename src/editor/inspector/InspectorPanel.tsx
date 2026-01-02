@@ -146,29 +146,13 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             onChange={(e) => updateTransform('y', parseFloat(e.target.value))}
           />
         </div>
-        <div style={{ marginBottom: "16px" }}>
-          <ComponentSection
-            components={entity.components || []}
-            onAdd={(comp) => {
-              onUpdateEntity({
-                ...entity,
-                components: [...(entity.components || []), comp],
-              });
-            }}
-            onUpdate={(updatedComp) => {
-              onUpdateEntity({
-                ...entity,
-                components: (entity.components || []).map((c) =>
-                  c.id === updatedComp.id ? updatedComp : c
-                ),
-              });
-            }}
-            onDelete={(id) => {
-              onUpdateEntity({
-                ...entity,
-                components: (entity.components || []).filter((c) => c.id !== id),
-              });
-            }}
+        <div style={rowStyle}>
+          <span style={labelStyle}>Z</span>
+          <input
+            type="number"
+            style={inputStyle}
+            value={localEntity.z}
+            onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
           />
         </div>
       </div>

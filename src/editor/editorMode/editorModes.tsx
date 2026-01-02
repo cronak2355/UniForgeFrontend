@@ -1,7 +1,7 @@
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
-import { Scene } from "phaser";
+
 
 //媛???먮뵒??紐⑤뱶??媛??????섎뒗 ??
 //紐⑤뱺 ?먮뵒??紐⑤뱶瑜??덈줈 留뚮뱾 ?뚮뒗 ?섎? ?곸냽諛쏆븘??留뚮뱾?댁빞 ??
@@ -243,8 +243,8 @@ export class DragDropMode extends EditorMode {
             x: created.x,
             y: created.y,
             z: 0,
-            variables: {},
-            events: {},
+            variables: [],
+            events: [],
             components: [],
             rules: [],
             modules: [],

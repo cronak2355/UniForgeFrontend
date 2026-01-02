@@ -6,7 +6,7 @@ import type { EditorEntity } from "./types/Entity";
 import { EditorCanvas } from "./EditorCanvas";
 import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
-import { EditorCoreProvider, useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
+import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 
@@ -35,7 +35,7 @@ type Mode = "dev" | "run";
 
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
-    const coreDirect = useEditorCore();
+
 
     const [mode, setMode] = useState<Mode>("dev");
     const [runSession, setRunSession] = useState(0);

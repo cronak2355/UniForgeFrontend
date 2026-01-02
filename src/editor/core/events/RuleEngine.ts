@@ -46,10 +46,16 @@ class RuleEngineClass {
 
     /**
      * 이벤트 처리 및 규칙 실행
+     * @param event 게임 이벤트
+     * @param ctx 액션 컨텍스트
+     * @param entityRules 엔티티별 규칙 (없으면 전역 규칙 사용)
      */
-    handleEvent(event: GameEvent, ctx: ActionContext) {
+    handleEvent(event: GameEvent, ctx: ActionContext, entityRules?: GameRule[]) {
+        // 엔티티별 규칙이 있으면 그것을 사용, 없으면 전역 규칙 사용
+        const rulesToCheck = entityRules || this.rules;
+
         // 1. 이벤트 타입 및 파라미터 매칭
-        const matchingRules = this.rules.filter(rule => {
+        const matchingRules = rulesToCheck.filter(rule => {
             if (rule.event !== event.type) return false;
 
             // 파라미터가 있다면 모두 일치해야 함
