@@ -126,6 +126,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const [fps, setFps] = useState(8);
 
   const isDrawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   // 프레임 상태 동기화
   const syncFrameState = useCallback(() => {
@@ -243,6 +244,34 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [currentTool, currentColor, brushSize]);
 
+  // Bresenham line algorithm for smooth strokes
+  const drawLine = useCallback((x0: number, y0: number, x1: number, y1: number) => {
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+
+    let x = x0;
+    let y = y0;
+
+    while (true) {
+      executeToolAt(x, y);
+
+      if (x === x1 && y === y1) break;
+
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  }, [executeToolAt]);
+
   // ==================== Pointer Events ====================
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -272,6 +301,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     const actionType = currentTool === 'eraser' ? 'erase' : 'stroke';
     engineRef.current.beginStroke(actionType);
     executeToolAt(coords.x, coords.y);
+    lastPointRef.current = { x: coords.x, y: coords.y };
   }, [currentTool, getPixelCoords, executeToolAt, updateHistoryState, syncFrameState]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -281,13 +311,20 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     const coords = getPixelCoords(e);
     if (!coords) return;
 
-    executeToolAt(coords.x, coords.y);
-  }, [currentTool, getPixelCoords, executeToolAt]);
+    // Use line interpolation for smooth strokes
+    if (lastPointRef.current) {
+      drawLine(lastPointRef.current.x, lastPointRef.current.y, coords.x, coords.y);
+    } else {
+      executeToolAt(coords.x, coords.y);
+    }
+    lastPointRef.current = { x: coords.x, y: coords.y };
+  }, [currentTool, getPixelCoords, executeToolAt, drawLine]);
 
   const handlePointerUp = useCallback(() => {
     if (!isDrawingRef.current) return;
 
     isDrawingRef.current = false;
+    lastPointRef.current = null;
     engineRef.current?.endStroke();
     updateHistoryState();
     syncFrameState(); // 썸네일 업데이트
