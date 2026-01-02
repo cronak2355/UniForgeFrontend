@@ -387,17 +387,55 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
       const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
       const data = imageData.data;
+      const width = pixelSize;
+      const height = pixelSize;
 
-      // Chroma Key: Remove white/near-white background
-      // Threshold: 240 (can be adjusted)
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+      // Flood Fill Background Removal (BFS)
+      // Start from (0,0) and remove all connected pixels similar to the standard background color
+      const visited = new Uint8Array(width * height);
+      const queue: [number, number][] = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]];
 
-        // If pixel is very bright (white-ish), make it transparent
-        if (r > 240 && g > 240 && b > 240) {
-          data[i + 3] = 0; // Alpha = 0
+      const tolerance = 50; // Allow some variation in "white/grey" background
+      const startR = data[0];
+      const startG = data[1];
+      const startB = data[2];
+
+      // If background is not bright enough, maybe don't remove it? 
+      // But usually AI white background is > 200. Let's start flood fill if corner is bright.
+      // Or just flood fill "whatever the corner color is" if it looks like background.
+
+      // Helper to check color similarity
+      const isSimilar = (idx: number, r: number, g: number, b: number) => {
+        const pr = data[idx];
+        const pg = data[idx + 1];
+        const pb = data[idx + 2];
+        return Math.abs(pr - r) < tolerance &&
+          Math.abs(pg - g) < tolerance &&
+          Math.abs(pb - b) < tolerance;
+      };
+
+      while (queue.length > 0) {
+        const [x, y] = queue.shift()!;
+        const idx = (y * width + x) * 4;
+
+        if (visited[y * width + x]) continue;
+        visited[y * width + x] = 1;
+
+        // Make transparent
+        data[idx + 3] = 0;
+
+        // Check neighbors
+        const neighbors = [
+          [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]
+        ];
+
+        for (const [nx, ny] of neighbors) {
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            const nIdx = (ny * width + nx) * 4;
+            if (!visited[ny * width + nx] && isSimilar(nIdx, startR, startG, startB)) {
+              queue.push([nx, ny]);
+            }
+          }
         }
       }
 
