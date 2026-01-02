@@ -390,54 +390,50 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
       const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
       const data = imageData.data;
-      const width = pixelSize;
-      const height = pixelSize;
 
-      // Flood Fill Background Removal (BFS)
-      // Start from (0,0) and remove all connected pixels similar to the standard background color
-      const visited = new Uint8Array(width * height);
-      const queue: [number, number][] = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]];
+      // Green Screen Removal (Global)
+      // Remove all pixels that are predominantly GREEN
+      // AI "Bright Green" is usually ~ (0, 255, 0)
 
-      const tolerance = bgRemovalTolerance;
-      const startR = data[0];
-      const startG = data[1];
-      const startB = data[2];
+      // Tolerance scaling: 0-100 -> effective variation allowed
+      const tolerance = 100 - bgRemovalTolerance; // Higher tolerance slider = looser check (more aggressive removal)
+      // Actually let's keep logic simple:
+      // If G is high AND (G > R + gap) AND (G > B + gap)
 
-      // If background is not bright enough, maybe don't remove it? 
-      // But usually AI white background is > 200. Let's start flood fill if corner is bright.
-      // Or just flood fill "whatever the corner color is" if it looks like background.
+      const threshold = Math.max(10, bgRemovalTolerance * 2); // 0-200
 
-      // Helper to check color similarity
-      const isSimilar = (idx: number, r: number, g: number, b: number) => {
-        const pr = data[idx];
-        const pg = data[idx + 1];
-        const pb = data[idx + 2];
-        return Math.abs(pr - r) < tolerance &&
-          Math.abs(pg - g) < tolerance &&
-          Math.abs(pb - b) < tolerance;
-      };
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
 
-      while (queue.length > 0) {
-        const [x, y] = queue.shift()!;
-        const idx = (y * width + x) * 4;
+        // Green Screen Logic
+        // 1. G must be significant (> 100)
+        // 2. G must be dominant (G > R and G > B)
+        // 3. Difference must be greater than threshold
 
-        if (visited[y * width + x]) continue;
-        visited[y * width + x] = 1;
+        if (g > 100 && g > r + 40 && g > b + 40) {
+          // It's green!
+          // Check sensitivity based on slider
+          // If slider is HIGH (aggressive), we remove even dark green
+          // Slider 50 = default
 
-        // Make transparent
-        data[idx + 3] = 0;
+          // Let's use simple Euclidian distance from Pure Green (0, 255, 0) logic?
+          // Or just dominant color check.
 
-        // Check neighbors
-        const neighbors = [
-          [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]
-        ];
+          // If BG Tolerance is 0, we are strict.
+          // If BG Tolerance is 100, we remove everything remotely green.
 
-        for (const [nx, ny] of neighbors) {
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            const nIdx = (ny * width + nx) * 4;
-            if (!visited[ny * width + nx] && isSimilar(nIdx, startR, startG, startB)) {
-              queue.push([nx, ny]);
-            }
+          // Dynamic Threshold:
+          // Strict (0): G > R+100, G > 200
+          // Loose (100): G > R+10, G > 50
+
+          const strictness = Math.max(0, 100 - bgRemovalTolerance);
+          // strictness 100 (Slider 0) -> Need G >> R,B
+          // strictness 0 (Slider 100) -> Need G > R,B
+
+          if (g > r + strictness && g > b + strictness) {
+            data[i + 3] = 0;
           }
         }
       }
