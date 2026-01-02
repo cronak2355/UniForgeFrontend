@@ -2,20 +2,22 @@ import { memo } from "react";
 import type {
     EditorComponent,
     ComponentType,
-    AutoRotateComponent,
-    PulseComponent
 } from "../types/Component";
 import { ComponentDefaults } from "../types/Component";
 
 const colors = {
     bgPrimary: '#0d1117',
+    bgSecondary: '#161b22',
+    bgTertiary: '#21262d',
     borderColor: '#30363d',
     accentLight: '#58a6ff',
     textPrimary: '#f0f6fc',
     textSecondary: '#8b949e',
+    textMuted: '#6e7681',
     btnBg: '#21262d',
     btnHover: '#30363d',
     danger: '#da3633',
+    error: '#da3633',
 };
 
 import type { EditorEntity } from "../types/Entity"; // Import 추가
@@ -60,7 +62,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                 </span>
                 <div style={{ display: "flex", gap: "4px" }}>
                     <button
-                        onClick={() => handleAddComponent("AutoRotate")}
+                        onClick={() => handleAdd("AutoRotate")}
                         style={{
                             padding: "4px 8px",
                             fontSize: "10px",
@@ -74,7 +76,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         + Rotate
                     </button>
                     <button
-                        onClick={() => handleAddComponent("Pulse")}
+                        onClick={() => handleAdd("Pulse")}
                         style={{
                             padding: "4px 8px",
                             fontSize: "10px",
@@ -117,7 +119,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                             {comp.type}
                         </span>
                         <button
-                            onClick={() => onDelete(comp.id)}
+                            onClick={() => onRemove(comp.id)}
                             style={{
                                 padding: "2px 6px",
                                 fontSize: "10px",
@@ -214,4 +216,4 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
             ))}
         </div>
     );
-}
+});
