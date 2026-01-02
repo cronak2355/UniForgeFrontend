@@ -88,6 +88,8 @@ interface AssetsEditorContextType {
   getWorkCanvas: () => HTMLCanvasElement | null;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  bgRemovalTolerance: number;
+  setBgRemovalTolerance: (tolerance: number) => void;
 
   // Export
   downloadWebP: (filename: string) => Promise<void>;
@@ -111,6 +113,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const [zoom, setZoomState] = useState(8);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [bgRemovalTolerance, setBgRemovalTolerance] = useState(50);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [historyState, setHistoryState] = useState({ undoCount: 0, redoCount: 0 });
@@ -395,7 +398,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       const visited = new Uint8Array(width * height);
       const queue: [number, number][] = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]];
 
-      const tolerance = 50; // Allow some variation in "white/grey" background
+      const tolerance = bgRemovalTolerance;
       const startR = data[0];
       const startG = data[1];
       const startB = data[2];
@@ -445,7 +448,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [pixelSize, updateHistoryState, syncFrameState]);
+  }, [pixelSize, updateHistoryState, syncFrameState, bgRemovalTolerance]);
 
   const applyImageData = useCallback((imageData: ImageData) => {
     if (!engineRef.current) return;
@@ -554,6 +557,9 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         getWorkCanvas,
         isLoading,
         setIsLoading,
+        bgRemovalTolerance,
+        setBgRemovalTolerance,
+        // Export
         downloadWebP,
         saveToLibrary,
         assets,

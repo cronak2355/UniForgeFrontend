@@ -35,6 +35,8 @@ export function RightPanel() {
     selectFrame,
     applyImageData,
     getWorkCanvas,
+    bgRemovalTolerance,
+    setBgRemovalTolerance,
   } = useAssetsEditor();
 
   // ==================== State ====================
@@ -374,8 +376,8 @@ export function RightPanel() {
           onClick={() => setIsPlaying(!isPlaying)}
           disabled={frames.length <= 1}
           className={`w-full py-1.5 text-xs transition-colors ${isPlaying
-              ? 'bg-[#2563eb] text-white'
-              : 'bg-neutral-900 text-neutral-400 border border-neutral-800 hover:border-neutral-700'
+            ? 'bg-[#2563eb] text-white'
+            : 'bg-neutral-900 text-neutral-400 border border-neutral-800 hover:border-neutral-700'
             } ${frames.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isPlaying ? '⏸ Pause' : '▶ Play'}
@@ -403,8 +405,8 @@ export function RightPanel() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 text-xs transition-colors ${activeTab === tab
-                ? 'text-white border-b-2 border-[#2563eb]'
-                : 'text-neutral-500 hover:text-neutral-300'
+              ? 'text-white border-b-2 border-[#2563eb]'
+              : 'text-neutral-500 hover:text-neutral-300'
               }`}
           >
             {tab.toUpperCase()}
@@ -432,8 +434,8 @@ export function RightPanel() {
                 <div
                   key={msg.id}
                   className={`text-xs p-2 rounded ${msg.role === 'user'
-                      ? 'bg-[#2563eb]/20 ml-4 text-blue-200'
-                      : 'bg-neutral-900 mr-4 text-neutral-300'
+                    ? 'bg-[#2563eb]/20 ml-4 text-blue-200'
+                    : 'bg-neutral-900 mr-4 text-neutral-300'
                     }`}
                 >
                   {msg.content}
@@ -448,6 +450,21 @@ export function RightPanel() {
 
             {/* Input Section */}
             <div className="p-2 border-t border-neutral-800 space-y-2">
+              {/* Background Removal Tolerance Slider */}
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-[10px] text-neutral-500 whitespace-nowrap">배경 제거 강도</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={bgRemovalTolerance}
+                  onChange={(e) => setBgRemovalTolerance(Number(e.target.value))}
+                  className="flex-1 h-1 bg-neutral-800 rounded appearance-none cursor-pointer"
+                  title="배경 제거 민감도 조절 (높을수록 많이 지워짐)"
+                />
+                <span className="text-[10px] text-neutral-400 w-5 text-right">{bgRemovalTolerance}</span>
+              </div>
               {/* Asset Type Selector */}
               <div className="flex gap-1">
                 {(['character', 'object', 'effect'] as const).map((type) => (
@@ -455,8 +472,8 @@ export function RightPanel() {
                     key={type}
                     onClick={() => setAssetType(type)}
                     className={`flex-1 py-1 text-[10px] rounded transition-colors ${assetType === type
-                        ? 'bg-[#2563eb] text-white'
-                        : 'bg-neutral-900 text-neutral-500 hover:text-neutral-300'
+                      ? 'bg-[#2563eb] text-white'
+                      : 'bg-neutral-900 text-neutral-500 hover:text-neutral-300'
                       }`}
                   >
                     {type === 'character' ? '👤' : type === 'object' ? '📦' : '✨'} {type}
