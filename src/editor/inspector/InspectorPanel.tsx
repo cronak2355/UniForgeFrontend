@@ -8,11 +8,10 @@ import { ModuleSection } from "./ModuleSection";
 // TransformEditor가 없으므로 간단히 숫자 입력 필드로 대체하거나 생략.
 // 여기서는 기본 Transform UI를 직접 구현합니다.
 
-type Props = {
-  entity: EditorEntity | null;
-  onUpdateEntity: (entity: EditorEntity) => void;
-};
-
+interface Props {
+  entity: EditorEntity;
+  onUpdateEntity: (next: EditorEntity) => void;
+}
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
 

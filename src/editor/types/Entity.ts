@@ -16,6 +16,10 @@ export interface EditorEntity {
     x: number;
     y: number;
     z: number;
+    rotation: number;      // radians
+    scaleX: number;
+    scaleY: number;
+
     texture?: string;
 
     /** 사용자 정의 변수 목록 */
