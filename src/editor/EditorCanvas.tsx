@@ -121,11 +121,17 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             }
 
             for (const e of entities) {
+                if (e.renderMode === "3D") continue;
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
+                    z: e.z,
                     texture: e.name,
                     variables: e.variables,
-                    components: [],
+                    components: e.components,
+                    rotationZ: e.rotationZ,
+                    scaleX: e.scaleX,
+                    scaleY: e.scaleY,
+                    scaleZ: e.scaleZ,
                 });
             }
 
@@ -242,21 +248,34 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 const created: EditorEntity = {
                     id,
                     type: activeDragged.tag,
+                    renderMode: "2D",
                     name: activeDragged.name,
                     x: worldX,
                     y: worldY,
                     z: 0,
+                    rotationX: 0,
+                    rotationY: 0,
+                    rotationZ: 0,
+                    scaleX: 1,
+                    scaleY: 1,
+                    scaleZ: 1,
                     components: [],
                     modules: [],
                     variables: [],
                     events: [],
+                    rules: [],
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
                     name: created.name,
+                    z: created.z,
                     texture: created.name,
                     variables: created.variables,
-                    components: [],
+                    components: created.components,
+                    rotationZ: created.rotationZ,
+                    scaleX: created.scaleX,
+                    scaleY: created.scaleY,
+                    scaleZ: created.scaleZ,
                 });
             }
 
@@ -305,7 +324,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         const gameCore = gameCoreRef.current;
         if (!gameCore || !rendererReadyRef.current) return;
 
-        const nextIds = new Set(entities.map((e) => e.id));
+        const nextIds = new Set(entities.filter((e) => e.renderMode !== "3D").map((e) => e.id));
         const current = gameCore.getAllEntities();
 
         for (const id of current.keys()) {
@@ -315,12 +334,18 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
         }
 
         for (const ent of entities) {
+            if (ent.renderMode === "3D") continue;
             if (!gameCore.hasEntity(ent.id)) {
                 gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
                     name: ent.name,
+                    z: ent.z,
                     texture: ent.name,
                     variables: ent.variables,
-                    components: [],
+                    components: ent.components,
+                    rotationZ: ent.rotationZ,
+                    scaleX: ent.scaleX,
+                    scaleY: ent.scaleY,
+                    scaleZ: ent.scaleZ,
                 });
             } else {
                 gameCore.moveEntity(ent.id, ent.x, ent.y);

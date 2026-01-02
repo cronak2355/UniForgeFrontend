@@ -4,6 +4,10 @@ import type { EditorComponent } from "./Component";
 import type { GameRule } from "../core/events/RuleEngine";
 import type { EditorModule } from "./Module";
 
+export type RenderMode = "2D" | "3D";
+export type EntityType = "sprite" | "container" | "nineSlice" | "mesh" | string;
+export type PrimitiveType = "box" | "sphere" | "plane";
+
 /**
  * EditorEntity - 에디터에서 관리하는 엔티티 데이터
  * 
@@ -11,11 +15,19 @@ import type { EditorModule } from "./Module";
  */
 export interface EditorEntity {
     id: string;
-    type: "sprite" | "container" | "nineSlice";
+    type: EntityType;
+    renderMode: RenderMode;
+    primitive?: PrimitiveType;
     name: string;
     x: number;
     y: number;
     z: number;
+    rotationX: number;
+    rotationY: number;
+    rotationZ: number;
+    scaleX: number;
+    scaleY: number;
+    scaleZ: number;
     texture?: string;
 
     /** 사용자 정의 변수 목록 */

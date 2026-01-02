@@ -4,6 +4,7 @@ import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
 import type { EditorEntity } from "./types/Entity";
 import { EditorCanvas } from "./EditorCanvas";
+import { ThreeEditorCanvas } from "./ThreeEditorCanvas";
 import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
@@ -38,6 +39,7 @@ function EditorLayoutInner() {
 
 
     const [mode, setMode] = useState<Mode>("dev");
+    const [editorView, setEditorView] = useState<"2d" | "3d">("2d");
     const [runSession, setRunSession] = useState(0);
 
     const changeSelectedAssetHandler = (a: any) => {
@@ -106,6 +108,45 @@ function EditorLayoutInner() {
                         Uniforge
                     </span>
                 </div>
+                <div style={{ marginLeft: '24px', display: 'flex', gap: '6px' }}>
+                    <button
+                        type="button"
+                        style={{
+                            padding: '6px 10px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            background: editorView === "2d" ? colors.borderAccent : colors.bgTertiary,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: '6px',
+                            color: colors.textPrimary,
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                            setEditorView("2d");
+                        }}
+                    >
+                        2D
+                    </button>
+                    <button
+                        type="button"
+                        style={{
+                            padding: '6px 10px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            background: editorView === "3d" ? colors.borderAccent : colors.bgTertiary,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: '6px',
+                            color: colors.textPrimary,
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                            setEditorView("3d");
+                            setMode("dev");
+                        }}
+                    >
+                        3D
+                    </button>
+                </div>
                 <div style={{ marginLeft: 'auto' }}>
                     <button
                         type="button"
@@ -113,12 +154,14 @@ function EditorLayoutInner() {
                             padding: '6px 12px',
                             fontSize: '12px',
                             fontWeight: 600,
-                            background: colors.borderAccent,
+                            background: editorView === "3d" ? colors.bgTertiary : colors.borderAccent,
                             border: `1px solid ${colors.borderColor}`,
                             borderRadius: '6px',
                             color: colors.textPrimary,
-                            cursor: 'pointer',
+                            cursor: editorView === "3d" ? 'not-allowed' : 'pointer',
+                            opacity: editorView === "3d" ? 0.6 : 1,
                         }}
+                        disabled={editorView === "3d"}
                         onClick={() => {
                             setMode((prev) => {
                                 const next = prev === "dev" ? "run" : "dev";
@@ -129,7 +172,7 @@ function EditorLayoutInner() {
                             });
                         }}
                     >
-                        {mode === "dev" ? "실행" : "편집"}
+                    {mode === "dev" ? "실행" : "편집"}
                     </button>
                 </div>
             </div>
@@ -222,16 +265,20 @@ function EditorLayoutInner() {
                     overflow: 'hidden',
                 }}>
                     {mode === "dev" ? (
-                        <EditorCanvas
-                            assets={assets}
-                            selected_asset={selectedAsset}
-                            draggedAsset={draggedAsset}
-                            addEntity={(entity) => {
-                                console.log("? [EditorLayout] new entity:", entity);
-                                core.addEntity(entity as any);
-                                core.setSelectedEntity(entity as any);
-                            }}
-                        />
+                        editorView === "2d" ? (
+                            <EditorCanvas
+                                assets={assets}
+                                selected_asset={selectedAsset}
+                                draggedAsset={draggedAsset}
+                                addEntity={(entity) => {
+                                    console.log("? [EditorLayout] new entity:", entity);
+                                    core.addEntity(entity as any);
+                                    core.setSelectedEntity(entity as any);
+                                }}
+                            />
+                        ) : (
+                            <ThreeEditorCanvas />
+                        )
                     ) : (
                         <RunTimeCanvas key={`run-${runSession}`} />
                     )}

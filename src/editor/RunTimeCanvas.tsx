@@ -63,6 +63,10 @@ export function RunTimeCanvas() {
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;
+        renderer.useEditorCoreRuntimePhysics = false;
+        renderer.onInputState = (input) => {
+            gameCore.setInputState(input);
+        };
 
         let active = true;
 
@@ -93,9 +97,18 @@ export function RunTimeCanvas() {
                 // 저장된 엔티티 생성
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
+                    z: e.z,
                     texture: e.name,
                     variables: e.variables,
                     components: e.components,
+                    rotationX: e.rotationX,
+                    rotationY: e.rotationY,
+                    rotationZ: e.rotationZ,
+                    scaleX: e.scaleX,
+                    scaleY: e.scaleY,
+                    scaleZ: e.scaleZ,
+                    modules: e.modules,
+                    rules: e.rules,
                 });
             }
 
@@ -110,6 +123,7 @@ export function RunTimeCanvas() {
             active = false;
             gameCoreRef.current?.destroy();
             renderer.onUpdateCallback = undefined;
+            renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
             gameCoreRef.current = null;

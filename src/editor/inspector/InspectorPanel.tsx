@@ -50,10 +50,14 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     handleUpdate(updatedEntity);
   };
 
-  const updateTransform = (key: 'x' | 'y' | 'z', value: number) => {
+  const updateTransform = (key: keyof EditorEntity, value: number) => {
     const updated = { ...localEntity, [key]: value };
     handleUpdate(updated);
   };
+
+  const is3D = localEntity.renderMode === "3D";
+  const toDegrees = (rad: number) => (rad * 180) / Math.PI;
+  const toRadians = (deg: number) => (deg * Math.PI) / 180;
 
   const sectionStyle = {
     padding: '16px',
@@ -155,6 +159,64 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
           />
         </div>
+        {is3D && (
+          <>
+            <div style={{ ...rowStyle, marginTop: '12px' }}>
+              <span style={{ ...labelStyle, width: '60px' }}>Rot X</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={toDegrees(localEntity.rotationX).toFixed(2)}
+                onChange={(e) => updateTransform('rotationX', toRadians(parseFloat(e.target.value) || 0))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={{ ...labelStyle, width: '60px' }}>Rot Y</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={toDegrees(localEntity.rotationY).toFixed(2)}
+                onChange={(e) => updateTransform('rotationY', toRadians(parseFloat(e.target.value) || 0))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={{ ...labelStyle, width: '60px' }}>Rot Z</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={toDegrees(localEntity.rotationZ).toFixed(2)}
+                onChange={(e) => updateTransform('rotationZ', toRadians(parseFloat(e.target.value) || 0))}
+              />
+            </div>
+            <div style={{ ...rowStyle, marginTop: '12px' }}>
+              <span style={{ ...labelStyle, width: '60px' }}>Scale X</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.scaleX}
+                onChange={(e) => updateTransform('scaleX', parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={{ ...labelStyle, width: '60px' }}>Scale Y</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.scaleY}
+                onChange={(e) => updateTransform('scaleY', parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={{ ...labelStyle, width: '60px' }}>Scale Z</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.scaleZ}
+                onChange={(e) => updateTransform('scaleZ', parseFloat(e.target.value) || 0)}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Module Section */}

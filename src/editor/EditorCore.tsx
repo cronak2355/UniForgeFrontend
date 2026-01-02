@@ -1,10 +1,11 @@
-import { EditorMode, CameraMode } from "./editorMode/editorModes";
+import { CameraMode } from "./editorMode/editorModes";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
+import type { IEditorMode } from "./editorMode/IEditorMode";
 import type { IGameState } from "./core/IGameState";
 
 export interface EditorContext {
-    currentMode: EditorMode;
+    currentMode: IEditorMode;
     currentSelectedAsset?: Asset;
     currentDraggingAsset?: Asset;
     currentSelecedEntity?: EditorEntity;
@@ -26,7 +27,7 @@ export class EditorState implements IGameState {
     private draggedAsset: Asset | null = null;
     private selectedEntity: EditorEntity | null = null;
 
-    private editorMode: EditorMode = new CameraMode();
+    private editorMode: IEditorMode = new CameraMode();
 
     private listeners: (() => void)[] = [];
 
@@ -81,7 +82,8 @@ export class EditorState implements IGameState {
         if (!entity.id) {
             entity.id = Date.now().toString();
         }
-        this.entities.set(entity.id, entity);
+        const normalized = this.normalizeEntity(entity);
+        this.entities.set(normalized.id, normalized);
         this.notify();
     }
 
@@ -96,6 +98,27 @@ export class EditorState implements IGameState {
         if (this.tiles.delete(key)) {
             this.notify();
         }
+    }
+
+    private normalizeEntity(entity: EditorEntity): EditorEntity {
+        const renderMode = entity.renderMode ?? "2D";
+        return {
+            ...entity,
+            renderMode,
+            z: entity.z ?? 0,
+            rotationX: entity.rotationX ?? 0,
+            rotationY: entity.rotationY ?? 0,
+            rotationZ: entity.rotationZ ?? 0,
+            scaleX: entity.scaleX ?? 1,
+            scaleY: entity.scaleY ?? 1,
+            scaleZ: entity.scaleZ ?? 1,
+            variables: entity.variables ?? [],
+            events: entity.events ?? [],
+            components: entity.components ?? [],
+            rules: entity.rules ?? [],
+            modules: entity.modules ?? [],
+            primitive: entity.primitive ?? (renderMode === "3D" ? "box" : entity.primitive),
+        };
     }
 
     sendContextToEditorModeStateMachine(ctx: EditorContext) {

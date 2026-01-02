@@ -1,11 +1,12 @@
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
+import type { IEditorMode } from "./IEditorMode";
 
 
 //媛???먮뵒??紐⑤뱶??媛??????섎뒗 ??
 //紐⑤뱺 ?먮뵒??紐⑤뱶瑜??덈줈 留뚮뱾 ?뚮뒗 ?섎? ?곸냽諛쏆븘??留뚮뱾?댁빞 ??
-export abstract class EditorMode {
+export abstract class EditorMode implements IEditorMode<Phaser.Scene, Phaser.Input.Pointer> {
     enter(_scene: Phaser.Scene) { }
     exit(_scene: Phaser.Scene) { }
 
@@ -239,10 +240,17 @@ export class DragDropMode extends EditorMode {
 
             id: created.getData("id"),
             type: this.asset!.tag as any,
+            renderMode: "2D",
             name: this.asset!.name,
             x: created.x,
             y: created.y,
             z: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            scaleZ: 1,
             variables: [],
             events: [],
             components: [],
@@ -271,7 +279,7 @@ export class DragDropMode extends EditorMode {
     }
 }
 
-export class EntityEditMode implements EditorMode {
+export class EntityEditMode extends EditorMode {
     private dragging = false;
     private selected: Phaser.GameObjects.GameObject | null = null;
 
