@@ -203,20 +203,28 @@ export class PixelEngine {
   // ==================== 드로잉 API ====================
 
   drawPixelAt(x: number, y: number, color: RGBA, brushSize = 1): void {
-    const offset = Math.floor(brushSize / 2);
-    for (let dy = 0; dy < brushSize; dy++) {
-      for (let dx = 0; dx < brushSize; dx++) {
-        this.setPixelWithHistory(x - offset + dx, y - offset + dy, color);
+    const radius = brushSize / 2;
+    const centerOffset = Math.floor(radius);
+    for (let dy = -centerOffset; dy <= centerOffset; dy++) {
+      for (let dx = -centerOffset; dx <= centerOffset; dx++) {
+        // Check if pixel is within circular radius
+        if (dx * dx + dy * dy <= radius * radius) {
+          this.setPixelWithHistory(x + dx, y + dy, color);
+        }
       }
     }
     this.render();
   }
 
   erasePixelAt(x: number, y: number, brushSize = 1): void {
-    const offset = Math.floor(brushSize / 2);
-    for (let dy = 0; dy < brushSize; dy++) {
-      for (let dx = 0; dx < brushSize; dx++) {
-        this.setPixelWithHistory(x - offset + dx, y - offset + dy, { r: 0, g: 0, b: 0, a: 0 });
+    const radius = brushSize / 2;
+    const centerOffset = Math.floor(radius);
+    for (let dy = -centerOffset; dy <= centerOffset; dy++) {
+      for (let dx = -centerOffset; dx <= centerOffset; dx++) {
+        // Check if pixel is within circular radius
+        if (dx * dx + dy * dy <= radius * radius) {
+          this.setPixelWithHistory(x + dx, y + dy, { r: 0, g: 0, b: 0, a: 0 });
+        }
       }
     }
     this.render();
