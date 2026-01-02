@@ -386,6 +386,20 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       tempCtx.drawImage(imageBitmap, 0, 0, pixelSize, pixelSize);
 
       const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
+      const data = imageData.data;
+
+      // Chroma Key: Remove white/near-white background
+      // Threshold: 240 (can be adjusted)
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // If pixel is very bright (white-ish), make it transparent
+        if (r > 240 && g > 240 && b > 240) {
+          data[i + 3] = 0; // Alpha = 0
+        }
+      }
 
       engineRef.current.applyAIImage(imageData);
       updateHistoryState();
