@@ -431,7 +431,7 @@ export function RightPanel() {
                     {(['character', 'object'] as const).map(t => (
                       <button
                         key={t}
-                        onClick={() => setAssetType(t as any)}
+                        onClick={() => setAssetType(t)}
                         className={`px-2 py-1 text-[10px] uppercase tracking-wide transition-colors ${assetType === t ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white'}`}
                         title={t}
                       >
@@ -576,16 +576,12 @@ export function RightPanel() {
 
       {/* 🦴 Rigger Modal (Overlay) */}
       {showRigger && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0f1115] border border-white/10 overflow-hidden shadow-2xl w-[800px] h-[600px] flex flex-col">
-            <PartRigger
-              sourceCanvas={getWorkCanvas()}
-              pixelSize={pixelSize}
-              onFramesGenerated={handleRigFramesGenerated}
-              onClose={() => setShowRigger(false)}
-            />
-          </div>
-        </div>
+        <PartRigger
+          sourceCanvas={getWorkCanvas()}
+          pixelSize={pixelSize}
+          onFramesGenerated={handleRigFramesGenerated}
+          onClose={() => setShowRigger(false)}
+        />
       )}
     </div>
   );

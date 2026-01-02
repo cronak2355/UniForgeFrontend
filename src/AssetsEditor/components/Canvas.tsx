@@ -26,16 +26,22 @@ export function Canvas() {
     initEngine();
   }, [initEngine]);
 
-  // Center Canvas on Mount
+  // Center Canvas and Auto-Fit Zoom on Mount and Resolution Change
   useEffect(() => {
     if (wrapperRef.current) {
       const { width, height } = wrapperRef.current.getBoundingClientRect();
+      const padding = 40; // reduced padding for better fit
+      const availableSize = Math.min(width, height) - padding;
+      const optimalZoom = Math.max(0.5, Math.min(8, availableSize / pixelSize));
+
+      const displaySize = pixelSize * optimalZoom;
+      setZoom(optimalZoom);
       setPanOffset({
         x: (width - displaySize) / 2,
         y: (height - displaySize) / 2,
       });
     }
-  }, []); // Run once on mount
+  }, [pixelSize, setZoom]);
 
   // 키보드 이벤트 (화살표)
   useEffect(() => {

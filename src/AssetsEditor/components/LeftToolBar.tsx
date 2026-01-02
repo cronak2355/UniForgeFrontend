@@ -1,7 +1,7 @@
 // src/AssetsEditor/components/LeftToolbar.tsx
 
 import { useEffect, useState } from 'react';
-import { useAssetsEditor } from '../context/AssetsEditorContext';
+import { useAssetsEditor, type Tool } from '../context/AssetsEditorContext';
 
 export function LeftToolbar() {
   const {
@@ -122,12 +122,35 @@ export function LeftToolbar() {
 
       {/* 2. Tools & Color Picker (Middle Block) */}
       <div className="glass-panel p-4 border border-white/10 bg-black/40 space-y-4 shrink-0">
-        <h3 className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">Tools</h3>
+        {/* Resolution */}
+        <div>
+          <h3 className="text-xs font-semibold text-white/60 mb-2 uppercase tracking-widest">Resolution</h3>
+          <div className="flex gap-1">
+            {([128, 256, 512] as const).map(size => (
+              <button
+                key={size}
+                onClick={() => setPixelSize(size)}
+                className={`
+                  flex-1 py-2 text-[10px] font-bold transition-all border
+                  ${pixelSize === size
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20'
+                    : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}
+                `}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-px bg-white/5" />
+
+        <h3 className="text-xs font-semibold text-white/60 uppercase tracking-widest">Tools</h3>
         <div className="grid grid-cols-4 gap-2">
           {tools.map(t => (
             <button
               key={t.id}
-              onClick={() => setCurrentTool(t.id as any)}
+              onClick={() => setCurrentTool(t.id as Tool)}
               className={`
                             aspect-square flex items-center justify-center text-xl transition-all border border-transparent
                             ${currentTool === t.id
@@ -175,6 +198,8 @@ export function LeftToolbar() {
             ))}
           </div>
         </div>
+
+
 
         {/* Brush Size */}
         <div>

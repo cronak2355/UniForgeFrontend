@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { RigPart, PartPose, FrameData, Point } from '../services/rigSystem';
 import {
   DEFAULT_POSE,
@@ -23,12 +24,12 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
   // 부위
   const [parts, setParts] = useState<RigPart[]>([]);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
-  
+
   // 프레임
   const [frames, setFrames] = useState<FrameData[]>([{}, {}, {}, {}]);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [frameCount, setFrameCount] = useState(4);
-  
+
   // 도구 & 인터랙션
   const [tool, setTool] = useState<Tool>('brush');
   const [brushSize, setBrushSize] = useState(4);
@@ -37,26 +38,26 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
   const [dragStartPose, setDragStartPose] = useState<PartPose>(DEFAULT_POSE);
   const [isRotating, setIsRotating] = useState(false);
-  
+
   // 미리보기
   const [isPlaying, setIsPlaying] = useState(true);
   const [previewFrame, setPreviewFrame] = useState(0);
-  
+
   // 새 부위 추가 모달
   const [showAddModal, setShowAddModal] = useState(false);
   const [newPartName, setNewPartName] = useState('');
 
-  // displaySize는 pixelSize와 동일하게 (최소 256)
-  const displaySize = Math.max(pixelSize, 256);
-  const scale = displaySize / pixelSize;
-  
+  // Canvas size - driven by CSS, internal resolution matches pixelSize
+  // scale is effectively 1 for internal drawing operations
+  const scale = 1;
+
   const selectedPart = parts.find(p => p.id === selectedPartId);
 
   // ==================== 새 부위 추가 ====================
-  
+
   const addPart = () => {
     if (!newPartName.trim()) return;
-    
+
     const newPart: RigPart = {
       id: `part_${Date.now()}`,
       name: newPartName.trim(),
@@ -64,7 +65,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       pixels: new Set(),
       zIndex: parts.length,
     };
-    
+
     setParts(prev => [...prev, newPart]);
     setSelectedPartId(newPart.id);
     setNewPartName('');
@@ -91,11 +92,11 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       const sorted = [...prev].sort((a, b) => a.zIndex - b.zIndex);
       const idx = sorted.findIndex(p => p.id === partId);
       if (idx === sorted.length - 1) return prev; // 이미 맨 앞
-      
+
       // 다음 부위와 zIndex 스왑
       const current = sorted[idx];
       const next = sorted[idx + 1];
-      
+
       return prev.map(p => {
         if (p.id === current.id) return { ...p, zIndex: next.zIndex };
         if (p.id === next.id) return { ...p, zIndex: current.zIndex };
@@ -109,11 +110,11 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       const sorted = [...prev].sort((a, b) => a.zIndex - b.zIndex);
       const idx = sorted.findIndex(p => p.id === partId);
       if (idx === 0) return prev; // 이미 맨 뒤
-      
+
       // 이전 부위와 zIndex 스왑
       const current = sorted[idx];
       const prevPart = sorted[idx - 1];
-      
+
       return prev.map(p => {
         if (p.id === current.id) return { ...p, zIndex: prevPart.zIndex };
         if (p.id === prevPart.id) return { ...p, zIndex: current.zIndex };
@@ -128,28 +129,29 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
     if (!canvasRef.current || !sourceCanvas) return;
     const ctx = canvasRef.current.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
-    
+
     // 원본 이미지
-    ctx.clearRect(0, 0, displaySize, displaySize);
-    ctx.drawImage(sourceCanvas, 0, 0, displaySize, displaySize);
-    
+    const ctxScale = canvasRef.current.width / sourceCanvas.width;
+    ctx.clearRect(0, 0, pixelSize, pixelSize);
+    ctx.drawImage(sourceCanvas, 0, 0, pixelSize, pixelSize);
+
     // 부위 오버레이 (칠해진 영역)
     parts.forEach(part => {
       const isSelected = part.id === selectedPartId;
       ctx.fillStyle = part.color + (isSelected ? '80' : '40');
-      
+
       part.pixels.forEach(key => {
         const [x, y] = key.split(',').map(Number);
         ctx.fillRect(x * scale, y * scale, scale, scale);
       });
-      
+
       // 선택된 부위 중심점 표시
       if (isSelected && part.pixels.size > 0) {
         const bounds = getPartBounds(part.pixels);
         const centerX = (bounds.minX + bounds.maxX + 1) / 2;
         const centerY = (bounds.minY + bounds.maxY + 1) / 2;
         const pose = frames[currentFrame][part.id] || DEFAULT_POSE;
-        
+
         ctx.beginPath();
         ctx.arc(
           (centerX + pose.x) * scale,
@@ -163,7 +165,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
         ctx.stroke();
       }
     });
-    
+
   }, [sourceCanvas, parts, selectedPartId, frames, currentFrame, scale]);
 
   useEffect(() => {
@@ -176,18 +178,19 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
     if (!previewRef.current || !sourceCanvas || parts.length === 0) return;
     const ctx = previewRef.current.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
-    
+
     const frameIdx = isPlaying ? previewFrame : currentFrame;
     const rendered = renderAnimationFrame(sourceCanvas, parts, frames[frameIdx] || {}, pixelSize);
-    
-    ctx.clearRect(0, 0, displaySize, displaySize);
-    
+
+    ctx.clearRect(0, 0, pixelSize, pixelSize);
+
     const temp = document.createElement('canvas');
     temp.width = pixelSize;
     temp.height = pixelSize;
+
     temp.getContext('2d')!.putImageData(rendered, 0, 0);
-    ctx.drawImage(temp, 0, 0, displaySize, displaySize);
-    
+    ctx.drawImage(temp, 0, 0, pixelSize, pixelSize);
+
   }, [sourceCanvas, parts, frames, currentFrame, previewFrame, isPlaying, pixelSize]);
 
   // 자동 재생
@@ -202,32 +205,75 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
   // ==================== 마우스 이벤트 ====================
 
   const getPixelPos = (e: React.MouseEvent): Point => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+
+    // Calculate the actual rendered size (contained)
+    const ratio = rect.width / rect.height;
+    const targetRatio = 1; // square
+
+    let actualWidth = rect.width;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (ratio > targetRatio) {
+      // Container is wider than content (pillarbox)
+      actualWidth = rect.height;
+      offsetX = (rect.width - rect.height) / 2;
+    } else {
+      // Container is taller than content (letterbox)
+      actualWidth = rect.width; // Width is full
+      offsetY = (rect.height - rect.width) / 2;
+    }
+
+    const scale = actualWidth / pixelSize;
+
     return {
-      x: Math.floor((e.clientX - rect.left) / scale),
-      y: Math.floor((e.clientY - rect.top) / scale),
+      x: Math.floor((e.clientX - rect.left - offsetX) / scale),
+      y: Math.floor((e.clientY - rect.top - offsetY) / scale),
     };
   };
 
   const getCanvasPos = (e: React.MouseEvent): Point => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+
+    const ratio = rect.width / rect.height;
+    const targetRatio = 1; // square
+
+    let actualWidth = rect.width;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (ratio > targetRatio) {
+      actualWidth = rect.height;
+      offsetX = (rect.width - rect.height) / 2;
+    } else {
+      actualWidth = rect.width;
+      offsetY = (rect.height - rect.width) / 2;
+    }
+
+    const scale = actualWidth / pixelSize; // 1:1 scale relative to pixelSize
+
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: (e.clientX - rect.left - offsetX) / scale,
+      y: (e.clientY - rect.top - offsetY) / scale,
     };
   };
 
   const paintPixels = (pos: Point, add: boolean) => {
     if (!selectedPartId) return;
-    
+
     // 브러시 범위 계산 (중심 기준 대칭)
     const half = Math.floor(brushSize / 2);
-    
+
     setParts(prev => prev.map(part => {
       if (part.id !== selectedPartId) return part;
-      
+
       const newPixels = new Set(part.pixels);
-      
+
       // 브러시 크기만큼 칠하기
       for (let dy = -half; dy < brushSize - half; dy++) {
         for (let dx = -half; dx < brushSize - half; dx++) {
@@ -243,16 +289,16 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
           }
         }
       }
-      
+
       return { ...part, pixels: newPixels };
     }));
-    
+
     // brush일 때 다른 부위에서 해당 픽셀 제거
     if (add) {
       const half = Math.floor(brushSize / 2);
       setParts(prev => prev.map(part => {
         if (part.id === selectedPartId) return part;
-        
+
         const newPixels = new Set(part.pixels);
         for (let dy = -half; dy < brushSize - half; dy++) {
           for (let dx = -half; dx < brushSize - half; dx++) {
@@ -292,7 +338,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       paintPixels(pos, tool === 'brush');
     } else if (isDragging && selectedPartId && selectedPart) {
       const current = getCanvasPos(e);
-      
+
       if (isRotating) {
         // 회전 - bounds 중심 기준
         const bounds = getPartBounds(selectedPart.pixels);
@@ -300,20 +346,20 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
         const centerY = (bounds.minY + bounds.maxY + 1) / 2;
         const scaledCenterX = centerX * scale;
         const scaledCenterY = centerY * scale;
-        
+
         const startAngle = Math.atan2(dragStart.y - scaledCenterY, dragStart.x - scaledCenterX);
         const currentAngle = Math.atan2(current.y - scaledCenterY, current.x - scaledCenterX);
         const deltaAngle = ((currentAngle - startAngle) * 180) / Math.PI;
-        
+
         updatePose(selectedPartId, {
           ...dragStartPose,
           rotation: dragStartPose.rotation + deltaAngle,
         });
       } else {
         // 이동
-        const dx = (current.x - dragStart.x) / scale;
-        const dy = (current.y - dragStart.y) / scale;
-        
+        const dx = (current.x - dragStart.x);
+        const dy = (current.y - dragStart.y);
+
         updatePose(selectedPartId, {
           ...dragStartPose,
           x: dragStartPose.x + dx,
@@ -332,37 +378,37 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
   const handleWheel = (e: React.WheelEvent) => {
     if (tool !== 'move' || !selectedPartId || !selectedPart || selectedPart.pixels.size === 0) return;
     e.preventDefault();
-    
+
     const currentPose = frames[currentFrame][selectedPartId] || DEFAULT_POSE;
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     const oldScale = currentPose.scale;
     const newScale = Math.max(0.1, Math.min(3, oldScale + delta));
-    
+
     // 마우스 위치 (픽셀 좌표)
     const mousePos = getPixelPos(e);
-    
+
     // 부위의 원래 중심
     const bounds = getPartBounds(selectedPart.pixels);
     const centerX = (bounds.minX + bounds.maxX + 1) / 2;
     const centerY = (bounds.minY + bounds.maxY + 1) / 2;
-    
+
     // 현재 변환된 중심 위치
     const currentCenterX = centerX + currentPose.x;
     const currentCenterY = centerY + currentPose.y;
-    
+
     // 마우스에서 중심까지의 거리
     const relX = mousePos.x - currentCenterX;
     const relY = mousePos.y - currentCenterY;
-    
+
     // 스케일 비율
     const scaleRatio = newScale / oldScale;
-    
+
     // 새 위치 계산 (마우스 위치가 고정되도록)
     const newX = currentPose.x + relX * (1 - scaleRatio);
     const newY = currentPose.y + relY * (1 - scaleRatio);
-    
-    updatePose(selectedPartId, { 
-      ...currentPose, 
+
+    updatePose(selectedPartId, {
+      ...currentPose,
       scale: newScale,
       x: newX,
       y: newY,
@@ -391,7 +437,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
     if (!selectedPartId) return;
     const currentPose = frames[currentFrame][selectedPartId];
     if (!currentPose) return;
-    
+
     setFrames(prev => prev.map(frame => ({
       ...frame,
       [selectedPartId]: { ...currentPose },
@@ -422,7 +468,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       alert('부위를 하나 이상 추가해주세요!');
       return;
     }
-    
+
     const hasPaintedParts = parts.some(p => p.pixels.size > 0);
     if (!hasPaintedParts) {
       alert('부위에 픽셀을 칠해주세요!');
@@ -440,11 +486,11 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
 
   // ==================== Render ====================
 
-  return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[9999]">
       {/* 새 부위 추가 모달 */}
       {showAddModal && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-60">
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-[10000]">
           <div className="bg-neutral-800 p-5 rounded-lg border border-neutral-600 w-72">
             <h3 className="text-white font-bold mb-3">새 부위 추가</h3>
             <input
@@ -468,7 +514,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
         </div>
       )}
 
-      <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-4 max-w-4xl w-full">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-4 w-[95vw] h-[95vh] flex flex-col overflow-hidden">
         {/* Header - 부위 목록 */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <button
@@ -477,67 +523,66 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
           >
             + 새 부위
           </button>
-          
+
           <div className="h-6 w-px bg-neutral-700" />
-          
+
           {parts
             .slice()
             .sort((a, b) => b.zIndex - a.zIndex) // zIndex 높은게 앞 (맨 위에 표시)
             .map(part => (
-            <div
-              key={part.id}
-              onClick={() => setSelectedPartId(part.id)}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer ${
-                selectedPartId === part.id
+              <div
+                key={part.id}
+                onClick={() => setSelectedPartId(part.id)}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer ${selectedPartId === part.id
                   ? 'bg-neutral-700 ring-2 ring-white'
                   : 'bg-neutral-800 hover:bg-neutral-700'
-              }`}
-            >
-              {/* 순서 버튼 */}
-              <div className="flex flex-col gap-0.5 mr-1">
+                  }`}
+              >
+                {/* 순서 버튼 */}
+                <div className="flex flex-col gap-0.5 mr-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); movePartUp(part.id); }}
+                    className="text-[10px] text-neutral-500 hover:text-white leading-none px-0.5"
+                    title="앞으로 (위에 표시)"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); movePartDown(part.id); }}
+                    className="text-[10px] text-neutral-500 hover:text-white leading-none px-0.5"
+                    title="뒤로 (아래에 표시)"
+                  >
+                    ▼
+                  </button>
+                </div>
+
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: part.color }} />
+                <span className="text-sm text-white">{part.name}</span>
+                <span className="text-xs text-neutral-400">({part.pixels.size}px)</span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); movePartUp(part.id); }}
-                  className="text-[10px] text-neutral-500 hover:text-white leading-none px-0.5"
-                  title="앞으로 (위에 표시)"
+                  onClick={(e) => { e.stopPropagation(); deletePart(part.id); }}
+                  className="text-neutral-500 hover:text-red-400 ml-1"
                 >
-                  ▲
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); movePartDown(part.id); }}
-                  className="text-[10px] text-neutral-500 hover:text-white leading-none px-0.5"
-                  title="뒤로 (아래에 표시)"
-                >
-                  ▼
+                  ×
                 </button>
               </div>
-              
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: part.color }} />
-              <span className="text-sm text-white">{part.name}</span>
-              <span className="text-xs text-neutral-400">({part.pixels.size}px)</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); deletePart(part.id); }}
-                className="text-neutral-500 hover:text-red-400 ml-1"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          
+            ))}
+
           {parts.length === 0 && (
             <span className="text-neutral-500 text-sm">← 부위를 추가하세요</span>
           )}
-          
+
           <div className="flex-1" />
-          
+
           <button onClick={onClose} className="text-neutral-400 hover:text-white text-xl px-2">✕</button>
         </div>
 
         {/* Main Content */}
-        <div className="flex gap-4">
-          {/* Left - 편집 캔버스 */}
-          <div>
+        <div className="flex-1 min-h-0 grid grid-cols-[1fr_1fr_200px] gap-4">
+          {/* Left - 편집 캔버스 (반응형 컨테이너) */}
+          <div className="flex flex-col min-h-0 h-full">
             {/* 도구 바 */}
-            <div className="flex items-center gap-1 mb-2">
+            <div className="flex items-center gap-1 mb-2 h-9">
               <button
                 onClick={() => setTool('brush')}
                 className={`px-3 py-1 text-xs rounded ${tool === 'brush' ? 'bg-[#2563eb] text-white' : 'bg-neutral-800 text-neutral-400'}`}
@@ -556,9 +601,9 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
               >
                 ✋ 움직이기
               </button>
-              
+
               <div className="w-px h-5 bg-neutral-700 mx-1" />
-              
+
               <span className="text-xs text-neutral-500">브러시:</span>
               <input
                 type="range"
@@ -571,80 +616,88 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
               <span className="text-xs text-neutral-400 w-6">{brushSize}</span>
             </div>
 
-            <canvas
-              ref={canvasRef}
-              width={displaySize}
-              height={displaySize}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onWheel={handleWheel}
-              className="border border-neutral-700 bg-neutral-950 cursor-crosshair"
-              style={{ imageRendering: 'pixelated' }}
-            />
-
-            {/* 도움말 */}
-            <div className="mt-2 text-xs text-neutral-500 space-y-0.5">
-              {tool === 'brush' && <div>클릭/드래그: 선택한 부위에 픽셀 추가</div>}
-              {tool === 'eraser' && <div>클릭/드래그: 선택한 부위에서 픽셀 제거</div>}
-              {tool === 'move' && (
-                <>
-                  <div>드래그: 이동 | Shift+드래그: 회전</div>
-                  <div>스크롤: 크기 조절</div>
-                </>
-              )}
-            </div>
-
-            {/* 선택된 부위 정보 */}
-            {selectedPart && tool === 'move' && (
-              <div className="mt-2 p-2 bg-neutral-800 rounded text-xs">
-                <div className="flex justify-between text-neutral-400 mb-1">
-                  <span>{selectedPart.name} - 프레임 {currentFrame + 1}</span>
-                </div>
-                {(() => {
-                  const pose = frames[currentFrame][selectedPart.id] || DEFAULT_POSE;
-                  return (
-                    <div className="grid grid-cols-4 gap-2 text-neutral-300">
-                      <div>X: {pose.x.toFixed(1)}</div>
-                      <div>Y: {pose.y.toFixed(1)}</div>
-                      <div>회전: {pose.rotation.toFixed(0)}°</div>
-                      <div>크기: {(pose.scale * 100).toFixed(0)}%</div>
-                    </div>
-                  );
-                })()}
-                <div className="flex gap-1 mt-2">
-                  <button onClick={resetPose} className="flex-1 py-1 bg-neutral-700 text-neutral-300 rounded hover:bg-neutral-600">
-                    리셋
-                  </button>
-                  <button onClick={copyToAllFrames} className="flex-1 py-1 bg-neutral-700 text-neutral-300 rounded hover:bg-neutral-600">
-                    전체 복사
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right - 미리보기 & 프레임 */}
-          <div className="flex-1 space-y-3">
-            {/* 미리보기 */}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-neutral-400">미리보기</span>
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className={`px-2 py-0.5 text-xs rounded ${isPlaying ? 'bg-green-600 text-white' : 'bg-neutral-700 text-neutral-300'}`}
-                >
-                  {isPlaying ? '▶ 재생중' : '⏸ 정지'}
-                </button>
-              </div>
+            <div className="flex-1 min-h-0 relative bg-neutral-950 border border-neutral-700 rounded overflow-hidden flex items-center justify-center">
               <canvas
-                ref={previewRef}
-                width={displaySize}
-                height={displaySize}
-                className="border border-neutral-700 bg-neutral-950"
+                ref={canvasRef}
+                width={pixelSize}
+                height={pixelSize}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onWheel={handleWheel}
+                className="cursor-crosshair w-full h-full object-contain"
                 style={{ imageRendering: 'pixelated' }}
               />
+            </div>
+
+            {/* 도움말 및 정보 제거됨 (우측 사이드바로 이동) */}
+          </div>
+
+          {/* Center - 미리보기 (반응형 컨테이너) */}
+          <div className="flex flex-col min-h-0 h-full">
+            <div className="flex items-center gap-1 mb-2 h-9">
+              <span className="text-xs text-neutral-400">미리보기</span>
+              <div className="flex-1" />
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className={`px-2 py-0.5 text-xs rounded ${isPlaying ? 'bg-green-600 text-white' : 'bg-neutral-700 text-neutral-300'}`}
+              >
+                {isPlaying ? '▶ 재생중' : '⏸ 정지'}
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 relative bg-neutral-950 border border-neutral-700 rounded overflow-hidden flex items-center justify-center">
+              <canvas
+                ref={previewRef}
+                width={pixelSize}
+                height={pixelSize}
+                className="w-full h-full object-contain"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </div>
+          </div>
+
+          {/* Right - 프레임 & 프리셋 */}
+          <div className="space-y-3 overflow-y-auto">
+
+            {/* 도움말 & 정보 (여기 이동됨) */}
+            <div className="bg-neutral-800/50 p-2 rounded">
+              <div className="text-xs text-neutral-500 space-y-0.5 mb-2">
+                {tool === 'brush' && <div>🖌️ 클릭/드래그로 픽셀 추가</div>}
+                {tool === 'eraser' && <div>🧹 클릭/드래그로 픽셀 제거</div>}
+                {tool === 'move' && (
+                  <>
+                    <div>✋ 드래그: 이동</div>
+                    <div>🔄 Shift+드래그: 회전</div>
+                    <div>🔍 스크롤: 크기 조절</div>
+                  </>
+                )}
+              </div>
+
+              {selectedPart && tool === 'move' && (
+                <div className="p-2 bg-neutral-800 rounded text-xs border border-neutral-700">
+                  <div className="text-neutral-400 mb-1 font-bold">{selectedPart.name}</div>
+                  {(() => {
+                    const pose = frames[currentFrame][selectedPart.id] || DEFAULT_POSE;
+                    return (
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-neutral-300 mb-2">
+                        <div>X: {pose.x.toFixed(1)}</div>
+                        <div>Y: {pose.y.toFixed(1)}</div>
+                        <div>R: {pose.rotation.toFixed(0)}°</div>
+                        <div>S: {(pose.scale * 100).toFixed(0)}%</div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex gap-1">
+                    <button onClick={resetPose} className="flex-1 py-1 bg-neutral-700 text-neutral-300 rounded hover:bg-neutral-600">
+                      리셋
+                    </button>
+                    <button onClick={copyToAllFrames} className="flex-1 py-1 bg-neutral-700 text-neutral-300 rounded hover:bg-neutral-600">
+                      전체복사
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 프레임 타임라인 */}
@@ -659,19 +712,18 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
                   +
                 </button>
               </div>
-              
+
               <div className="flex gap-1">
                 {Array.from({ length: frameCount }).map((_, i) => (
                   <button
                     key={i}
                     onClick={() => { setCurrentFrame(i); setTool('move'); }}
-                    className={`flex-1 py-2 text-sm rounded transition-all ${
-                      currentFrame === i
-                        ? 'bg-[#2563eb] text-white'
-                        : previewFrame === i && isPlaying
-                          ? 'bg-[#2563eb]/50 text-white'
-                          : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
-                    }`}
+                    className={`flex-1 py-2 text-sm rounded transition-all ${currentFrame === i
+                      ? 'bg-[#2563eb] text-white'
+                      : previewFrame === i && isPlaying
+                        ? 'bg-[#2563eb]/50 text-white'
+                        : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
+                      }`}
                   >
                     {i + 1}
                   </button>
@@ -749,7 +801,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-700">
+        <div className="flex gap-2 pt-4 border-t border-neutral-700 mt-auto shrink-0">
           <button onClick={onClose} className="px-4 py-2 bg-neutral-800 text-neutral-300 rounded hover:bg-neutral-700">
             취소
           </button>
@@ -763,7 +815,8 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -308,6 +308,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       isDrawingRef.current = false;
       updateHistoryState();
       syncFrameState(); // 썸네일 업데이트
+      setOriginalAIImage(null); // Manual edit invalidates AI source
       return;
     }
 
@@ -347,6 +348,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     engineRef.current?.endStroke();
     updateHistoryState();
     syncFrameState(); // 썸네일 업데이트
+    setOriginalAIImage(null); // Manual edit invalidates AI source
   }, [updateHistoryState, syncFrameState]);
 
   // ==================== Undo / Redo ====================
@@ -613,6 +615,14 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
           tempCtx.drawImage(cCanvas, 0, 0, contentW, contentH, offX, offY, dstW, dstH);
           const finalData = tempCtx.getImageData(0, 0, w, h);
           engineRef.current.applyAIImage(finalData);
+
+          // Fix: Update originalAIImage state so that resolution changes (which trigger processAndApplyImage)
+          // do not revert to the old image with background.
+          createImageBitmap(finalData).then((newBitmap) => {
+            setOriginalAIImage(newBitmap);
+            setFeatherAmount(0); // Reset feather to avoid double-blurring
+          });
+
           syncFrameState();
         } else {
           console.warn("Image empty after processing");

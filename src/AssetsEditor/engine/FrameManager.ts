@@ -20,7 +20,7 @@ export class FrameManager {
   private frames: Frame[] = [];
   private currentFrameIndex = 0;
   private resolution: number;
-  
+
   // 해상도별 프레임 데이터 저장소
   private resolutionCache: Map<number, { frames: Frame[]; currentIndex: number }> = new Map();
 
@@ -174,37 +174,99 @@ export class FrameManager {
    * 각 해상도별로 독립적인 작업 상태 유지
    */
   changeResolution(newResolution: number): void {
-    // 같은 해상도면 무시
     if (this.resolution === newResolution) return;
 
-    // 현재 해상도의 상태를 캐시에 저장 (deep copy)
-    this.resolutionCache.set(this.resolution, {
-      frames: this.frames.map(frame => ({
+    // 리사이즈를 위한 임시 캔버스 생성
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // 새 프레임 데이터 배열
+    const newFrames: Frame[] = [];
+
+    // 각 프레임을 새 해상도로 리사이즈
+    for (const frame of this.frames) {
+      // 1. 현재 데이터로 캔버스 그리기
+      tempCanvas.width = this.resolution;
+      tempCanvas.height = this.resolution;
+
+      const imgData = new ImageData(
+        new Uint8ClampedArray(frame.data),
+        this.resolution,
+        this.resolution
+      );
+      ctx.putImageData(imgData, 0, 0);
+
+      // 2. 리사이즈 처리
+      let newImgData: ImageData;
+
+      // Downscaling (Integer Ratio): Use Quality Box Sampling
+      // High-resolution to Low-resolution (e.g. 512 -> 128)
+      if (newResolution < this.resolution && Number.isInteger(this.resolution / newResolution)) {
+        const ratio = this.resolution / newResolution;
+        newImgData = new ImageData(newResolution, newResolution);
+        const src = new Uint8ClampedArray(frame.data);
+        const dst = newImgData.data;
+
+        for (let y = 0; y < newResolution; y++) {
+          for (let x = 0; x < newResolution; x++) {
+            let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+
+            for (let dy = 0; dy < ratio; dy++) {
+              for (let dx = 0; dx < ratio; dx++) {
+                const srcIdx = ((y * ratio + dy) * this.resolution + (x * ratio + dx)) * 4;
+                const a = src[srcIdx + 3];
+                // Alpha-weighted color averaging (prevents dark edges)
+                if (a > 0) {
+                  rSum += src[srcIdx] * a;
+                  gSum += src[srcIdx + 1] * a;
+                  bSum += src[srcIdx + 2] * a;
+                }
+                aSum += a;
+              }
+            }
+
+            const dstIdx = (y * newResolution + x) * 4;
+            const area = ratio * ratio;
+
+            if (aSum > 0) {
+              dst[dstIdx] = Math.round(rSum / aSum);     // R
+              dst[dstIdx + 1] = Math.round(gSum / aSum); // G
+              dst[dstIdx + 2] = Math.round(bSum / aSum); // B
+              dst[dstIdx + 3] = Math.round(aSum / area); // A (Average alpha)
+            } else {
+              dst[dstIdx + 3] = 0;
+            }
+          }
+        }
+      } else {
+        // Upscaling or Non-integer: Use Canvas API (Nearest Neighbor for upscaling)
+        const newCanvas = document.createElement('canvas');
+        newCanvas.width = newResolution;
+        newCanvas.height = newResolution;
+        const newCtx = newCanvas.getContext('2d')!;
+
+        newCtx.imageSmoothingEnabled = false; // Keep edges sharp for upscaling
+
+        newCtx.drawImage(
+          tempCanvas,
+          0, 0, this.resolution, this.resolution,
+          0, 0, newResolution, newResolution
+        );
+        newImgData = newCtx.getImageData(0, 0, newResolution, newResolution);
+      }
+
+      newFrames.push({
         id: frame.id,
         name: frame.name,
-        data: new Uint8ClampedArray(frame.data), // 복사
-      })),
-      currentIndex: this.currentFrameIndex,
-    });
-
-    // 새 해상도로 전환
-    this.resolution = newResolution;
-
-    // 새 해상도의 캐시가 있으면 로드, 없으면 새로 생성
-    const cached = this.resolutionCache.get(newResolution);
-    if (cached) {
-      this.frames = cached.frames.map(frame => ({
-        id: frame.id,
-        name: frame.name,
-        data: new Uint8ClampedArray(frame.data), // 복사
-      }));
-      this.currentFrameIndex = cached.currentIndex;
-    } else {
-      // 새 해상도는 빈 캔버스로 시작
-      this.frames = [];
-      this.currentFrameIndex = 0;
-      this.addFrame();
+        data: new Uint8ClampedArray(newImgData.data.buffer),
+      });
     }
+
+    // 상태 업데이트
+    this.resolution = newResolution;
+    this.frames = newFrames;
+    this.resolutionCache.clear(); // 해상도 변경 시 캐시 무효화 (항상 현재 상태 유지)
   }
 
   /**
