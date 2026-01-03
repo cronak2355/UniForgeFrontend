@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { marketplaceService, Asset } from '../services/marketplaceService';
 
 const MarketplacePage = () => {
     const { user, logout } = useAuth();
@@ -11,8 +12,38 @@ const MarketplacePage = () => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("전체");
 
+    // API Data State
+    const [assets, setAssets] = useState<Asset[]>([]);
+    const [loading, setLoading] = useState(true);
+
     // Todo: define item type properly
     const [selectedItem, setSelectedItem] = useState<any>(null);
+
+    // Fetch Assets
+    useEffect(() => {
+        const fetchAssets = async () => {
+            try {
+                const data = await marketplaceService.getAssets();
+                // Map backend data to UI format if needed
+                const mappedData = data.map(asset => ({
+                    ...asset,
+                    // Default values for missing UI fields
+                    image: asset.image || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
+                    rating: asset.rating || 0,
+                    type: asset.type || "3D 에셋",
+                    genre: asset.genre || "기타",
+                    author: asset.author || `User ${asset.authorId}`
+                }));
+                setAssets(mappedData);
+            } catch (error) {
+                console.error("Failed to fetch assets:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAssets();
+    }, []);
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -57,39 +88,8 @@ const MarketplacePage = () => {
         { kind: "type", id: "VFX", icon: "fa-solid fa-wand-magic-sparkles" },
     ];
 
-    const MARKET_ITEMS = [
-        // 3D 에셋
-        { title: "Neon City Pack", author: "CyberArt", price: "무료", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "3D 에셋", genre: "액션" },
-        { title: "Low Poly Vehicles", author: "PolyWorks", price: "₩12,000", image: "https://images.unsplash.com/photo-1555620950-c8d030999557?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "3D 에셋", genre: "레이싱" },
-        { title: "Medieval Castle Kit", author: "CastleBuilder", price: "₩25,000", image: "https://images.unsplash.com/photo-1599596446733-ee31cb9f257f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "3D 에셋", genre: "RPG" },
-        { title: "Modern Furniture", author: "Interiors", price: "₩8,000", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "3D 에셋", genre: "시뮬레이션" },
-        { title: "Sci-Fi Weapons", author: "GunSmith", price: "₩15,000", image: "https://images.unsplash.com/photo-1624638760924-44ed5b07223e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "3D 에셋", genre: "액션" },
-
-        // 2D 스프라이트
-        { title: "Fantasy Knight", author: "PixelForge", price: "₩15,000", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "2D 스프라이트", genre: "RPG" },
-        { title: "Dungeon Tileset", author: "TileMaster", price: "무료", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=400", rating: 4.4, type: "2D 스프라이트", genre: "RPG" },
-        { title: "Retro Platformer", author: "RetroGamer", price: "₩10,000", image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "2D 스프라이트", genre: "액션" },
-        { title: "RPG Icons Pack", author: "IconFactory", price: "₩5,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "2D 스프라이트", genre: "RPG" },
-        { title: "Pixel Monsters", author: "MonsterMaker", price: "₩8,000", image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "2D 스프라이트", genre: "RPG" },
-
-        // 오디오
-        { title: "Forest Ambience", author: "SoundScape", price: "₩10,000", image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "오디오", genre: "시뮬레이션" },
-        { title: "Epic Orchestral", author: "ComposerX", price: "₩30,000", image: "https://images.unsplash.com/photo-1507838153414-b4b713384ebd?auto=format&fit=crop&q=80&w=400", rating: 5.0, type: "오디오", genre: "RPG" },
-        { title: "SFX Bundle", author: "AudioLab", price: "₩20,000", image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "오디오", genre: "액션" },
-        { title: "Horror Sounds", author: "ScaryAudio", price: "₩12,000", image: "https://images.unsplash.com/photo-1514320291840-2e0a962daecb?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "오디오", genre: "공포" },
-        { title: "Casual Loops", author: "HappyTunes", price: "무료", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400", rating: 4.5, type: "오디오", genre: "퍼즐" },
-
-        // VFX
-        { title: "Magic Spells FX", author: "VFXWizard", price: "₩18,000", image: "https://images.unsplash.com/photo-1504910793664-9051fb278a9c?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX", genre: "RPG" },
-        { title: "Explosion Pack", author: "BoomMaster", price: "₩15,000", image: "https://images.unsplash.com/photo-1496337589254-7e19d01cec44?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "VFX", genre: "액션" },
-        { title: "Weather System", author: "NatureFX", price: "₩22,000", image: "https://images.unsplash.com/photo-1515690241747-493238f4674a?auto=format&fit=crop&q=80&w=400", rating: 4.9, type: "VFX", genre: "시뮬레이션" },
-        { title: "Sci-Fi Particles", author: "FutureFS", price: "₩14,000", image: "https://images.unsplash.com/photo-1481697943534-ea60b58e6532?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "VFX", genre: "전략" },
-        { title: "Water Shaders", author: "LiquidArt", price: "₩10,000", image: "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&q=80&w=400", rating: 4.8, type: "VFX", genre: "퍼즐" },
-
-        // UI & Template
-        { title: "Space Shooter Template", author: "GameDevPro", price: "₩49,900", image: "https://images.unsplash.com/photo-1614726365723-49cfae96ac6d?auto=format&fit=crop&q=80&w=400", rating: 4.7, type: "템플릿" },
-        { title: "Ultimate RPG UI", author: "InterfaceMaster", price: "₩25,000", image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=400", rating: 4.6, type: "UI" },
-    ];
+    // Use loaded assets instead of hardcoded items
+    const MARKET_ITEMS = assets;
     const filteredItems = MARKET_ITEMS.filter(item => {
         // 1️⃣ 특수 카테고리
         if (selectedCategory === "추천") return true;
@@ -176,6 +176,21 @@ const MarketplacePage = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button onClick={() => navigate('/create-asset')} style={{
+                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        border: 'none',
+                        color: 'white',
+                        cursor: 'pointer',
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <i className="fa-solid fa-plus"></i>
+                        에셋 등록
+                    </button>
                     <button onClick={() => navigate('/library')} style={{
                         background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
                         padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem'
@@ -384,57 +399,64 @@ const MarketplacePage = () => {
                         gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                         gap: '24px'
                     }}>
-                        {filteredItems.map((item, index) => (
-                            <div
-                                key={index}
-                                style={{
-                                    backgroundColor: '#0a0a0a',
-                                    borderRadius: '12px',
-                                    border: '1px solid #222',
-                                    overflow: 'hidden',
-                                    cursor: 'pointer',
-                                    transition: 'transform 0.2s, border-color 0.2s',
-                                    position: 'relative'
-                                }}
-                                onClick={() => setSelectedItem(item)}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.transform = 'translateY(-4px)';
-                                    e.currentTarget.style.borderColor = '#444';
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.borderColor = '#222';
-                                }}
-                            >
-                                <div style={{ height: '160px', overflow: 'hidden', position: 'relative' }}>
-                                    <img src={item.image} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    <span style={{
-                                        position: 'absolute', top: '10px', right: '10px',
-                                        backgroundColor: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px',
-                                        fontSize: '0.75rem', fontWeight: 600, backdropFilter: 'blur(4px)'
-                                    }}>
-                                        {item.type}
-                                    </span>
-                                </div>
-                                <div style={{ padding: '16px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', margin: 0 }}>{item.title}</h3>
-                                    </div>
-                                    <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px 0' }}>by {item.author}</p>
-
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#fbbf24' }}>
-                                            <i className="fa-solid fa-star"></i>
-                                            <span>{item.rating}</span>
-                                        </div>
-                                        <div style={{ fontWeight: 600, color: item.price === 'Free' ? '#22c55e' : 'white' }}>
-                                            {item.price}
-                                        </div>
-                                    </div>
-                                </div>
+                        {loading ? (
+                            <div style={{ color: 'white', textAlign: 'center', gridColumn: '1/-1', padding: '2rem' }}>Loading assets...</div>
+                        ) : filteredItems.length === 0 ? (
+                            <div style={{ color: '#888', textAlign: 'center', gridColumn: '1/-1', padding: '2rem' }}>
+                                No assets found for this category.
                             </div>
+                        ) : (
+                            filteredItems.map((item, index) => (
+                                <div
+                                    key={index}
+                                    style={{
+                                        backgroundColor: '#0a0a0a',
+                                        borderRadius: '12px',
+                                        border: '1px solid #222',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.2s, border-color 0.2s',
+                                        position: 'relative'
+                                    }}
+                                    onClick={() => navigate(`/assets/${item.id}`)}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.borderColor = '#444';
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.borderColor = '#222';
+                                    }}
+                                >
+                                    <div style={{ height: '160px', overflow: 'hidden', position: 'relative' }}>
+                                        <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <span style={{
+                                            position: 'absolute', top: '10px', right: '10px',
+                                            backgroundColor: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px',
+                                            fontSize: '0.75rem', fontWeight: 600, backdropFilter: 'blur(4px)'
+                                        }}>
+                                            {item.type}
+                                        </span>
+                                    </div>
+                                    <div style={{ padding: '16px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', margin: 0 }}>{item.name}</h3>
+                                        </div>
+                                        <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px 0' }}>by {item.author}</p>
 
-                        ))}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#fbbf24' }}>
+                                                <i className="fa-solid fa-star"></i>
+                                                <span>{item.rating}</span>
+                                            </div>
+                                            <div style={{ fontWeight: 600, color: item.price === 0 ? '#22c55e' : 'white' }}>
+                                                {item.price === 0 ? 'Free' : `₩${item.price.toLocaleString()}`}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            )))}
                     </div>
 
                 </main>
