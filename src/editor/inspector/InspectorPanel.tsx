@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { PresetManager } from "../presets/PresetManager";
+import { useState, useEffect } from "react";
 import type { EditorEntity } from "../types/Entity";
 import { colors } from "../constants/colors";
-import { ComponentSection } from "./ComponentSection";
 import { ModuleSection } from "./ModuleSection";
-
-// TransformEditor가 없으므로 간단히 숫자 입력 필드로 대체하거나 생략.
-// 여기서는 기본 Transform UI를 직접 구현합니다.
+import { RuleSection } from "./RuleSection";
 
 type Props = {
   entity: EditorEntity | null;
@@ -40,14 +36,6 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const handleUpdate = (updated: EditorEntity) => {
     setLocalEntity(updated);
     onUpdateEntity(updated);
-  };
-
-  const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const presetId = e.target.value;
-    if (!presetId) return;
-
-    const updatedEntity = PresetManager.applyPreset(localEntity, presetId);
-    handleUpdate(updatedEntity);
   };
 
   const updateTransform = (key: 'x' | 'y' | 'z', value: number) => {
@@ -101,30 +89,6 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       overflowY: 'auto'
     }}>
 
-      {/* Role (Preset) Section */}
-      <div style={sectionStyle}>
-        <div style={titleStyle}>Role (Preset)</div>
-        <select
-          style={{
-            width: '100%',
-            padding: '8px',
-            background: '#1e1e1e',
-            border: '1px solid #3e3e3e',
-            color: '#fff',
-            borderRadius: '4px'
-          }}
-          onChange={handlePresetChange}
-          defaultValue=""
-        >
-          <option value="" disabled>Select Role...</option>
-          {PresetManager.getAvailablePresets().map(preset => (
-            <option key={preset.id} value={preset.id}>
-              {preset.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Transform Section */}
       <div style={sectionStyle}>
         <div style={titleStyle}>Transform</div>
@@ -163,8 +127,8 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         onUpdateEntity={handleUpdate}
       />
 
-      {/* Visual Component Section */}
-      <ComponentSection
+      {/* Rule Section (ECA) */}
+      <RuleSection
         entity={localEntity}
         onUpdateEntity={handleUpdate}
       />

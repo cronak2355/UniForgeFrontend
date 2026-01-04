@@ -52,3 +52,16 @@ export {
     type CombatCallback,
     type TargetInfo,
 } from "./CombatModule";
+
+// ModuleFactory - 런타임 모듈 인스턴스 생성
+export {
+    createModuleInstance,
+    createModulesMap,
+    registerRuntimeEntity,
+    unregisterRuntimeEntity,
+    getRuntimeEntity,
+    clearRuntimeEntities,
+    runtimeEntities,
+    type RuntimeEntity,
+} from "./ModuleFactory";
+

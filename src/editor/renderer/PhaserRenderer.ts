@@ -6,7 +6,8 @@ import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
 import { editorCore } from "../EditorCore";
 // 물리 엔진 (엔진 독립적)
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
-import type { EditorModule } from "../types/Module";
+// 모듈 팩토리
+import { getRuntimeEntity } from "../core/modules/ModuleFactory";
 
 /**
  * Phaser 씬 내부 클래스
@@ -46,23 +47,26 @@ class PhaserRenderScene extends Phaser.Scene {
 
         // EventBus에 리스너 등록
         EventBus.on((event) => {
+            // 런타임 모드에서만 동작 (에디터 모드에서는 엔티티가 없음)
+            if (this.phaserRenderer.getAllEntityIds().length === 0) {
+                return; // 엔티티가 없으면 런타임이 아님
+            }
+
             editorCore.getEntities().forEach((entity) => {
                 if (!entity.rules || entity.rules.length === 0) return;
 
-                const moduleMap: Record<string, EditorModule | undefined> = {};
-                if (entity.modules) {
-                    entity.modules.forEach(m => {
-                        moduleMap[m.type] = m;
-                    });
-                }
+                // 런타임 엔티티에서 모듈 인스턴스 가져오기
+                const runtimeEntity = getRuntimeEntity(entity.id);
+                const modules = runtimeEntity?.modules ?? {};
 
                 const ctx = {
                     entityId: entity.id,
-                    modules: moduleMap,
+                    modules,
                     eventData: event.data || {},
                     globals: {
                         scene: this,
-                        renderer: this.phaserRenderer
+                        renderer: this.phaserRenderer,
+                        entities: editorCore.getEntities()
                     }
                 };
 
@@ -81,6 +85,9 @@ class PhaserRenderScene extends Phaser.Scene {
     update(time: number, delta: number) {
         // 부모 업데이트 호출
         this.phaserRenderer.onUpdate(time, delta);
+
+        // TICK 이벤트 발행 (매 프레임 - ECA Rule 트리거용)
+        EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
 
         // 키보드가 초기화되지 않았으면 스킵
         if (!this.cursors || !this.wasd) return;

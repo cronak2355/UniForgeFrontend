@@ -241,7 +241,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 const id = crypto.randomUUID();
                 const created: EditorEntity = {
                     id,
-                    type: activeDragged.tag,
+                    type: "sprite", // 기본적으로 sprite로 생성 (Asset tag는 "Character" 등이므로 매핑 필요)
                     name: activeDragged.name,
                     x: worldX,
                     y: worldY,
@@ -250,6 +250,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                     modules: [],
                     variables: [],
                     events: [],
+                    rules: [],
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
