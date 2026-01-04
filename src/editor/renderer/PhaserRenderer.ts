@@ -98,6 +98,10 @@ class PhaserRenderScene extends Phaser.Scene {
         };
         this.phaserRenderer.onInputState?.(input);
 
+        if (this.phaserRenderer.isEditableFocused()) {
+            return;
+        }
+
         if (!this.phaserRenderer.useEditorCoreRuntimePhysics) {
             return;
         }
@@ -137,6 +141,16 @@ export class PhaserRenderer implements IRenderer {
     private game: Phaser.Game | null = null;
     private scene: PhaserRenderScene | null = null;
     private _container: HTMLElement | null = null;
+    private keyboardCaptureEnabled = true;
+    private onGlobalFocusIn?: (event: FocusEvent) => void;
+    private onGlobalFocusOut?: (event: FocusEvent) => void;
+    public isEditableFocused(): boolean {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement)) return false;
+        const tag = active.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+        return active.isContentEditable === true;
+    }
 
     // ===== 엔티티 관리 - ID 동기화 보장 =====
     private entities: Map<string, Phaser.GameObjects.GameObject> = new Map();
@@ -207,6 +221,7 @@ export class PhaserRenderer implements IRenderer {
 
         // 입력 이벤트 설정
         this.setupInputEvents();
+        this.setupKeyboardCaptureGuards();
 
         // 초기화 완료 알림
         if (this.initResolve) {
@@ -261,6 +276,7 @@ export class PhaserRenderer implements IRenderer {
         }
 
         // 4. 씬 참조 해제
+        this.teardownKeyboardCaptureGuards();
         this.scene = null;
 
         // 5. Phaser Game 인스턴스 정리
@@ -667,6 +683,61 @@ export class PhaserRenderer implements IRenderer {
             window.removeEventListener("pointerup", onPointerUp);
             window.removeEventListener("wheel", onWheel);
         });
+    }
+
+    private setupKeyboardCaptureGuards(): void {
+        if (!this.scene || !this.scene.input || !this.scene.input.keyboard) return;
+
+        const isEditable = (target: EventTarget | null) => {
+            if (!(target instanceof HTMLElement)) return false;
+            const tag = target.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+            return target.isContentEditable === true;
+        };
+
+        const disableCapture = () => {
+            if (!this.scene?.input?.keyboard) return;
+            if (!this.keyboardCaptureEnabled) return;
+            this.keyboardCaptureEnabled = false;
+            this.scene.input.keyboard.disableGlobalCapture?.();
+        };
+
+        const enableCapture = () => {
+            if (!this.scene?.input?.keyboard) return;
+            if (this.keyboardCaptureEnabled) return;
+            this.keyboardCaptureEnabled = true;
+            this.scene.input.keyboard.enableGlobalCapture?.();
+        };
+
+        this.onGlobalFocusIn = (event: FocusEvent) => {
+            if (isEditable(event.target)) {
+                disableCapture();
+            }
+        };
+
+        this.onGlobalFocusOut = () => {
+            const active = document.activeElement;
+            if (isEditable(active)) return;
+            enableCapture();
+        };
+
+        window.addEventListener("focusin", this.onGlobalFocusIn);
+        window.addEventListener("focusout", this.onGlobalFocusOut);
+    }
+
+    private teardownKeyboardCaptureGuards(): void {
+        if (this.onGlobalFocusIn) {
+            window.removeEventListener("focusin", this.onGlobalFocusIn);
+            this.onGlobalFocusIn = undefined;
+        }
+        if (this.onGlobalFocusOut) {
+            window.removeEventListener("focusout", this.onGlobalFocusOut);
+            this.onGlobalFocusOut = undefined;
+        }
+        if (this.scene?.input?.keyboard) {
+            this.scene.input.keyboard.enableGlobalCapture?.();
+        }
+        this.keyboardCaptureEnabled = true;
     }
 
     // ===== Texture Loading (Phaser-specific helper) =====
