@@ -1,0 +1,392 @@
+/* src/App.css */
+
+/* ===== Root ===== */
+.editor-root {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+}
+
+/* ===== Top Bar ===== */
+.editor-topbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid #1f2933;
+}
+
+.editor-topbar span {
+  margin-right: 16px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* ===== Main Layout ===== */
+.editor-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+/* ===== Side Panels ===== */
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  background: #000000;
+}
+
+.editor-panel.left {
+  width: 220px;
+  border-right: 1px solid #1f2933;
+}
+
+.editor-panel.right {
+  width: 260px;
+  border-left: 1px solid #1f2933;
+}
+
+.editor-panel-header {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #60a5fa;
+  border-bottom: 1px solid #1f2933;
+}
+
+/* ===== Camera ===== */
+.editor-camera {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.editor-camera-header {
+  font-size: 12px;
+  color: #60a5fa;
+  margin-bottom: 6px;
+}
+
+.editor-camera-viewport {
+  flex: 1;
+  background: #000000;
+  border: 1px solid #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== Assets ===== */
+.editor-assets {
+  height: 160px;
+  border-top: 1px solid #1f2933;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-assets-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1f2933;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+}
+
+.editor-assets-tabs span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.editor-assets-grid {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* ===== Inspector ===== */
+.inspector-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  font-size: 12px;
+  color: #e5e7eb;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;     /* 안전장치 */
+}
+
+.inspector-section {
+  border: 1px solid #1f2933;
+  padding: 8px;
+}
+
+.inspector-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+
+.inspector-section-title {
+  font-size: 11px;
+  color: #60a5fa;
+  margin-bottom: 6px;
+}
+
+/* ===== Basic Row ===== */
+.inspector-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.inspector-label {
+  color: #9ca3af;
+}
+
+/* ===== Variables ===== */
+.variable-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.variable-add {
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
+  border: 1px solid #3b82f6;
+  background: transparent;
+  color: #3b82f6;
+  cursor: pointer;
+}
+
+.variable-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #262626;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  margin-top: -4px;
+  cursor: pointer;
+}
+
+.variable-type {
+  width: 48px;
+  font-size: 10px;
+  color: #60a5fa;
+}
+
+.variable-input {
+  flex: 1;
+  background: #000000;
+  border: 1px solid #1f2933;
+  color: #e5e7eb;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.variable-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* ===== Events ===== */
+.event-root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #60a5fa;
+}
+
+.event-add {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #3b82f6;
+  background: transparent;
+  color: #3b82f6;
+  cursor: pointer;
+}
+
+.event-item {
+  border: 1px solid #1f2933;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.event-label {
+  color: #9ca3af;
+}
+
+.event-row select {
+  background: #000;
+  border: 1px solid #1f2933;
+  color: #e5e7eb;
+  font-size: 11px;
+}
+
+.event-open {
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
+/* Asset Panel */
+.asset-panel {
+  min-height: 140px;
+  border-top: 1px solid #1e293b;
+  background: #020617;
+  display: flex;
+  flex-direction: column;
+}
+
+.asset-panel-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid #1e293b;
+  color: #60a5fa;
+  font-size: 13px;
+}
+
+.asset-panel-content {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  overflow-x: auto;
+}
+
+.asset-item {
+  width: 64px;
+  height: 64px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e5e7eb;
+  font-size: 12px;
+  cursor: grab;
+}
+
+.editor-item{
+  border: 1px solid #3b82f6;
+  border-bottom: none;
+}
+
+.px-1{
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.d-flex{
+  display: flex;
+}
+
+.justify-content-center {
+  justify-content: center;
+}
+
+.justify-content-left {
+  justify-content: left;
+}
+
+.justify-content-center {
+  justify-content: right;
+}
+
+.align-item-center {
+  align-items: center;
+}
+
+.mx-1{
+  margin: 0 10px;
+}
+
+.editor-item{
+  border: 1px solid #3b82f6;
+  border-bottom: none;
+}
+
+.px-1{
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.d-flex{
+  display: flex;
+}
+
+.justify-content-center {
+  justify-content: center;
+}
+
+.justify-content-left {
+  justify-content: left;
+}
+
+.justify-content-center {
+  justify-content: right;
+}
+
+.align-item-center {
+  align-items: center;
+}
+
+.mx-1{
+  margin: 0 10px;
+}
