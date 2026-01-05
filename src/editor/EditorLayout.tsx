@@ -118,7 +118,7 @@ function EditorLayoutInner() {
                 fileName: dropModalFile.name,
                 contentType,
             });
-            const requestUrl = `http://localhost:8080/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+            const requestUrl = `https://uniforge.kr/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
             const token = localStorage.getItem("token");
             const presignRes = await fetch(requestUrl, {
                 headers: {
