@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -56,7 +57,6 @@ const CreateAssetPage = () => {
     const handleFile = (selectedFile: File) => {
         setFile(selectedFile);
 
-        // Generate preview for images
         if (selectedFile.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -66,6 +66,11 @@ const CreateAssetPage = () => {
         } else {
             setPreviewImage(null);
         }
+    };
+
+    const getAuthHeaders = (): HeadersInit => {
+        const token = authService.getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -81,31 +86,54 @@ const CreateAssetPage = () => {
             return;
         }
 
+        // 로그인 체크
+        if (!authService.isAuthenticated()) {
+            setError('로그인이 필요합니다.');
+            return;
+        }
+
         setUploading(true);
         setError(null);
         setUploadProgress(10);
 
         try {
+            const authHeaders = getAuthHeaders();
+
             // Step 1: Create asset in DB
             setUploadProgress(20);
             const createResponse = await fetch(
-                `${API_BASE_URL}/assets?authorId=1&name=${encodeURIComponent(formData.name)}&price=${formData.price}&description=${encodeURIComponent(formData.description || '')}`,
-                { method: 'POST' }
+                `${API_BASE_URL}/assets`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders
+                    },
+                    body: JSON.stringify({
+                        name: formData.name,
+                        price: formData.price,
+                        description: formData.description || null
+                    })
+                }
             );
 
             if (!createResponse.ok) {
+                if (createResponse.status === 401) throw new Error('로그인이 필요합니다.');
                 throw new Error('에셋 생성에 실패했습니다.');
             }
 
             const asset = await createResponse.json();
             setUploadProgress(40);
 
-            // Step 2: Create version to get versionId
+            // Step 2: Create version
             const versionResponse = await fetch(
                 `${API_BASE_URL}/assets/${asset.id}/versions`,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders
+                    },
                     body: JSON.stringify({ s3RootPath: 'pending' })
                 }
             );
@@ -119,39 +147,43 @@ const CreateAssetPage = () => {
 
             // Step 3: Get presigned upload URL
             const uploadUrlResponse = await fetch(
-                `${API_BASE_URL}/assets/${asset.id}/versions/${version.id}/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`
+                `${API_BASE_URL}/assets/${asset.id}/versions/${version.id}/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`,
+                {
+                    headers: authHeaders
+                }
             );
 
             if (!uploadUrlResponse.ok) {
                 throw new Error('업로드 URL 생성에 실패했습니다.');
             }
 
-            const { uploadUrl } = await uploadUrlResponse.json();
+            const { uploadUrl, s3Key } = await uploadUrlResponse.json();
             setUploadProgress(60);
 
-            // Step 4: Upload file directly to S3
+            // Step 4: Upload file to S3 using presigned URL
             const s3Response = await fetch(uploadUrl, {
                 method: 'PUT',
-                body: file,
                 headers: {
                     'Content-Type': file.type
-                }
+                },
+                body: file
             });
 
             if (!s3Response.ok) {
                 throw new Error('S3 업로드에 실패했습니다.');
             }
-
+            console.log('S3 upload successful, key:', s3Key);
             setUploadProgress(90);
 
             // Step 5: Publish the version
             await fetch(`${API_BASE_URL}/assets/versions/${version.id}/publish`, {
-                method: 'POST'
+                method: 'POST',
+                headers: authHeaders
             });
 
             setUploadProgress(100);
 
-            // Success! Navigate to the new asset
+            // Success!
             setTimeout(() => {
                 navigate(`/assets/${asset.id}`);
             }, 500);
@@ -168,7 +200,6 @@ const CreateAssetPage = () => {
             minHeight: '100vh',
             color: 'white',
         }}>
-            {/* Header */}
             <header style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -197,7 +228,6 @@ const CreateAssetPage = () => {
                 </div>
             </header>
 
-            {/* Main Content */}
             <main style={{ maxWidth: '800px', margin: '0 auto', padding: '3rem 2rem' }}>
                 <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
                     <i className="fa-solid fa-plus" style={{ marginRight: '12px', color: '#3b82f6' }}></i>
@@ -208,7 +238,6 @@ const CreateAssetPage = () => {
                 </p>
 
                 <form onSubmit={handleSubmit}>
-                    {/* File Upload Area */}
                     <div
                         style={{
                             border: `2px dashed ${dragActive ? '#3b82f6' : '#333'}`,
@@ -266,7 +295,6 @@ const CreateAssetPage = () => {
                         )}
                     </div>
 
-                    {/* Form Fields */}
                     <div style={{ marginBottom: '1.5rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
                             에셋 이름 *
@@ -339,7 +367,6 @@ const CreateAssetPage = () => {
                         </p>
                     </div>
 
-                    {/* Error Message */}
                     {error && (
                         <div style={{
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -354,7 +381,6 @@ const CreateAssetPage = () => {
                         </div>
                     )}
 
-                    {/* Progress Bar */}
                     {uploading && (
                         <div style={{ marginBottom: '1.5rem' }}>
                             <div style={{
@@ -376,7 +402,6 @@ const CreateAssetPage = () => {
                         </div>
                     )}
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={uploading}

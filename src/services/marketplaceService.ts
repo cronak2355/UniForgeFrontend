@@ -1,18 +1,27 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.uniforge.kr';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export interface Asset {
-    id: number;
-    authorId: number;
+    id: string;
+    authorId: string;
     name: string;
     description: string | null;
     price: number;
     createdAt: string;
+    imageUrl?: string | null;
     // Helper fields for UI (to be populated or mapped)
     image?: string;
     author?: string;
     rating?: number;
     type?: string;
     genre?: string;
+}
+
+export interface AssetVersion {
+    id: string;
+    assetId: string;
+    s3RootPath: string | null;
+    status: string;
+    createdAt: string;
 }
 
 export interface Game {
@@ -34,24 +43,17 @@ class MarketplaceService {
         return this.request<Asset[]>('/assets');
     }
 
-    async getAssetById(assetId: number): Promise<Asset> {
+    async getAssetById(assetId: string): Promise<Asset> {
         return this.request<Asset>(`/assets/${assetId}`);
     }
 
-    async getAssetVersions(assetId: number): Promise<AssetVersion[]> {
+    async getAssetVersions(assetId: string): Promise<AssetVersion[]> {
         return this.request<AssetVersion[]>(`/assets/${assetId}/versions`);
     }
 
     async getGames(): Promise<Game[]> {
         return this.request<Game[]>('/marketplace/games');
     }
-}
-
-export interface AssetVersion {
-    id: number;
-    s3RootPath: string;
-    status: string;
-    createdAt: string;
 }
 
 export const marketplaceService = new MarketplaceService();
