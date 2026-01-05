@@ -309,7 +309,7 @@ const MainPage = () => {
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
                         </div>
                         <div className="action-card-content">
-                            <h3>에디터</h3>
+                            <h3>에디터 (Editor)</h3>
                             <p>지금 바로 나만의 게임을 만들어보세요</p>
                         </div>
                         <div className="action-card-arrow">
