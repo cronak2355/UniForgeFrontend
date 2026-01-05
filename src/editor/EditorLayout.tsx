@@ -273,6 +273,7 @@ function EditorLayoutInner() {
                 }}>
                     {mode === "dev" ? (
                         <EditorCanvas
+                            key={`edit-${runSession}`}
                             assets={assets}
                             selected_asset={selectedAsset}
                             draggedAsset={draggedAsset}
@@ -312,14 +313,16 @@ function EditorLayoutInner() {
                         Inspector
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        <InspectorPanel
-                            entity={localSelectedEntity}
-                            onUpdateEntity={(updatedEntity) => {
-                                core.addEntity(updatedEntity as any);
-                                core.setSelectedEntity(updatedEntity as any);
-                                setLocalSelectedEntity(updatedEntity);
-                            }}
-                        />
+                        {localSelectedEntity && (
+                            <InspectorPanel
+                                entity={localSelectedEntity}
+                                onUpdateEntity={(updatedEntity) => {
+                                    core.addEntity(updatedEntity as any);
+                                    core.setSelectedEntity(updatedEntity as any);
+                                    setLocalSelectedEntity(updatedEntity);
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>

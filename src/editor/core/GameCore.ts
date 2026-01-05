@@ -9,10 +9,10 @@ import type { IRenderer } from "../renderer/IRenderer";
 import type {
     EditorComponent,
     TransformComponent
-  } from "../types/Component";
-  
-  import type { Trigger } from "../types/Trigger";
-  import type { Condition } from "../types/Condition";
+} from "../types/Component";
+
+import type { Trigger } from "../types/Trigger";
+import type { Condition } from "../types/Condition";
 import type { EditorVariable } from "../types/Variable";
 import type { EditorModule } from "../types/Module";
 import type { GameRule } from "./events/RuleEngine";
@@ -44,6 +44,8 @@ export interface GameEntity {
     components: EditorComponent[];
     modules: EditorModule[];
     rules: GameRule[];
+    width?: number;
+    height?: number;
 }
 
 /**
@@ -140,6 +142,8 @@ export class GameCore {
     }
 
     // ===== Entity Management - ID 동기화 보장 =====
+
+
 
     /**
      * 엔티티 생성
@@ -293,6 +297,13 @@ export class GameCore {
     }
 
     /**
+     * 엔티티의 StatusModule 반환 (UI용)
+     */
+    getStatusModule(entityId: string): StatusModule | undefined {
+        return this.getModuleByType<StatusModule>(entityId, "Status");
+    }
+
+    /**
      * 엔티티 수 반환
      */
     getEntityCount(): number {
@@ -385,19 +396,19 @@ export class GameCore {
      */
     private registerComponentRuntimes(entity: GameEntity): void {
         for (const comp of entity.components) {
-    
+
             // 1️⃣ 모든 컴포넌트는 ComponentRuntime으로 등록
             this.componentRuntimes.push({
                 entityId: entity.id,
                 component: comp,
                 initialScale: { x: entity.scaleX, y: entity.scaleY },
             });
-    
+
             // 2️⃣ Trigger가 있는 컴포넌트만 TriggerRuntime 등록
             if (comp.trigger) {
                 this.triggerRuntimes.push({
                     entityId: entity.id,
-                    component: comp, // 🔥 Trigger를 가진 "컴포넌트"
+                    component: comp as any, // 🔥 Trigger를 가진 "컴포넌트"
                     triggered: false,
                 });
             }
@@ -587,25 +598,52 @@ export class GameCore {
             projectile.x += projectile.dirX * projectile.speed * dt;
             projectile.y += projectile.dirY * projectile.speed * dt;
             this.renderer.update(id, projectile.x, projectile.y, projectile.z);
-
-            if (projectile.targetId) {
-                const target = this.entities.get(projectile.targetId);
-                if (!target) continue;
-
+            // Check collision with ALL entities (not just targetId)
+            for (const [targetEntityId, target] of this.entities) {
+                // Skip self (projectile owner)
+                if (target.id === projectile.fromId) continue;
+                // Skip already hit
                 if (projectile.hitTargets.has(target.id)) continue;
 
                 const dx = target.x - projectile.x;
                 const dy = target.y - projectile.y;
-                const hit = (dx * dx + dy * dy) <= (this.projectileHitRadius * this.projectileHitRadius);
-                if (!hit) continue;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const boxWidth = target.width ?? 32;
+                const boxHeight = target.height ?? 32;
+                const hitDist = boxWidth / 2 + boxHeight / 2;
 
-                this.applyProjectileHit(projectile, target.id);
-                projectile.hitTargets.add(target.id);
+                if (dist < hitDist) {
+                    // Hit!
+                    projectile.hitTargets.add(target.id);
+                    projectile.pierceCount--;
 
-                if (projectile.pierceCount > 0) {
-                    projectile.pierceCount -= 1;
-                } else {
-                    this.removeProjectile(id);
+                    // Apply Damage
+                    const status = this.getModuleByType<StatusModule>(target.id, "Status");
+                    if (status) {
+                        const actualDamage = status.takeDamage(projectile.damage);
+
+                        // Convert world coords to screen coords for UI
+                        const screenPos = this.renderer.worldToScreen(target.x, target.y - 40, 0);
+
+                        // Emit Damage Event for UI
+                        EventBus.emit("DAMAGE_DEALT", {
+                            x: screenPos.x,
+                            y: screenPos.y,
+                            damage: actualDamage,
+                            isCritical: false
+                        });
+
+                        // Emit Log
+                        EventBus.emit("LOG", {
+                            text: `${target.name}에게 ${actualDamage} 피해!`,
+                            kind: "combat"
+                        });
+                    }
+
+                    if (projectile.pierceCount < 0) {
+                        projectile.life = 0;
+                        break;
+                    }
                 }
             }
         }
@@ -614,15 +652,15 @@ export class GameCore {
     private updateTriggers(): void {
         for (const runtime of this.triggerRuntimes) {
             if (runtime.triggered && runtime.component.once) continue;
-    
+
             const owner = this.entities.get(runtime.entityId);
             if (!owner) continue;
-    
+
             for (const target of this.entities.values()) {
                 if (target.id === owner.id) continue;
-    
+
                 if (!this.isTriggerActivated(owner, target, runtime.component)) continue;
-    
+
                 runtime.triggered = true;
                 EventBus.emit("TRIGGER_ENTER", {
                     from: owner.id,
@@ -631,7 +669,7 @@ export class GameCore {
                 });
             }
         }
-    }    
+    }
 
     private applyProjectileHit(projectile: ProjectileRuntime, targetId: string): void {
         if (projectile.explosionRadius > 0) {
@@ -717,48 +755,48 @@ export class GameCore {
         runtime: ComponentRuntime,
         time: number,
         dt: number
-      ): void {
+    ): void {
         const comp = runtime.component;
-      
+
         // 1️⃣ 트리거 판별
         if (!this.matchTrigger(comp.trigger, time, dt)) return;
-      
+
         // 2️⃣ 조건 판별
         if (!this.matchCondition(comp.condition, entity)) return;
-      
+
         // 3️⃣ 실제 컴포넌트 동작
         switch (comp.type) {
-          case "Transform": {
-            const t = comp as TransformComponent;
-      
-            entity.x += t.x * dt;
-            entity.y += t.y * dt;
-            entity.rotationZ += t.rotation * dt;
-            entity.scaleX = t.scaleX;
-            entity.scaleY = t.scaleY;
-      
-            this.renderer.update(
-              entity.id,
-              entity.x,
-              entity.y,
-              entity.z,
-              entity.rotationZ
-            );
-            this.renderer.setScale(
-              entity.id,
-              entity.scaleX,
-              entity.scaleY,
-              entity.scaleZ
-            );
-            break;
-          }
-      
-          case "Render":
-          case "Variables":
-            // 아직은 런타임 처리 없음
-            break;
+            case "Transform": {
+                const t = comp as TransformComponent;
+
+                entity.x += t.x * dt;
+                entity.y += t.y * dt;
+                entity.rotationZ += t.rotation * dt;
+                entity.scaleX = t.scaleX;
+                entity.scaleY = t.scaleY;
+
+                this.renderer.update(
+                    entity.id,
+                    entity.x,
+                    entity.y,
+                    entity.z,
+                    entity.rotationZ
+                );
+                this.renderer.setScale(
+                    entity.id,
+                    entity.scaleX,
+                    entity.scaleY,
+                    entity.scaleZ
+                );
+                break;
+            }
+
+            case "Render":
+            case "Variables":
+                // 아직은 런타임 처리 없음
+                break;
         }
-      }
+    }
 
     // ===== Subscription =====
 
@@ -782,35 +820,35 @@ export class GameCore {
         trigger: Trigger | undefined,
         time: number,
         dt: number
-      ): boolean {
+    ): boolean {
         if (!trigger) return true;
-      
+
         switch (trigger.type) {
-          case "OnUpdate":
-            return true;
-      
-          case "OnStart":
-            return time === 0;
-      
-          default:
-            return false;
+            case "OnUpdate":
+                return true;
+
+            case "OnStart":
+                return time === 0;
+
+            default:
+                return false;
         }
-      }
-      
-      private matchCondition(
+    }
+
+    private matchCondition(
         condition: Condition | undefined,
         entity: GameEntity
-      ): boolean {
+    ): boolean {
         if (!condition) return true;
-      
+
         switch (condition.type) {
-          case "Always":
-            return true;
-      
-          default:
-            return false;
+            case "Always":
+                return true;
+
+            default:
+                return false;
         }
-      }
+    }
     // ===== Lifecycle =====
 
     /**

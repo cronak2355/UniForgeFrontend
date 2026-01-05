@@ -185,9 +185,20 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
             if (targetRuntimeEntity?.modules?.Status) {
                 const statusModule = targetRuntimeEntity.modules.Status as any;
                 if (typeof statusModule.takeDamage === 'function') {
-                    statusModule.takeDamage(damage);
-                    console.log(`[Attack] ${attackerId} → ${id}: ${damage} damage (HP: ${statusModule.hp})`);
+                    const actualDamage = statusModule.takeDamage(damage);
+                    console.log(`[Attack] ${attackerId} → ${id}: ${actualDamage} damage (HP: ${statusModule.hp})`);
                     hitSomething = true;
+
+                    // DAMAGE_DEALT 이벤트 발행 (FloatingText용)
+                    // 화면 좌표로 변환
+                    const screenPos = renderer.worldToScreen?.(targetObj.x, targetObj.y - 40, 0) ?? { x: targetObj.x, y: targetObj.y - 40 };
+                    EventBus.emit("DAMAGE_DEALT", {
+                        x: screenPos.x,
+                        y: screenPos.y,
+                        damage: actualDamage,
+                        isCritical: false,
+                        targetId: id
+                    });
                 }
             }
 

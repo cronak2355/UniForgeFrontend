@@ -83,6 +83,9 @@ export class EditorState implements IGameState {
                     bulletCount: 1,
                 },
             ],
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
         });
 
         // 데모용 초기 엔티티 - 적
@@ -112,6 +115,9 @@ export class EditorState implements IGameState {
                     speed: 0.5,
                 },
             ],
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
         });
     }
 
