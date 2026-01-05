@@ -47,6 +47,19 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
     return tilesetcanvas;
 }
 
+function buildTileSignature(assets: Asset[]): string {
+    return assets
+        .filter((asset) => asset.tag === "Tile")
+        .map((asset) => `${asset.name}:${asset.url}`)
+        .join("|");
+}
+
+function applyAllTiles(renderer: PhaserRenderer, tiles: TilePlacement[]) {
+    for (const t of tiles) {
+        renderer.setTile(t.x, t.y, t.tile);
+    }
+}
+
 function indexTiles(tiles: TilePlacement[]) {
     const map = new Map<string, TilePlacement>();
     for (const t of tiles) {
@@ -68,6 +81,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const dragEntityIdRef = useRef<string | null>(null);
     const ghostIdRef = useRef<string | null>(null);
     const rendererReadyRef = useRef(false);
+    const tilemapReadyRef = useRef(false);
+    const loadedTexturesRef = useRef<Set<string>>(new Set());
+    const tileSignatureRef = useRef<string>("");
     const selectedAssetRef = useRef<Asset | null>(selected_asset);
     const draggedAssetRef = useRef<Asset | null>(draggedAsset);
     const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
@@ -109,12 +125,15 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             for (const asset of assets) {
                 if (asset.tag === "Tile") continue;
                 await renderer.loadTexture(asset.name, asset.url);
+                loadedTexturesRef.current.add(asset.name);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(assets);
             if (tilesetCanvas) {
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
+                tilemapReadyRef.current = true;
+                tileSignatureRef.current = buildTileSignature(assets);
             }
 
             for (const t of tiles) {
@@ -251,7 +270,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     modules: [],
                     variables: [],
                     events: [],
-                    rules: []
+                    rules: [],
+                    rotation: 0,
+                    scaleX: 1,
+                    scaleY: 1,
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
@@ -302,6 +324,40 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         prevTilesRef.current = nextTiles;
     }, [tiles]);
+
+    useEffect(() => {
+        const renderer = rendererRef.current;
+        if (!renderer || !rendererReadyRef.current) return;
+
+        const nextSignature = buildTileSignature(assets);
+        const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
+
+        let cancelled = false;
+
+        (async () => {
+            for (const asset of nextNonTileAssets) {
+                if (loadedTexturesRef.current.has(asset.name)) continue;
+                await renderer.loadTexture(asset.name, asset.url);
+                if (cancelled) return;
+                loadedTexturesRef.current.add(asset.name);
+            }
+
+            if (nextSignature !== tileSignatureRef.current) {
+                const tilesetCanvas = await buildTilesetCanvas(assets);
+                if (cancelled || !tilesetCanvas) return;
+                renderer.addCanvasTexture("tiles", tilesetCanvas);
+                renderer.initTilemap("tiles");
+                tilemapReadyRef.current = true;
+                tileSignatureRef.current = nextSignature;
+                applyAllTiles(renderer, tiles);
+                prevTilesRef.current = indexTiles(tiles);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [assets]);
 
     useEffect(() => {
         const gameCore = gameCoreRef.current;

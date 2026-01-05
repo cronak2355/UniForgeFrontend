@@ -5,7 +5,7 @@ import { ModuleSection } from "./ModuleSection";
 import { RuleSection } from "./RuleSection";
 
 interface Props {
-  entity: EditorEntity;
+  entity: EditorEntity | null;
   onUpdateEntity: (next: EditorEntity) => void;
 }
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {

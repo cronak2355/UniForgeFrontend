@@ -39,6 +39,19 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
     return tilesetcanvas;
 }
 
+function buildTileSignature(assets: Asset[]): string {
+    return assets
+        .filter((asset) => asset.tag === "Tile")
+        .map((asset) => `${asset.name}:${asset.url}`)
+        .join("|");
+}
+
+function applyAllTiles(renderer: PhaserRenderer, tiles: TilePlacement[]) {
+    for (const t of tiles) {
+        renderer.setTile(t.x, t.y, t.tile);
+    }
+}
+
 function indexTiles(tiles: TilePlacement[]) {
     // 타일 배열을 좌표 키 맵으로 변환해 diff 계산에 사용한다.
     const map = new Map<string, TilePlacement>();
@@ -53,6 +66,10 @@ export function RunTimeCanvas() {
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
+    const rendererReadyRef = useRef(false);
+    const tilemapReadyRef = useRef(false);
+    const loadedTexturesRef = useRef<Set<string>>(new Set());
+    const tileSignatureRef = useRef<string>("");
     const { assets, tiles, entities } = useEditorCoreSnapshot();
 
     useEffect(() => {
@@ -113,6 +130,8 @@ export function RunTimeCanvas() {
             renderer.onUpdateCallback = (time, delta) => {
                 gameCore.update(time, delta);
             };
+
+            rendererReadyRef.current = true;
         })();
 
         return () => {
@@ -125,6 +144,7 @@ export function RunTimeCanvas() {
             renderer.destroy();
             rendererRef.current = null;
             gameCoreRef.current = null;
+            rendererReadyRef.current = false;
         };
     }, []);
 
@@ -148,6 +168,39 @@ export function RunTimeCanvas() {
 
         prevTilesRef.current = nextTiles;
     }, [tiles]);
+
+    useEffect(() => {
+        const renderer = rendererRef.current;
+        if (!renderer || !rendererReadyRef.current) return;
+
+        const nextSignature = buildTileSignature(assets);
+        const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
+        let cancelled = false;
+
+        (async () => {
+            for (const asset of nextNonTileAssets) {
+                if (loadedTexturesRef.current.has(asset.name)) continue;
+                await renderer.loadTexture(asset.name, asset.url);
+                if (cancelled) return;
+                loadedTexturesRef.current.add(asset.name);
+            }
+
+            if (nextSignature !== tileSignatureRef.current) {
+                const tilesetCanvas = await buildTilesetCanvas(assets);
+                if (cancelled || !tilesetCanvas) return;
+                renderer.addCanvasTexture("tiles", tilesetCanvas);
+                renderer.initTilemap("tiles");
+                tilemapReadyRef.current = true;
+                tileSignatureRef.current = nextSignature;
+                applyAllTiles(renderer, tiles);
+                prevTilesRef.current = indexTiles(tiles);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [assets]);
 
     // Entry Style Colors
     const colors = {

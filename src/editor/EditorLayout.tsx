@@ -35,6 +35,8 @@ function EditorLayoutInner() {
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+    const [isUploadingAsset, setIsUploadingAsset] = useState(false);
+    const [uploadError, setUploadError] = useState("");
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -69,6 +71,8 @@ function EditorLayoutInner() {
         setDropModalFile(null);
         setDropAssetName("");
         setDropAssetTag("Character");
+        setIsUploadingAsset(false);
+        setUploadError("");
     };
 
     useEffect(() => {
@@ -76,6 +80,98 @@ function EditorLayoutInner() {
         const base = dropModalFile.name.replace(/\.[^/.]+$/, "");
         setDropAssetName(base);
     }, [dropModalFile]);
+
+    const handleAddAsset = async () => {
+        if (!dropModalFile || isUploadingAsset) return;
+
+        const name = dropAssetName.trim();
+        const assetId = crypto.randomUUID();
+        const versionId = "1";
+        const contentType = dropModalFile.type || "application/octet-stream";
+
+        if (!name) {
+            setUploadError("Name is required.");
+            return;
+        }
+
+        if (import.meta.env.DEV) {
+            const assetUrl = URL.createObjectURL(dropModalFile);
+            const nextId =
+                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+
+            core.addAsset({
+                id: nextId,
+                tag: dropAssetTag,
+                name,
+                url: assetUrl,
+                idx: -1,
+            });
+
+            resetDropModal();
+            return;
+        }
+        setIsUploadingAsset(true);
+        setUploadError("");
+
+        try {
+            const params = new URLSearchParams({
+                fileName: dropModalFile.name,
+                contentType,
+            });
+            const requestUrl = `http://localhost:8080/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+            const token = localStorage.getItem("token");
+            const presignRes = await fetch(requestUrl, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+
+            if (!presignRes.ok) {
+                const message = await presignRes.text();
+                throw new Error(message || "Failed to get upload URL.");
+            }
+
+            const presignData = await presignRes.json();
+            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+            if (!uploadUrl) {
+                throw new Error("Upload URL missing in response.");
+            }
+
+            const uploadRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": contentType },
+                body: dropModalFile,
+            });
+
+            if (!uploadRes.ok) {
+                throw new Error("Upload failed.");
+            }
+
+            const assetUrl =
+                presignData.fileUrl ||
+                presignData.assetUrl ||
+                presignData.url ||
+                uploadUrl.split("?")[0];
+
+            const nextId =
+                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+
+            core.addAsset({
+                id: nextId,
+                tag: dropAssetTag,
+                name,
+                url: assetUrl,
+                idx: -1,
+            });
+
+            resetDropModal();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Upload failed.";
+            setUploadError(message);
+        } finally {
+            setIsUploadingAsset(false);
+        }
+    };
 
     return (
         <div style={{
@@ -393,6 +489,15 @@ function EditorLayoutInner() {
                                 </select>
                             </label>
                         </div>
+                        {uploadError && (
+                            <div style={{
+                                marginTop: "10px",
+                                color: "#f87171",
+                                fontSize: "12px",
+                            }}>
+                                {uploadError}
+                            </div>
+                        )}
                         <div style={{
                             marginTop: "16px",
                             display: "flex",
@@ -401,18 +506,20 @@ function EditorLayoutInner() {
                         }}>
                             <button
                                 type="button"
+                                onClick={handleAddAsset}
+                                disabled={isUploadingAsset}
                                 style={{
                                     padding: "8px 14px",
                                     fontSize: "12px",
                                     fontWeight: 600,
-                                    background: colors.bgTertiary,
+                                    background: isUploadingAsset ? colors.bgPrimary : colors.bgTertiary,
                                     border: `1px solid ${colors.borderColor}`,
                                     borderRadius: "6px",
                                     color: colors.textPrimary,
-                                    cursor: "pointer",
+                                    cursor: isUploadingAsset ? "not-allowed" : "pointer",
                                 }}
                             >
-                                Add Asset
+                                {isUploadingAsset ? "Uploading..." : "Add Asset"}
                             </button>
                             <button
                                 type="button"

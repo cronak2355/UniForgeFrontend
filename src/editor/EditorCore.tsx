@@ -52,6 +52,9 @@ export class EditorState implements IGameState {
             events: [],
             components: [],
             rules: [],
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
             modules: [
                 {
                     id: "player-kinetic",
@@ -99,6 +102,9 @@ export class EditorState implements IGameState {
             events: [],
             components: [],
             rules: [],
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
             modules: [
                 {
                     id: "enemy-status",
@@ -150,6 +156,11 @@ export class EditorState implements IGameState {
 
     setSelectedEntity(entity: EditorEntity | null) {
         this.selectedEntity = entity;
+        this.notify();
+    }
+
+    addAsset(asset: Asset) {
+        this.assets.push(asset);
         this.notify();
     }
 
