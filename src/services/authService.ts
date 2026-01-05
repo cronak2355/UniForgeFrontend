@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://uniforge.kr/api'; // Hardcoded for production
+const API_BASE_URL = 'https://uniforge.kr'; // Hardcoded for production (endpoints already contain /api)
 
 export interface User {
     id: string;
