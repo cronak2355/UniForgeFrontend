@@ -8,7 +8,8 @@
 import type { IRenderer } from "../renderer/IRenderer";
 import type {
     EditorComponent,
-    TransformComponent
+    TransformComponent,
+    SignalComponent
 } from "../types/Component";
 
 import type { Trigger } from "../types/Trigger";
@@ -18,6 +19,8 @@ import type { EditorModule } from "../types/Module";
 import type { GameRule } from "./events/RuleEngine";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
+import { RuntimeContext } from "./RuntimeContext";
+import { collisionSystem } from "./CollisionSystem";
 import type { IModule } from "./modules/IModule";
 import { KineticModule } from "./modules/KineticModule";
 import { StatusModule } from "./modules/StatusModule";
@@ -128,6 +131,8 @@ export class GameCore {
     private projectileRuntimes: Map<string, ProjectileRuntime> = new Map();
     private triggerRuntimes: TriggerRuntime[] = [];
     private inputState: InputState = { left: false, right: false, up: false, down: false, jump: false };
+    private runtimeContext = new RuntimeContext();
+    private eventHandler?: (event: import("./events/EventBus").GameEvent) => void;
     private groundY = 500;
     private readonly projectileTtl = 2;
     private readonly projectileSize = 6;
@@ -139,6 +144,59 @@ export class GameCore {
 
     constructor(renderer: IRenderer) {
         this.renderer = renderer;
+        this.eventHandler = (event) => {
+            if (!event || !event.type) return;
+
+            if (event.type === "COLLISION_ENTER" || event.type === "COLLISION_STAY") {
+                const data = event.data as {
+                    entityA?: string;
+                    entityB?: string;
+                    tagA?: string;
+                    tagB?: string;
+                    overlapX?: number;
+                    overlapY?: number;
+                    normalX?: number;
+                    normalY?: number;
+                } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+
+                const contactA = {
+                    otherId: data.entityB,
+                    otherTag: data.tagB,
+                    selfTag: data.tagA,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX,
+                    normalY: data.normalY,
+                };
+                const contactB = {
+                    otherId: data.entityA,
+                    otherTag: data.tagA,
+                    selfTag: data.tagB,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX !== undefined ? -data.normalX : undefined,
+                    normalY: data.normalY !== undefined ? -data.normalY : undefined,
+                };
+
+                if (event.type === "COLLISION_ENTER") {
+                    this.runtimeContext.recordCollisionEnter(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionEnter(data.entityB, contactB);
+                } else {
+                    this.runtimeContext.recordCollisionStay(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionStay(data.entityB, contactB);
+                }
+                return;
+            }
+
+            if (event.type === "COLLISION_EXIT") {
+                const data = event.data as { entityA?: string; entityB?: string } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+                this.runtimeContext.recordCollisionExit(data.entityA, data.entityB);
+                this.runtimeContext.recordCollisionExit(data.entityB, data.entityA);
+            }
+        };
+        EventBus.on(this.eventHandler);
     }
 
     // ===== Entity Management - ID 동기화 보장 =====
@@ -185,6 +243,8 @@ export class GameCore {
             components: options.components ?? [],
             modules: options.modules ?? [],
             rules: options.rules ?? [],
+            width: options.width ?? 40,
+            height: options.height ?? 40,
         };
 
         // 1. 로컬 상태에 저장
@@ -199,6 +259,19 @@ export class GameCore {
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
         this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        const baseWidth = entity.width ?? 40;
+        const baseHeight = entity.height ?? 40;
+        collisionSystem.register(
+            id,
+            entity.type,
+            {
+                x: entity.x,
+                y: entity.y,
+                width: baseWidth * (entity.scaleX ?? 1),
+                height: baseHeight * (entity.scaleY ?? 1),
+            },
+            { isSolid: true }
+        );
 
         // 3. 컴포넌트 런타임 등록
         this.registerComponentRuntimes(entity);
@@ -233,6 +306,54 @@ export class GameCore {
         }
 
         this.renderer.update(id, x, y, entity.z, entity.rotationZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        this.notify();
+    }
+
+    /**
+     * 외부 편집기에서 전달된 Transform을 동기화
+     */
+    setEntityTransform(
+        id: string,
+        next: {
+            x: number;
+            y: number;
+            z: number;
+            rotationX?: number;
+            rotationY?: number;
+            rotationZ?: number;
+            scaleX: number;
+            scaleY: number;
+            scaleZ?: number;
+        }
+    ): void {
+        const entity = this.entities.get(id);
+        if (!entity) {
+            console.warn(`[GameCore] Cannot set transform: entity "${id}" not found`);
+            return;
+        }
+
+        entity.x = next.x;
+        entity.y = next.y;
+        entity.z = next.z;
+        if (next.rotationX !== undefined) entity.rotationX = next.rotationX;
+        if (next.rotationY !== undefined) entity.rotationY = next.rotationY;
+        if (next.rotationZ !== undefined) entity.rotationZ = next.rotationZ;
+        entity.scaleX = next.scaleX;
+        entity.scaleY = next.scaleY;
+        if (next.scaleZ !== undefined) entity.scaleZ = next.scaleZ;
+
+        const kinetic = this.getModuleByType<KineticModule>(id, "Kinetic");
+        if (kinetic) {
+            kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
+        }
+
+        this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
+        this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+        const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+        collisionSystem.updateSize(id, width, height);
         this.notify();
     }
 
@@ -265,6 +386,7 @@ export class GameCore {
 
         // 2. 렌더러에서 제거
         this.renderer.remove(id);
+        collisionSystem.unregister(id);
 
         // 3. 로컬 상태에서 제거
         this.entities.delete(id);
@@ -338,6 +460,7 @@ export class GameCore {
      */
     setInputState(input: InputState): void {
         this.inputState = { ...input };
+        this.runtimeContext.setInput(this.inputState);
     }
 
     /**
@@ -530,6 +653,7 @@ export class GameCore {
                         entity.y = kinetic.position.y;
                         entity.z = kinetic.position.z ?? entity.z;
                         this.renderer.update(entity.id, entity.x, entity.y, entity.z, entity.rotationZ);
+                        collisionSystem.updatePosition(entity.id, entity.x, entity.y);
                         break;
                     }
                     case "Combat": {
@@ -724,9 +848,11 @@ export class GameCore {
      */
     update(time: number, deltaTime: number): void {
         const dt = deltaTime / 1000;
+        this.runtimeContext.beginFrame();
 
         this.updateModules(dt);
         this.updateProjectiles(dt);
+        collisionSystem.update();
         this.updateTriggers();
 
         for (const runtime of this.componentRuntimes) {
@@ -788,6 +914,35 @@ export class GameCore {
                     entity.scaleY,
                     entity.scaleZ
                 );
+                collisionSystem.updatePosition(entity.id, entity.x, entity.y);
+                const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+                const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+                collisionSystem.updateSize(entity.id, width, height);
+                break;
+            }
+
+            case "Signal": {
+                const s = comp as SignalComponent;
+                const signalKey = s.signalKey?.trim();
+                if (!signalKey) break;
+
+                const targetId = s.targetEntityId?.trim() || entity.id;
+                if (!this.entities.has(targetId)) {
+                    console.warn(`[GameCore] Signal target not found: ${targetId}`);
+                    break;
+                }
+
+                let value: number | string | boolean | null = null;
+                if (s.signalValue?.kind === "EntityVariable") {
+                    const variable = entity.variables?.find(v => v.name === s.signalValue.name);
+                    if (variable) {
+                        value = variable.value as number | string | boolean;
+                    }
+                } else if (s.signalValue?.kind === "Literal") {
+                    value = s.signalValue.value ?? null;
+                }
+
+                this.runtimeContext.setSignal(targetId, signalKey, value);
                 break;
             }
 
@@ -856,6 +1011,10 @@ export class GameCore {
      * 모든 엔티티와 컴포넌트 런타임 해제
      */
     destroy(): void {
+        if (this.eventHandler) {
+            EventBus.off(this.eventHandler);
+            this.eventHandler = undefined;
+        }
         // 1. 모든 엔티티를 렌더러에서 제거
         for (const id of this.entities.keys()) {
             this.renderer.remove(id);
@@ -876,9 +1035,14 @@ export class GameCore {
         this.componentRuntimes = [];
         this.moduleRuntimes.clear();
         this.projectileRuntimes.clear();
+        collisionSystem.clear();
         this.listeners.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");
+    }
+
+    getRuntimeContext(): RuntimeContext {
+        return this.runtimeContext;
     }
 
     // ===== Serialization (저장/불러오기용) =====

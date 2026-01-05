@@ -67,6 +67,7 @@ export function RunTimeCanvas() {
         const core = new GameCore(renderer);
         setGameCore(core); // State update triggers UI render
         renderer.useEditorCoreRuntimePhysics = false;
+        renderer.getRuntimeContext = () => core.getRuntimeContext();
         renderer.onInputState = (input) => {
             core.setInputState(input);
         };
