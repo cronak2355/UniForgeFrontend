@@ -28,9 +28,13 @@ export function GameUIOverlay({ gameCore }: Props) {
 
         const loop = () => {
             if (gameCore) {
-                // Find Player Entity
+                // Find Player Entity by role (or fallback to name)
                 const entities = Array.from(gameCore.getAllEntities().values());
-                const player = entities.find(e => e.name.toLowerCase() === "player" || e.name.toLowerCase().includes("player"));
+                const player = entities.find(e =>
+                    e.role === "player" ||
+                    e.name.toLowerCase() === "player" ||
+                    e.name.toLowerCase().includes("player")
+                );
 
                 if (player) {
                     // Get runtime StatusModule (not static editor data)

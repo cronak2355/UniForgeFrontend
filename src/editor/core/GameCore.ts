@@ -23,6 +23,7 @@ import { KineticModule } from "./modules/KineticModule";
 import { StatusModule } from "./modules/StatusModule";
 import { CombatModule, type TargetInfo, type ProjectileSpawnSignal } from "./modules/CombatModule";
 import { NarrativeModule } from "./modules/NarrativeModule";
+import { registerRuntimeEntityInstances } from "./modules/ModuleFactory";
 
 /**
  * 게임 엔티티 데이터 구조 (순수 JavaScript 객체)
@@ -46,6 +47,8 @@ export interface GameEntity {
     rules: GameRule[];
     width?: number;
     height?: number;
+    /** 엔티티 역할 */
+    role?: "player" | "enemy" | "npc" | "neutral";
 }
 
 /**
@@ -438,6 +441,7 @@ export class GameCore {
         }
 
         const runtimes: ModuleRuntime[] = [];
+        const modulesMap: Record<string, IModule> = {};
 
         for (const moduleData of entity.modules) {
             switch (moduleData.type) {
@@ -452,6 +456,7 @@ export class GameCore {
                         speed: moduleData.speed,
                     });
                     runtimes.push({ entityId: entity.id, module: status });
+                    modulesMap["Status"] = status;
                     break;
                 }
                 case "Kinetic": {
@@ -464,6 +469,7 @@ export class GameCore {
                     });
                     kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
                     runtimes.push({ entityId: entity.id, module: kinetic });
+                    modulesMap["Kinetic"] = kinetic;
                     break;
                 }
                 case "Combat": {
@@ -476,11 +482,13 @@ export class GameCore {
                     });
                     combat.onSpawnProjectile = (signal) => this.spawnProjectile(signal);
                     runtimes.push({ entityId: entity.id, module: combat });
+                    modulesMap["Combat"] = combat;
                     break;
                 }
                 case "Narrative": {
                     const narrative = new NarrativeModule(moduleData.id);
                     runtimes.push({ entityId: entity.id, module: narrative });
+                    modulesMap["Narrative"] = narrative;
                     break;
                 }
             }
@@ -488,6 +496,17 @@ export class GameCore {
 
         if (runtimes.length > 0) {
             this.moduleRuntimes.set(entity.id, runtimes);
+
+            // 전역 런타임 엔티티에도 등록 (Action 시스템과의 동기화)
+            registerRuntimeEntityInstances(
+                entity.id,
+                entity.type,
+                entity.name,
+                entity.x,
+                entity.y,
+                entity.z,
+                modulesMap
+            );
         }
     }
 

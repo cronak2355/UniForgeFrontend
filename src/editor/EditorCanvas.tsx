@@ -117,7 +117,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             ref.current.removeChild(ref.current.firstChild);
         }
 
-        const renderer = new PhaserRenderer();
+        const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;

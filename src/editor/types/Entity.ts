@@ -20,6 +20,9 @@ export interface EditorEntity {
     scaleX: number;
     scaleY: number;
 
+    /** 엔티티 역할 (UI 표시 및 게임 로직용) */
+    role?: "player" | "enemy" | "npc" | "neutral";
+
     texture?: string;
 
     /** 사용자 정의 변수 목록 */

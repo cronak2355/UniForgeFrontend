@@ -86,6 +86,7 @@ export class EditorState implements IGameState {
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
+            role: "player",
         });
 
         // 데모용 초기 엔티티 - 적
@@ -118,6 +119,7 @@ export class EditorState implements IGameState {
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
+            role: "enemy",
         });
     }
 

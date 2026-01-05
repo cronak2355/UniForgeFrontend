@@ -71,10 +71,18 @@ export class StatusModule implements IModule {
     constructor(id: string, initialData: Partial<StatusData> = {}) {
         this.id = id;
 
-        // 기본값으로 초기화
+        // [Fix] HP > MaxHP일 경우 MaxHP 자동 보정
+        const hp = initialData.hp ?? 100;
+        const passedMaxHp = initialData.maxHp ?? 100;
+        const finalMaxHp = Math.max(hp, passedMaxHp);
+
+        if (hp > passedMaxHp) {
+            console.log(`[StatusModule] MaxHP auto-corrected: ${passedMaxHp} -> ${finalMaxHp}`);
+        }
+
         this.data = {
-            hp: initialData.hp ?? 100,
-            maxHp: initialData.maxHp ?? 100,
+            hp: hp,
+            maxHp: finalMaxHp,
             mp: initialData.mp ?? 50,
             maxMp: initialData.maxMp ?? 50,
             attack: initialData.attack ?? 10,

@@ -3,7 +3,7 @@ import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer"
 // EAC 시스템 import
 import { EventBus, RuleEngine } from "../core/events";
 import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
-import { editorCore } from "../EditorCore";
+import type { EditorState } from "../EditorCore";
 // 물리 엔진 (엔진 독립적)
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
 // 모듈 팩토리
@@ -56,7 +56,7 @@ class PhaserRenderScene extends Phaser.Scene {
                 return;
             }
 
-            editorCore.getEntities().forEach((entity) => {
+            this.phaserRenderer.core.getEntities().forEach((entity) => {
                 if (!entity.rules || entity.rules.length === 0) return;
 
                 // 런타임 엔티티에서 모듈 인스턴스 가져오기
@@ -70,7 +70,7 @@ class PhaserRenderScene extends Phaser.Scene {
                     globals: {
                         scene: this,
                         renderer: this.phaserRenderer,
-                        entities: editorCore.getEntities()
+                        entities: this.phaserRenderer.core.getEntities()
                     }
                 };
 
@@ -93,6 +93,23 @@ class PhaserRenderScene extends Phaser.Scene {
         // TICK 이벤트 발행 (런타임 모드에서만)
         if (this.phaserRenderer.isRuntimeMode) {
             EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
+
+            // 카메라 추적: player 역할이나 이름이 player인 엔티티 따라가기
+            const playerEntity = Array.from(this.phaserRenderer.core.getEntities().values())
+                .find(e => e.role === "player" || e.name.toLowerCase().includes("player"));
+
+            if (playerEntity) {
+                const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
+                if (playerObj && this.cameras?.main) {
+                    // 부드러운 카메라 추적
+                    const cam = this.cameras.main;
+                    const targetX = playerObj.x - cam.width / 2;
+                    const targetY = playerObj.y - cam.height / 2;
+                    const lerp = 0.1; // 부드러움 정도
+                    cam.scrollX += (targetX - cam.scrollX) * lerp;
+                    cam.scrollY += (targetY - cam.scrollY) * lerp;
+                }
+            }
         }
 
         // 키보드가 초기화되지 않았으면 스킵
@@ -121,7 +138,7 @@ class PhaserRenderScene extends Phaser.Scene {
         }
 
         // Kinetic 모듈을 가진 엔티티만 업데이트
-        editorCore.getEntities().forEach((entity) => {
+        this.phaserRenderer.core.getEntities().forEach((entity) => {
             // Kinetic 모듈이 없으면 스킵
             const hasKinetic = entity.modules?.some(m => m.type === "Kinetic");
             if (!hasKinetic) return;
@@ -152,6 +169,12 @@ class PhaserRenderScene extends Phaser.Scene {
  * 3. Lifecycle: destroy 시 모든 리소스 완벽 해제
  */
 export class PhaserRenderer implements IRenderer {
+    public readonly core: EditorState;
+
+    constructor(core: EditorState) {
+        this.core = core;
+    }
+
     private game: Phaser.Game | null = null;
     private scene: PhaserRenderScene | null = null;
     private _container: HTMLElement | null = null;

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
@@ -30,12 +30,14 @@ type Mode = "dev" | "run";
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
-
     const [mode, setMode] = useState<Mode>("dev");
     const [runSession, setRunSession] = useState(0);
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+
+    // Backup entities before Run mode for restoration
+    const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -132,7 +134,28 @@ function EditorLayoutInner() {
                             setMode((prev) => {
                                 const next = prev === "dev" ? "run" : "dev";
                                 if (next === "run") {
+                                    // Save entity state before running
+                                    const backup = new Map<string, EditorEntity>();
+                                    core.getEntities().forEach((entity, id) => {
+                                        // Deep clone each entity
+                                        backup.set(id, JSON.parse(JSON.stringify(entity)));
+                                    });
+                                    entityBackupRef.current = backup;
                                     setRunSession((v) => v + 1);
+                                } else {
+                                    // Restore entity state from backup
+                                    if (entityBackupRef.current) {
+                                        entityBackupRef.current.forEach((backupEntity, id) => {
+                                            const currentEntity = core.getEntities().get(id);
+                                            if (currentEntity) {
+                                                // Restore position, hp, etc.
+                                                Object.assign(currentEntity, backupEntity);
+                                            }
+                                        });
+                                        entityBackupRef.current = null;
+                                        // Force UI update
+                                        core.setSelectedEntity(core.getSelectedEntity());
+                                    }
                                 }
                                 return next;
                             });
@@ -317,6 +340,7 @@ function EditorLayoutInner() {
                             <InspectorPanel
                                 entity={localSelectedEntity}
                                 onUpdateEntity={(updatedEntity) => {
+                                    console.log("[EditorLayout] Module update:", updatedEntity.modules?.find(m => m.type === "Status"));
                                     core.addEntity(updatedEntity as any);
                                     core.setSelectedEntity(updatedEntity as any);
                                     setLocalSelectedEntity(updatedEntity);

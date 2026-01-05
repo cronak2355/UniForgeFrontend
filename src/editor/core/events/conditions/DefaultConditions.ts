@@ -13,38 +13,38 @@ ConditionRegistry.register("IsGrounded", (ctx: ActionContext) => {
     const kinetic = ctx.modules.Kinetic;
     if (!kinetic) return false;
 
-    return (kinetic as any).isGrounded ?? true;
+    // KineticModule에서 isGrounded 속성 안전하게 접근
+    return 'isGrounded' in kinetic ? (kinetic as { isGrounded?: boolean }).isGrounded ?? true : true;
 });
 
 // --- Status Conditions ---
 
 ConditionRegistry.register("IsAlive", (ctx: ActionContext) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     if (typeof status.isAlive === 'boolean') {
         return status.isAlive;
     }
-    // 폴백: 데이터 객체인 경우
-    const hp = (status as any).hp;
-    return hp !== undefined && hp > 0;
+    // 폴백: hp 속성 직접 접근
+    return status.hp !== undefined && status.hp > 0;
 });
 
 ConditionRegistry.register("HpBelow", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     const limit = (params.value as number) ?? 0;
-    const hp = (status as any).hp ?? status.hp;
+    const hp = status.hp ?? 0;
     return hp < limit;
 });
 
 ConditionRegistry.register("HpAbove", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     const limit = (params.value as number) ?? 0;
-    const hp = (status as any).hp ?? status.hp;
+    const hp = status.hp ?? 0;
     return hp > limit;
 });
 
@@ -55,7 +55,7 @@ ConditionRegistry.register("HpAbove", (ctx: ActionContext, params: Record<string
  * params: { targetId: string, range: number }
  */
 ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
@@ -81,7 +81,7 @@ ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string
  * params: { targetId: string, range: number }
  */
 ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
