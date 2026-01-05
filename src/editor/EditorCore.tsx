@@ -37,6 +37,82 @@ export class EditorState implements IGameState {
             { id: 2, name: "test3", tag: "Tile", url: "TestAsset3.webp", idx: -1 },
             { id: 3, name: "dragon", tag: "Character", url: "RedDragon.webp", idx: -1 },
         ];
+
+        // 데모용 초기 엔티티 - 플레이어
+        const playerId = "demo-player";
+        this.entities.set(playerId, {
+            id: playerId,
+            type: "sprite",
+            name: "Player",
+            x: 400,
+            y: 300,
+            z: 0,
+            texture: "dragon",
+            variables: [],
+            events: [],
+            components: [],
+            rules: [],
+            modules: [
+                {
+                    id: "player-kinetic",
+                    type: "Kinetic",
+                    mode: "TopDown",
+                    maxSpeed: 200,
+                    friction: 0.9,
+                    gravity: 0,
+                    jumpForce: 0,
+                },
+                {
+                    id: "player-status",
+                    type: "Status",
+                    hp: 100,
+                    maxHp: 100,
+                    mp: 50,
+                    maxMp: 50,
+                    attack: 10,
+                    defense: 5,
+                    speed: 1,
+                },
+                {
+                    id: "player-combat",
+                    type: "Combat",
+                    attackRange: 150,
+                    attackInterval: 500,
+                    damage: 10,
+                    bulletPattern: "Single",
+                    bulletCount: 1,
+                },
+            ],
+        });
+
+        // 데모용 초기 엔티티 - 적
+        const enemyId = "demo-enemy";
+        this.entities.set(enemyId, {
+            id: enemyId,
+            type: "sprite",
+            name: "Enemy",
+            x: 600,
+            y: 300,
+            z: 0,
+            texture: "dragon",
+            variables: [],
+            events: [],
+            components: [],
+            rules: [],
+            modules: [
+                {
+                    id: "enemy-status",
+                    type: "Status",
+                    hp: 50,
+                    maxHp: 50,
+                    mp: 0,
+                    maxMp: 0,
+                    attack: 5,
+                    defense: 2,
+                    speed: 0.5,
+                },
+            ],
+        });
     }
 
     subscribe(listener: () => void) {

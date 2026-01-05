@@ -440,16 +440,32 @@ export class NarrativeModule implements IModule {
 
     /**
      * 역직렬화 (정적 팩토리)
+     * Pascal/camelCase 모두 지원하며, 필수 필드 검증 포함
      */
     static deserialize(data: Record<string, unknown>): NarrativeModule {
-        return new NarrativeModule(data.Id as string ?? data.id as string, {
-            dialogues: (data.Dialogues ?? data.dialogues) as DialogueLine[],
-            currentDialogueId: (data.CurrentDialogueId ?? data.currentDialogueId) as string | null,
-            variables: (data.Variables ?? data.variables) as Record<string, NarrativeVarValue>,
-            history: (data.History ?? data.history) as string[],
-            maxHistoryLength: data.MaxHistoryLength as number ?? data.maxHistoryLength as number,
-            autoMode: data.AutoMode as boolean ?? data.autoMode as boolean,
-            skipMode: data.SkipMode as boolean ?? data.skipMode as boolean,
+        // ID 검증
+        const id = (data.Id ?? data.id) as string | undefined;
+        if (!id || typeof id !== "string") {
+            throw new Error("[NarrativeModule] deserialize: id is required");
+        }
+
+        // 선택적 필드 추출 (타입 가드 적용)
+        const dialogues = (data.Dialogues ?? data.dialogues) as DialogueLine[] | undefined;
+        const currentDialogueId = (data.CurrentDialogueId ?? data.currentDialogueId) as string | null | undefined;
+        const variables = (data.Variables ?? data.variables) as Record<string, NarrativeVarValue> | undefined;
+        const history = (data.History ?? data.history) as string[] | undefined;
+        const maxHistoryLength = (data.MaxHistoryLength ?? data.maxHistoryLength) as number | undefined;
+        const autoMode = (data.AutoMode ?? data.autoMode) as boolean | undefined;
+        const skipMode = (data.SkipMode ?? data.skipMode) as boolean | undefined;
+
+        return new NarrativeModule(id, {
+            dialogues: Array.isArray(dialogues) ? dialogues : [],
+            currentDialogueId: currentDialogueId ?? null,
+            variables: variables && typeof variables === "object" ? variables : {},
+            history: Array.isArray(history) ? history : [],
+            maxHistoryLength: typeof maxHistoryLength === "number" ? maxHistoryLength : 100,
+            autoMode: typeof autoMode === "boolean" ? autoMode : false,
+            skipMode: typeof skipMode === "boolean" ? skipMode : false,
         });
     }
 

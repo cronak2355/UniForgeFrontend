@@ -7,12 +7,13 @@ import { editorCore } from "./EditorCore";
 // events/index.ts를 import하면 DefaultActions와 DefaultConditions가 자동 등록됨
 import { EventBus, RuleEngine } from "./core/events";
 import { KeyboardAdapter } from "./core/events/adapters/KeyboardAdapter";
+import type { EditorModule } from "./types/Module";
 
 const tileSize = 32;
 
 type RuntimeComponent = {
   comp: EditorComponent;
-  target: any;
+  target: Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform;
   initialScale?: { x: number, y: number }; // for Pulse
 };
 
@@ -147,7 +148,7 @@ export class EditorScene extends Phaser.Scene {
         if (!entity.rules || entity.rules.length === 0) return;
 
         // ActionContext 생성
-        const moduleMap: any = {};
+        const moduleMap: Record<string, EditorModule | undefined> = {};
         if (entity.modules) {
           entity.modules.forEach(m => {
             moduleMap[m.type] = m;
@@ -161,7 +162,7 @@ export class EditorScene extends Phaser.Scene {
           globals: { scene: this }
         };
 
-        RuleEngine.handleEvent(event, ctx, entity.rules);
+        RuleEngine.handleEvent(event, ctx as Parameters<typeof RuleEngine.handleEvent>[1], entity.rules);
       });
     });
 

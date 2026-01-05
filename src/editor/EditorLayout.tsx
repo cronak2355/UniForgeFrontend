@@ -3,6 +3,7 @@ import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
 import type { EditorEntity } from "./types/Entity";
+import type { Asset } from "./types/Asset";
 import { EditorCanvas } from "./EditorCanvas";
 import { RunTimeCanvas } from "./RunTimeCanvas";
 import "./styles.css";
@@ -10,18 +11,10 @@ import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCor
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 
+import { colors } from "./constants/colors";
+
 // Entry Style Color Palette
-const colors = {
-    bgPrimary: '#0d1117',      // 메인 배경 (깊은 검정)
-    bgSecondary: '#161b22',    // 패널 배경
-    bgTertiary: '#21262d',     // 호버/입력 배경
-    borderColor: '#30363d',    // 기본 테두리
-    borderAccent: '#1f6feb',   // 파란색 액센트 테두리
-    accentBlue: '#1f6feb',     // 주 파란색
-    accentLight: '#58a6ff',    // 밝은 파란색
-    textPrimary: '#f0f6fc',    // 기본 텍스트
-    textSecondary: '#8b949e',  // 부가 텍스트
-};
+// const colors = { ... } replaced by import
 
 export default function EditorLayout() {
     return (
@@ -43,14 +36,14 @@ function EditorLayoutInner() {
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
 
-    const changeSelectedAssetHandler = (a: any) => {
+    const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
         const ctx: EditorContext = { currentMode: cm, currentSelectedAsset: a ?? undefined, mouse: "mousemove" };
         core.sendContextToEditorModeStateMachine(ctx);
     };
 
-    const changeDraggedAssetHandler = (a: any) => {
+    const changeDraggedAssetHandler = (a: Asset | null) => {
         core.setDraggedAsset(a);
         if (a == null) {
             const cm = new CameraMode();

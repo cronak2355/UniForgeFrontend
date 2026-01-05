@@ -4,6 +4,7 @@ import { GameCore } from "./core/GameCore";
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { TilePlacement } from "./EditorCore";
+import { registerRuntimeEntity, clearRuntimeEntities } from "./core/modules/ModuleFactory";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -103,6 +104,9 @@ export function RunTimeCanvas() {
                     modules: e.modules,
                     rules: e.rules,
                 });
+
+                // 런타임 모듈 인스턴스 등록 (ECA 액션에서 메서드 호출 가능하게)
+                registerRuntimeEntity(e.id, e.type, e.name, e.x, e.y, 0, e.modules);
             }
 
             // 런타임 업데이트 루프 연결 (컴포넌트 처리)
@@ -114,6 +118,7 @@ export function RunTimeCanvas() {
         return () => {
             // 언마운트 시 리소스 정리
             active = false;
+            clearRuntimeEntities(); // 런타임 엔티티 정리
             gameCoreRef.current?.destroy();
             renderer.onUpdateCallback = undefined;
             renderer.onInputState = undefined;
