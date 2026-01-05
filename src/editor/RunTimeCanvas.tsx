@@ -5,6 +5,7 @@ import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { TilePlacement } from "./EditorCore";
 import { registerRuntimeEntity, clearRuntimeEntities } from "./core/modules/ModuleFactory";
+import { GameUIOverlay } from "./ui/GameUIOverlay"; // Import UI
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -190,16 +191,24 @@ export function RunTimeCanvas() {
             </div>
 
             {/* Phaser Canvas Container */}
-            <div
-                ref={ref}
-                style={{
-                    flex: 1,
-                    background: colors.bgPrimary,
-                    border: `2px solid ${colors.borderColor}`,
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                }}
-            />
+            <div style={{ position: 'relative', flex: 1, width: '100%', height: '100%' }}>
+                <div
+                    ref={ref}
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: colors.bgPrimary,
+                        border: `2px solid ${colors.borderColor}`,
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                    }}
+                />
+                {/* Game UI Overlay */}
+                <GameUIOverlay gameCore={gameCoreRef.current} />
+            </div>
         </div>
     );
 }
