@@ -14,6 +14,7 @@ type Props = {
     selected_asset: Asset | null;
     addEntity: (entity: EditorEntity) => void;
     draggedAsset: Asset | null;
+    onExternalImageDrop?: (file: File) => void;
     onSelectEntity?: (entity: EditorEntity) => void;
 };
 
@@ -54,7 +55,7 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const { tiles, entities } = useEditorCoreSnapshot();
@@ -241,7 +242,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                 const id = crypto.randomUUID();
                 const created: EditorEntity = {
                     id,
-                    type: "sprite", // 기본적으로 sprite로 생성 (Asset tag는 "Character" 등이므로 매핑 필요)
+                    type: activeDragged.tag as "sprite" | "container" | "nineSlice",
                     name: activeDragged.name,
                     x: worldX,
                     y: worldY,
@@ -250,7 +251,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
                     modules: [],
                     variables: [],
                     events: [],
-                    rules: [],
+                    rules: []
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
@@ -411,6 +412,18 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset }
             {/* Phaser Canvas Container */}
             <div
                 ref={ref}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                }}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer?.files?.[0];
+                    if (!file) return;
+                    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+                    if (!allowedTypes.has(file.type)) return;
+                    onExternalImageDrop?.(file);
+                }}
                 style={{
                     flex: 1,
                     background: colors.bgPrimary,
