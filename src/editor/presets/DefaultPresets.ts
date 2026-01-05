@@ -61,6 +61,36 @@ export const DefaultPresets: Record<string, EntityPreset> = {
         ]
     },
 
+    // --- 플레이어 (탑다운/RPG) ---
+    "player_topdown": {
+        id: "player_topdown",
+        label: "Player (TopDown/RPG)",
+        description: "8방향 자유 이동이 가능한 RPG 스타일 주인공입니다.",
+        modules: [
+            {
+                type: "Kinetic",
+                id: "kinetic_main",
+                mode: "TopDown",
+                friction: 0.9,
+                maxSpeed: 200,
+                jumpForce: 0,
+                gravity: 0
+            },
+            {
+                type: "Status",
+                id: "status_main",
+                hp: 100,
+                maxHp: 100,
+                mp: 50,
+                maxMp: 50,
+                speed: 1,
+                attack: 10,
+                defense: 5
+            }
+        ],
+        rules: []
+    },
+
     // --- 몬스터 (추적자) ---
     "enemy_chaser": {
         id: "enemy_chaser",

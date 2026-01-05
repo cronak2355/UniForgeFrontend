@@ -1,6 +1,7 @@
 import { EditorMode, CameraMode } from "./editorMode/editorModes";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
+import type { IGameState } from "./core/IGameState";
 
 export interface EditorContext {
     currentMode: EditorMode;
@@ -16,7 +17,7 @@ export type TilePlacement = {
     tile: number;
 };
 
-export class EditorState {
+export class EditorState implements IGameState {
     private assets: Asset[] = [];
     private entities: Map<string, EditorEntity> = new Map();
     private tiles: Map<string, TilePlacement> = new Map();
@@ -49,9 +50,11 @@ export class EditorState {
         this.listeners.forEach(l => l());
     }
 
-    // Getters
+    // Getters (IGameState 구현)
     getAssets() { return this.assets; }
     getEntities() { return this.entities; }
+    getEntity(id: string) { return this.entities.get(id); }
+    hasEntity(id: string) { return this.entities.has(id); }
     getTiles() { return this.tiles; }
     getSelectedAsset() { return this.selectedAsset; }
     getDraggedAsset() { return this.draggedAsset; }

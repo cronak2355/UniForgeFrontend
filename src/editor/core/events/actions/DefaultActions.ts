@@ -1,5 +1,7 @@
 import { ActionRegistry, type ActionContext } from "../ActionRegistry";
-import { Vec3 } from "../../modules/IModule";
+import { EventBus } from "../EventBus";
+import Phaser from "phaser";
+import { editorCore } from "../../../EditorCore";
 
 /**
  * 기본 액션 등록
@@ -9,76 +11,163 @@ import { Vec3 } from "../../modules/IModule";
 // --- Kinetic Actions ---
 
 ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const kinetic = ctx.modules.Kinetic;
-    if (!kinetic) return;
+    const renderer = ctx.globals?.renderer as any;
+    if (!renderer) {
+        console.warn("[Action] Move: No renderer in context");
+        return;
+    }
 
-    // 파라미터에서 방향과 힘을 가져옴
-    // { x: 1, y: 0, speed: 100 }
+    const entityId = ctx.entityId;
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (!gameObject) {
+        console.warn(`[Action] Move: GameObject not found for entity ${entityId}`);
+        return;
+    }
+
+    // 파라미터에서 방향과 속도를 가져옴
     const x = (params.x as number) ?? 0;
     const y = (params.y as number) ?? 0;
-    const speed = (params.speed as number) ?? 0;
+    const speed = (params.speed as number) ?? 200;
+    const dt = 0.016; // 약 60fps 기준
 
-    // 3D 확장성을 위해 z는 0으로 처리하거나 파라미터에서 받음
-    const z = (params.z as number) ?? 0;
+    // 실제 위치 이동
+    gameObject.x += x * speed * dt;
+    gameObject.y += y * speed * dt;
 
-    // 힘이나 속도를 적용 (구현에 따라 다름, 여기서는 position 직접 수정보다 force 적용이 물리적으로 자연스러움)
-    // 하지만 간편한 조작을 위해 speed * direction을 velocity에 더하거나 설정할 수 있음.
-    // KineticModule에 'move' 메서드가 있다면 그것을 사용하는 것이 좋음.
-    // 현재 KineticModule은 update에서 키 입력을 처리하지만, 여기서는 직접 명령을 내림.
+    // EditorCore의 entity 데이터도 업데이트 (동기화)
+    const entity = editorCore.getEntities().get(entityId);
+    if (entity) {
+        entity.x = gameObject.x;
+        entity.y = gameObject.y;
+    }
 
-    // 임시: 위치 직접 이동 (나중에 KineticModule에 move 메서드 추가 권장)
-    /* 
-    kinetic.position = Vec3.add(kinetic.position, {
-        x: x * speed * 0.016, // dt 가정
-        y: y * speed * 0.016, 
-        z: z 
-    });
-    */
-
-    // KineticModule에 run 메서드나 force 적용 메서드가 필요함.
-    // 현재 구현된 KineticModule을 확인해봐야 함. 일단은 로그만 출력.
-    console.log(`[Action] Move: ${x}, ${y} (Speed: ${speed})`);
+    console.log(`[Action] Move: Entity ${entityId} moved to (${gameObject.x.toFixed(1)}, ${gameObject.y.toFixed(1)})`);
 });
 
-ActionRegistry.register("Jump", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const kinetic = ctx.modules.Kinetic;
-    if (!kinetic) return;
-
-    const force = (params.force as number) ?? 500;
-
-    // KineticModule의 jump 메서드 호출
-    if (typeof kinetic.jump === 'function') {
-        kinetic.jump(force);
-    }
+ActionRegistry.register("Jump", (_ctx: ActionContext, _params: Record<string, unknown>) => {
+    // Jump 액션은 더 이상 위치를 직접 변경하지 않습니다.
+    // update() 루프의 물리 엔진이 모든 점프를 처리합니다.
+    // 이 액션은 EAC 규칙 호환성을 위해 로그만 출력합니다.
+    console.log(`[Action] Jump: Handled by physics engine (not direct position change)`);
 });
 
 // --- Combat Actions ---
 
 ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const combat = ctx.modules.Combat;
-    if (!combat) return;
+    const renderer = ctx.globals?.renderer as any;
+    if (!renderer) return;
 
-    // 타겟 위치가 있다면 거기로 공격
-    const targetX = params.targetX as number | undefined;
-    const targetY = params.targetY as number | undefined;
+    const attackerId = ctx.entityId;
+    const attackerObj = renderer.getGameObject?.(attackerId);
+    if (!attackerObj) return;
 
-    if (targetX !== undefined && targetY !== undefined) {
-        combat.attack(Vec3.create(targetX, targetY, 0));
-    } else {
-        // 타겟 없으면 정면 공격 등 기본 동작
-        // 예: 현재 보는 방향으로
-        combat.attack(Vec3.create(1, 0, 0)); // 임시
+    const range = (params.range as number) ?? 100;
+    const damage = (params.damage as number) ?? 10;
+
+    // 다른 엔티티들과 거리 검사
+    const allIds = renderer.getAllEntityIds?.() || [];
+    for (const id of allIds) {
+        if (id === attackerId) continue;
+
+        const targetObj = renderer.getGameObject?.(id);
+        if (!targetObj) continue;
+
+        const distance = Phaser.Math.Distance.Between(
+            attackerObj.x, attackerObj.y,
+            targetObj.x, targetObj.y
+        );
+
+        if (distance <= range) {
+            EventBus.emit("ATTACK_HIT", { targetId: id, damage, attackerId });
+            console.log(`[Action] Attack hit: ${id} for ${damage} damage`);
+        }
     }
 });
 
 // --- Status Actions ---
 
 ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const status = ctx.modules.Status;
-    if (!status) return;
+    const status = ctx.modules.Status as any;
+    if (!status) {
+        console.warn("[Action] TakeDamage: No Status module");
+        return;
+    }
 
     const amount = (params.amount as number) ?? 1;
-    status.takeDamage(amount);
+
+    if (typeof status.takeDamage === 'function') {
+        status.takeDamage(amount);
+    } else {
+        // 직접 HP 감소 (데이터 모듈인 경우)
+        if (status.hp !== undefined) {
+            status.hp = Math.max(0, status.hp - amount);
+            console.log(`[Action] TakeDamage: HP reduced to ${status.hp}`);
+
+            if (status.hp <= 0) {
+                EventBus.emit("ENTITY_DIED", { entityId: ctx.entityId });
+            }
+        }
+    }
 });
 
-console.log("[DefaultActions] Actions registered.");
+ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const status = ctx.modules.Status as any;
+    if (!status) return;
+
+    const amount = (params.amount as number) ?? 10;
+
+    if (typeof status.heal === 'function') {
+        status.heal(amount);
+    } else if (status.hp !== undefined && status.maxHp !== undefined) {
+        status.hp = Math.min(status.maxHp, status.hp + amount);
+        console.log(`[Action] Heal: HP increased to ${status.hp}`);
+    }
+});
+
+ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer as any;
+    if (!renderer) return;
+
+    const entityId = ctx.entityId;
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (!gameObject) return;
+
+    const speed = (params.speed as number) ?? 90; // deg/sec
+    const dt = 0.016;
+
+    gameObject.rotation += Phaser.Math.DegToRad(speed * dt);
+
+    // EditorCore 동기화
+    const entity = editorCore.getEntities().get(entityId);
+    if (entity) {
+        entity.rotation += Phaser.Math.DegToRad(speed * dt);
+        gameObject.rotation = entity.rotation;
+    }
+});
+
+ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer as any;
+    if (!renderer) return;
+
+    const entityId = ctx.entityId;
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (!gameObject) return;
+
+    const speed = (params.speed as number) ?? 2;
+    const min = (params.minScale as number) ?? 0.8;
+    const max = (params.maxScale as number) ?? 1.2;
+
+    const time = performance.now() * 0.001;
+    const t = Math.sin(time * speed) * 0.5 + 0.5;
+    const scale = min + (max - min) * t;
+
+    gameObject.setScale(scale);
+
+    const entity = editorCore.getEntities().get(entityId);
+    if (entity) {
+        entity.scaleX = scale;
+        entity.scaleY = scale;
+    }
+});
+
+console.log("[DefaultActions] Actions registered with runtime support.");

@@ -63,6 +63,10 @@ export function RunTimeCanvas() {
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;
+        renderer.useEditorCoreRuntimePhysics = false;
+        renderer.onInputState = (input) => {
+            gameCore.setInputState(input);
+        };
 
         let active = true;
 
@@ -96,6 +100,8 @@ export function RunTimeCanvas() {
                     texture: e.name,
                     variables: e.variables,
                     components: e.components,
+                    modules: e.modules,
+                    rules: e.rules,
                 });
             }
 
@@ -110,6 +116,7 @@ export function RunTimeCanvas() {
             active = false;
             gameCoreRef.current?.destroy();
             renderer.onUpdateCallback = undefined;
+            renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
             gameCoreRef.current = null;

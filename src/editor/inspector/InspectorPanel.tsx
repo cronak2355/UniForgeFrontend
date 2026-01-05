@@ -8,11 +8,10 @@ import { ModuleSection } from "./ModuleSection";
 // TransformEditor가 없으므로 간단히 숫자 입력 필드로 대체하거나 생략.
 // 여기서는 기본 Transform UI를 직접 구현합니다.
 
-type Props = {
-  entity: EditorEntity | null;
-  onUpdateEntity: (entity: EditorEntity) => void;
-};
-
+interface Props {
+  entity: EditorEntity;
+  onUpdateEntity: (next: EditorEntity) => void;
+}
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
 
@@ -146,29 +145,13 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             onChange={(e) => updateTransform('y', parseFloat(e.target.value))}
           />
         </div>
-        <div style={{ marginBottom: "16px" }}>
-          <ComponentSection
-            components={entity.components || []}
-            onAdd={(comp) => {
-              onUpdateEntity({
-                ...entity,
-                components: [...(entity.components || []), comp],
-              });
-            }}
-            onUpdate={(updatedComp) => {
-              onUpdateEntity({
-                ...entity,
-                components: (entity.components || []).map((c) =>
-                  c.id === updatedComp.id ? updatedComp : c
-                ),
-              });
-            }}
-            onDelete={(id) => {
-              onUpdateEntity({
-                ...entity,
-                components: (entity.components || []).filter((c) => c.id !== id),
-              });
-            }}
+        <div style={rowStyle}>
+          <span style={labelStyle}>Z</span>
+          <input
+            type="number"
+            style={inputStyle}
+            value={localEntity.z}
+            onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
           />
         </div>
       </div>

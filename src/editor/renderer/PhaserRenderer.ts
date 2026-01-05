@@ -1,12 +1,11 @@
-/**
- * PhaserRenderer - Phaser 전용 IRenderer 구현체
- * 
- * 모든 Phaser API 호출을 이 클래스 내부로 격리합니다.
- * z축 값은 Phaser의 setDepth()로 매핑됩니다.
- */
-
 import Phaser from "phaser";
 import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer";
+// EAC 시스템 import
+import { EventBus, RuleEngine } from "../core/events";
+import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
+import { editorCore } from "../EditorCore";
+// 물리 엔진 (엔진 독립적)
+import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
 
 /**
  * Phaser 씬 내부 클래스
@@ -14,18 +13,115 @@ import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer"
  */
 class PhaserRenderScene extends Phaser.Scene {
     public phaserRenderer!: PhaserRenderer;
+    private _keyboardAdapter!: KeyboardAdapter;
+
+    // RPG 스타일 이동을 위한 키 상태
+    private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+    private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
+    private spaceKey!: Phaser.Input.Keyboard.Key;
 
     constructor() {
         super("PhaserRenderScene");
     }
 
     create() {
+        console.log("[PhaserRenderScene] create() called");
+
+        // RPG 이동용 키 생성
+        if (this.input.keyboard) {
+            this.cursors = this.input.keyboard.createCursorKeys();
+            this.wasd = {
+                W: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+                A: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+                S: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+                D: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+            };
+            // 스페이스바 별도 생성 (JustDown 호환성)
+            this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        }
+
+        // EAC 시스템 초기화 (이벤트 기반 액션용)
+        this._keyboardAdapter = new KeyboardAdapter(this);
+
+        // EventBus에 리스너 등록
+        EventBus.on((event) => {
+            editorCore.getEntities().forEach((entity) => {
+                if (!entity.rules || entity.rules.length === 0) return;
+
+                const moduleMap: any = {};
+                if (entity.modules) {
+                    entity.modules.forEach(m => {
+                        moduleMap[m.type] = m;
+                    });
+                }
+
+                const ctx = {
+                    entityId: entity.id,
+                    modules: moduleMap,
+                    eventData: event.data || {},
+                    globals: {
+                        scene: this,
+                        renderer: this.phaserRenderer
+                    }
+                };
+
+                RuleEngine.handleEvent(event, ctx, entity.rules);
+            });
+        });
+
+        console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
+
         // 씬 준비 완료 알림
         this.phaserRenderer.onSceneReady();
     }
 
+    // 물리 상태는 RuntimePhysics에서 관리됨
+
     update(time: number, delta: number) {
+        // 부모 업데이트 호출
         this.phaserRenderer.onUpdate(time, delta);
+
+        // 키보드가 초기화되지 않았으면 스킵
+        if (!this.cursors || !this.wasd) return;
+
+        const dt = delta / 1000; // 초 단위
+
+        // 입력 상태 수집 (엔진 독립적)
+        const input: InputState = {
+            left: this.cursors.left.isDown || this.wasd.A.isDown,
+            right: this.cursors.right.isDown || this.wasd.D.isDown,
+            up: this.cursors.up.isDown || this.wasd.W.isDown,
+            down: this.cursors.down.isDown || this.wasd.S.isDown,
+            jump: (this.spaceKey?.isDown === true) ||
+                (this.cursors?.up?.isDown === true) ||
+                (this.wasd?.W?.isDown === true)
+        };
+        this.phaserRenderer.onInputState?.(input);
+
+        if (!this.phaserRenderer.useEditorCoreRuntimePhysics) {
+            return;
+        }
+
+        // Kinetic 모듈을 가진 엔티티만 업데이트
+        editorCore.getEntities().forEach((entity) => {
+            // Kinetic 모듈이 없으면 스킵
+            const hasKinetic = entity.modules?.some(m => m.type === "Kinetic");
+            if (!hasKinetic) return;
+
+            const gameObject = this.phaserRenderer.getGameObject(entity.id) as Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite | null;
+            if (!gameObject) return;
+
+            // RuntimePhysics로 물리 계산 (엔진 독립적)
+            const result = runtimePhysics.updateEntity(entity, dt, input);
+
+            // 결과를 게임 오브젝트에 적용
+            gameObject.x = result.x;
+            gameObject.y = result.y;
+
+            // EditorCore 엔티티 데이터 동기화
+            entity.x = result.x;
+            entity.y = result.y;
+        });
     }
 }
 
@@ -40,7 +136,7 @@ class PhaserRenderScene extends Phaser.Scene {
 export class PhaserRenderer implements IRenderer {
     private game: Phaser.Game | null = null;
     private scene: PhaserRenderScene | null = null;
-    private container: HTMLElement | null = null;
+    private _container: HTMLElement | null = null;
 
     // ===== 엔티티 관리 - ID 동기화 보장 =====
     private entities: Map<string, Phaser.GameObjects.GameObject> = new Map();
@@ -71,11 +167,13 @@ export class PhaserRenderer implements IRenderer {
     onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
     onScroll?: (deltaY: number) => void;
     onUpdateCallback?: (time: number, delta: number) => void;
+    onInputState?: (input: InputState) => void;
+    useEditorCoreRuntimePhysics = true;
 
     // ===== Lifecycle =====
 
     async init(container: HTMLElement): Promise<void> {
-        this.container = container;
+        this._container = container;
 
         const scene = new PhaserRenderScene();
         scene.phaserRenderer = this;
@@ -172,7 +270,7 @@ export class PhaserRenderer implements IRenderer {
         }
 
         // 6. 컨테이너 참조 해제
-        this.container = null;
+        this._container = null;
 
         // 7. 콜백 해제
         this.onEntityClick = undefined;
@@ -240,6 +338,13 @@ export class PhaserRenderer implements IRenderer {
         return Array.from(this.entities.keys());
     }
 
+    /**
+     * ID로 게임 오브젝트 반환 (Actions에서 사용)
+     */
+    getGameObject(id: string): Phaser.GameObjects.GameObject | null {
+        return this.entities.get(id) ?? null;
+    }
+
     update(id: string, x: number, y: number, z?: number, rotation?: number): void {
         const obj = this.entities.get(id);
         if (!obj) {
@@ -256,6 +361,45 @@ export class PhaserRenderer implements IRenderer {
 
         if (rotation !== undefined) {
             gameObj.setAngle(rotation);
+        }
+    }
+
+    setScale(id: string, scaleX: number, scaleY: number, _scaleZ?: number): void {
+        const obj = this.entities.get(id);
+        if (!obj) {
+            console.warn(`[PhaserRenderer] Cannot set scale: entity "${id}" not found`);
+            return;
+        }
+
+        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform;
+        if (typeof gameObj.setScale === "function") {
+            gameObj.setScale(scaleX, scaleY);
+        }
+    }
+
+    setAlpha(id: string, alpha: number): void {
+        const obj = this.entities.get(id);
+        if (!obj) {
+            console.warn(`[PhaserRenderer] Cannot set alpha: entity "${id}" not found`);
+            return;
+        }
+
+        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Alpha;
+        if (typeof gameObj.setAlpha === "function") {
+            gameObj.setAlpha(alpha);
+        }
+    }
+
+    setTint(id: string, color: number): void {
+        const obj = this.entities.get(id);
+        if (!obj) {
+            console.warn(`[PhaserRenderer] Cannot set tint: entity "${id}" not found`);
+            return;
+        }
+
+        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Tint;
+        if (typeof gameObj.setTint === "function") {
+            gameObj.setTint(color);
         }
     }
 

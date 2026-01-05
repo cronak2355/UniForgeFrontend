@@ -83,6 +83,21 @@ export interface IRenderer {
     update(id: string, x: number, y: number, z?: number, rotation?: number): void;
 
     /**
+     * 스케일 변경
+     */
+    setScale(id: string, scaleX: number, scaleY: number, scaleZ?: number): void;
+
+    /**
+     * 알파(투명도) 변경 (0~1)
+     */
+    setAlpha(id: string, alpha: number): void;
+
+    /**
+     * 틴트(색상) 변경
+     */
+    setTint(id: string, color: number): void;
+
+    /**
      * 엔티티 제거
      * @param id 엔티티 ID
      */

@@ -4,8 +4,8 @@ import type { EditorEntity } from "./types/Entity";
 import type { EditorState, EditorContext } from "./EditorCore";
 import type { EditorComponent, AutoRotateComponent, PulseComponent } from "./types/Component";
 import { editorCore } from "./EditorCore";
-import { EventBus } from "./core/events/EventBus";
-import { RuleEngine } from "./core/events/RuleEngine";
+// events/index.ts를 import하면 DefaultActions와 DefaultConditions가 자동 등록됨
+import { EventBus, RuleEngine } from "./core/events";
 import { KeyboardAdapter } from "./core/events/adapters/KeyboardAdapter";
 
 const tileSize = 32;
@@ -26,7 +26,7 @@ export class EditorScene extends Phaser.Scene {
   private map!: Phaser.Tilemaps.Tilemap;
   private tileset!: Phaser.Tilemaps.Tileset;
   // private transformGizmo!: TransformGizmo;
-  private keyboardAdapter!: KeyboardAdapter;
+  private _keyboardAdapter!: KeyboardAdapter;
   private gridGfx!: Phaser.GameObjects.Graphics;
 
   public baselayer!: Phaser.Tilemaps.TilemapLayer;
@@ -129,6 +129,7 @@ export class EditorScene extends Phaser.Scene {
   // create
   // -----------------------
   create() {
+    console.log("[EditorScene] create() called - starting initialization");
     this.ready = true;
 
     this.gridGfx = this.add.graphics();
@@ -136,6 +137,36 @@ export class EditorScene extends Phaser.Scene {
 
     this.entityGroup = this.add.group();
     this.assetGroup = this.add.group();
+
+    // --- EAC 시스템 초기화 (타일맵 로드와 무관하게 즉시 초기화) ---
+    this._keyboardAdapter = new KeyboardAdapter(this);
+
+    EventBus.on((event) => {
+      // 씬에 있는 모든 엔티티에 대해 룰 체크
+      editorCore.getEntities().forEach((entity) => {
+        if (!entity.rules || entity.rules.length === 0) return;
+
+        // ActionContext 생성
+        const moduleMap: any = {};
+        if (entity.modules) {
+          entity.modules.forEach(m => {
+            moduleMap[m.type] = m;
+          });
+        }
+
+        const ctx = {
+          entityId: entity.id,
+          modules: moduleMap,
+          eventData: event.data || {},
+          globals: { scene: this }
+        };
+
+        RuleEngine.handleEvent(event, ctx, entity.rules);
+      });
+    });
+
+    console.log("[EditorScene] EAC System initialized");
+    // --- EAC 끝 ---
 
     const getCanvasPos = (clientX: number, clientY: number) => {
 
@@ -328,34 +359,6 @@ export class EditorScene extends Phaser.Scene {
         window.removeEventListener("wheel", onWinWheel);
       });
 
-      // --- EAC 시스템 초기화 ---
-      this.keyboardAdapter = new KeyboardAdapter(this);
-
-      EventBus.on((event) => {
-        // 씬에 있는 모든 엔티티에 대해 룰 체크
-        // editorCore.getEntities()는 Map<string, EditorEntity>을 반환
-        editorCore.getEntities().forEach((entity) => {
-          if (!entity.rules || entity.rules.length === 0) return;
-
-          // ActionContext 생성
-          const moduleMap: any = {};
-          if (entity.modules) {
-            entity.modules.forEach(m => {
-              moduleMap[m.type] = m;
-            });
-          }
-
-          const ctx = {
-            entityId: entity.id,
-            modules: moduleMap,
-            eventData: event.data || {},
-            globals: { scene: this }
-          };
-
-          RuleEngine.handleEvent(event, ctx);
-        });
-      });
-
       this.ready = true;
     });
   }
@@ -521,8 +524,8 @@ export class EditorScene extends Phaser.Scene {
       x: transform.x ?? world.x,
       y: transform.y ?? world.y,
       z: 0,
-      variables: {},
-      events: {},
+      variables: [],
+      events: [],
       components: [],
       rules: [],
       modules: [],
