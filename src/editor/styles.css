@@ -1,0 +1,104 @@
+/* UniForge Editor Styles */
+
+/* Gradient text for branding */
+.gradient-text {
+    background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+}
+
+/* Custom scrollbar for editor panels */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #16213e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4a4a6a;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #5b5b7b;
+}
+
+/* Panel item hover effects */
+.panel-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.panel-item:hover {
+    background-color: rgba(122, 58, 237, 0.1);
+}
+
+.panel-item.selected {
+    background-color: rgba(122, 58, 237, 0.2);
+    border-left: 2px solid #7c3aed;
+}
+
+/* Button styles */
+.editor-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.editor-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+.editor-button:active {
+    transform: translateY(0);
+}
+
+/* Input field styles */
+.editor-input {
+    padding: 8px 12px;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #e8e8e8;
+    font-size: 13px;
+    transition: border-color 0.2s ease;
+}
+
+.editor-input:focus {
+    outline: none;
+    border-color: #7c3aed;
+}
+
+/* Asset card styles */
+.asset-card {
+    border-radius: 8px;
+    overflow: hidden;
+    background: #16213e;
+    border: 1px solid #2d2d44;
+    transition: all 0.2s ease;
+}
+
+.asset-card:hover {
+    border-color: #7c3aed;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.asset-card.selected {
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.3);
+}

@@ -1,9 +1,8 @@
-// src/App.tsx
-
+import "./App.css";
+import EditorLayout from "./editor/EditorLayout";
 import { AssetsEditorPage } from './AssetsEditor';
-import './App.css';
 
-function App() {
+export default function App() {
   return <AssetsEditorPage />;
 }
 
