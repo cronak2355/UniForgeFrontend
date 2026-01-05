@@ -96,8 +96,7 @@ function EditorLayoutInner() {
 
         if (import.meta.env.DEV) {
             const assetUrl = URL.createObjectURL(dropModalFile);
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+            const nextId = assetId;
 
             core.addAsset({
                 id: nextId,
@@ -153,8 +152,7 @@ function EditorLayoutInner() {
                 presignData.url ||
                 uploadUrl.split("?")[0];
 
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+            const nextId = assetId;
 
             core.addAsset({
                 id: nextId,

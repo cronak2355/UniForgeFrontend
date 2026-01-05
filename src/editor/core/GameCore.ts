@@ -397,7 +397,7 @@ export class GameCore {
             if (comp.trigger) {
                 this.triggerRuntimes.push({
                     entityId: entity.id,
-                    component: comp, // 🔥 Trigger를 가진 "컴포넌트"
+                    component: comp.trigger, // 🔥 Trigger를 가진 "컴포넌트"
                     triggered: false,
                 });
             }

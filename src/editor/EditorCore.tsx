@@ -32,10 +32,10 @@ export class EditorState implements IGameState {
 
     constructor() {
         this.assets = [
-            { id: 0, name: "test1", tag: "Tile", url: "TestAsset.webp", idx: -1 },
-            { id: 1, name: "test2", tag: "Tile", url: "TestAsset2.webp", idx: -1 },
-            { id: 2, name: "test3", tag: "Tile", url: "TestAsset3.webp", idx: -1 },
-            { id: 3, name: "dragon", tag: "Character", url: "RedDragon.webp", idx: -1 },
+            { id: "roadsf-jdfkf-dkjfd-di923", name: "test1", tag: "Tile", url: "TestAsset.webp", idx: -1 },
+            { id: "roadsf-jdfkf-dkjfd-1124s", name: "test2", tag: "Tile", url: "TestAsset2.webp", idx: -1 },
+            { id: "roadsf-jdfkf-dkjfd-123xs", name: "test3", tag: "Tile", url: "TestAsset3.webp", idx: -1 },
+            { id: "roadsf-jdfkf-dkjfd-32sad", name: "dragon", tag: "Character", url: "RedDragon.webp", idx: -1 },
         ];
 
         // 데모용 초기 엔티티 - 플레이어
