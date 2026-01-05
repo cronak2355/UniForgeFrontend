@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://uniforge.kr'; // import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = 'https://uniforge.kr/api'; // Hardcoded for production
 
 export interface User {
     id: string;
