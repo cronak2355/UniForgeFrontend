@@ -93,6 +93,23 @@ function EditorLayoutInner() {
             setUploadError("Name is required.");
             return;
         }
+
+        if (import.meta.env.DEV) {
+            const assetUrl = URL.createObjectURL(dropModalFile);
+            const nextId =
+                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+
+            core.addAsset({
+                id: nextId,
+                tag: dropAssetTag,
+                name,
+                url: assetUrl,
+                idx: -1,
+            });
+
+            resetDropModal();
+            return;
+        }
         setIsUploadingAsset(true);
         setUploadError("");
 
