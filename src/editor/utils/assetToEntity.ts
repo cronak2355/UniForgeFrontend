@@ -12,7 +12,17 @@ export function assetToEntity(
     name: asset.name,
     x,
     y,
+    z: 0,
+    rotation: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    scaleX: 1,
+    scaleY: 1,
     variables: [],
     events: [],
+    components: [],
+    rules: [],
+    modules: [],
   };
 }

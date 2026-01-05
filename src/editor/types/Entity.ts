@@ -16,7 +16,10 @@ export interface EditorEntity {
     x: number;
     y: number;
     z: number;
-    rotation: number;      // radians
+    rotation: number;      // legacy Z rotation (radians)
+    rotationX: number;
+    rotationY: number;
+    rotationZ: number;
     scaleX: number;
     scaleY: number;
 

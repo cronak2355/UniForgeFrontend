@@ -233,6 +233,49 @@ export class GameCore {
     }
 
     /**
+     * 외부 편집기에서 전달된 Transform을 동기화
+     */
+    setEntityTransform(
+        id: string,
+        next: {
+            x: number;
+            y: number;
+            z: number;
+            rotationX?: number;
+            rotationY?: number;
+            rotationZ?: number;
+            scaleX: number;
+            scaleY: number;
+            scaleZ?: number;
+        }
+    ): void {
+        const entity = this.entities.get(id);
+        if (!entity) {
+            console.warn(`[GameCore] Cannot set transform: entity "${id}" not found`);
+            return;
+        }
+
+        entity.x = next.x;
+        entity.y = next.y;
+        entity.z = next.z;
+        if (next.rotationX !== undefined) entity.rotationX = next.rotationX;
+        if (next.rotationY !== undefined) entity.rotationY = next.rotationY;
+        if (next.rotationZ !== undefined) entity.rotationZ = next.rotationZ;
+        entity.scaleX = next.scaleX;
+        entity.scaleY = next.scaleY;
+        if (next.scaleZ !== undefined) entity.scaleZ = next.scaleZ;
+
+        const kinetic = this.getModuleByType<KineticModule>(id, "Kinetic");
+        if (kinetic) {
+            kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
+        }
+
+        this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
+        this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        this.notify();
+    }
+
+    /**
      * 엔티티 회전
      */
     rotateEntity(id: string, rotation: number): void {

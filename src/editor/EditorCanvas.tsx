@@ -146,6 +146,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: e.name,
                     variables: e.variables,
                     components: [],
+                    rotationX: e.rotationX ?? 0,
+                    rotationY: e.rotationY ?? 0,
+                    rotationZ: e.rotationZ ?? e.rotation ?? 0,
+                    scaleX: e.scaleX ?? 1,
+                    scaleY: e.scaleY ?? 1,
+                    scaleZ: 1,
                 });
             }
 
@@ -272,6 +278,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     events: [],
                     rules: [],
                     rotation: 0,
+                    rotationX: 0,
+                    rotationY: 0,
+                    rotationZ: 0,
                     scaleX: 1,
                     scaleY: 1,
                 };
@@ -379,9 +388,25 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: ent.name,
                     variables: ent.variables,
                     components: [],
+                    rotationX: ent.rotationX ?? 0,
+                    rotationY: ent.rotationY ?? 0,
+                    rotationZ: ent.rotationZ ?? ent.rotation ?? 0,
+                    scaleX: ent.scaleX ?? 1,
+                    scaleY: ent.scaleY ?? 1,
+                    scaleZ: 1,
                 });
             } else {
-                gameCore.moveEntity(ent.id, ent.x, ent.y);
+                gameCore.setEntityTransform(ent.id, {
+                    x: ent.x,
+                    y: ent.y,
+                    z: ent.z ?? 0,
+                    rotationX: ent.rotationX ?? 0,
+                    rotationY: ent.rotationY ?? 0,
+                    rotationZ: ent.rotationZ ?? ent.rotation ?? 0,
+                    scaleX: ent.scaleX ?? 1,
+                    scaleY: ent.scaleY ?? 1,
+                    scaleZ: 1,
+                });
             }
         }
     }, [entities]);

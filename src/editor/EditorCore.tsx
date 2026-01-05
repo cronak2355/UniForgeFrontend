@@ -53,6 +53,9 @@ export class EditorState implements IGameState {
             components: [],
             rules: [],
             rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
             scaleX: 1,
             scaleY: 1,
             modules: [
@@ -103,6 +106,9 @@ export class EditorState implements IGameState {
             components: [],
             rules: [],
             rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
             scaleX: 1,
             scaleY: 1,
             modules: [
