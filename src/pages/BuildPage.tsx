@@ -471,9 +471,26 @@ function UnityBuildPanel() {
             <h2>유니티로 전환</h2>
             <p>웹 설정 없이 Unity에서 바로 빌드합니다.</p>
 
-            <button style={styles.buildButton}>
+            <button style={styles.buildButton} onClick={() => sendToUnity(buildJson)}>
                 Unity로 빌드 설정 전송
             </button>
         </div>
     );
 }
+async function sendToUnity(jsonData: any) {
+    try {
+      const res = await fetch("http://localhost:7777/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(jsonData),
+      });
+  
+      if (!res.ok) throw new Error("Unity 연결 실패");
+  
+      alert("Unity로 전송 완료!");
+    } catch (e) {
+      alert("Unity가 실행 중인지 확인하세요.");
+    }
+  }
