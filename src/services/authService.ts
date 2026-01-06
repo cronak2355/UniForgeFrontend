@@ -104,7 +104,7 @@ class AuthService {
     }
 
     getGoogleLoginUrl(): string {
-        return `${API_BASE_URL}/oauth2/authorization/google`;
+        return `${API_BASE_URL}/api/oauth2/authorization/google`;
     }
 }
 
