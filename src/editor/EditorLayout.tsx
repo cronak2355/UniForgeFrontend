@@ -71,12 +71,12 @@ function EditorLayoutInner() {
 
     useEffect(() => {
         if (mode !== "run") return;
-        const id = selectedEntity?.id ?? localSelectedEntity?.id;
+        const id = selectedEntity?.id;
         if (!id) return;
         const latest = core.getEntities().get(id);
         if (!latest) return;
         setLocalSelectedEntity(latest);
-    }, [mode, entities, selectedEntity, localSelectedEntity, core]);
+    }, [mode, selectedEntity, core]);
 
     const resetDropModal = () => {
         setDropModalFile(null);
@@ -245,6 +245,38 @@ function EditorLayoutInner() {
                                         backup.set(id, JSON.parse(JSON.stringify(entity)));
                                     });
                                     entityBackupRef.current = backup;
+                                    core.setSelectedEntity(null);
+                                    setLocalSelectedEntity(null);
+                                    const entitiesList = Array.from(core.getEntities().values());
+                                    const preferred =
+                                        entitiesList.find((entity) => entity.role === "player") ??
+                                        entitiesList[0] ??
+                                        null;
+                                    if (preferred) {
+                                        core.setSelectedEntity(preferred as any);
+                                        setLocalSelectedEntity(preferred as any);
+                                    }
+                                    console.log(
+                                        "[Run] Entities snapshot:",
+                                        Array.from(core.getEntities().values()).map((entity) => ({
+                                            id: entity.id,
+                                            name: entity.name,
+                                            type: entity.type,
+                                            x: entity.x,
+                                            y: entity.y,
+                                            z: entity.z,
+                                            rotation: entity.rotation,
+                                            rotationX: entity.rotationX,
+                                            rotationY: entity.rotationY,
+                                            rotationZ: entity.rotationZ,
+                                            scaleX: entity.scaleX,
+                                            scaleY: entity.scaleY,
+                                            role: entity.role,
+                                            variables: entity.variables,
+                                            components: entity.components,
+                                            rules: entity.rules,
+                                        }))
+                                    );
                                     setRunSession((v) => v + 1);
                                 } else {
                                     // Restore entity state from backup
@@ -414,7 +446,12 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                        <RunTimeCanvas key={`run-${runSession}`} />
+                        <RunTimeCanvas
+                            key={`run-${runSession}`}
+                            onRuntimeEntitySync={(runtimeEntity) => {
+                                setLocalSelectedEntity(runtimeEntity);
+                            }}
+                        />
                     )}
                 </div>
 

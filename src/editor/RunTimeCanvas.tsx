@@ -4,6 +4,7 @@ import { GameCore } from "./core/GameCore";
 import { GameUIOverlay } from "./ui/GameUIOverlay"; // Import UI Overlay
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
+import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
 import { defaultGameConfig } from "./core/GameConfig";
 
@@ -64,7 +65,11 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function RunTimeCanvas() {
+type RunTimeCanvasProps = {
+    onRuntimeEntitySync?: (entity: EditorEntity) => void;
+};
+
+export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
@@ -200,7 +205,11 @@ export function RunTimeCanvas() {
                     editorEntity.scaleZ === nextEntity.scaleZ;
                 if (sameVars && sameTransform) return;
 
-                core.addEntity(nextEntity as any);
+                if (onRuntimeEntitySync) {
+                    onRuntimeEntitySync(nextEntity as any);
+                } else {
+                    core.addEntity(nextEntity as any);
+                }
             };
         })();
 

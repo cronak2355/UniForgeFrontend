@@ -106,6 +106,7 @@ export class GameCore {
     private runtimeContext = new RuntimeContext();
     private eventHandler?: (event: import("./events/EventBus").GameEvent) => void;
     private variableSnapshots: Map<string, Map<string, unknown>> = new Map();
+    private startedComponents: Set<string> = new Set();
     private groundY = 500;
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
@@ -353,6 +354,11 @@ export class GameCore {
         // 3. 濡쒖뺄 ?곹깭?먯꽌 ?쒓굅
         this.entities.delete(id);
         this.variableSnapshots.delete(id);
+        for (const key of this.startedComponents) {
+            if (key.startsWith(`${id}:`)) {
+                this.startedComponents.delete(key);
+            }
+        }
 
         // 4. 援щ룆???뚮┝
         this.notify();
@@ -630,7 +636,7 @@ export class GameCore {
         const comp = runtime.component;
 
         // 1截뤴깵 ?몃━嫄??먮퀎
-        if (!this.matchTrigger(comp.trigger, entity, time, dt)) return;
+        if (!this.matchTrigger(comp.trigger, entity, time, dt, comp.id)) return;
 
         // 2截뤴깵 議곌굔 ?먮퀎
         if (!this.matchCondition(comp.condition, entity)) return;
@@ -719,7 +725,8 @@ export class GameCore {
         trigger: Trigger | undefined,
         entity: GameEntity,
         time: number,
-        dt: number
+        dt: number,
+        componentId?: string
     ): boolean {
         if (!trigger) return true;
 
@@ -728,7 +735,19 @@ export class GameCore {
                 return true;
 
             case "OnStart":
-                return time === 0;
+                if (!componentId) return false;
+                {
+                    const key = `${entity.id}:${componentId}`;
+                    if (this.startedComponents.has(key)) return false;
+                    this.startedComponents.add(key);
+                    console.log("[OnStart] component triggered", {
+                        entityId: entity.id,
+                        componentId,
+                        name: entity.name,
+                        type: entity.type,
+                    });
+                    return true;
+                }
 
             case "VariableOnChanged": {
                 const name = trigger.params?.name as string | undefined;
@@ -782,6 +801,7 @@ export class GameCore {
         this.componentRuntimes = [];
         collisionSystem.clear();
         this.variableSnapshots.clear();
+        this.startedComponents.clear();
         this.listeners.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");

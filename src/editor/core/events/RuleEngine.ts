@@ -67,6 +67,12 @@ class RuleEngineClass {
         if (matchingRules.length === 0) return;
 
         for (const rule of matchingRules) {
+            if (event.type === "OnStart") {
+                console.log("[OnStart] rule triggered", {
+                    entityId: ctx.entityId,
+                    event: rule.event,
+                });
+            }
             const logic = rule.conditionLogic ?? "AND";
             let passed = true;
             if (rule.conditions && rule.conditions.length > 0) {
