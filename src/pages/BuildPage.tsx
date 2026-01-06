@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { UnitySceneExporter } from "../editor/core/UnitySceneExport";
+import { EditorState } from "../editor/EditorCore";
 
 type BuildMode = "unity" | "library";
 
@@ -33,6 +35,14 @@ interface TagInputProps {
     tags: string[];
     onChange: (tags: string[]) => void;
 }
+
+interface UnityBuildPanelProps {
+    editorState: EditorState;
+}
+
+// ✅ 싱글톤 인스턴스
+export const editorState = new EditorState();
+
 
 export function TagInput({ tags, onChange }: TagInputProps) {
     const [input, setInput] = useState("");
@@ -287,7 +297,6 @@ export default function BuildPage() { // 메인
     const navigate = useNavigate();
 
     const [buildMode, setBuildMode] = useState<BuildMode>("library");
-
     // Library Build 옵션 상태
     const [marketEnabled, setMarketEnabled] = useState(true);
     const [rankingEnabled, setRankingEnabled] = useState(false);
@@ -387,7 +396,9 @@ export default function BuildPage() { // 메인
             </header>
 
             {/* --- MAIN CONTENT --- */}
-            {buildMode === "unity" && <UnityBuildPanel />}
+            {buildMode === "unity" && (
+                <UnityBuildPanel editorState={editorState} />
+            )}
 
             {buildMode === "library" && (
                 <LibraryBuildPanel
@@ -465,13 +476,17 @@ function LibraryBuildPanel({
         </div>
     );
 }
-function UnityBuildPanel() {
+function UnityBuildPanel({ editorState }: UnityBuildPanelProps) {
+    const handleSend = async () => {
+        const buildJson = UnitySceneExporter.export(editorState);
+        await sendToUnity(buildJson);
+    };
     return (
         <div style={{ padding: 64 }}>
             <h2>유니티로 전환</h2>
             <p>웹 설정 없이 Unity에서 바로 빌드합니다.</p>
 
-            <button style={styles.buildButton} onClick={() => sendToUnity(buildJson)}>
+            <button style={styles.buildButton} onClick={handleSend}>
                 Unity로 빌드 설정 전송
             </button>
         </div>
@@ -479,18 +494,19 @@ function UnityBuildPanel() {
 }
 async function sendToUnity(jsonData: any) {
     try {
-      const res = await fetch("http://localhost:7777/import", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(jsonData),
-      });
-  
-      if (!res.ok) throw new Error("Unity 연결 실패");
-  
-      alert("Unity로 전송 완료!");
+        const prettyJson = JSON.stringify(jsonData, null, 2);
+        const res = await fetch("http://localhost:7777/import", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: prettyJson,
+        });
+
+        if (!res.ok) throw new Error("Unity 연결 실패");
+
+        alert("Unity로 전송 완료!");
     } catch (e) {
-      alert("Unity가 실행 중인지 확인하세요.");
+        alert("Unity가 실행 중인지 확인하세요.");
     }
-  }
+}
