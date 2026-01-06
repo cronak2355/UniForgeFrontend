@@ -7,6 +7,7 @@ import type { LogicComponent } from "../types/Component";
 export interface SceneEventJSON {
   id: string;
   trigger: string;
+  triggerParams?: Record<string, unknown>;
   action: string;
   params?: Record<string, unknown>;
 }
@@ -71,6 +72,7 @@ export class SceneSerializer {
         events.push({
           id: `ev_${idx}_${actionIdx}`,
           trigger: triggerType,
+          triggerParams: rule.eventParams,
           action: action.type,
           params: {
             ...action,
@@ -104,50 +106,16 @@ export class SceneSerializer {
     });
 
     json.entities.forEach((e) => {
-      const legacyModules = (e as SceneEntityJSON & { modules?: any[] }).modules ?? [];
       const variables = (e.variables ?? []).map((v) => ({ ...v }));
       const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => ({
         id: `logic_${i}`,
         type: "Logic",
         event: ev.trigger,
-        eventParams: {},
+        eventParams: ev.triggerParams ?? {},
         conditions: [],
         conditionLogic: "AND",
         actions: [{ type: ev.action, ...(ev.params || {}) }],
       }));
-      const existingNames = new Set(variables.map((v) => v.name));
-      const pushVar = (name: string, type: string, value: any) => {
-        if (existingNames.has(name)) return;
-        variables.push({ id: crypto.randomUUID(), name, type, value });
-        existingNames.add(name);
-      };
-
-      if (legacyModules.length > 0) {
-        for (const mod of legacyModules) {
-          if (!mod || typeof mod !== "object") continue;
-          if (mod.type === "Status") {
-            pushVar("hp", "float", mod.hp ?? 100);
-            pushVar("maxHp", "float", mod.maxHp ?? 100);
-            pushVar("mp", "float", mod.mp ?? 50);
-            pushVar("maxMp", "float", mod.maxMp ?? 50);
-            pushVar("attack", "float", mod.attack ?? 10);
-            pushVar("defense", "float", mod.defense ?? 0);
-            pushVar("speed", "float", mod.speed ?? 200);
-          }
-          if (mod.type === "Kinetic") {
-            pushVar("physicsMode", "string", mod.mode ?? "TopDown");
-            pushVar("maxSpeed", "float", mod.maxSpeed ?? 200);
-            pushVar("gravity", "float", mod.gravity ?? 800);
-            pushVar("jumpForce", "float", mod.jumpForce ?? 400);
-          }
-          if (mod.type === "Combat") {
-            pushVar("attackRange", "float", mod.attackRange ?? 100);
-            pushVar("attackInterval", "float", mod.attackInterval ?? 500);
-            pushVar("damage", "float", mod.damage ?? 10);
-            pushVar("projectileSpeed", "float", mod.projectileSpeed ?? 300);
-          }
-        }
-      }
 
       const entity: EditorEntity = {
         id: e.id,
