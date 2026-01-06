@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { EditorEntity } from "../types/Entity";
 import { colors } from "../constants/colors";
-import { RuleSection } from "./RuleSection";
+import { ComponentSection } from "./ComponentSection";
 import { VariableSection } from "./VariableSection";
 import { syncLegacyFromLogic } from "../utils/entityLogic";
 
@@ -231,7 +231,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       <div style={sectionStyle}>
         <div style={titleStyle}>컴포넌트</div>
-        <RuleSection entity={localEntity} onUpdateEntity={handleUpdate} />
+        <ComponentSection entity={localEntity} onUpdateEntity={handleUpdate} />
       </div>
 
     </div>
