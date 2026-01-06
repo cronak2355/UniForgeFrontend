@@ -10,9 +10,10 @@ import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
-
+import { useNavigate } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
+import { saveScenes } from "./api/sceneApi";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 
 // Entry Style Color Palette
@@ -28,6 +29,34 @@ export default function EditorLayout() {
 
 type Mode = "dev" | "run";
 
+function MenuItem({
+    label,
+    onClick,
+}: {
+    label: string;
+    onClick: () => void;
+}) {
+    return (
+        <div
+            onClick={onClick}
+            style={{
+                padding: "8px 12px",
+                fontSize: "13px",
+                cursor: "pointer",
+                color: "#ddd",
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+            }}
+        >
+            {label}
+        </div>
+    );
+}
+
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
@@ -36,10 +65,12 @@ function EditorLayoutInner() {
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+    const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+    const navigate = useNavigate();
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
-
+    
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
@@ -314,17 +345,31 @@ function EditorLayoutInner() {
                 borderBottom: `1px solid ${colors.borderColor}`,
             }}>
                 <button
-                    onClick={() => {
-                        // SAVE
-                        const json = SceneSerializer.serialize(core, "MyScene");
-                        const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `${json.sceneId}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                    onClick={async () => {
+                        try {
+                            const sceneJson = SceneSerializer.serialize(core, "MyScene");
+                            const gameId = 1; // 임시 값
+                            await saveScenes(gameId, sceneJson);
+
+                            alert("Saved to server");
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to save project");
+                        }
                     }}
+
+                    // onClick={() => {
+                    //     // SAVE
+                    //     const json = SceneSerializer.serialize(core, "MyScene");
+                    //     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+                    //     const url = URL.createObjectURL(blob);
+                    //     const a = document.createElement("a");
+                    //     a.href = url;
+                    //     a.download = `${json.sceneId}.json`;
+                    //     a.click();
+                    //     URL.revokeObjectURL(url);
+                    // }}
+
                     style={{
                         padding: '6px 12px',
                         fontSize: '13px',
@@ -377,6 +422,47 @@ function EditorLayoutInner() {
                         }}
                     />
                 </label>
+
+                {/* ===== FILE MENU ===== */}
+                <div style={{ position: "relative" }}>
+                    <button
+                        onClick={() => setIsFileMenuOpen(v => !v)}
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            color: colors.textSecondary,
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            background: 'transparent',
+                            border: 'none',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
+                    >
+                        File
+                    </button>
+
+                    {isFileMenuOpen && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "36px",
+                                left: 0,
+                                width: "180px",
+                                background: colors.bgSecondary,
+                                border: `1px solid ${colors.borderColor}`,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                                borderRadius: "6px",
+                                zIndex: 1000,
+                            }}
+                        >
+                            <MenuItem label="Export" onClick={() => {
+                                setIsFileMenuOpen(false);
+                                navigate("/build"); // 🔥 빌드 페이지 이동
+                            }} />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* ===== MAIN EDITOR AREA ===== */}
