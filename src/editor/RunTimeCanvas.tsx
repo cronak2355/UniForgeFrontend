@@ -66,6 +66,7 @@ export function RunTimeCanvas() {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
+    const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
