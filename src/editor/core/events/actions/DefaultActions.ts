@@ -1,7 +1,6 @@
 import { ActionRegistry, type ActionContext } from "../ActionRegistry";
 import { EventBus } from "../EventBus";
 import Phaser from "phaser";
-import { editorCore } from "../../../EditorCore";
 import { getRuntimeEntity } from "../../modules/ModuleFactory";
 import type { StatusModule } from "../../modules/StatusModule";
 import type { KineticModule } from "../../modules/KineticModule";
@@ -14,40 +13,37 @@ import type { KineticModule } from "../../modules/KineticModule";
 // --- Kinetic Actions ---
 
 ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
-    if (!renderer) {
-        console.warn("[Action] Move: No renderer in context");
-        return;
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return;
+
+    // [Fix] 사망한 엔티티는 이동 불가
+    const runtimeEntity = getRuntimeEntity(ctx.entityId);
+    if (runtimeEntity?.modules?.Status) {
+        const status = runtimeEntity.modules.Status as any;
+        if (!status.isAlive) return;
     }
 
     const entityId = ctx.entityId;
-
-    // 디버그: 렌더러에 등록된 모든 엔티티 ID 확인
-    const allIds = renderer.getAllEntityIds?.() ?? [];
-    console.log(`[Action] Move: Looking for ${entityId}, renderer has: [${allIds.join(', ')}]`);
-
     const gameObject = renderer.getGameObject?.(entityId);
-    if (!gameObject) {
-        console.warn(`[Action] Move: GameObject not found for entity ${entityId}`);
-        return;
-    }
+    if (!gameObject) return;
 
     const x = (params.x as number) ?? 0;
     const y = (params.y as number) ?? 0;
-    const speed = (params.speed as number) ?? 200;
+    // [Module First] StatusModule.speed 우선, params.speed는 폴백
+    const statusSpeed = (runtimeEntity?.modules?.Status as any)?.speed;
+    const kineticSpeed = (runtimeEntity?.modules?.Kinetic as any)?.maxSpeed;
+    const speed = statusSpeed ?? kineticSpeed ?? (params.speed as number) ?? 200;
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     gameObject.x += x * speed * dt;
     gameObject.y += y * speed * dt;
 
-    const entity = editorCore.getEntities().get(entityId);
+    const entity = ctx.globals?.entities?.get(entityId);
     if (entity) {
         entity.x = gameObject.x;
         entity.y = gameObject.y;
     }
 
-    // 런타임 엔티티 위치도 동기화
-    const runtimeEntity = getRuntimeEntity(entityId);
     if (runtimeEntity) {
         runtimeEntity.x = gameObject.x;
         runtimeEntity.y = gameObject.y;
@@ -55,17 +51,19 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 });
 
 ActionRegistry.register("Jump", (_ctx: ActionContext, _params: Record<string, unknown>) => {
-    // 물리 엔진에서 처리 - EAC 호환성용
     console.log("[Action] Jump: Handled by physics engine");
 });
 
-/**
- * MoveToward - 특정 좌표를 향해 이동
- * params: { x: number, y: number, speed?: number }
- */
 ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string, unknown>) => {
     const renderer = ctx.globals?.renderer as any;
     if (!renderer) return;
+
+    // [Fix] 사망한 엔티티는 이동 불가
+    const runtimeEntity = getRuntimeEntity(ctx.entityId);
+    if (runtimeEntity?.modules?.Status) {
+        const status = runtimeEntity.modules.Status as any;
+        if (!status.isAlive) return;
+    }
 
     const entityId = ctx.entityId;
     const gameObject = renderer.getGameObject?.(entityId);
@@ -73,7 +71,10 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
 
     const targetX = params.x as number;
     const targetY = params.y as number;
-    const speed = (params.speed as number) ?? 100;
+    // [Module First] StatusModule.speed 우선, params.speed는 폴백
+    const statusSpeed = (runtimeEntity?.modules?.Status as any)?.speed;
+    const kineticSpeed = (runtimeEntity?.modules?.Kinetic as any)?.maxSpeed;
+    const speed = statusSpeed ?? kineticSpeed ?? (params.speed as number) ?? 100;
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetX - gameObject.x;
@@ -87,7 +88,7 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
         gameObject.x += nx * speed * dt;
         gameObject.y += ny * speed * dt;
 
-        const entity = editorCore.getEntities().get(entityId);
+        const entity = ctx.globals?.entities?.get(entityId);
         if (entity) {
             entity.x = gameObject.x;
             entity.y = gameObject.y;
@@ -95,23 +96,54 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     }
 });
 
-/**
- * ChaseTarget - 타겟 엔티티를 향해 이동
- * params: { targetId: string, speed?: number }
- */
 ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return;
 
+    // [Fix] 사망한 엔티티는 이동 불가
+    const runtimeEntity = getRuntimeEntity(ctx.entityId);
+    if (runtimeEntity?.modules?.Status) {
+        const status = runtimeEntity.modules.Status as any;
+        if (!status.isAlive) return;
+    }
+
     const entityId = ctx.entityId;
-    const targetId = params.targetId as string;
+
+    // [Role-Based Targeting] targetId 또는 targetRole 지원
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    // targetId가 없고 targetRole이 있으면 해당 역할의 가장 가까운 엔티티 찾기
+    if (!targetId && targetRole) {
+        const gameCore = ctx.globals?.gameCore;
+        const gameObject = renderer.getGameObject?.(entityId);
+        if (gameCore && gameObject) {
+            const nearest = gameCore.getNearestEntityByRole?.(targetRole, gameObject.x, gameObject.y, entityId);
+            if (nearest) {
+                targetId = nearest.id;
+            }
+        }
+    }
+
     if (!targetId) return;
 
     const gameObject = renderer.getGameObject?.(entityId);
     const targetObject = renderer.getGameObject?.(targetId);
     if (!gameObject || !targetObject) return;
 
-    const speed = (params.speed as number) ?? 100;
+    // [Module First] StatusModule.speed 우선, params.speed는 폴백
+    const statusSpeed = (runtimeEntity?.modules?.Status as any)?.speed;
+    const kineticSpeed = (runtimeEntity?.modules?.Kinetic as any)?.maxSpeed;
+    const speed = statusSpeed ?? kineticSpeed ?? (params.speed as number) ?? 100;
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetObject.x - gameObject.x;
@@ -125,14 +157,12 @@ ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<strin
         gameObject.x += nx * speed * dt;
         gameObject.y += ny * speed * dt;
 
-        const entity = editorCore.getEntities().get(entityId);
+        const entity = ctx.globals?.entities?.get(entityId);
         if (entity) {
             entity.x = gameObject.x;
             entity.y = gameObject.y;
         }
 
-        // 런타임 엔티티 동기화
-        const runtimeEntity = getRuntimeEntity(entityId);
         if (runtimeEntity) {
             runtimeEntity.x = gameObject.x;
             runtimeEntity.y = gameObject.y;
@@ -146,10 +176,18 @@ ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<strin
 const attackCooldowns = new Map<string, number>();
 
 ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return;
 
     const attackerId = ctx.entityId;
+    const attackerRuntime = getRuntimeEntity(attackerId);
+
+    // [Fix] 사망한 엔티티는 공격 불가
+    if (attackerRuntime?.modules?.Status) {
+        const status = attackerRuntime.modules.Status as any;
+        if (!status.isAlive) return;
+    }
+
     const now = Date.now();
 
     // 쿨다운 체크 (기본 500ms)
@@ -160,15 +198,46 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
     const attackerObj = renderer.getGameObject?.(attackerId);
     if (!attackerObj) return;
 
-    const range = (params.range as number) ?? 100;
-    const damage = (params.damage as number) ?? 10;
-    const targetId = params.targetId as string | undefined;
+    // [Module First] CombatModule.attackRange 우선, params.range는 폴백
+    const combatModule = attackerRuntime?.modules?.Combat as any;
+    const range = combatModule?.attackRange ?? (params.range as number) ?? 100;
 
-    const allIds = targetId ? [targetId] : (renderer.getAllEntityIds?.() || []);
+    // [Module First] StatusModule.attack 우선, params.damage는 폴백
+    const statusModule = attackerRuntime?.modules?.Status as any;
+    const damage = statusModule?.attack ?? (params.damage as number) ?? 10;
+
+    // [Role-Based Targeting] targetId, targetRole, 또는 전체 범위 공격
+    let targetIds: string[] = [];
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    if (targetId) {
+        // 특정 ID 지정
+        targetIds = [targetId];
+    } else if (targetRole) {
+        // 역할로 필터링
+        const gameCore = ctx.globals?.gameCore;
+        if (gameCore?.getEntitiesByRole) {
+            const roleEntities = gameCore.getEntitiesByRole(targetRole);
+            targetIds = roleEntities.map(e => e.id);
+        }
+    } else {
+        // 전체 엔티티 대상
+        targetIds = renderer.getAllEntityIds?.() || [];
+    }
 
     let hitSomething = false;
 
-    for (const id of allIds) {
+    for (const id of targetIds) {
         if (id === attackerId) continue;
 
         const targetObj = renderer.getGameObject?.(id);
@@ -184,14 +253,28 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
             const targetRuntimeEntity = getRuntimeEntity(id);
             if (targetRuntimeEntity?.modules?.Status) {
                 const statusModule = targetRuntimeEntity.modules.Status as any;
+
+                // [Fix] 사망한 타겟은 공격 대상 제외
+                if (!statusModule.isAlive) continue;
+
                 if (typeof statusModule.takeDamage === 'function') {
-                    statusModule.takeDamage(damage);
-                    console.log(`[Attack] ${attackerId} → ${id}: ${damage} damage (HP: ${statusModule.hp})`);
+                    const actualDamage = statusModule.takeDamage(damage);
+
                     hitSomething = true;
+
+                    // DAMAGE_DEALT 이벤트 발행
+                    const screenPos = renderer.worldToScreen?.(targetObj.x, targetObj.y - 40, 0) ?? { x: targetObj.x, y: targetObj.y - 40 };
+                    EventBus.emit("DAMAGE_DEALT", {
+                        x: screenPos.x,
+                        y: screenPos.y,
+                        damage: actualDamage,
+                        isCritical: false,
+                        targetId: id
+                    });
                 }
             }
 
-            // 이벤트도 발행 (커스텀 Rule에서 추가 처리 가능)
+            // 이벤트도 발행
             EventBus.emit("ATTACK_HIT", { targetId: id, damage, attackerId });
         }
     }
@@ -231,8 +314,14 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
         return;
     }
 
-    const speed = (params.speed as number) ?? 300;
-    const damage = (params.damage as number) ?? 10;
+    // [Module First] CombatModule.projectileSpeed 우선, params.speed는 폴백
+    const attackerRuntime = getRuntimeEntity(ownerId);
+    const combatModule = attackerRuntime?.modules?.Combat as any;
+    const speed = combatModule?.projectileSpeed ?? (params.speed as number) ?? 300;
+
+    // [Module First] StatusModule.attack 우선, params.damage는 폴백
+    const statusModule = attackerRuntime?.modules?.Status as any;
+    const damage = statusModule?.attack ?? (params.damage as number) ?? 10;
 
     // 방향 계산
     const dx = targetX - ownerObj.x;
@@ -328,7 +417,7 @@ ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unkn
  * params: { name: string, value: number | string }
  */
 ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const entity = editorCore.getEntities().get(ctx.entityId);
+    const entity = ctx.globals?.entities?.get(ctx.entityId);
     if (!entity) return;
 
     const varName = params.name as string;
@@ -391,7 +480,7 @@ ActionRegistry.register("ChangeScene", (ctx: ActionContext, params: Record<strin
 });
 
 ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return;
 
     const entityId = ctx.entityId;
@@ -401,18 +490,20 @@ ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, un
     const speed = (params.speed as number) ?? 90; // deg/sec
     const dt = 0.016;
 
-    gameObject.rotation += Phaser.Math.DegToRad(speed * dt);
+    if (gameObject.rotation !== undefined) {
+        gameObject.rotation += Phaser.Math.DegToRad(speed * dt);
+    }
 
     // EditorCore 동기화
-    const entity = editorCore.getEntities().get(entityId);
-    if (entity) {
+    const entity = ctx.globals?.entities?.get(entityId);
+    if (entity && gameObject.rotation !== undefined) {
         entity.rotation += Phaser.Math.DegToRad(speed * dt);
         gameObject.rotation = entity.rotation;
     }
 });
 
 ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return;
 
     const entityId = ctx.entityId;
@@ -427,9 +518,9 @@ ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unk
     const t = Math.sin(time * speed) * 0.5 + 0.5;
     const scale = min + (max - min) * t;
 
-    gameObject.setScale(scale);
+    gameObject.setScale?.(scale);
 
-    const entity = editorCore.getEntities().get(entityId);
+    const entity = ctx.globals?.entities?.get(entityId);
     if (entity) {
         entity.scaleX = scale;
         entity.scaleY = scale;

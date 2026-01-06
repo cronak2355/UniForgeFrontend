@@ -128,7 +128,8 @@
   color: #e5e7eb;
   height: 100%;
   width: 100%;
-  overflow: hidden;     /* 안전장치 */
+  overflow: hidden;
+  /* 안전장치 */
 }
 
 .inspector-section {
@@ -188,6 +189,7 @@
 
 /* Range input styling */
 input[type="range"] {
+  appearance: none;
   -webkit-appearance: none;
   background: transparent;
 }
@@ -323,17 +325,17 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: grab;
 }
 
-.editor-item{
+.editor-item {
   border: 1px solid #3b82f6;
   border-bottom: none;
 }
 
-.px-1{
+.px-1 {
   padding-left: 10px;
   padding-right: 10px;
 }
 
-.d-flex{
+.d-flex {
   display: flex;
 }
 
@@ -353,21 +355,21 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: center;
 }
 
-.mx-1{
+.mx-1 {
   margin: 0 10px;
 }
 
-.editor-item{
+.editor-item {
   border: 1px solid #3b82f6;
   border-bottom: none;
 }
 
-.px-1{
+.px-1 {
   padding-left: 10px;
   padding-right: 10px;
 }
 
-.d-flex{
+.d-flex {
   display: flex;
 }
 
@@ -387,6 +389,6 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: center;
 }
 
-.mx-1{
+.mx-1 {
   margin: 0 10px;
 }

@@ -13,38 +13,38 @@ ConditionRegistry.register("IsGrounded", (ctx: ActionContext) => {
     const kinetic = ctx.modules.Kinetic;
     if (!kinetic) return false;
 
-    return (kinetic as any).isGrounded ?? true;
+    // KineticModule에서 isGrounded 속성 안전하게 접근
+    return 'isGrounded' in kinetic ? (kinetic as { isGrounded?: boolean }).isGrounded ?? true : true;
 });
 
 // --- Status Conditions ---
 
 ConditionRegistry.register("IsAlive", (ctx: ActionContext) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     if (typeof status.isAlive === 'boolean') {
         return status.isAlive;
     }
-    // 폴백: 데이터 객체인 경우
-    const hp = (status as any).hp;
-    return hp !== undefined && hp > 0;
+    // 폴백: hp 속성 직접 접근
+    return status.hp !== undefined && status.hp > 0;
 });
 
 ConditionRegistry.register("HpBelow", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     const limit = (params.value as number) ?? 0;
-    const hp = (status as any).hp ?? status.hp;
+    const hp = status.hp ?? 0;
     return hp < limit;
 });
 
 ConditionRegistry.register("HpAbove", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const status = ctx.modules.Status as StatusModule | undefined;
+    const status = ctx.modules.Status;
     if (!status) return false;
 
     const limit = (params.value as number) ?? 0;
-    const hp = (status as any).hp ?? status.hp;
+    const hp = status.hp ?? 0;
     return hp > limit;
 });
 
@@ -52,15 +52,39 @@ ConditionRegistry.register("HpAbove", (ctx: ActionContext, params: Record<string
 
 /**
  * InRange - 타겟이 지정 거리 내에 있는지 확인
- * params: { targetId: string, range: number }
+ * params: { targetId?: string, targetRole?: string, range: number }
  */
 ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
-    const targetId = params.targetId as string;
     const range = (params.range as number) ?? 100;
+
+    // [Role-Based Targeting] targetId 또는 targetRole 지원
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    if (!targetId && targetRole) {
+        // 역할로 가장 가까운 엔티티 찾기
+        const gameCore = ctx.globals?.gameCore;
+        const entityObj = renderer.getGameObject?.(entityId);
+        if (gameCore?.getNearestEntityByRole && entityObj) {
+            const nearest = gameCore.getNearestEntityByRole(targetRole, entityObj.x, entityObj.y, entityId);
+            if (nearest) {
+                targetId = nearest.id;
+            }
+        }
+    }
 
     if (!targetId) return false;
 
@@ -78,15 +102,39 @@ ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string
 
 /**
  * OutOfRange - 타겟이 지정 거리 밖에 있는지 확인
- * params: { targetId: string, range: number }
+ * params: { targetId?: string, targetRole?: string, range: number }
  */
 ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
+    const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
-    const targetId = params.targetId as string;
     const range = (params.range as number) ?? 100;
+
+    // [Role-Based Targeting] targetId 또는 targetRole 지원
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    if (!targetId && targetRole) {
+        // 역할로 가장 가까운 엔티티 찾기
+        const gameCore = ctx.globals?.gameCore;
+        const entityObj = renderer.getGameObject?.(entityId);
+        if (gameCore?.getNearestEntityByRole && entityObj) {
+            const nearest = gameCore.getNearestEntityByRole(targetRole, entityObj.x, entityObj.y, entityId);
+            if (nearest) {
+                targetId = nearest.id;
+            }
+        }
+    }
 
     if (!targetId) return false;
 

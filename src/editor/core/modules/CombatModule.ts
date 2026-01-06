@@ -141,6 +141,7 @@ export interface TargetInfo {
     position: Vector3;
     hp?: number;
     pathProgress?: number;  // 디펜스용 경로 진행도
+    role?: string;          // 역할 (같은 역할은 공격하지 않음)
 }
 
 /**
@@ -187,7 +188,7 @@ export class CombatModule implements IModule {
             explosionRadius: initialData.explosionRadius ?? 0,
             targetId: initialData.targetId ?? null,
             targetingMode: initialData.targetingMode ?? "Nearest",
-            autoAttack: initialData.autoAttack ?? true,
+            autoAttack: initialData.autoAttack ?? false, // 기본값 false로 변경 - 명시적 설정 필요
             bulletPattern: initialData.bulletPattern ?? "Single",
             bulletCount: initialData.bulletCount ?? 1,
             spreadAngle: initialData.spreadAngle ?? 30,

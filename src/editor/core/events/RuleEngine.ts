@@ -1,4 +1,5 @@
 import { ActionRegistry, type ActionContext } from "./ActionRegistry";
+import { getRuntimeEntity } from "../modules/ModuleFactory";
 import { ConditionRegistry } from "./ConditionRegistry";
 import type { GameEvent } from "./EventBus";
 
@@ -51,6 +52,13 @@ class RuleEngineClass {
      * @param entityRules 엔티티별 규칙 (없으면 전역 규칙 사용)
      */
     handleEvent(event: GameEvent, ctx: ActionContext, entityRules?: GameRule[]) {
+        // [Fix] 사망한 엔티티의 규칙은 처리하지 않음
+        const runtimeEntity = getRuntimeEntity(ctx.entityId);
+        if (runtimeEntity?.modules?.Status) {
+            const status = runtimeEntity.modules.Status as any;
+            if (!status.isAlive) return;
+        }
+
         // 엔티티별 규칙이 있으면 그것을 사용, 없으면 전역 규칙 사용
         const rulesToCheck = entityRules || this.rules;
 
@@ -72,17 +80,23 @@ class RuleEngineClass {
         // 2. 매칭된 각 규칙에 대해
         for (const rule of matchingRules) {
             // 3. 모든 조건 검사 (하나라도 실패하면 중단)
-            const passed = rule.conditions?.every(c => {
-                const { type, ...params } = c;
-                return ConditionRegistry.check(type, ctx, params);
-            }) ?? true;
+            let allPassed = true;
+            if (rule.conditions && rule.conditions.length > 0) {
+                for (const c of rule.conditions) {
+                    const { type, ...params } = c;
+                    const result = ConditionRegistry.check(type, ctx, params);
+                    if (!result) {
+                        allPassed = false;
+                        break;
+                    }
+                }
+            }
 
-            if (!passed) continue;
+            if (!allPassed) continue;
 
             // 4. 모든 액션 실행
             for (const action of rule.actions) {
                 const { type, ...params } = action;
-                console.log(`[RuleEngine] Executing action: ${type}`, params);
                 ActionRegistry.run(type, ctx, params);
             }
         }

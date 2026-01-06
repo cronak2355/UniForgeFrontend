@@ -26,11 +26,12 @@ export function GameLog() {
             // For demo: Listen to known events and log them
             if (e.type === "GAME_START") addLog("전투가 시작되었습니다!", "system");
             if (e.type === "DAMAGE_DEALT") {
-                // e.data: { targetId, damage }
-                const isPlayer = (data.targetId as string)?.includes("player");
-                const text = isPlayer
-                    ? `플레이어가 ${data.damage} 피해를 입었습니다!`
-                    : `적이 ${data.damage} 피해를 입었습니다!`;
+                // 역할 기반 메시지 (이벤트 데이터에 role 포함 시)
+                const targetRole = data.targetRole as string | undefined;
+                const targetName = data.targetName as string | undefined;
+                const text = targetName
+                    ? `${targetName}이(가) ${data.damage} 피해를 입었습니다!`
+                    : `대상이 ${data.damage} 피해를 입었습니다!`;
                 addLog(text, "combat");
             }
         };

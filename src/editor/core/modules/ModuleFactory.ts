@@ -124,7 +124,48 @@ export function registerRuntimeEntity(
     };
 
     runtimeEntities.set(id, entity);
-    console.log(`[ModuleFactory] Registered runtime entity: ${id} with modules:`, Object.keys(entity.modules));
+
+    // 디버그: Status 모듈 값 확인
+    const status = entity.modules.Status;
+    if (status) {
+        console.log(`[ModuleFactory] Registered ${id}: HP=${status.hp}/${status.maxHp}, ATK=${status.attack}`);
+    } else {
+        console.log(`[ModuleFactory] Registered ${id}: No Status Module`);
+    }
+
+    return entity;
+}
+
+/**
+ * 이미 생성된 모듈 인스턴스로 런타임 엔티티 등록 (GameCore와 동기화용)
+ */
+export function registerRuntimeEntityInstances(
+    id: string,
+    type: string,
+    name: string,
+    x: number,
+    y: number,
+    z: number,
+    modulesMap: Record<string, IModule>
+): RuntimeEntity {
+    const entity: RuntimeEntity = {
+        id,
+        type,
+        name,
+        x,
+        y,
+        z,
+        modules: modulesMap
+    };
+
+    runtimeEntities.set(id, entity);
+
+    // 디버그
+    const status = modulesMap.Status as any; // 타입 단언 안전하게
+    if (status) {
+        console.log(`[ModuleFactory] Synced instance ${id}: HP=${status.hp}/${status.maxHp}`);
+    }
+
     return entity;
 }
 

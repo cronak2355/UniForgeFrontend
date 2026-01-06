@@ -200,6 +200,7 @@ const CreateAssetPage = () => {
             minHeight: '100vh',
             color: 'white',
         }}>
+            {/* Header */}
             <header style={{
                 display: 'flex',
                 justifyContent: 'space-between',

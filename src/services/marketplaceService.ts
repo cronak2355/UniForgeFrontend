@@ -55,4 +55,12 @@ class MarketplaceService {
         return this.request<Game[]>('/marketplace/games');
     }
 }
+
+export interface AssetVersion {
+    id: number;
+    s3RootPath: string;
+    status: string;
+    createdAt: string;
+}
+
 export const marketplaceService = new MarketplaceService();

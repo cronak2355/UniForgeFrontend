@@ -3,6 +3,28 @@ import type { StatusModule } from "../modules/StatusModule";
 import type { KineticModule } from "../modules/KineticModule";
 import type { CombatModule } from "../modules/CombatModule";
 import type { NarrativeModule } from "../modules/NarrativeModule";
+import type { EditorEntity } from "../../types/Entity";
+
+/**
+ * Action에서 사용하는 전역 컨텍스트 타입
+ */
+export interface ActionGlobals {
+    /** 렌더러 인스턴스 (IRenderer 확장) */
+    renderer?: {
+        getGameObject?(id: string): { x: number; y: number; rotation?: number; setScale?(s: number): void; setVisible?(v: boolean): void; setActive?(v: boolean): void } | null;
+        getAllEntityIds?(): string[];
+        worldToScreen?(x: number, y: number, z?: number): { x: number; y: number };
+    };
+    /** Phaser 씬 (선택적) */
+    scene?: unknown;
+    /** 모든 엔티티 맵 */
+    entities?: Map<string, EditorEntity>;
+    /** GameCore 인스턴스 (역할 기반 타겟팅용) */
+    gameCore?: {
+        getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
+        getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
+    };
+}
 
 /**
  * Action 실행 컨텍스트
@@ -29,8 +51,8 @@ export interface ActionContext {
     eventData: Record<string, unknown>;
 
     /** 
-     * 전역 컨텍스트 (필요 시) 
-     * 예: 다른 엔티티 검색을 위한 GameCore 참조 등
+     * 전역 컨텍스트
+     * 렌더러, 씬, 엔티티 맵 등에 대한 타입 안전한 접근 제공
      */
     globals?: Record<string, unknown>;
 

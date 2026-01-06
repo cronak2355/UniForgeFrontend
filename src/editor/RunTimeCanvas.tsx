@@ -6,9 +6,12 @@ import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { TilePlacement } from "./EditorCore";
 import { registerRuntimeEntity, clearRuntimeEntities } from "./core/modules/ModuleFactory";
+import { defaultGameConfig } from "./core/GameConfig";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
+
+
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
     // 타일 에셋을 하나의 캔버스로 합쳐 타일셋 텍스처를 만든다.
@@ -79,14 +82,17 @@ export function RunTimeCanvas() {
         if (!ref.current) return;
         if (rendererRef.current) return;
 
-        const renderer = new PhaserRenderer();
+        const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
-        const core = new GameCore(renderer);
-        setGameCore(core); // State update triggers UI render
+        const gameRuntime = new GameCore(renderer);
+        setGameCore(gameRuntime); // State update triggers UI render
+        renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
+        renderer.gameConfig = defaultGameConfig; // 역할 기반 설정 연결
+        gameRuntime.setGameConfig(defaultGameConfig); // GameCore에도 설정 연결
         renderer.useEditorCoreRuntimePhysics = false;
         renderer.getRuntimeContext = () => core.getRuntimeContext();
         renderer.onInputState = (input) => {
-            core.setInputState(input);
+            gameRuntime.setInputState(input);
         };
 
         let active = true;
@@ -117,24 +123,38 @@ export function RunTimeCanvas() {
                 renderer.setTile(t.x, t.y, t.tile);
             }
 
-            for (const e of entities) {
+            // 최신 편집 데이터로 엔티티 생성 (Inspector 변경 반영)
+            const freshEntities = Array.from(core.getEntities().values());
+
+            for (const e of freshEntities) {
                 // 저장된 엔티티 생성
-                core.createEntity(e.id, e.type, e.x, e.y, {
+                gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
                     texture: e.name,
                     variables: e.variables,
                     components: e.components,
                     modules: e.modules,
                     rules: e.rules,
+                    role: e.role, // 에디터에서 설정한 역할 적용
                 });
 
-                // 런타임 모듈 인스턴스 등록 (ECA 액션에서 메서드 호출 가능하게)
-                registerRuntimeEntity(e.id, e.type, e.name, e.x, e.y, 0, e.modules);
+                // 런타임 모듈 인스턴스 등록은 GameCore.createEntity 내부에서 처리됨 (동기화 보장)
             }
+
+            if (renderer.isRuntimeMode) {
+                console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
+            }
+
+            entities.forEach(e => {
+                const status = e.modules.find(m => m.type === "Status");
+                if (status) {
+                    console.log(` - ${e.name} (${e.id}): HP=${status.hp}/${status.maxHp}, Role=${e.role}, Rules=${e.rules?.length ?? 0}`);
+                }
+            });
 
             // 런타임 업데이트 루프 연결 (컴포넌트 처리)
             renderer.onUpdateCallback = (time, delta) => {
-                core.update(time, delta);
+                gameRuntime.update(time, delta);
             };
         })();
 
@@ -142,7 +162,7 @@ export function RunTimeCanvas() {
             // 언마운트 시 리소스 정리
             active = false;
             clearRuntimeEntities(); // 런타임 엔티티 정리
-            core.destroy();
+            gameRuntime.destroy && gameRuntime.destroy();
             renderer.onUpdateCallback = undefined;
             renderer.onInputState = undefined;
             renderer.destroy();
