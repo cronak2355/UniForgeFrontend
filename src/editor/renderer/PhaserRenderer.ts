@@ -6,6 +6,7 @@ import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
 import { editorCore } from "../EditorCore";
 // 물리 엔진 (엔진 독립적)
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
+import type { RuntimeContext } from "../core/RuntimeContext";
 // 모듈 팩토리
 import { getRuntimeEntity } from "../core/modules/ModuleFactory";
 
@@ -62,11 +63,16 @@ class PhaserRenderScene extends Phaser.Scene {
                 // 런타임 엔티티에서 모듈 인스턴스 가져오기
                 const runtimeEntity = getRuntimeEntity(entity.id);
                 const modules = runtimeEntity?.modules ?? {};
+                const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+                const input = runtimeContext?.getInput();
+                const entityCtx = runtimeContext?.getEntityContext(entity.id);
 
                 const ctx = {
                     entityId: entity.id,
                     modules,
                     eventData: event.data || {},
+                    input,
+                    entityContext: entityCtx,
                     globals: {
                         scene: this,
                         renderer: this.phaserRenderer,
@@ -196,6 +202,7 @@ export class PhaserRenderer implements IRenderer {
     onScroll?: (deltaY: number) => void;
     onUpdateCallback?: (time: number, delta: number) => void;
     onInputState?: (input: InputState) => void;
+    getRuntimeContext?: () => RuntimeContext | null;
     useEditorCoreRuntimePhysics = true;
 
     /** Runtime mode flag - Rules and TICK only run when true */

@@ -133,6 +133,7 @@ export class GameCore {
     private inputState: InputState = { left: false, right: false, up: false, down: false, jump: false };
     private runtimeContext = new RuntimeContext();
     private eventHandler?: (event: import("./events/EventBus").GameEvent) => void;
+    private variableSnapshots: Map<string, Map<string, unknown>> = new Map();
     private groundY = 500;
     private readonly projectileTtl = 2;
     private readonly projectileSize = 6;
@@ -390,6 +391,7 @@ export class GameCore {
 
         // 3. 로컬 상태에서 제거
         this.entities.delete(id);
+        this.variableSnapshots.delete(id);
 
         // 4. 구독자 알림
         this.notify();
@@ -885,7 +887,7 @@ export class GameCore {
         const comp = runtime.component;
 
         // 1️⃣ 트리거 판별
-        if (!this.matchTrigger(comp.trigger, time, dt)) return;
+        if (!this.matchTrigger(comp.trigger, entity, time, dt)) return;
 
         // 2️⃣ 조건 판별
         if (!this.matchCondition(comp.condition, entity)) return;
@@ -973,6 +975,7 @@ export class GameCore {
     }
     private matchTrigger(
         trigger: Trigger | undefined,
+        entity: GameEntity,
         time: number,
         dt: number
     ): boolean {
@@ -984,6 +987,18 @@ export class GameCore {
 
             case "OnStart":
                 return time === 0;
+
+            case "VariableOnChanged": {
+                const name = trigger.params?.name as string | undefined;
+                if (!name) return false;
+                const current = entity.variables?.find((v) => v.name === name)?.value;
+                const entityMap = this.variableSnapshots.get(entity.id) ?? new Map();
+                const hasPrev = entityMap.has(name);
+                const prevValue = entityMap.get(name);
+                entityMap.set(name, current);
+                this.variableSnapshots.set(entity.id, entityMap);
+                return hasPrev && prevValue !== current;
+            }
 
             default:
                 return false;
@@ -1036,6 +1051,7 @@ export class GameCore {
         this.moduleRuntimes.clear();
         this.projectileRuntimes.clear();
         collisionSystem.clear();
+        this.variableSnapshots.clear();
         this.listeners.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");

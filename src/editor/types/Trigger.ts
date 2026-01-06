@@ -2,7 +2,8 @@ export type TriggerType =
   | "OnStart"
   | "OnUpdate"
   | "OnKeyDown"
-  | "OnClick";
+  | "OnClick"
+  | "VariableOnChanged";
 
 export interface Trigger {
   radius: any;
