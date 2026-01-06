@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { marketplaceService, Asset } from '../services/marketplaceService';
+import { fetchMarketplaceGames } from "../services/marketplaceGameService";
 
 const MarketplacePage = () => {
     const { user, logout } = useAuth();
@@ -18,6 +19,30 @@ const MarketplacePage = () => {
 
     // Todo: define item type properly
     const [selectedItem, setSelectedItem] = useState<any>(null);
+    useEffect(() => {
+        const fetchGames = async () => {
+            try {
+                const data = await fetchMarketplaceGames();
+
+                const mapped = data.map(game => ({
+                    id: game.gameId,
+                    name: game.title,
+                    image: game.thumbnailUrl ?? DEFAULT_IMAGE,
+                    author: `User ${game.authorId}`,
+                    rating: 4.5, // 임시
+                    price: 0,    // 임시
+                    type: "Game",
+                    genre: "기타",
+                }));
+
+                setAssets(mapped);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchGames();
+    }, []);
 
     // Fetch Assets
     useEffect(() => {

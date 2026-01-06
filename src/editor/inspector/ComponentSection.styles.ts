@@ -132,7 +132,8 @@ export const selectField: CSSProperties = {
     border: `1px solid ${colors.borderColor}`,
     borderRadius: "4px",
     fontSize: "11px",
-    padding: "4px 6px"
+    padding: "4px 6px",
+    minWidth: 0
 };
 
 export const smallSelect: CSSProperties = {
@@ -142,7 +143,8 @@ export const smallSelect: CSSProperties = {
     border: `1px solid ${colors.borderColor}`,
     borderRadius: "4px",
     fontSize: "10px",
-    padding: "2px 4px"
+    padding: "2px 4px",
+    minWidth: 0
 };
 
 export const textInput: CSSProperties = {
@@ -152,7 +154,9 @@ export const textInput: CSSProperties = {
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
-    padding: "2px 4px"
+    padding: "2px 4px",
+    minWidth: 0,
+    flexShrink: 1
 };
 
 export const numberInput: CSSProperties = {
@@ -162,7 +166,9 @@ export const numberInput: CSSProperties = {
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
-    padding: "2px 4px"
+    padding: "2px 4px",
+    minWidth: 0,
+    flexShrink: 1
 };
 
 export const smallNumberInput: CSSProperties = {
@@ -172,7 +178,8 @@ export const smallNumberInput: CSSProperties = {
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
-    padding: "2px"
+    padding: "2px",
+    minWidth: 0
 };
 
 // ===== Condition/Action 에디터 =====

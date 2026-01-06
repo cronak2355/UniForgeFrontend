@@ -1,123 +1,66 @@
-import type { EntityPreset } from "./PresetTypes";
+﻿import type { EntityPreset } from "./PresetTypes";
 
-/**
- * 기본 제공 프리셋 목록
- */
 export const DefaultPresets: Record<string, EntityPreset> = {
-    // --- 플레이어 (플랫포머) ---
-    "player_platformer": {
+    player_platformer: {
         id: "player_platformer",
         label: "Player (Platformer)",
-        description: "좌우 이동과 점프가 가능한 플랫포머 주인공입니다.",
-        modules: [
-            {
-                type: "Kinetic",
-                id: "kinetic_main",
-                mode: "Platformer",
-                friction: 0.9,
-                maxSpeed: 200,
-                jumpForce: 400,
-                gravity: 800
+        description: "Platformer player with jump and left/right movement.",
+        variables: [
+            { id: "preset-physics-mode", name: "physicsMode", type: "string", value: "Platformer" },
+            { id: "preset-max-speed", name: "maxSpeed", type: "float", value: 200 },
+            { id: "preset-jump-force", name: "jumpForce", type: "float", value: 400 },
+            { id: "preset-gravity", name: "gravity", type: "float", value: 800 },
+            { id: "preset-hp", name: "hp", type: "float", value: 100 },
+            { id: "preset-max-hp", name: "maxHp", type: "float", value: 100 },
+            { id: "preset-mp", name: "mp", type: "float", value: 0 },
+            { id: "preset-max-mp", name: "maxMp", type: "float", value: 0 },
+            { id: "preset-speed", name: "speed", type: "float", value: 1 },
+            { id: "preset-attack", name: "attack", type: "float", value: 10 },
+            { id: "preset-defense", name: "defense", type: "float", value: 0 }
+        ]
             },
-            {
-                type: "Status",
-                id: "status_main",
-                hp: 100,
-                maxHp: 100,
-                mp: 0,
-                maxMp: 0,
-                speed: 1,
-                attack: 10,
-                defense: 0
-            }
-        ],
-        rules: [
-            // 점프 (Space)
-            {
-                event: "KEY_DOWN",
-                eventParams: { key: "Space" },
-                conditions: [
-                    { type: "IsGrounded" }
-                ],
-                actions: [
-                    { type: "Jump", force: 400 }
-                ]
-            },
-            // 왼쪽 이동 (ArrowLeft)
             {
                 event: "KEY_DOWN",
                 eventParams: { key: "ArrowLeft" },
-                actions: [
-                    { type: "Move", x: -1, y: 0, speed: 200 }
-                ]
+                actions: [{ type: "Move", x: -1, y: 0, speed: 200 }]
             },
             {
                 event: "KEY_DOWN",
                 eventParams: { key: "ArrowRight" },
-                actions: [
-                    { type: "Move", x: 1, y: 0, speed: 200 }
-                ]
+                actions: [{ type: "Move", x: 1, y: 0, speed: 200 }]
             }
         ]
     },
-
-    // --- 플레이어 (탑다운/RPG) ---
-    "player_topdown": {
+    player_topdown: {
         id: "player_topdown",
         label: "Player (TopDown/RPG)",
-        description: "8방향 자유 이동이 가능한 RPG 스타일 주인공입니다.",
-        modules: [
-            {
-                type: "Kinetic",
-                id: "kinetic_main",
-                mode: "TopDown",
-                friction: 0.9,
-                maxSpeed: 200,
-                jumpForce: 0,
-                gravity: 0
-            },
-            {
-                type: "Status",
-                id: "status_main",
-                hp: 100,
-                maxHp: 100,
-                mp: 50,
-                maxMp: 50,
-                speed: 1,
-                attack: 10,
-                defense: 5
-            }
-        ],
-        rules: []
+        description: "Top-down RPG player with 8-direction movement.",
+        variables: [
+            { id: "preset-physics-mode", name: "physicsMode", type: "string", value: "TopDown" },
+            { id: "preset-max-speed", name: "maxSpeed", type: "float", value: 200 },
+            { id: "preset-jump-force", name: "jumpForce", type: "float", value: 0 },
+            { id: "preset-gravity", name: "gravity", type: "float", value: 0 },
+            { id: "preset-hp", name: "hp", type: "float", value: 100 },
+            { id: "preset-max-hp", name: "maxHp", type: "float", value: 100 },
+            { id: "preset-mp", name: "mp", type: "float", value: 50 },
+            { id: "preset-max-mp", name: "maxMp", type: "float", value: 50 },
+            { id: "preset-speed", name: "speed", type: "float", value: 1 },
+            { id: "preset-attack", name: "attack", type: "float", value: 10 },
+            { id: "preset-defense", name: "defense", type: "float", value: 5 }
+        ]
     },
-
-    // --- 몬스터 (추적자) ---
-    "enemy_chaser": {
+    enemy_chaser: {
         id: "enemy_chaser",
         label: "Enemy (Chaser)",
-        description: "플레이어를 발견하면 쫓아오는 몬스터입니다.",
-        modules: [
-            {
-                type: "Kinetic",
-                id: "kinetic_enemy",
-                mode: "TopDown",
-                friction: 0.9,
-                maxSpeed: 100,
-                jumpForce: 0,
-                gravity: 0
-            },
-            {
-                type: "Combat",
-                id: "combat_enemy",
-                attackRange: 50,
-                damage: 10,
-                attackInterval: 1000,
-                bulletCount: 1,
-                bulletPattern: "Single"
-            }
-        ],
-        rules: [
-            // 추후 구현
+        description: "Enemy that can chase the player.",
+        variables: [
+            { id: "preset-physics-mode", name: "physicsMode", type: "string", value: "TopDown" },
+            { id: "preset-max-speed", name: "maxSpeed", type: "float", value: 100 },
+            { id: "preset-attack-range", name: "attackRange", type: "float", value: 50 },
+            { id: "preset-damage", name: "damage", type: "float", value: 10 },
+            { id: "preset-attack-interval", name: "attackInterval", type: "float", value: 1000 },
+            { id: "preset-hp", name: "hp", type: "float", value: 50 },
+            { id: "preset-max-hp", name: "maxHp", type: "float", value: 50 }
         ]
     }
 };

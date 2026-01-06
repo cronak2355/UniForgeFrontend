@@ -2,16 +2,14 @@ import { useState, useEffect } from "react";
 import type { EditorEntity } from "../types/Entity";
 import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
-import { ModuleSection } from "./ModuleSection";
-import { RuleSection } from "./RuleSection";
-import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
+import { VariableSection } from "./VariableSection";
+import { syncLegacyFromLogic } from "../utils/entityLogic";
 
 interface Props {
   entity: EditorEntity | null;
   onUpdateEntity: (next: EditorEntity) => void;
 }
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
-  const { entities } = useEditorCoreSnapshot();
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
 
   useEffect(() => {
@@ -36,8 +34,24 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   }
 
   const handleUpdate = (updated: EditorEntity) => {
-    setLocalEntity(updated);
-    onUpdateEntity(updated);
+    const normalized = syncLegacyFromLogic(updated);
+    setLocalEntity(normalized);
+    onUpdateEntity(normalized);
+  };
+
+  const handleAddVariable = () => {
+    const nextVar = {
+      id: crypto.randomUUID(),
+      name: "변수",
+      type: "int" as const,
+      value: 0,
+    };
+    handleUpdate({ ...localEntity, variables: [...localEntity.variables, nextVar] });
+  };
+
+  const handleUpdateVariable = (variable: typeof localEntity.variables[number]) => {
+    const nextVars = localEntity.variables.map((v) => (v.id === variable.id ? variable : v));
+    handleUpdate({ ...localEntity, variables: nextVars });
   };
 
   const updateTransform = (
@@ -114,6 +128,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       flexDirection: 'column',
       height: '100%',
       overflowY: 'auto',
+      overflowX: 'hidden',
       boxSizing: 'border-box'
     }}>
 
@@ -206,23 +221,18 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       </div>
 
       {/* Component Section */}
-      <ComponentSection
-        entity={localEntity}
-        onUpdateEntity={handleUpdate}
-        availableEntities={entities}
-      />
+      <div style={sectionStyle}>
+        <VariableSection
+          variables={localEntity.variables}
+          onAdd={handleAddVariable}
+          onUpdate={handleUpdateVariable}
+        />
+      </div>
 
-      {/* Module Section */}
-      <ModuleSection
-        entity={localEntity}
-        onUpdateEntity={handleUpdate}
-      />
-
-      {/* Rule Section (ECA) */}
-      <RuleSection
-        entity={localEntity}
-        onUpdateEntity={handleUpdate}
-      />
+      <div style={sectionStyle}>
+        <div style={titleStyle}>컴포넌트</div>
+        <ComponentSection entity={localEntity} onUpdateEntity={handleUpdate} />
+      </div>
 
     </div>
   );
