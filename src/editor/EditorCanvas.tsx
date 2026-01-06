@@ -107,9 +107,31 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         addEntityRef.current = addEntity;
     }, [addEntity]);
 
+    // Refs to avoid stale closures in initialization
+    const assetsRef = useRef(assets);
+    const tilesRef = useRef(tiles);
+    const entitiesRef = useRef(entities);
+
+    useEffect(() => {
+        assetsRef.current = assets;
+    }, [assets]);
+
+    useEffect(() => {
+        tilesRef.current = tiles;
+    }, [tiles]);
+
+    useEffect(() => {
+        entitiesRef.current = entities;
+    }, [entities]);
+
     useEffect(() => {
         if (!ref.current) return;
         if (rendererRef.current) return;
+
+        // Clear any leftover canvas from previous Phaser game
+        while (ref.current.firstChild) {
+            ref.current.removeChild(ref.current.firstChild);
+        }
 
         const renderer = new PhaserRenderer();
         rendererRef.current = renderer;
@@ -119,28 +141,34 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         let active = true;
 
         (async () => {
+            // Small delay to ensure previous game is fully destroyed
+            await new Promise(resolve => setTimeout(resolve, 50));
+            if (!active) return;
+
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
 
-            for (const asset of assets) {
+            // Use refs to get current values (not stale closure)
+            const currentAssets = assetsRef.current;
+            const currentTiles = tilesRef.current;
+            const currentEntities = entitiesRef.current;
+
+            for (const asset of currentAssets) {
                 if (asset.tag === "Tile") continue;
                 await renderer.loadTexture(asset.name, asset.url);
-                loadedTexturesRef.current.add(asset.name);
             }
 
-            const tilesetCanvas = await buildTilesetCanvas(assets);
+            const tilesetCanvas = await buildTilesetCanvas(currentAssets);
             if (tilesetCanvas) {
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
-                tilemapReadyRef.current = true;
-                tileSignatureRef.current = buildTileSignature(assets);
             }
 
-            for (const t of tiles) {
+            for (const t of currentTiles) {
                 renderer.setTile(t.x, t.y, t.tile);
             }
 
-            for (const e of entities) {
+            for (const e of currentEntities) {
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
                     texture: e.name,
@@ -266,14 +294,14 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     x: worldX,
                     y: worldY,
                     z: 0,
+                    rotation: 0,
+                    scaleX: 1,
+                    scaleY: 1,
                     components: [],
                     modules: [],
                     variables: [],
                     events: [],
-                    rules: [],
-                    rotation: 0,
-                    scaleX: 1,
-                    scaleY: 1,
+                    rules: []
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {

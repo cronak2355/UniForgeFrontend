@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import { GameCore } from "./core/GameCore";
+import { GameUIOverlay } from "./ui/GameUIOverlay"; // Import UI Overlay
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { TilePlacement } from "./EditorCore";
@@ -65,6 +66,7 @@ export function RunTimeCanvas() {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
+    const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
@@ -79,11 +81,12 @@ export function RunTimeCanvas() {
 
         const renderer = new PhaserRenderer();
         rendererRef.current = renderer;
-        const gameCore = new GameCore(renderer);
-        gameCoreRef.current = gameCore;
+        const core = new GameCore(renderer);
+        setGameCore(core); // State update triggers UI render
         renderer.useEditorCoreRuntimePhysics = false;
+        renderer.getRuntimeContext = () => core.getRuntimeContext();
         renderer.onInputState = (input) => {
-            gameCore.setInputState(input);
+            core.setInputState(input);
         };
 
         let active = true;
@@ -92,6 +95,9 @@ export function RunTimeCanvas() {
             // 렌더러 초기화 후 텍스처/타일셋/초기 상태를 로드한다.
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
+
+            // Enable runtime mode for Rules and TICK events
+            renderer.isRuntimeMode = true;
 
             for (const asset of assets) {
                 // 타일은 타일셋 캔버스로 처리하므로 비타일만 로드한다.
@@ -113,7 +119,7 @@ export function RunTimeCanvas() {
 
             for (const e of entities) {
                 // 저장된 엔티티 생성
-                gameCore.createEntity(e.id, e.type, e.x, e.y, {
+                core.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
                     texture: e.name,
                     variables: e.variables,
@@ -128,23 +134,20 @@ export function RunTimeCanvas() {
 
             // 런타임 업데이트 루프 연결 (컴포넌트 처리)
             renderer.onUpdateCallback = (time, delta) => {
-                gameCore.update(time, delta);
+                core.update(time, delta);
             };
-
-            rendererReadyRef.current = true;
         })();
 
         return () => {
             // 언마운트 시 리소스 정리
             active = false;
             clearRuntimeEntities(); // 런타임 엔티티 정리
-            gameCoreRef.current?.destroy();
+            core.destroy();
             renderer.onUpdateCallback = undefined;
             renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
-            gameCoreRef.current = null;
-            rendererReadyRef.current = false;
+            setGameCore(null);
         };
     }, []);
 
@@ -242,17 +245,21 @@ export function RunTimeCanvas() {
                 </span>
             </div>
 
-            {/* Phaser Canvas Container */}
-            <div
-                ref={ref}
-                style={{
-                    flex: 1,
-                    background: colors.bgPrimary,
-                    border: `2px solid ${colors.borderColor}`,
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                }}
-            />
+            {/* Phaser Canvas Container + UI Overlay */}
+            <div style={{
+                flex: 1,
+                position: 'relative', // Relative for overlay
+                background: colors.bgPrimary,
+                border: `2px solid ${colors.borderColor}`,
+                borderRadius: '6px',
+                overflow: 'hidden',
+            }}>
+                {/* Phaser Container */}
+                <div ref={ref} style={{ width: '100%', height: '100%' }} />
+
+                {/* Game UI Overlay */}
+                <GameUIOverlay gameCore={gameCore} />
+            </div>
         </div>
     );
 }

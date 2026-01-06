@@ -436,5 +436,13 @@ ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unk
     }
 });
 
-console.log("[DefaultActions] 12 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, Enable, ChangeScene");
+ActionRegistry.register("ClearSignal", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const key = params.key as string;
+    if (!key) return;
+    if (!ctx.entityContext?.signals) return;
+    ctx.entityContext.signals.flags[key] = false;
+    ctx.entityContext.signals.values[key] = null;
+});
+
+console.log("[DefaultActions] 13 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, Enable, ChangeScene, ClearSignal");
 

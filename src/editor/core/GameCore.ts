@@ -8,16 +8,19 @@
 import type { IRenderer } from "../renderer/IRenderer";
 import type {
     EditorComponent,
-    TransformComponent
-  } from "../types/Component";
-  
-  import type { Trigger } from "../types/Trigger";
-  import type { Condition } from "../types/Condition";
+    TransformComponent,
+    SignalComponent
+} from "../types/Component";
+
+import type { Trigger } from "../types/Trigger";
+import type { Condition } from "../types/Condition";
 import type { EditorVariable } from "../types/Variable";
 import type { EditorModule } from "../types/Module";
 import type { GameRule } from "./events/RuleEngine";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
+import { RuntimeContext } from "./RuntimeContext";
+import { collisionSystem } from "./CollisionSystem";
 import type { IModule } from "./modules/IModule";
 import { KineticModule } from "./modules/KineticModule";
 import { StatusModule } from "./modules/StatusModule";
@@ -44,6 +47,8 @@ export interface GameEntity {
     components: EditorComponent[];
     modules: EditorModule[];
     rules: GameRule[];
+    width?: number;
+    height?: number;
 }
 
 /**
@@ -126,6 +131,9 @@ export class GameCore {
     private projectileRuntimes: Map<string, ProjectileRuntime> = new Map();
     private triggerRuntimes: TriggerRuntime[] = [];
     private inputState: InputState = { left: false, right: false, up: false, down: false, jump: false };
+    private runtimeContext = new RuntimeContext();
+    private eventHandler?: (event: import("./events/EventBus").GameEvent) => void;
+    private variableSnapshots: Map<string, Map<string, unknown>> = new Map();
     private groundY = 500;
     private readonly projectileTtl = 2;
     private readonly projectileSize = 6;
@@ -137,9 +145,64 @@ export class GameCore {
 
     constructor(renderer: IRenderer) {
         this.renderer = renderer;
+        this.eventHandler = (event) => {
+            if (!event || !event.type) return;
+
+            if (event.type === "COLLISION_ENTER" || event.type === "COLLISION_STAY") {
+                const data = event.data as {
+                    entityA?: string;
+                    entityB?: string;
+                    tagA?: string;
+                    tagB?: string;
+                    overlapX?: number;
+                    overlapY?: number;
+                    normalX?: number;
+                    normalY?: number;
+                } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+
+                const contactA = {
+                    otherId: data.entityB,
+                    otherTag: data.tagB,
+                    selfTag: data.tagA,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX,
+                    normalY: data.normalY,
+                };
+                const contactB = {
+                    otherId: data.entityA,
+                    otherTag: data.tagA,
+                    selfTag: data.tagB,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX !== undefined ? -data.normalX : undefined,
+                    normalY: data.normalY !== undefined ? -data.normalY : undefined,
+                };
+
+                if (event.type === "COLLISION_ENTER") {
+                    this.runtimeContext.recordCollisionEnter(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionEnter(data.entityB, contactB);
+                } else {
+                    this.runtimeContext.recordCollisionStay(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionStay(data.entityB, contactB);
+                }
+                return;
+            }
+
+            if (event.type === "COLLISION_EXIT") {
+                const data = event.data as { entityA?: string; entityB?: string } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+                this.runtimeContext.recordCollisionExit(data.entityA, data.entityB);
+                this.runtimeContext.recordCollisionExit(data.entityB, data.entityA);
+            }
+        };
+        EventBus.on(this.eventHandler);
     }
 
     // ===== Entity Management - ID 동기화 보장 =====
+
+
 
     /**
      * 엔티티 생성
@@ -181,6 +244,8 @@ export class GameCore {
             components: options.components ?? [],
             modules: options.modules ?? [],
             rules: options.rules ?? [],
+            width: options.width ?? 40,
+            height: options.height ?? 40,
         };
 
         // 1. 로컬 상태에 저장
@@ -195,6 +260,19 @@ export class GameCore {
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
         this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        const baseWidth = entity.width ?? 40;
+        const baseHeight = entity.height ?? 40;
+        collisionSystem.register(
+            id,
+            entity.type,
+            {
+                x: entity.x,
+                y: entity.y,
+                width: baseWidth * (entity.scaleX ?? 1),
+                height: baseHeight * (entity.scaleY ?? 1),
+            },
+            { isSolid: true }
+        );
 
         // 3. 컴포넌트 런타임 등록
         this.registerComponentRuntimes(entity);
@@ -229,6 +307,54 @@ export class GameCore {
         }
 
         this.renderer.update(id, x, y, entity.z, entity.rotationZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        this.notify();
+    }
+
+    /**
+     * 외부 편집기에서 전달된 Transform을 동기화
+     */
+    setEntityTransform(
+        id: string,
+        next: {
+            x: number;
+            y: number;
+            z: number;
+            rotationX?: number;
+            rotationY?: number;
+            rotationZ?: number;
+            scaleX: number;
+            scaleY: number;
+            scaleZ?: number;
+        }
+    ): void {
+        const entity = this.entities.get(id);
+        if (!entity) {
+            console.warn(`[GameCore] Cannot set transform: entity "${id}" not found`);
+            return;
+        }
+
+        entity.x = next.x;
+        entity.y = next.y;
+        entity.z = next.z;
+        if (next.rotationX !== undefined) entity.rotationX = next.rotationX;
+        if (next.rotationY !== undefined) entity.rotationY = next.rotationY;
+        if (next.rotationZ !== undefined) entity.rotationZ = next.rotationZ;
+        entity.scaleX = next.scaleX;
+        entity.scaleY = next.scaleY;
+        if (next.scaleZ !== undefined) entity.scaleZ = next.scaleZ;
+
+        const kinetic = this.getModuleByType<KineticModule>(id, "Kinetic");
+        if (kinetic) {
+            kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
+        }
+
+        this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
+        this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+        const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+        collisionSystem.updateSize(id, width, height);
         this.notify();
     }
 
@@ -261,9 +387,11 @@ export class GameCore {
 
         // 2. 렌더러에서 제거
         this.renderer.remove(id);
+        collisionSystem.unregister(id);
 
         // 3. 로컬 상태에서 제거
         this.entities.delete(id);
+        this.variableSnapshots.delete(id);
 
         // 4. 구독자 알림
         this.notify();
@@ -290,6 +418,13 @@ export class GameCore {
      */
     getAllEntities(): Map<string, GameEntity> {
         return new Map(this.entities);
+    }
+
+    /**
+     * 엔티티의 StatusModule 반환 (UI용)
+     */
+    getStatusModule(entityId: string): StatusModule | undefined {
+        return this.getModuleByType<StatusModule>(entityId, "Status");
     }
 
     /**
@@ -327,6 +462,7 @@ export class GameCore {
      */
     setInputState(input: InputState): void {
         this.inputState = { ...input };
+        this.runtimeContext.setInput(this.inputState);
     }
 
     /**
@@ -385,19 +521,17 @@ export class GameCore {
      */
     private registerComponentRuntimes(entity: GameEntity): void {
         for (const comp of entity.components) {
-    
             // 1️⃣ 모든 컴포넌트는 ComponentRuntime으로 등록
             this.componentRuntimes.push({
                 entityId: entity.id,
                 component: comp,
                 initialScale: { x: entity.scaleX, y: entity.scaleY },
             });
-    
             // 2️⃣ Trigger가 있는 컴포넌트만 TriggerRuntime 등록
             if (comp.trigger) {
                 this.triggerRuntimes.push({
                     entityId: entity.id,
-                    component: comp, // 🔥 Trigger를 가진 "컴포넌트"
+                    component: comp as any, // 🔥 Trigger를 가진 "컴포넌트"
                     triggered: false,
                 });
             }
@@ -519,6 +653,7 @@ export class GameCore {
                         entity.y = kinetic.position.y;
                         entity.z = kinetic.position.z ?? entity.z;
                         this.renderer.update(entity.id, entity.x, entity.y, entity.z, entity.rotationZ);
+                        collisionSystem.updatePosition(entity.id, entity.x, entity.y);
                         break;
                     }
                     case "Combat": {
@@ -587,25 +722,52 @@ export class GameCore {
             projectile.x += projectile.dirX * projectile.speed * dt;
             projectile.y += projectile.dirY * projectile.speed * dt;
             this.renderer.update(id, projectile.x, projectile.y, projectile.z);
-
-            if (projectile.targetId) {
-                const target = this.entities.get(projectile.targetId);
-                if (!target) continue;
-
+            // Check collision with ALL entities (not just targetId)
+            for (const [targetEntityId, target] of this.entities) {
+                // Skip self (projectile owner)
+                if (target.id === projectile.fromId) continue;
+                // Skip already hit
                 if (projectile.hitTargets.has(target.id)) continue;
 
                 const dx = target.x - projectile.x;
                 const dy = target.y - projectile.y;
-                const hit = (dx * dx + dy * dy) <= (this.projectileHitRadius * this.projectileHitRadius);
-                if (!hit) continue;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const boxWidth = target.width ?? 32;
+                const boxHeight = target.height ?? 32;
+                const hitDist = boxWidth / 2 + boxHeight / 2;
 
-                this.applyProjectileHit(projectile, target.id);
-                projectile.hitTargets.add(target.id);
+                if (dist < hitDist) {
+                    // Hit!
+                    projectile.hitTargets.add(target.id);
+                    projectile.pierceCount--;
 
-                if (projectile.pierceCount > 0) {
-                    projectile.pierceCount -= 1;
-                } else {
-                    this.removeProjectile(id);
+                    // Apply Damage
+                    const status = this.getModuleByType<StatusModule>(target.id, "Status");
+                    if (status) {
+                        const actualDamage = status.takeDamage(projectile.damage);
+
+                        // Convert world coords to screen coords for UI
+                        const screenPos = this.renderer.worldToScreen(target.x, target.y - 40, 0);
+
+                        // Emit Damage Event for UI
+                        EventBus.emit("DAMAGE_DEALT", {
+                            x: screenPos.x,
+                            y: screenPos.y,
+                            damage: actualDamage,
+                            isCritical: false
+                        });
+
+                        // Emit Log
+                        EventBus.emit("LOG", {
+                            text: `${target.name}에게 ${actualDamage} 피해!`,
+                            kind: "combat"
+                        });
+                    }
+
+                    if (projectile.pierceCount < 0) {
+                        projectile.life = 0;
+                        break;
+                    }
                 }
             }
         }
@@ -614,15 +776,15 @@ export class GameCore {
     private updateTriggers(): void {
         for (const runtime of this.triggerRuntimes) {
             if (runtime.triggered && runtime.component.once) continue;
-    
+
             const owner = this.entities.get(runtime.entityId);
             if (!owner) continue;
-    
+
             for (const target of this.entities.values()) {
                 if (target.id === owner.id) continue;
-    
+
                 if (!this.isTriggerActivated(owner, target, runtime.component)) continue;
-    
+
                 runtime.triggered = true;
                 EventBus.emit("TRIGGER_ENTER", {
                     from: owner.id,
@@ -631,7 +793,7 @@ export class GameCore {
                 });
             }
         }
-    }    
+    }
 
     private applyProjectileHit(projectile: ProjectileRuntime, targetId: string): void {
         if (projectile.explosionRadius > 0) {
@@ -686,9 +848,11 @@ export class GameCore {
      */
     update(time: number, deltaTime: number): void {
         const dt = deltaTime / 1000;
+        this.runtimeContext.beginFrame();
 
         this.updateModules(dt);
         this.updateProjectiles(dt);
+        collisionSystem.update();
         this.updateTriggers();
 
         for (const runtime of this.componentRuntimes) {
@@ -717,48 +881,77 @@ export class GameCore {
         runtime: ComponentRuntime,
         time: number,
         dt: number
-      ): void {
+    ): void {
         const comp = runtime.component;
-      
+
         // 1️⃣ 트리거 판별
-        if (!this.matchTrigger(comp.trigger, time, dt)) return;
-      
+        if (!this.matchTrigger(comp.trigger, entity, time, dt)) return;
+
         // 2️⃣ 조건 판별
         if (!this.matchCondition(comp.condition, entity)) return;
-      
+
         // 3️⃣ 실제 컴포넌트 동작
         switch (comp.type) {
-          case "Transform": {
-            const t = comp as TransformComponent;
-      
-            entity.x += t.x * dt;
-            entity.y += t.y * dt;
-            entity.rotationZ += t.rotation * dt;
-            entity.scaleX = t.scaleX;
-            entity.scaleY = t.scaleY;
-      
-            this.renderer.update(
-              entity.id,
-              entity.x,
-              entity.y,
-              entity.z,
-              entity.rotationZ
-            );
-            this.renderer.setScale(
-              entity.id,
-              entity.scaleX,
-              entity.scaleY,
-              entity.scaleZ
-            );
-            break;
-          }
-      
-          case "Render":
-          case "Variables":
-            // 아직은 런타임 처리 없음
-            break;
+            case "Transform": {
+                const t = comp as TransformComponent;
+
+                entity.x += t.x * dt;
+                entity.y += t.y * dt;
+                entity.rotationZ += t.rotation * dt;
+                entity.scaleX = t.scaleX;
+                entity.scaleY = t.scaleY;
+
+                this.renderer.update(
+                    entity.id,
+                    entity.x,
+                    entity.y,
+                    entity.z,
+                    entity.rotationZ
+                );
+                this.renderer.setScale(
+                    entity.id,
+                    entity.scaleX,
+                    entity.scaleY,
+                    entity.scaleZ
+                );
+                collisionSystem.updatePosition(entity.id, entity.x, entity.y);
+                const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+                const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+                collisionSystem.updateSize(entity.id, width, height);
+                break;
+            }
+
+            case "Signal": {
+                const s = comp as SignalComponent;
+                const signalKey = s.signalKey?.trim();
+                if (!signalKey) break;
+
+                const targetId = s.targetEntityId?.trim() || entity.id;
+                if (!this.entities.has(targetId)) {
+                    console.warn(`[GameCore] Signal target not found: ${targetId}`);
+                    break;
+                }
+
+                let value: number | string | boolean | null = null;
+                if (s.signalValue?.kind === "EntityVariable") {
+                    const variable = entity.variables?.find(v => v.name === s.signalValue.name);
+                    if (variable) {
+                        value = variable.value as number | string | boolean;
+                    }
+                } else if (s.signalValue?.kind === "Literal") {
+                    value = s.signalValue.value ?? null;
+                }
+
+                this.runtimeContext.setSignal(targetId, signalKey, value);
+                break;
+            }
+
+            case "Render":
+            case "Variables":
+                // 아직은 런타임 처리 없음
+                break;
         }
-      }
+    }
 
     // ===== Subscription =====
 
@@ -780,37 +973,50 @@ export class GameCore {
     }
     private matchTrigger(
         trigger: Trigger | undefined,
+        entity: GameEntity,
         time: number,
         dt: number
-      ): boolean {
+    ): boolean {
         if (!trigger) return true;
-      
+
         switch (trigger.type) {
-          case "OnUpdate":
-            return true;
-      
-          case "OnStart":
-            return time === 0;
-      
-          default:
-            return false;
+            case "OnUpdate":
+                return true;
+
+            case "OnStart":
+                return time === 0;
+
+            case "VariableOnChanged": {
+                const name = trigger.params?.name as string | undefined;
+                if (!name) return false;
+                const current = entity.variables?.find((v) => v.name === name)?.value;
+                const entityMap = this.variableSnapshots.get(entity.id) ?? new Map();
+                const hasPrev = entityMap.has(name);
+                const prevValue = entityMap.get(name);
+                entityMap.set(name, current);
+                this.variableSnapshots.set(entity.id, entityMap);
+                return hasPrev && prevValue !== current;
+            }
+
+            default:
+                return false;
         }
-      }
-      
-      private matchCondition(
+    }
+
+    private matchCondition(
         condition: Condition | undefined,
         entity: GameEntity
-      ): boolean {
+    ): boolean {
         if (!condition) return true;
-      
+
         switch (condition.type) {
-          case "Always":
-            return true;
-      
-          default:
-            return false;
+            case "Always":
+                return true;
+
+            default:
+                return false;
         }
-      }
+    }
     // ===== Lifecycle =====
 
     /**
@@ -818,6 +1024,10 @@ export class GameCore {
      * 모든 엔티티와 컴포넌트 런타임 해제
      */
     destroy(): void {
+        if (this.eventHandler) {
+            EventBus.off(this.eventHandler);
+            this.eventHandler = undefined;
+        }
         // 1. 모든 엔티티를 렌더러에서 제거
         for (const id of this.entities.keys()) {
             this.renderer.remove(id);
@@ -838,9 +1048,15 @@ export class GameCore {
         this.componentRuntimes = [];
         this.moduleRuntimes.clear();
         this.projectileRuntimes.clear();
+        collisionSystem.clear();
+        this.variableSnapshots.clear();
         this.listeners.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");
+    }
+
+    getRuntimeContext(): RuntimeContext {
+        return this.runtimeContext;
     }
 
     // ===== Serialization (저장/불러오기용) =====

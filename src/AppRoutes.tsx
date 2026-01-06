@@ -33,7 +33,7 @@ function AppRoutes() {
             <Route path="/library" element={isAuthenticated ? <LibraryPage /> : <Navigate to="/auth" replace />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/oauth/callback" element={<OAuthCallback />} />
-            <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
+            <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <EditorLayout />/*<Navigate to="/auth" replace /> */} />
         </Routes>
     );
 }

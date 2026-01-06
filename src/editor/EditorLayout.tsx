@@ -11,6 +11,7 @@ import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCor
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 
+import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 
 // Entry Style Color Palette
@@ -248,29 +249,70 @@ function EditorLayoutInner() {
                 background: colors.bgSecondary,
                 borderBottom: `1px solid ${colors.borderColor}`,
             }}>
-                {['File', 'Edit', 'Assets', 'View'].map((menu) => (
-                    <span
-                        key={menu}
-                        style={{
-                            padding: '6px 12px',
-                            fontSize: '13px',
-                            color: colors.textSecondary,
-                            cursor: 'pointer',
-                            borderRadius: '4px',
-                            transition: 'all 0.15s',
+                <button
+                    onClick={() => {
+                        // SAVE
+                        const json = SceneSerializer.serialize(core, "MyScene");
+                        const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${json.sceneId}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }}
+                    style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        background: 'transparent',
+                        border: 'none',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
+                    Save Project
+                </button>
+
+                <label
+                    style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
+                    Load Project
+                    <input
+                        type="file"
+                        accept=".json"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (evt) => {
+                                const text = evt.target?.result as string;
+                                try {
+                                    const json = JSON.parse(text);
+                                    core.clear(); // Clear existing
+                                    SceneSerializer.deserialize(json, core);
+                                } catch (err) {
+                                    console.error("Failed to load JSON", err);
+                                    alert("Failed to load project file.");
+                                }
+                            };
+                            reader.readAsText(file);
+                            // Reset input
+                            e.target.value = "";
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = colors.bgTertiary;
-                            e.currentTarget.style.color = colors.textPrimary;
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = colors.textSecondary;
-                        }}
-                    >
-                        {menu}
-                    </span>
-                ))}
+                    />
+                </label>
             </div>
 
             {/* ===== MAIN EDITOR AREA ===== */}
@@ -327,6 +369,7 @@ function EditorLayoutInner() {
                 }}>
                     {mode === "dev" ? (
                         <EditorCanvas
+                            key={`edit-${runSession}`}
                             assets={assets}
                             selected_asset={selectedAsset}
                             draggedAsset={draggedAsset}
@@ -366,14 +409,16 @@ function EditorLayoutInner() {
                         Inspector
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        <InspectorPanel
-                            entity={localSelectedEntity}
-                            onUpdateEntity={(updatedEntity) => {
-                                core.addEntity(updatedEntity as any);
-                                core.setSelectedEntity(updatedEntity as any);
-                                setLocalSelectedEntity(updatedEntity);
-                            }}
-                        />
+                        {localSelectedEntity && (
+                            <InspectorPanel
+                                entity={localSelectedEntity}
+                                onUpdateEntity={(updatedEntity) => {
+                                    core.addEntity(updatedEntity as any);
+                                    core.setSelectedEntity(updatedEntity as any);
+                                    setLocalSelectedEntity(updatedEntity);
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -512,14 +557,14 @@ function EditorLayoutInner() {
                                     padding: "8px 14px",
                                     fontSize: "12px",
                                     fontWeight: 600,
-                                    background: isUploadingAsset ? colors.bgPrimary : colors.bgTertiary,
+                                    background: colors.bgTertiary,
                                     border: `1px solid ${colors.borderColor}`,
                                     borderRadius: "6px",
                                     color: colors.textPrimary,
-                                    cursor: isUploadingAsset ? "not-allowed" : "pointer",
+                                    cursor: "pointer",
                                 }}
                             >
-                                {isUploadingAsset ? "Uploading..." : "Add Asset"}
+                                Add Asset
                             </button>
                             <button
                                 type="button"

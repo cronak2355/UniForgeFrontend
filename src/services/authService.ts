@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://uniforge.kr'; // import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.uniforge.kr';
 
 export interface User {
     id: string;
@@ -25,7 +25,7 @@ export interface SignupRequest {
 }
 
 class AuthService {
-    public getToken(): string | null {
+    private getToken(): string | null {
         return localStorage.getItem('token');
     }
 
