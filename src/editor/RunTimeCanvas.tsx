@@ -70,11 +70,16 @@ export function RunTimeCanvas() {
     const gameCoreRef = useRef<GameCore | null>(null);
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
+    const selectedEntityIdRef = useRef<string | null>(null);
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
-    const { core, assets, tiles, entities } = useEditorCoreSnapshot();
+    const { core, assets, tiles, entities, selectedEntity } = useEditorCoreSnapshot();
+
+    useEffect(() => {
+        selectedEntityIdRef.current = selectedEntity?.id ?? null;
+    }, [selectedEntity]);
 
     useEffect(() => {
         // ?고????뚮뜑??寃뚯엫肄붿뼱 珥덇린??(理쒖큹 1??
@@ -146,6 +151,56 @@ export function RunTimeCanvas() {
             // ?고????낅뜲?댄듃 猷⑦봽 ?곌껐 (而댄룷?뚰듃 泥섎━)
             renderer.onUpdateCallback = (time, delta) => {
                 gameRuntime.update(time, delta);
+
+                const selectedId = selectedEntityIdRef.current;
+                if (!selectedId) return;
+
+                const runtimeEntity = gameRuntime.getEntity(selectedId);
+                const editorEntity = core.getEntities().get(selectedId);
+                if (!runtimeEntity || !editorEntity) return;
+
+                const nextVars = runtimeEntity.variables.map((v) => ({ ...v }));
+                const nextEntity = {
+                    ...editorEntity,
+                    x: runtimeEntity.x ?? editorEntity.x,
+                    y: runtimeEntity.y ?? editorEntity.y,
+                    z: runtimeEntity.z ?? editorEntity.z,
+                    rotationX: runtimeEntity.rotationX ?? editorEntity.rotationX,
+                    rotationY: runtimeEntity.rotationY ?? editorEntity.rotationY,
+                    rotationZ: runtimeEntity.rotationZ ?? editorEntity.rotationZ,
+                    rotation:
+                        typeof runtimeEntity.rotationZ === "number"
+                            ? runtimeEntity.rotationZ
+                            : editorEntity.rotation,
+                    scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
+                    scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
+                    scaleZ: runtimeEntity.scaleZ ?? editorEntity.scaleZ,
+                    variables: nextVars,
+                };
+                const sameVars =
+                    editorEntity.variables.length === nextVars.length &&
+                    editorEntity.variables.every((v, idx) => {
+                        const next = nextVars[idx];
+                        return (
+                            v.id === next.id &&
+                            v.name === next.name &&
+                            v.type === next.type &&
+                            v.value === next.value
+                        );
+                    });
+                const sameTransform =
+                    editorEntity.x === nextEntity.x &&
+                    editorEntity.y === nextEntity.y &&
+                    editorEntity.z === nextEntity.z &&
+                    editorEntity.rotationX === nextEntity.rotationX &&
+                    editorEntity.rotationY === nextEntity.rotationY &&
+                    editorEntity.rotationZ === nextEntity.rotationZ &&
+                    editorEntity.scaleX === nextEntity.scaleX &&
+                    editorEntity.scaleY === nextEntity.scaleY &&
+                    editorEntity.scaleZ === nextEntity.scaleZ;
+                if (sameVars && sameTransform) return;
+
+                core.addEntity(nextEntity as any);
             };
         })();
 
@@ -273,6 +328,8 @@ export function RunTimeCanvas() {
         </div>
     );
 }
+
+
 
 
 

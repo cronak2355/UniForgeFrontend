@@ -384,6 +384,7 @@ const RuleItem = memo(function RuleItem({
                             <ActionEditor
                                 key={i}
                                 action={action}
+                                variables={variables}
                                 entities={entities}
                                 onUpdate={(a) => {
                                     const newActions = [...rule.actions];
@@ -498,16 +499,19 @@ function ConditionEditor({
 
 function ActionEditor({
     action,
+    variables,
     entities,
     onUpdate,
     onRemove,
 }: {
     action: { type: string; [key: string]: unknown };
+    variables: EditorVariable[];
     entities: { id: string; name: string }[];
     onUpdate: (a: { type: string; [key: string]: unknown }) => void;
     onRemove: () => void;
 }) {
     const availableActions = ActionRegistry.getAvailableActions();
+    const selectedVar = variables.find((v) => v.name === (action.name as string));
 
     return (
         <div style={styles.actionRow}>
@@ -571,13 +575,32 @@ function ActionEditor({
                         onChange={(e) => onUpdate({ ...action, name: e.target.value })}
                         style={styles.textInput}
                     />
-                    <input
-                        type="text"
-                        placeholder="value"
-                        value={action.value !== undefined ? String(action.value) : ""}
-                        onChange={(e) => onUpdate({ ...action, value: e.target.value })}
-                        style={styles.textInput}
-                    />
+                    {selectedVar?.type === "bool" ? (
+                        <select
+                            value={action.value === true ? "true" : "false"}
+                            onChange={(e) => onUpdate({ ...action, value: e.target.value === "true" })}
+                            style={styles.smallSelect}
+                        >
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    ) : selectedVar?.type === "int" || selectedVar?.type === "float" ? (
+                        <input
+                            type="number"
+                            placeholder="value"
+                            value={action.value !== undefined ? Number(action.value) : 0}
+                            onChange={(e) => onUpdate({ ...action, value: parseFloat(e.target.value) || 0 })}
+                            style={styles.textInput}
+                        />
+                    ) : (
+                        <input
+                            type="text"
+                            placeholder="value"
+                            value={action.value !== undefined ? String(action.value) : ""}
+                            onChange={(e) => onUpdate({ ...action, value: e.target.value })}
+                            style={styles.textInput}
+                        />
+                    )}
                 </>
             )}
 

@@ -69,6 +69,15 @@ function EditorLayoutInner() {
         }
     }, [selectedEntity]);
 
+    useEffect(() => {
+        if (mode !== "run") return;
+        const id = selectedEntity?.id ?? localSelectedEntity?.id;
+        if (!id) return;
+        const latest = core.getEntities().get(id);
+        if (!latest) return;
+        setLocalSelectedEntity(latest);
+    }, [mode, entities, selectedEntity, localSelectedEntity, core]);
+
     const resetDropModal = () => {
         setDropModalFile(null);
         setDropAssetName("");
@@ -250,6 +259,8 @@ function EditorLayoutInner() {
                                         entityBackupRef.current = null;
                                         // Force UI update
                                         core.setSelectedEntity(core.getSelectedEntity());
+                                        const refreshed = core.getSelectedEntity();
+                                        setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
                                     }
                                 }
                                 return next;

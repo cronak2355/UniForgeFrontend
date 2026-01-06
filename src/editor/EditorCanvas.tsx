@@ -414,7 +414,16 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     components: [],
                 });
             } else {
-                gameCore.moveEntity(ent.id, ent.x, ent.y);
+                gameCore.setEntityTransform(ent.id, {
+                    x: ent.x,
+                    y: ent.y,
+                    z: ent.z ?? 0,
+                    rotationX: ent.rotationX ?? 0,
+                    rotationY: ent.rotationY ?? 0,
+                    rotationZ: ent.rotationZ ?? ent.rotation ?? 0,
+                    scaleX: ent.scaleX ?? 1,
+                    scaleY: ent.scaleY ?? 1,
+                });
             }
         }
     }, [entities]);

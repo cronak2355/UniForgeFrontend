@@ -88,6 +88,9 @@ export class EditorState implements IGameState {
         }
         const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
         this.entities.set(entity.id, normalized);
+        if (this.selectedEntity?.id === entity.id) {
+            this.selectedEntity = normalized;
+        }
         this.notify();
     }
 

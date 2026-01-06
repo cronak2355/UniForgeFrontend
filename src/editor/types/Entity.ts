@@ -12,6 +12,9 @@ export interface EditorEntity {
   y: number;
   z: number;
   rotation: number;
+  rotationX?: number;
+  rotationY?: number;
+  rotationZ?: number;
   scaleX: number;
   scaleY: number;
   role: string;

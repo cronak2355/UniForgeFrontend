@@ -42,7 +42,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const handleAddVariable = () => {
     const nextVar = {
       id: crypto.randomUUID(),
-      name: "var",
+      name: "변수",
       type: "int" as const,
       value: 0,
     };
@@ -230,7 +230,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       </div>
 
       <div style={sectionStyle}>
-        <div style={titleStyle}>Components</div>
+        <div style={titleStyle}>컴포넌트</div>
         <RuleSection entity={localEntity} onUpdateEntity={handleUpdate} />
       </div>
 

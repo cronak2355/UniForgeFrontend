@@ -376,6 +376,8 @@ export class EditorScene extends Phaser.Scene {
 
     entities.forEach((e) => {
       const rect = this.add.rectangle(e.x, e.y, 40, 40, 0xffffff);
+      rect.setAngle(e.rotationZ ?? e.rotation ?? 0);
+      rect.setScale(e.scaleX ?? 1, e.scaleY ?? 1);
       rect.setData("id", e.id);
       rect.setInteractive({ useHandCursor: true });
       rect.setName(e.name); // Phaser Name

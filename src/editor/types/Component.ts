@@ -80,7 +80,6 @@ export const ComponentDefaults: ComponentDefault = {
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-
     trigger: { type: "OnUpdate" },
     condition: { type: "Always" },
   },

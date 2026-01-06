@@ -2,26 +2,42 @@ import { ActionRegistry, type ActionContext } from "../ActionRegistry";
 import { EventBus } from "../EventBus";
 import Phaser from "phaser";
 
-type VariableEntry = { id: string; name: string; type: string; value: number | string };
+type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
+type RuntimeEntity = {
+    variables?: VariableEntry[];
+    x?: number;
+    y?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotation?: number;
+    rotationZ?: number;
+};
 
-function getEntity(ctx: ActionContext) {
-    const entities = ctx.globals?.entities as Map<string, { variables?: VariableEntry[] }> | undefined;
+function getEntity(ctx: ActionContext): RuntimeEntity | undefined {
+    const entities = ctx.globals?.entities as Map<string, RuntimeEntity> | undefined;
     if (!entities) return undefined;
     return entities.get(ctx.entityId);
 }
 
-function getEntityById(ctx: ActionContext, id: string) {
-    const entities = ctx.globals?.entities as Map<string, { variables?: VariableEntry[] }> | undefined;
+function getEntityById(ctx: ActionContext, id: string): RuntimeEntity | undefined {
+    const entities = ctx.globals?.entities as Map<string, RuntimeEntity> | undefined;
     if (!entities) return undefined;
     return entities.get(id);
 }
 
-function getNumberVar(entity: { variables?: VariableEntry[] } | undefined, name: string): number | undefined {
+function getNumberVar(entity: RuntimeEntity | undefined, name: string): number | undefined {
     const variable = entity?.variables?.find((v) => v.name === name);
     return typeof variable?.value === "number" ? variable.value : undefined;
 }
 
-function setVar(entity: { variables?: VariableEntry[] } | undefined, name: string, value: number | string): void {
+function coerceBool(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") return value.toLowerCase() === "true";
+    return Boolean(value);
+}
+
+function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean): void {
     if (!entity) return;
     if (!entity.variables) entity.variables = [];
     const existing = entity.variables.find((v) => v.name === name);
@@ -29,9 +45,20 @@ function setVar(entity: { variables?: VariableEntry[] } | undefined, name: strin
         if (existing.type === "int" || existing.type === "float") {
             const num = typeof value === "number" ? value : Number(value);
             existing.value = Number.isNaN(num) ? 0 : num;
+        } else if (existing.type === "bool") {
+            existing.value = coerceBool(value);
         } else {
-            existing.value = value;
+            existing.value = String(value);
         }
+        return;
+    }
+    if (typeof value === "boolean" || (typeof value === "string" && (value === "true" || value === "false"))) {
+        entity.variables.push({
+            id: crypto.randomUUID(),
+            name,
+            type: "bool",
+            value: coerceBool(value),
+        });
         return;
     }
     const numeric = typeof value === "number" ? value : Number(value);
