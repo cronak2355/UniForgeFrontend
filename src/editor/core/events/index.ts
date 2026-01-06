@@ -10,3 +10,5 @@ import "./conditions/EventSignalCondition";
 import "./bootstrap";
 import "./actions/DefaultActions";
 import "./conditions/DefaultConditions";
+import "./actions/SceneActions";
+import "./conditions/SceneConditions";
