@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
+import { syncLegacyFromLogic } from "./utils/entityLogic";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -98,6 +99,15 @@ function EditorLayoutInner() {
             setLocalSelectedEntity(selectedEntity);
         }
     }, [selectedEntity]);
+
+    useEffect(() => {
+        if (mode !== "run") return;
+        const id = selectedEntity?.id;
+        if (!id) return;
+        const latest = core.getEntities().get(id);
+        if (!latest) return;
+        setLocalSelectedEntity(latest);
+    }, [mode, selectedEntity, core]);
 
     const resetDropModal = () => {
         setDropModalFile(null);
@@ -266,6 +276,37 @@ function EditorLayoutInner() {
                                         backup.set(id, JSON.parse(JSON.stringify(entity)));
                                     });
                                     entityBackupRef.current = backup;
+                                    core.setSelectedEntity(null);
+                                    setLocalSelectedEntity(null);
+                                    const entitiesList = Array.from(core.getEntities().values());
+                                    const preferred =
+                                        entitiesList.find((entity) => entity.role === "player") ??
+                                        entitiesList[0] ??
+                                        null;
+                                    if (preferred) {
+                                        core.setSelectedEntity(preferred as any);
+                                        setLocalSelectedEntity(preferred as any);
+                                    }
+                                    console.log(
+                                        "[Run] Entities snapshot:",
+                                        Array.from(core.getEntities().values()).map((entity) => ({
+                                            id: entity.id,
+                                            name: entity.name,
+                                            type: entity.type,
+                                            x: entity.x,
+                                            y: entity.y,
+                                            z: entity.z,
+                                            rotation: entity.rotation,
+                                            rotationX: entity.rotationX,
+                                            rotationY: entity.rotationY,
+                                            rotationZ: entity.rotationZ,
+                                            scaleX: entity.scaleX,
+                                            scaleY: entity.scaleY,
+                                            role: entity.role,
+                                            variables: entity.variables,
+                                            components: entity.components,
+                                        }))
+                                    );
                                     setRunSession((v) => v + 1);
                                 } else {
                                     // Restore entity state from backup
@@ -280,6 +321,8 @@ function EditorLayoutInner() {
                                         entityBackupRef.current = null;
                                         // Force UI update
                                         core.setSelectedEntity(core.getSelectedEntity());
+                                        const refreshed = core.getSelectedEntity();
+                                        setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
                                     }
                                 }
                                 return next;
@@ -488,7 +531,12 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                        <RunTimeCanvas key={`run-${runSession}`} />
+                        <RunTimeCanvas
+                            key={`run-${runSession}`}
+                            onRuntimeEntitySync={(runtimeEntity) => {
+                                setLocalSelectedEntity(runtimeEntity);
+                            }}
+                        />
                     )}
                 </div>
 
@@ -520,10 +568,10 @@ function EditorLayoutInner() {
                             <InspectorPanel
                                 entity={localSelectedEntity}
                                 onUpdateEntity={(updatedEntity) => {
-                                    console.log("[EditorLayout] Module update:", updatedEntity.modules?.find(m => m.type === "Status"));
-                                    core.addEntity(updatedEntity as any);
-                                    core.setSelectedEntity(updatedEntity as any);
-                                    setLocalSelectedEntity(updatedEntity);
+                                    const normalized = syncLegacyFromLogic(updatedEntity);
+                                    core.addEntity(normalized as any);
+                                    core.setSelectedEntity(normalized as any);
+                                    setLocalSelectedEntity(normalized);
                                 }}
                             />
                         )}

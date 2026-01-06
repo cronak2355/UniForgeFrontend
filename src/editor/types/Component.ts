@@ -6,8 +6,8 @@ import type { Condition } from "./Condition";
 export type ComponentType =
   | "Transform"
   | "Render"
-  | "Variables"
-  | "Signal";
+  | "Signal"
+  | "Logic";
 
 /* ================= Base ================= */
 
@@ -44,11 +44,19 @@ export interface RenderComponent extends BaseComponent {
   spriteId: string;
 }
 
-/* ================= Variables ================= */
 
-export interface VariablesComponent extends BaseComponent {
-  type: "Variables";
-  values: Record<string, number | boolean | string>;
+/* ================= Logic ================= */
+
+export type LogicCondition = { type: string; [key: string]: unknown };
+export type LogicAction = { type: string; [key: string]: unknown };
+
+export interface LogicComponent extends BaseComponent {
+  type: "Logic";
+  event: string;
+  eventParams?: Record<string, unknown>;
+  conditions?: LogicCondition[];
+  conditionLogic?: "AND" | "OR";
+  actions: LogicAction[];
 }
 
 /* ================= Signal ================= */
@@ -69,8 +77,8 @@ export interface SignalComponent extends BaseComponent {
 export type EditorComponent =
   | TransformComponent
   | RenderComponent
-  | VariablesComponent
-  | SignalComponent;
+  | SignalComponent
+  | LogicComponent;
 
 /* ================= Defaults ================= */
 
@@ -89,7 +97,6 @@ export const ComponentDefaults: ComponentDefault = {
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-
     trigger: { type: "OnUpdate" },
     condition: { type: "Always" },
   },
@@ -102,12 +109,14 @@ export const ComponentDefaults: ComponentDefault = {
     condition: { type: "Always" },
   },
 
-  Variables: {
-    type: "Variables",
-    values: {},
 
-    trigger: { type: "OnStart" },
-    condition: { type: "Always" },
+  Logic: {
+    type: "Logic",
+    event: "OnUpdate",
+    eventParams: {},
+    conditions: [],
+    conditionLogic: "AND",
+    actions: [],
   },
 
   Signal: {

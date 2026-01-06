@@ -1,7 +1,9 @@
 // UnitySceneExporter.ts
 
 import { EditorState } from "../EditorCore";
-import type { EditorEntity } from "../types/Entity"
+import type { EditorEntity } from "../types/Entity";
+import { splitLogicItems } from "../types/Logic";
+import type { LogicComponent } from "../types/Component";
 
 // --- Unity Export JSON ---
 
@@ -24,7 +26,6 @@ export interface UnityEntityJSON {
     };
     variables: UnityVariableJSON[];
     events: UnityEventJSON[];
-    modules?: any[];
 }
 
 export interface UnityVariableJSON {
@@ -37,6 +38,7 @@ export interface UnityVariableJSON {
 export interface UnityEventJSON {
     id: string;
     trigger: string;
+    triggerParams?: Record<string, unknown>;
     action: string;
     params?: Record<string, unknown>;
 }
@@ -66,12 +68,15 @@ export class UnitySceneExporter {
 
     private static exportEntity(e: EditorEntity): UnityEntityJSON {
         const events: UnityEventJSON[] = [];
+        const components = splitLogicItems(e.logic);
+        const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
 
-        e.rules.forEach(rule => {
-            rule.actions.forEach((action, idx) => {
+        logicComponents.forEach((component) => {
+            component.actions.forEach((action, idx) => {
                 events.push({
-                    id: `ev_${rule.id}_${idx}`,
-                    trigger: rule.trigger.type,
+                    id: `ev_${component.id}_${idx}`,
+                    trigger: component.event,
+                    triggerParams: component.eventParams,
                     action: action.type,
                     params: {
                         ...action,
@@ -97,7 +102,6 @@ export class UnitySceneExporter {
                 value: v.value,
             })),
             events,
-            modules: e.modules,
         };
     }
 }
