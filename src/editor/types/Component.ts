@@ -6,7 +6,8 @@ import type { Condition } from "./Condition";
 export type ComponentType =
   | "Transform"
   | "Render"
-  | "Variables";
+  | "Variables"
+  | "Signal";
 
 /* ================= Base ================= */
 
@@ -50,12 +51,26 @@ export interface VariablesComponent extends BaseComponent {
   values: Record<string, number | boolean | string>;
 }
 
+/* ================= Signal ================= */
+
+export type SignalValue =
+  | { kind: "Literal"; value: number | string | boolean | null }
+  | { kind: "EntityVariable"; name: string };
+
+export interface SignalComponent extends BaseComponent {
+  type: "Signal";
+  targetEntityId?: string;
+  signalKey: string;
+  signalValue: SignalValue;
+}
+
 /* ================= Union ================= */
 
 export type EditorComponent =
   | TransformComponent
   | RenderComponent
-  | VariablesComponent;
+  | VariablesComponent
+  | SignalComponent;
 
 /* ================= Defaults ================= */
 
@@ -92,6 +107,16 @@ export const ComponentDefaults: ComponentDefault = {
     values: {},
 
     trigger: { type: "OnStart" },
+    condition: { type: "Always" },
+  },
+
+  Signal: {
+    type: "Signal",
+    targetEntityId: "",
+    signalKey: "STATE_CHANGED",
+    signalValue: { kind: "Literal", value: null },
+
+    trigger: { type: "OnUpdate" },
     condition: { type: "Always" },
   },
 };

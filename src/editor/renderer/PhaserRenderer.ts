@@ -6,6 +6,7 @@ import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
 import { editorCore } from "../EditorCore";
 // 물리 엔진 (엔진 독립적)
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
+import type { RuntimeContext } from "../core/RuntimeContext";
 // 모듈 팩토리
 import { getRuntimeEntity } from "../core/modules/ModuleFactory";
 
@@ -47,9 +48,13 @@ class PhaserRenderScene extends Phaser.Scene {
 
         // EventBus에 리스너 등록
         EventBus.on((event) => {
-            // 런타임 모드에서만 동작 (에디터 모드에서는 엔티티가 없음)
+            // 런타임 모드에서만 동작
+            if (!this.phaserRenderer.isRuntimeMode) {
+                return;
+            }
+            // 엔티티가 없으면 스킵
             if (this.phaserRenderer.getAllEntityIds().length === 0) {
-                return; // 엔티티가 없으면 런타임이 아님
+                return;
             }
 
             editorCore.getEntities().forEach((entity) => {
@@ -58,11 +63,16 @@ class PhaserRenderScene extends Phaser.Scene {
                 // 런타임 엔티티에서 모듈 인스턴스 가져오기
                 const runtimeEntity = getRuntimeEntity(entity.id);
                 const modules = runtimeEntity?.modules ?? {};
+                const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+                const input = runtimeContext?.getInput();
+                const entityCtx = runtimeContext?.getEntityContext(entity.id);
 
                 const ctx = {
                     entityId: entity.id,
                     modules,
                     eventData: event.data || {},
+                    input,
+                    entityContext: entityCtx,
                     globals: {
                         scene: this,
                         renderer: this.phaserRenderer,
@@ -86,8 +96,10 @@ class PhaserRenderScene extends Phaser.Scene {
         // 부모 업데이트 호출
         this.phaserRenderer.onUpdate(time, delta);
 
-        // TICK 이벤트 발행 (매 프레임 - ECA Rule 트리거용)
-        EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
+        // TICK 이벤트 발행 (런타임 모드에서만)
+        if (this.phaserRenderer.isRuntimeMode) {
+            EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
+        }
 
         // 키보드가 초기화되지 않았으면 스킵
         if (!this.cursors || !this.wasd) return;
@@ -190,7 +202,11 @@ export class PhaserRenderer implements IRenderer {
     onScroll?: (deltaY: number) => void;
     onUpdateCallback?: (time: number, delta: number) => void;
     onInputState?: (input: InputState) => void;
+    getRuntimeContext?: () => RuntimeContext | null;
     useEditorCoreRuntimePhysics = true;
+
+    /** Runtime mode flag - Rules and TICK only run when true */
+    isRuntimeMode = false;
 
     // ===== Lifecycle =====
 

@@ -185,6 +185,16 @@ export class EditorState implements IGameState {
         }
     }
 
+    clear() {
+        this.entities.clear();
+        this.tiles.clear();
+        // Assets are usually static or managed differently, but for full load, maybe clear them too?
+        // For now, keep assets as they are often library-level.
+        // this.selectedAsset = null;
+        // this.selectedEntity = null;
+        this.notify();
+    }
+
     sendContextToEditorModeStateMachine(ctx: EditorContext) {
         if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
             this.editorMode = ctx.currentMode;

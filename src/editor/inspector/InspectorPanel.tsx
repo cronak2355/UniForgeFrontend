@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import type { EditorEntity } from "../types/Entity";
 import { colors } from "../constants/colors";
+import { ComponentSection } from "./ComponentSection";
 import { ModuleSection } from "./ModuleSection";
 import { RuleSection } from "./RuleSection";
+import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
 
 interface Props {
   entity: EditorEntity | null;
   onUpdateEntity: (next: EditorEntity) => void;
 }
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
+  const { entities } = useEditorCoreSnapshot();
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
 
   useEffect(() => {
@@ -37,8 +40,14 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     onUpdateEntity(updated);
   };
 
-  const updateTransform = (key: 'x' | 'y' | 'z', value: number) => {
+  const updateTransform = (
+    key: 'x' | 'y' | 'z' | 'rotationX' | 'rotationY' | 'rotationZ' | 'rotation' | 'scaleX' | 'scaleY',
+    value: number
+  ) => {
     const updated = { ...localEntity, [key]: value };
+    if (key === 'rotationZ') {
+      updated.rotation = value;
+    }
     handleUpdate(updated);
   };
 
@@ -68,7 +77,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     color: '#aaa',
     fontSize: '12px',
     marginRight: '8px',
-    width: '15px'
+    width: '20px'
   };
 
   const rowStyle = {
@@ -77,48 +86,131 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     marginBottom: '8px'
   };
 
+  const transformGridStyle = {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'flex-start',
+  };
+
+  const transformGroupStyle = {
+    flex: 1,
+    minWidth: 0,
+  };
+
+  const groupTitleStyle = {
+    marginBottom: '6px',
+    color: '#9ca3af',
+    fontSize: '11px',
+    fontWeight: 600,
+    letterSpacing: '0.3px',
+  };
+
   return (
     <div style={{
-      width: '300px',
+      width: '100%',
+      minWidth: 0,
       background: '#2d2d2d',
-      borderLeft: '1px solid #3e3e3e',
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      overflowY: 'auto'
+      overflowY: 'auto',
+      boxSizing: 'border-box'
     }}>
 
       {/* Transform Section */}
       <div style={sectionStyle}>
         <div style={titleStyle}>Transform</div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>X</span>
-          <input
-            type="number"
-            style={inputStyle}
-            value={localEntity.x}
-            onChange={(e) => updateTransform('x', parseFloat(e.target.value))}
-          />
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Y</span>
-          <input
-            type="number"
-            style={inputStyle}
-            value={localEntity.y}
-            onChange={(e) => updateTransform('y', parseFloat(e.target.value))}
-          />
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Z</span>
-          <input
-            type="number"
-            style={inputStyle}
-            value={localEntity.z}
-            onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
-          />
+        <div style={transformGridStyle}>
+          <div style={transformGroupStyle}>
+            <div style={groupTitleStyle}>Position</div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>X</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.x}
+                onChange={(e) => updateTransform('x', parseFloat(e.target.value))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Y</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.y}
+                onChange={(e) => updateTransform('y', parseFloat(e.target.value))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Z</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.z}
+                onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
+              />
+            </div>
+          </div>
+          <div style={transformGroupStyle}>
+            <div style={groupTitleStyle}>Rotation</div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>RX</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.rotationX ?? 0}
+                onChange={(e) => updateTransform('rotationX', parseFloat(e.target.value))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>RY</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.rotationY ?? 0}
+                onChange={(e) => updateTransform('rotationY', parseFloat(e.target.value))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>RZ</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.rotationZ ?? localEntity.rotation ?? 0}
+                onChange={(e) => updateTransform('rotationZ', parseFloat(e.target.value))}
+              />
+            </div>
+          </div>
+          <div style={transformGroupStyle}>
+            <div style={groupTitleStyle}>Scale</div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>SX</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.scaleX}
+                onChange={(e) => updateTransform('scaleX', parseFloat(e.target.value))}
+              />
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>SY</span>
+              <input
+                type="number"
+                style={inputStyle}
+                value={localEntity.scaleY}
+                onChange={(e) => updateTransform('scaleY', parseFloat(e.target.value))}
+              />
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Component Section */}
+      <ComponentSection
+        entity={localEntity}
+        onUpdateEntity={handleUpdate}
+        availableEntities={entities}
+      />
 
       {/* Module Section */}
       <ModuleSection

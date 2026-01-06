@@ -43,11 +43,11 @@ class MarketplaceService {
         return this.request<Asset[]>('/assets');
     }
 
-    async getAssetById(assetId: string): Promise<Asset> {
+    async getAssetById(assetId: number): Promise<Asset> {
         return this.request<Asset>(`/assets/${assetId}`);
     }
 
-    async getAssetVersions(assetId: string): Promise<AssetVersion[]> {
+    async getAssetVersions(assetId: number): Promise<AssetVersion[]> {
         return this.request<AssetVersion[]>(`/assets/${assetId}/versions`);
     }
 
@@ -55,5 +55,4 @@ class MarketplaceService {
         return this.request<Game[]>('/marketplace/games');
     }
 }
-
 export const marketplaceService = new MarketplaceService();

@@ -155,5 +155,11 @@ ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record
     return variable.value > compareValue;
 });
 
-console.log("[DefaultConditions] 9 conditions registered: IsGrounded, IsAlive, HpBelow, HpAbove, InRange, OutOfRange, HasModule, VarEquals, VarGreaterThan");
+ConditionRegistry.register("SignalFlag", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const key = params.key as string;
+    if (!key) return false;
+    return ctx.entityContext?.signals.flags[key] === true;
+});
+
+console.log("[DefaultConditions] 10 conditions registered: IsGrounded, IsAlive, HpBelow, HpAbove, InRange, OutOfRange, HasModule, VarEquals, VarGreaterThan, SignalFlag");
 

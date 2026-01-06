@@ -57,6 +57,7 @@ const CreateAssetPage = () => {
     const handleFile = (selectedFile: File) => {
         setFile(selectedFile);
 
+        // Generate preview for images
         if (selectedFile.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -125,7 +126,7 @@ const CreateAssetPage = () => {
             const asset = await createResponse.json();
             setUploadProgress(40);
 
-            // Step 2: Create version
+            // Step 2: Create version to get versionId
             const versionResponse = await fetch(
                 `${API_BASE_URL}/assets/${asset.id}/versions`,
                 {
@@ -157,22 +158,21 @@ const CreateAssetPage = () => {
                 throw new Error('업로드 URL 생성에 실패했습니다.');
             }
 
-            const { uploadUrl, s3Key } = await uploadUrlResponse.json();
+            const { uploadUrl } = await uploadUrlResponse.json();
             setUploadProgress(60);
 
-            // Step 4: Upload file to S3 using presigned URL
+            // Step 4: Upload file directly to S3
             const s3Response = await fetch(uploadUrl, {
                 method: 'PUT',
+                body: file,
                 headers: {
                     'Content-Type': file.type
-                },
-                body: file
+                }
             });
 
             if (!s3Response.ok) {
                 throw new Error('S3 업로드에 실패했습니다.');
             }
-            console.log('S3 upload successful, key:', s3Key);
             setUploadProgress(90);
 
             // Step 5: Publish the version
@@ -228,6 +228,7 @@ const CreateAssetPage = () => {
                 </div>
             </header>
 
+            {/* Main Content */}
             <main style={{ maxWidth: '800px', margin: '0 auto', padding: '3rem 2rem' }}>
                 <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
                     <i className="fa-solid fa-plus" style={{ marginRight: '12px', color: '#3b82f6' }}></i>
@@ -238,6 +239,7 @@ const CreateAssetPage = () => {
                 </p>
 
                 <form onSubmit={handleSubmit}>
+                    {/* File Upload Area */}
                     <div
                         style={{
                             border: `2px dashed ${dragActive ? '#3b82f6' : '#333'}`,
@@ -295,6 +297,7 @@ const CreateAssetPage = () => {
                         )}
                     </div>
 
+                    {/* Form Fields */}
                     <div style={{ marginBottom: '1.5rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
                             에셋 이름 *
@@ -367,6 +370,7 @@ const CreateAssetPage = () => {
                         </p>
                     </div>
 
+                    {/* Error Message */}
                     {error && (
                         <div style={{
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -381,6 +385,7 @@ const CreateAssetPage = () => {
                         </div>
                     )}
 
+                    {/* Progress Bar */}
                     {uploading && (
                         <div style={{ marginBottom: '1.5rem' }}>
                             <div style={{
@@ -402,6 +407,7 @@ const CreateAssetPage = () => {
                         </div>
                     )}
 
+                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={uploading}
