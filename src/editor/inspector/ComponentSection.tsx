@@ -7,9 +7,9 @@ import type {
     SignalComponent,
     SignalValue,
     TransformComponent,
-    VariablesComponent,
 } from "../types/Component";
 import type { EditorEntity } from "../types/Entity";
+import { buildLogicItems, splitLogicItems } from "../types/Logic";
 
 const colors = {
     bgSecondary: "#161b22",
@@ -40,9 +40,10 @@ type Props = {
     entity: EditorEntity;
     onUpdateEntity: (next: EditorEntity) => void;
     availableEntities: EditorEntity[];
+    showHeader?: boolean;
 };
 
-const COMPONENT_TYPES: ComponentType[] = ["Transform", "Render", "Variables", "Signal"];
+const COMPONENT_TYPES: ComponentType[] = ["Transform", "Render", "Signal"];
 const TRIGGER_TYPES = ["OnStart", "OnUpdate", "OnKeyDown", "OnClick", "VariableOnChanged"] as const;
 const CONDITION_TYPES = ["Always", "VariableEquals"] as const;
 
@@ -52,10 +53,6 @@ function isTransform(c: EditorComponent): c is TransformComponent {
 
 function isRender(c: EditorComponent): c is RenderComponent {
     return c.type === "Render";
-}
-
-function isVariables(c: EditorComponent): c is VariablesComponent {
-    return c.type === "Variables";
 }
 
 function isSignal(c: EditorComponent): c is SignalComponent {
@@ -73,11 +70,13 @@ export const ComponentSection = memo(function ComponentSection({
     entity,
     onUpdateEntity,
     availableEntities,
+    showHeader = true,
 }: Props) {
-    const components = entity.components ?? [];
+    const { components, rules } = splitLogicItems(entity.logic);
 
     const updateComponents = (next: EditorComponent[]) => {
-        onUpdateEntity({ ...entity, components: next });
+        const nextLogic = buildLogicItems({ components: next, rules });
+        onUpdateEntity({ ...entity, logic: nextLogic });
     };
 
     const handleAdd = (type: ComponentType) => {
@@ -98,8 +97,9 @@ export const ComponentSection = memo(function ComponentSection({
     };
 
     return (
-        <div style={{ padding: "12px 0", borderTop: `1px solid ${colors.borderColor}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+        <div style={{ padding: showHeader ? "12px 0" : "0", borderTop: showHeader ? `1px solid ${colors.borderColor}` : "none" }}>
+            {showHeader && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span
                     style={{
                         fontSize: "11px",
@@ -131,6 +131,7 @@ export const ComponentSection = memo(function ComponentSection({
                     ))}
                 </div>
             </div>
+            )}
 
             {components.length === 0 && (
                 <div style={{ fontSize: "11px", color: colors.textMuted, fontStyle: "italic" }}>
@@ -341,12 +342,6 @@ export const ComponentSection = memo(function ComponentSection({
                                 onChange={(e) => updateComponent({ ...comp, spriteId: e.target.value })}
                                 style={inputStyle}
                             />
-                        </div>
-                    )}
-
-                    {isVariables(comp) && (
-                        <div style={{ fontSize: "10px", color: colors.textMuted }}>
-                            Variables editor coming soon
                         </div>
                     )}
 

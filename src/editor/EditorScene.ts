@@ -7,7 +7,8 @@ import { editorCore } from "./EditorCore";
 // events/index.ts를 import하면 DefaultActions와 DefaultConditions가 자동 등록됨
 import { EventBus, RuleEngine } from "./core/events";
 import { KeyboardAdapter } from "./core/events/adapters/KeyboardAdapter";
-import type { EditorModule } from "./types/Module";
+import { buildLogicItems } from "./types/Logic";
+import { splitLogicItems } from "./types/Logic";
 
 const tileSize = 32;
 
@@ -145,24 +146,17 @@ export class EditorScene extends Phaser.Scene {
     EventBus.on((event) => {
       // 씬에 있는 모든 엔티티에 대해 룰 체크
       editorCore.getEntities().forEach((entity) => {
-        if (!entity.rules || entity.rules.length === 0) return;
+        const rules = entity.rules ?? splitLogicItems(entity.logic).rules;
+        if (!rules || rules.length === 0) return;
 
         // ActionContext 생성
-        const moduleMap: Record<string, EditorModule | undefined> = {};
-        if (entity.modules) {
-          entity.modules.forEach(m => {
-            moduleMap[m.type] = m;
-          });
-        }
-
         const ctx = {
           entityId: entity.id,
-          modules: moduleMap,
           eventData: event.data || {},
-          globals: { scene: this }
+          globals: { scene: this, entities: editorCore.getEntities() }
         };
 
-        RuleEngine.handleEvent(event, ctx as Parameters<typeof RuleEngine.handleEvent>[1], entity.rules);
+        RuleEngine.handleEvent(event, ctx as Parameters<typeof RuleEngine.handleEvent>[1], rules);
       });
     });
 
@@ -525,11 +519,15 @@ export class EditorScene extends Phaser.Scene {
       x: transform.x ?? world.x,
       y: transform.y ?? world.y,
       z: 0,
+      role: "neutral",
       variables: [],
       events: [],
+      logic: buildLogicItems({
+        components: [],
+        rules: [],
+      }),
       components: [],
       rules: [],
-      modules: [],
     };
   }
 
@@ -613,5 +611,8 @@ export class EditorScene extends Phaser.Scene {
     return true;
   }
 }
+
+
+
 
 

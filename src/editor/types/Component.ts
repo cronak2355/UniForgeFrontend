@@ -6,7 +6,6 @@ import type { Condition } from "./Condition";
 export type ComponentType =
   | "Transform"
   | "Render"
-  | "Variables"
   | "Signal";
 
 /* ================= Base ================= */
@@ -44,13 +43,6 @@ export interface RenderComponent extends BaseComponent {
   spriteId: string;
 }
 
-/* ================= Variables ================= */
-
-export interface VariablesComponent extends BaseComponent {
-  type: "Variables";
-  values: Record<string, number | boolean | string>;
-}
-
 /* ================= Signal ================= */
 
 export type SignalValue =
@@ -69,7 +61,6 @@ export interface SignalComponent extends BaseComponent {
 export type EditorComponent =
   | TransformComponent
   | RenderComponent
-  | VariablesComponent
   | SignalComponent;
 
 /* ================= Defaults ================= */
@@ -97,14 +88,6 @@ export const ComponentDefaults: ComponentDefault = {
   Render: {
     type: "Render",
     spriteId: "",
-
-    trigger: { type: "OnStart" },
-    condition: { type: "Always" },
-  },
-
-  Variables: {
-    type: "Variables",
-    values: {},
 
     trigger: { type: "OnStart" },
     condition: { type: "Always" },

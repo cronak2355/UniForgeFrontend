@@ -13,6 +13,7 @@ import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
+import { syncLegacyFromLogic } from "./utils/entityLogic";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -434,10 +435,10 @@ function EditorLayoutInner() {
                             <InspectorPanel
                                 entity={localSelectedEntity}
                                 onUpdateEntity={(updatedEntity) => {
-                                    console.log("[EditorLayout] Module update:", updatedEntity.modules?.find(m => m.type === "Status"));
-                                    core.addEntity(updatedEntity as any);
-                                    core.setSelectedEntity(updatedEntity as any);
-                                    setLocalSelectedEntity(updatedEntity);
+                                    const normalized = syncLegacyFromLogic(updatedEntity);
+                                    core.addEntity(normalized as any);
+                                    core.setSelectedEntity(normalized as any);
+                                    setLocalSelectedEntity(normalized);
                                 }}
                             />
                         )}

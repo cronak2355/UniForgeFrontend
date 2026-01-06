@@ -1,171 +1,183 @@
-import { EditorState, TilePlacement } from "../EditorCore";
+import { EditorState } from "../EditorCore";
 import type { EditorEntity } from "../types/Entity";
 import type { GameRule } from "./events/RuleEngine";
 import type { Asset } from "../types/Asset";
+import { buildLogicItems, splitLogicItems } from "../types/Logic";
 
-// --- Scene JSON Interfaces ---
 export interface SceneEventJSON {
-    id: string;
-    trigger: string;
-    action: string;
-    params?: Record<string, unknown>;
-    // 조건을 포함하려면 여기에 추가해야 함. 현재 예시에는 없음.
-    // 예: conditions?: Array<{ type: string, params: ... }>
+  id: string;
+  trigger: string;
+  action: string;
+  params?: Record<string, unknown>;
 }
 
 export interface SceneVariableJSON {
-    id: string;
-    name: string;
-    type: string;
-    value: any;
+  id: string;
+  name: string;
+  type: string;
+  value: any;
 }
 
 export interface SceneEntityJSON {
-    id: string;
-    type: string;
-    name: string;
-    x: number;
-    y: number;
-    // z, scale, rotation 등 추가 속성 필요시 확장
-    variables: SceneVariableJSON[];
-    events: SceneEventJSON[];
-
-    // EditorModule 데이터를 저장하기 위한 커스텀 필드 (양식에 없지만 필수)
-    // 양식에 맞추기 위해 'modules' 대신 'components'나 'properties'로 넣거나,
-    // 별도 필드로 합의해야 함. 일단 양식을 지키되 확장을 위해 metaData 등을 사용.
-    // 혹은 User가 제시한 양식은 '예시'이므로 필수 데이터인 modules를 포함시킴.
-    modules?: any[];
+  id: string;
+  type: string;
+  name: string;
+  x: number;
+  y: number;
+  variables: SceneVariableJSON[];
+  events: SceneEventJSON[];
 }
 
 export interface TileJSON {
-    x: number;
-    y: number;
-    idx: number; // tile index inside tileset
+  x: number;
+  y: number;
+  idx: number;
 }
 
 export interface SceneJSON {
-    sceneId: string;
-    name: string;
-    entities: SceneEntityJSON[];
-    tiles: TileJSON[];
-    assets: Asset[]; // 에셋 정보도 저장해야 불러올 때 텍스처 로드 가능
+  sceneId: string;
+  name: string;
+  entities: SceneEntityJSON[];
+  tiles: TileJSON[];
+  assets: Asset[];
 }
 
-// --- Serializer ---
-
 export class SceneSerializer {
-    static serialize(state: EditorState, sceneName: string = "Scene 1"): SceneJSON {
-        const entities = Array.from(state.getEntities().values()).map(e => this.serializeEntity(e));
-        const tiles = Array.from(state.getTiles().values()).map(t => ({
-            x: t.x,
-            y: t.y,
-            idx: t.tile
-        }));
+  static serialize(state: EditorState, sceneName: string = "Scene 1"): SceneJSON {
+    const entities = Array.from(state.getEntities().values()).map((e) => this.serializeEntity(e));
+    const tiles = Array.from(state.getTiles().values()).map((t) => ({
+      x: t.x,
+      y: t.y,
+      idx: t.tile,
+    }));
 
-        return {
-            sceneId: `scene_${Date.now()}`,
-            name: sceneName,
-            entities,
-            tiles,
-            assets: state.getAssets()
-        };
-    }
+    return {
+      sceneId: `scene_${Date.now()}`,
+      name: sceneName,
+      entities,
+      tiles,
+      assets: state.getAssets(),
+    };
+  }
 
-    private static serializeEntity(e: EditorEntity): SceneEntityJSON {
-        // Rules -> Events 변환
-        // Rule 하나가 여러 Action을 가질 수 있으므로, 펼쳐서 Event 리스트로 만듦.
-        // (단, 조건Condition은 현재 단순 Event Trigger 구조에 매핑하기 어려우므로, 
-        //  User 양식에 condition 필드가 없다면 손실될 수 있음. 
-        //  일단 가장 근접하게 trigger -> action 매핑)
-        const events: SceneEventJSON[] = [];
+  private static serializeEntity(e: EditorEntity): SceneEntityJSON {
+    const { rules } = splitLogicItems(e.logic);
+    const events: SceneEventJSON[] = [];
 
-        e.rules.forEach((rule: any) => {
-            const triggerType = rule.event; // GameRule uses 'event', not 'trigger'
-
-            rule.actions.forEach((action: any, idx: number) => {
-                events.push({
-                    id: `ev_${idx}`, // Simplified ID
-                    trigger: triggerType,
-                    action: action.type, // Move, ShowDialogue, etc.
-                    params: {
-                        ...action,
-                        type: undefined // params에는 type 제외
-                    }
-                });
-            });
+    rules.forEach((rule: any) => {
+      const triggerType = rule.event;
+      rule.actions.forEach((action: any, idx: number) => {
+        events.push({
+          id: `ev_${idx}`,
+          trigger: triggerType,
+          action: action.type,
+          params: {
+            ...action,
+            type: undefined,
+          },
         });
+      });
+    });
 
-        // Variables 변환
-        const variables = e.variables.map((v: any) => ({
-            id: v.id,
-            name: v.name,
-            type: v.type,
-            value: v.value
-        }));
+    const variables = e.variables.map((v: any) => ({
+      id: v.id,
+      name: v.name,
+      type: v.type,
+      value: v.value,
+    }));
 
-        return {
-            id: e.id,
-            type: e.type, // "sprite" etc.
-            name: e.name,
-            x: e.x,
-            y: e.y,
-            variables,
-            events,
-            modules: e.modules // 원본 데이터 보존
-        };
-    }
+    return {
+      id: e.id,
+      type: e.type,
+      name: e.name,
+      x: e.x,
+      y: e.y,
+      variables,
+      events,
+    };
+  }
 
-    static deserialize(json: SceneJSON, state: EditorState): void {
-        // 1. Reset State (Method needs to be added to EditorState)
-        // state.clear(); 
+  static deserialize(json: SceneJSON, state: EditorState): void {
+    json.tiles.forEach((t) => {
+      state.setTile(t.x, t.y, t.idx);
+    });
 
-        // 2. Restore Tiles
-        json.tiles.forEach(t => {
-            state.setTile(t.x, t.y, t.idx);
-        });
+    json.entities.forEach((e) => {
+      const legacyModules = (e as SceneEntityJSON & { modules?: any[] }).modules ?? [];
+      const rules: GameRule[] = e.events.map((ev, i) => ({
+        event: ev.trigger,
+        eventParams: {},
+        actions: [
+          {
+            type: ev.action,
+            ...ev.params,
+          },
+        ],
+      }));
 
-        // 3. Restore Entities
-        json.entities.forEach(e => {
-            // Events -> Rules 역변환
-            // (1:1 매핑으로 복원. 조건Condition 데이터 손실 주의)
-            const rules: GameRule[] = e.events.map((ev, i) => ({
-                id: ev.id || `rule_${i}`, // Optional if GameRule allows it, but it might not. checking GameRule interface.. it does NOT have id.
-                // Wait, GameRule interface in RuleEngine.ts:
-                // export interface GameRule { event: string; eventParams?: ...; conditions?: ...; actions: ...; }
-                // It does NOT have 'id' or 'name'.
-                // EditorEntity in Entity.ts has 'rules: GameRule[]'.
-                // SceneSerializer creates 'events' from 'rules'.
-                // Let's look at GameRule again.
-                // It seems I need to stick to GameRule interface.
+      const variables = (e.variables ?? []).map((v) => ({ ...v }));
+      const existingNames = new Set(variables.map((v) => v.name));
+      const pushVar = (name: string, type: string, value: any) => {
+        if (existingNames.has(name)) return;
+        variables.push({ id: crypto.randomUUID(), name, type, value });
+        existingNames.add(name);
+      };
 
-                event: ev.trigger,
-                eventParams: {}, // Default empty params
-                // conditions: [], // Optional, can be omitted
-                actions: [{
-                    type: ev.action,
-                    ...ev.params
-                }]
-            }));
+      if (legacyModules.length > 0) {
+        for (const mod of legacyModules) {
+          if (!mod || typeof mod !== "object") continue;
+          if (mod.type === "Status") {
+            pushVar("hp", "float", mod.hp ?? 100);
+            pushVar("maxHp", "float", mod.maxHp ?? 100);
+            pushVar("mp", "float", mod.mp ?? 50);
+            pushVar("maxMp", "float", mod.maxMp ?? 50);
+            pushVar("attack", "float", mod.attack ?? 10);
+            pushVar("defense", "float", mod.defense ?? 0);
+            pushVar("speed", "float", mod.speed ?? 200);
+          }
+          if (mod.type === "Kinetic") {
+            pushVar("physicsMode", "string", mod.mode ?? "TopDown");
+            pushVar("maxSpeed", "float", mod.maxSpeed ?? 200);
+            pushVar("gravity", "float", mod.gravity ?? 800);
+            pushVar("jumpForce", "float", mod.jumpForce ?? 400);
+          }
+          if (mod.type === "Combat") {
+            pushVar("attackRange", "float", mod.attackRange ?? 100);
+            pushVar("attackInterval", "float", mod.attackInterval ?? 500);
+            pushVar("damage", "float", mod.damage ?? 10);
+            pushVar("projectileSpeed", "float", mod.projectileSpeed ?? 300);
+          }
+        }
+      }
 
-            const entity: EditorEntity = {
-                id: e.id,
-                type: e.type as "sprite" | "container" | "nineSlice",
-                name: e.name,
-                x: e.x,
-                y: e.y,
-                z: 0, // Default
-                rotation: 0,
-                scaleX: 1,
-                scaleY: 1,
-                texture: e.type === "asset_player" ? "player" : (e.name.toLowerCase().includes("dragon") ? "dragon" : "test1"), // Texture mapping logic needed
-                variables: e.variables.map(v => ({ ...v })) as any[], // VariableType mismatch fix
-                events: [],
-                components: [], // Basic components
-                modules: e.modules || [], // Restore modules
-                rules
-            };
+      const entity: EditorEntity = {
+        id: e.id,
+        type: e.type as "sprite" | "container" | "nineSlice",
+        name: e.name,
+        x: e.x,
+        y: e.y,
+        z: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        role: "neutral",
+        texture:
+          e.type === "asset_player"
+            ? "player"
+            : e.name.toLowerCase().includes("dragon")
+              ? "dragon"
+              : "test1",
+        variables: variables as any[],
+        events: [],
+        logic: buildLogicItems({
+          components: [],
+          rules,
+        }),
+        components: [],
+        rules,
+      };
 
-            state.addEntity(entity);
-        });
-    }
+      state.addEntity(entity);
+    });
+  }
 }

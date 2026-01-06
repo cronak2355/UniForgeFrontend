@@ -5,6 +5,7 @@ import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
+import { buildLogicItems } from "./types/Logic";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -297,8 +298,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     rotation: 0,
                     scaleX: 1,
                     scaleY: 1,
+                    role: "neutral",
+                    logic: buildLogicItems({
+                        components: [],
+                        rules: [],
+                    }),
                     components: [],
-                    modules: [],
                     variables: [],
                     events: [],
                     rules: []

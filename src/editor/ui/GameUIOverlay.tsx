@@ -35,15 +35,15 @@ export function GameUIOverlay({ gameCore }: Props) {
                 const player = entities.find(e => hasRole(e.role, hudRoles));
 
                 if (player) {
-                    // Get runtime StatusModule (not static editor data)
-                    const status = gameCore.getStatusModule(player.id);
-                    if (status) {
-                        setHp(status.hp);
-                        setMaxHp(status.maxHp);
-                        setMp(status.mp);
-                        setMaxMp(status.maxMp);
-                        setScore(status.score);
-                    }
+                    const getVar = (name: string, fallback: number) => {
+                        const variable = player.variables?.find((v) => v.name === name);
+                        return typeof variable?.value === "number" ? variable.value : fallback;
+                    };
+                    setHp(getVar("hp", 100));
+                    setMaxHp(getVar("maxHp", 100));
+                    setMp(getVar("mp", 50));
+                    setMaxMp(getVar("maxMp", 50));
+                    setScore(getVar("score", 0));
                 }
             }
             frameId = requestAnimationFrame(loop);

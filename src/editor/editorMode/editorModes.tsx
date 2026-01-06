@@ -1,6 +1,7 @@
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
+import { buildLogicItems } from "../types/Logic";
 
 
 //媛???먮뵒??紐⑤뱶??媛??????섎뒗 ??
@@ -246,11 +247,15 @@ export class DragDropMode extends EditorMode {
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
+            role: "neutral",
             variables: [],
             events: [],
+            logic: buildLogicItems({
+                components: [],
+                rules: [],
+            }),
             components: [],
             rules: [],
-            modules: [],
         };
 
         // Notify React side immediately about the created entity so Hierarchy updates

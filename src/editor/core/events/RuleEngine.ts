@@ -1,72 +1,61 @@
 import { ActionRegistry, type ActionContext } from "./ActionRegistry";
-import { getRuntimeEntity } from "../modules/ModuleFactory";
 import { ConditionRegistry } from "./ConditionRegistry";
 import type { GameEvent } from "./EventBus";
 
-/**
- * 게임 규칙 (JSON 데이터 구조)
- * 이 구조는 에디터에서 생성되어 저장됩니다.
- */
 export interface GameRule {
-    /** 트리거할 이벤트 타입 (예: "KEY_DOWN") */
     event: string;
-
-    /** 이벤트 파라미터 매칭 (예: { key: "Space" }) */
     eventParams?: Record<string, unknown>;
-
-    /** 실행 조건 목록 */
     conditions?: {
         type: string;
-        [key: string]: unknown
+        [key: string]: unknown;
     }[];
-
-    /** 실행할 액션 목록 */
+    conditionLogic?: "AND" | "OR";
     actions: {
         type: string;
-        [key: string]: unknown
+        [key: string]: unknown;
     }[];
 }
 
 class RuleEngineClass {
     private rules: GameRule[] = [];
 
-    /**
-     * 규칙 로드 (에디터/게임 초기화 시 호출)
-     */
     loadRules(rules: GameRule[]) {
         this.rules = rules;
         console.log(`[RuleEngine] Loaded ${rules.length} rules.`);
     }
 
-    /**
-     * 규칙 추가
-     */
     addRule(rule: GameRule) {
         this.rules.push(rule);
     }
 
-    /**
-     * 이벤트 처리 및 규칙 실행
-     * @param event 게임 이벤트
-     * @param ctx 액션 컨텍스트
-     * @param entityRules 엔티티별 규칙 (없으면 전역 규칙 사용)
-     */
     handleEvent(event: GameEvent, ctx: ActionContext, entityRules?: GameRule[]) {
-        // [Fix] 사망한 엔티티의 규칙은 처리하지 않음
-        const runtimeEntity = getRuntimeEntity(ctx.entityId);
-        if (runtimeEntity?.modules?.Status) {
-            const status = runtimeEntity.modules.Status as any;
-            if (!status.isAlive) return;
+        const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
+        const entity = entities?.get(ctx.entityId);
+        const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
+        if (typeof hpValue === "number" && hpValue <= 0) {
+            return;
         }
 
-        // 엔티티별 규칙이 있으면 그것을 사용, 없으면 전역 규칙 사용
+        if (event.targetId && event.targetId !== ctx.entityId) {
+            return;
+        }
+
         const rulesToCheck = entityRules || this.rules;
 
-        // 1. 이벤트 타입 및 파라미터 매칭
-        const matchingRules = rulesToCheck.filter(rule => {
-            if (rule.event !== event.type) return false;
+        const eventAliases: Record<string, string[]> = {
+            TICK: ["OnUpdate", "TICK"],
+            KEY_DOWN: ["OnSignalReceive", "KEY_DOWN"],
+            KEY_UP: ["OnSignalReceive", "KEY_UP"],
+            COLLISION_ENTER: ["OnCollision", "COLLISION_ENTER"],
+            COLLISION_STAY: ["OnCollision", "COLLISION_STAY"],
+            COLLISION_EXIT: ["OnCollision", "COLLISION_EXIT"],
+            ENTITY_DIED: ["OnDestroy", "ENTITY_DIED"],
+        };
 
-            // 파라미터가 있다면 모두 일치해야 함
+        const allowedEvents = eventAliases[event.type] ?? [event.type];
+
+        const matchingRules = rulesToCheck.filter((rule) => {
+            if (!allowedEvents.includes(rule.event)) return false;
             if (rule.eventParams) {
                 for (const [key, value] of Object.entries(rule.eventParams)) {
                     if (event.data?.[key] !== value) return false;
@@ -77,24 +66,34 @@ class RuleEngineClass {
 
         if (matchingRules.length === 0) return;
 
-        // 2. 매칭된 각 규칙에 대해
         for (const rule of matchingRules) {
-            // 3. 모든 조건 검사 (하나라도 실패하면 중단)
-            let allPassed = true;
+            const logic = rule.conditionLogic ?? "AND";
+            let passed = true;
             if (rule.conditions && rule.conditions.length > 0) {
-                for (const c of rule.conditions) {
-                    const { type, ...params } = c;
-                    const result = ConditionRegistry.check(type, ctx, params);
-                    if (!result) {
-                        allPassed = false;
-                        break;
+                if (logic === "OR") {
+                    passed = false;
+                    for (const c of rule.conditions) {
+                        const { type, ...params } = c;
+                        const result = ConditionRegistry.check(type, ctx, params);
+                        if (result) {
+                            passed = true;
+                            break;
+                        }
+                    }
+                } else {
+                    for (const c of rule.conditions) {
+                        const { type, ...params } = c;
+                        const result = ConditionRegistry.check(type, ctx, params);
+                        if (!result) {
+                            passed = false;
+                            break;
+                        }
                     }
                 }
             }
 
-            if (!allPassed) continue;
+            if (!passed) continue;
 
-            // 4. 모든 액션 실행
             for (const action of rule.actions) {
                 const { type, ...params } = action;
                 ActionRegistry.run(type, ctx, params);
