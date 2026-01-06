@@ -1,8 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.uniforge.kr';
+const API_BASE_URL = 'https://uniforge.kr'; // import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export interface Asset {
-    id: number;
-    authorId: number;
+    id: string;
+    authorId: string;
     name: string;
     description: string | null;
     price: number;

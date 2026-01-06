@@ -193,7 +193,6 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
     // 쿨다운 체크 (기본 500ms)
     const cooldown = (params.cooldown as number) ?? 500;
     const lastAttack = attackCooldowns.get(attackerId) ?? 0;
-
     if (now - lastAttack < cooldown) return;
 
     const attackerObj = renderer.getGameObject?.(attackerId);

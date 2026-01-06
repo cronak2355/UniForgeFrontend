@@ -467,14 +467,12 @@ export class GameCore {
      */
     private registerComponentRuntimes(entity: GameEntity): void {
         for (const comp of entity.components) {
-
             // 1️⃣ 모든 컴포넌트는 ComponentRuntime으로 등록
             this.componentRuntimes.push({
                 entityId: entity.id,
                 component: comp,
                 initialScale: { x: entity.scaleX, y: entity.scaleY },
             });
-
             // 2️⃣ Trigger가 있는 컴포넌트만 TriggerRuntime 등록
             if (comp.trigger) {
                 this.triggerRuntimes.push({
