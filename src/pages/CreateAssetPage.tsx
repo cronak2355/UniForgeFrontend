@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = 'https://uniforge.kr'; // import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
@@ -68,6 +69,11 @@ const CreateAssetPage = () => {
         }
     };
 
+    const getAuthHeaders = (): HeadersInit => {
+        const token = authService.getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -81,19 +87,39 @@ const CreateAssetPage = () => {
             return;
         }
 
+        // 로그인 체크
+        if (!authService.isAuthenticated()) {
+            setError('로그인이 필요합니다.');
+            return;
+        }
+
         setUploading(true);
         setError(null);
         setUploadProgress(10);
 
         try {
+            const authHeaders = getAuthHeaders();
+
             // Step 1: Create asset in DB
             setUploadProgress(20);
             const createResponse = await fetch(
-                `${API_BASE_URL}/assets?authorId=1&name=${encodeURIComponent(formData.name)}&price=${formData.price}&description=${encodeURIComponent(formData.description || '')}`,
-                { method: 'POST' }
+                `${API_BASE_URL}/assets`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders
+                    },
+                    body: JSON.stringify({
+                        name: formData.name,
+                        price: formData.price,
+                        description: formData.description || null
+                    })
+                }
             );
 
             if (!createResponse.ok) {
+                if (createResponse.status === 401) throw new Error('로그인이 필요합니다.');
                 throw new Error('에셋 생성에 실패했습니다.');
             }
 
@@ -105,7 +131,10 @@ const CreateAssetPage = () => {
                 `${API_BASE_URL}/assets/${asset.id}/versions`,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders
+                    },
                     body: JSON.stringify({ s3RootPath: 'pending' })
                 }
             );
@@ -119,7 +148,10 @@ const CreateAssetPage = () => {
 
             // Step 3: Get presigned upload URL
             const uploadUrlResponse = await fetch(
-                `${API_BASE_URL}/assets/${asset.id}/versions/${version.id}/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`
+                `${API_BASE_URL}/assets/${asset.id}/versions/${version.id}/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`,
+                {
+                    headers: authHeaders
+                }
             );
 
             if (!uploadUrlResponse.ok) {
@@ -141,17 +173,17 @@ const CreateAssetPage = () => {
             if (!s3Response.ok) {
                 throw new Error('S3 업로드에 실패했습니다.');
             }
-
             setUploadProgress(90);
 
             // Step 5: Publish the version
             await fetch(`${API_BASE_URL}/assets/versions/${version.id}/publish`, {
-                method: 'POST'
+                method: 'POST',
+                headers: authHeaders
             });
 
             setUploadProgress(100);
 
-            // Success! Navigate to the new asset
+            // Success!
             setTimeout(() => {
                 navigate(`/assets/${asset.id}`);
             }, 500);

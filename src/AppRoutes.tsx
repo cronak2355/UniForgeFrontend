@@ -36,6 +36,9 @@ function AppRoutes() {
             <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <BuildPage /> : <Navigate to="/auth" replace />}/>
+
+            {/* <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <EditorLayout /><Navigate to="/auth" replace /> } /> */}
+
         </Routes>
     );
 }

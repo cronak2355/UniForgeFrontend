@@ -20,6 +20,13 @@ export interface EditorEntity {
     scaleX: number;
     scaleY: number;
 
+    /** 
+     * 엔티티 역할 (게임 로직 타겟팅용)
+     * 프리셋: "player", "enemy", "npc", "neutral", "projectile"
+     * 사용자 정의 역할도 가능 (예: "boss", "ally", "obstacle")
+     */
+    role: string;
+
     texture?: string;
 
     /** 사용자 정의 변수 목록 */

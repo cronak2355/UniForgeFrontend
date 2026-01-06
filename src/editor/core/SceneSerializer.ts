@@ -1,7 +1,7 @@
 import { EditorState, TilePlacement } from "../EditorCore";
-import type { EditorEntity } from "./types/Entity";
+import type { EditorEntity } from "../types/Entity";
 import type { GameRule } from "./events/RuleEngine";
-import type { Asset } from "./types/Asset";
+import type { Asset } from "../types/Asset";
 
 // --- Scene JSON Interfaces ---
 export interface SceneEventJSON {
@@ -79,12 +79,12 @@ export class SceneSerializer {
         //  일단 가장 근접하게 trigger -> action 매핑)
         const events: SceneEventJSON[] = [];
 
-        e.rules.forEach(rule => {
-            const triggerType = rule.trigger.type;
+        e.rules.forEach((rule: any) => {
+            const triggerType = rule.event; // GameRule uses 'event', not 'trigger'
 
-            rule.actions.forEach((action, idx) => {
+            rule.actions.forEach((action: any, idx: number) => {
                 events.push({
-                    id: `ev_${rule.id}_${idx}`,
+                    id: `ev_${idx}`, // Simplified ID
                     trigger: triggerType,
                     action: action.type, // Move, ShowDialogue, etc.
                     params: {
@@ -96,7 +96,7 @@ export class SceneSerializer {
         });
 
         // Variables 변환
-        const variables = e.variables.map(v => ({
+        const variables = e.variables.map((v: any) => ({
             id: v.id,
             name: v.name,
             type: v.type,
@@ -129,10 +129,18 @@ export class SceneSerializer {
             // Events -> Rules 역변환
             // (1:1 매핑으로 복원. 조건Condition 데이터 손실 주의)
             const rules: GameRule[] = e.events.map((ev, i) => ({
-                id: ev.id || `rule_${i}`,
-                name: `Rule ${i}`,
-                trigger: { type: ev.trigger, params: {} },
-                conditions: [], // JSON 양식에 조건 필드가 없어서 빈 배열
+                id: ev.id || `rule_${i}`, // Optional if GameRule allows it, but it might not. checking GameRule interface.. it does NOT have id.
+                // Wait, GameRule interface in RuleEngine.ts:
+                // export interface GameRule { event: string; eventParams?: ...; conditions?: ...; actions: ...; }
+                // It does NOT have 'id' or 'name'.
+                // EditorEntity in Entity.ts has 'rules: GameRule[]'.
+                // SceneSerializer creates 'events' from 'rules'.
+                // Let's look at GameRule again.
+                // It seems I need to stick to GameRule interface.
+
+                event: ev.trigger,
+                eventParams: {}, // Default empty params
+                // conditions: [], // Optional, can be omitted
                 actions: [{
                     type: ev.action,
                     ...ev.params
@@ -141,13 +149,16 @@ export class SceneSerializer {
 
             const entity: EditorEntity = {
                 id: e.id,
-                type: e.type,
+                type: e.type as "sprite" | "container" | "nineSlice",
                 name: e.name,
                 x: e.x,
                 y: e.y,
                 z: 0, // Default
+                rotation: 0,
+                scaleX: 1,
+                scaleY: 1,
                 texture: e.type === "asset_player" ? "player" : (e.name.toLowerCase().includes("dragon") ? "dragon" : "test1"), // Texture mapping logic needed
-                variables: e.variables.map(v => ({ ...v })),
+                variables: e.variables.map(v => ({ ...v })) as any[], // VariableType mismatch fix
                 events: [],
                 components: [], // Basic components
                 modules: e.modules || [], // Restore modules

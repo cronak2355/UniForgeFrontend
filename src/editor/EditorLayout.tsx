@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
@@ -59,7 +59,6 @@ function MenuItem({
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
-
     const [mode, setMode] = useState<Mode>("dev");
     const [runSession, setRunSession] = useState(0);
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
@@ -67,8 +66,10 @@ function EditorLayoutInner() {
     const [dropAssetTag, setDropAssetTag] = useState("Character");
     const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
     const navigate = useNavigate();
-
-
+    const [isUploadingAsset, setIsUploadingAsset] = useState(false);
+    const [uploadError, setUploadError] = useState("");
+    const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
+    
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
@@ -102,6 +103,8 @@ function EditorLayoutInner() {
         setDropModalFile(null);
         setDropAssetName("");
         setDropAssetTag("Character");
+        setIsUploadingAsset(false);
+        setUploadError("");
     };
 
     useEffect(() => {
@@ -109,6 +112,98 @@ function EditorLayoutInner() {
         const base = dropModalFile.name.replace(/\.[^/.]+$/, "");
         setDropAssetName(base);
     }, [dropModalFile]);
+
+    const handleAddAsset = async () => {
+        if (!dropModalFile || isUploadingAsset) return;
+
+        const name = dropAssetName.trim();
+        const assetId = crypto.randomUUID();
+        const versionId = "1";
+        const contentType = dropModalFile.type || "application/octet-stream";
+
+        if (!name) {
+            setUploadError("Name is required.");
+            return;
+        }
+
+        if (import.meta.env.DEV) {
+            const assetUrl = URL.createObjectURL(dropModalFile);
+            const nextId =
+                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+
+            core.addAsset({
+                id: nextId,
+                tag: dropAssetTag,
+                name,
+                url: assetUrl,
+                idx: -1,
+            });
+
+            resetDropModal();
+            return;
+        }
+        setIsUploadingAsset(true);
+        setUploadError("");
+
+        try {
+            const params = new URLSearchParams({
+                fileName: dropModalFile.name,
+                contentType,
+            });
+            const requestUrl = `https://uniforge.kr/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+            const token = localStorage.getItem("token");
+            const presignRes = await fetch(requestUrl, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+
+            if (!presignRes.ok) {
+                const message = await presignRes.text();
+                throw new Error(message || "Failed to get upload URL.");
+            }
+
+            const presignData = await presignRes.json();
+            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+            if (!uploadUrl) {
+                throw new Error("Upload URL missing in response.");
+            }
+
+            const uploadRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": contentType },
+                body: dropModalFile,
+            });
+
+            if (!uploadRes.ok) {
+                throw new Error("Upload failed.");
+            }
+
+            const assetUrl =
+                presignData.fileUrl ||
+                presignData.assetUrl ||
+                presignData.url ||
+                uploadUrl.split("?")[0];
+
+            const nextId =
+                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+
+            core.addAsset({
+                id: nextId,
+                tag: dropAssetTag,
+                name,
+                url: assetUrl,
+                idx: -1,
+            });
+
+            resetDropModal();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Upload failed.";
+            setUploadError(message);
+        } finally {
+            setIsUploadingAsset(false);
+        }
+    };
 
     return (
         <div style={{
@@ -164,7 +259,28 @@ function EditorLayoutInner() {
                             setMode((prev) => {
                                 const next = prev === "dev" ? "run" : "dev";
                                 if (next === "run") {
+                                    // Save entity state before running
+                                    const backup = new Map<string, EditorEntity>();
+                                    core.getEntities().forEach((entity, id) => {
+                                        // Deep clone each entity
+                                        backup.set(id, JSON.parse(JSON.stringify(entity)));
+                                    });
+                                    entityBackupRef.current = backup;
                                     setRunSession((v) => v + 1);
+                                } else {
+                                    // Restore entity state from backup
+                                    if (entityBackupRef.current) {
+                                        entityBackupRef.current.forEach((backupEntity, id) => {
+                                            const currentEntity = core.getEntities().get(id);
+                                            if (currentEntity) {
+                                                // Restore position, hp, etc.
+                                                Object.assign(currentEntity, backupEntity);
+                                            }
+                                        });
+                                        entityBackupRef.current = null;
+                                        // Force UI update
+                                        core.setSelectedEntity(core.getSelectedEntity());
+                                    }
                                 }
                                 return next;
                             });
@@ -360,6 +476,7 @@ function EditorLayoutInner() {
                 }}>
                     {mode === "dev" ? (
                         <EditorCanvas
+                            key={`edit-${runSession}`}
                             assets={assets}
                             selected_asset={selectedAsset}
                             draggedAsset={draggedAsset}
@@ -399,14 +516,17 @@ function EditorLayoutInner() {
                         Inspector
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        <InspectorPanel
-                            entity={localSelectedEntity}
-                            onUpdateEntity={(updatedEntity) => {
-                                core.addEntity(updatedEntity as any);
-                                core.setSelectedEntity(updatedEntity as any);
-                                setLocalSelectedEntity(updatedEntity);
-                            }}
-                        />
+                        {localSelectedEntity && (
+                            <InspectorPanel
+                                entity={localSelectedEntity}
+                                onUpdateEntity={(updatedEntity) => {
+                                    console.log("[EditorLayout] Module update:", updatedEntity.modules?.find(m => m.type === "Status"));
+                                    core.addEntity(updatedEntity as any);
+                                    core.setSelectedEntity(updatedEntity as any);
+                                    setLocalSelectedEntity(updatedEntity);
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -522,6 +642,15 @@ function EditorLayoutInner() {
                                 </select>
                             </label>
                         </div>
+                        {uploadError && (
+                            <div style={{
+                                marginTop: "10px",
+                                color: "#f87171",
+                                fontSize: "12px",
+                            }}>
+                                {uploadError}
+                            </div>
+                        )}
                         <div style={{
                             marginTop: "16px",
                             display: "flex",
@@ -530,6 +659,8 @@ function EditorLayoutInner() {
                         }}>
                             <button
                                 type="button"
+                                onClick={handleAddAsset}
+                                disabled={isUploadingAsset}
                                 style={{
                                     padding: "8px 14px",
                                     fontSize: "12px",

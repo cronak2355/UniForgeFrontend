@@ -8,21 +8,26 @@
 import type { IRenderer } from "../renderer/IRenderer";
 import type {
     EditorComponent,
-    TransformComponent
-  } from "../types/Component";
-  
-  import type { Trigger } from "../types/Trigger";
-  import type { Condition } from "../types/Condition";
+    TransformComponent,
+    SignalComponent
+} from "../types/Component";
+
+import type { Trigger } from "../types/Trigger";
+import type { Condition } from "../types/Condition";
 import type { EditorVariable } from "../types/Variable";
 import type { EditorModule } from "../types/Module";
 import type { GameRule } from "./events/RuleEngine";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
+import { RuntimeContext } from "./RuntimeContext";
+import { collisionSystem } from "./CollisionSystem";
 import type { IModule } from "./modules/IModule";
 import { KineticModule } from "./modules/KineticModule";
 import { StatusModule } from "./modules/StatusModule";
 import { CombatModule, type TargetInfo, type ProjectileSpawnSignal } from "./modules/CombatModule";
 import { NarrativeModule } from "./modules/NarrativeModule";
+import { registerRuntimeEntityInstances } from "./modules/ModuleFactory";
+import { type GameConfig, defaultGameConfig, hasRole } from "./GameConfig";
 
 /**
  * 게임 엔티티 데이터 구조 (순수 JavaScript 객체)
@@ -44,6 +49,10 @@ export interface GameEntity {
     components: EditorComponent[];
     modules: EditorModule[];
     rules: GameRule[];
+    width?: number;
+    height?: number;
+    /** 엔티티 역할 (게임 로직 타겟팅용) */
+    role: string;
 }
 
 /**
@@ -66,6 +75,7 @@ export interface CreateEntityOptions {
     width?: number;
     height?: number;
     color?: number;
+    role?: string;
 }
 
 interface TriggerRuntime {
@@ -126,6 +136,9 @@ export class GameCore {
     private projectileRuntimes: Map<string, ProjectileRuntime> = new Map();
     private triggerRuntimes: TriggerRuntime[] = [];
     private inputState: InputState = { left: false, right: false, up: false, down: false, jump: false };
+    private runtimeContext = new RuntimeContext();
+    private eventHandler?: (event: import("./events/EventBus").GameEvent) => void;
+    private variableSnapshots: Map<string, Map<string, unknown>> = new Map();
     private groundY = 500;
     private readonly projectileTtl = 2;
     private readonly projectileSize = 6;
@@ -135,11 +148,69 @@ export class GameCore {
     // ===== 구독자 (상태 변경 알림) =====
     private listeners: Set<() => void> = new Set();
 
+    // ===== 게임 설정 =====
+    private gameConfig: GameConfig = defaultGameConfig;
+
     constructor(renderer: IRenderer) {
         this.renderer = renderer;
+        this.eventHandler = (event) => {
+            if (!event || !event.type) return;
+
+            if (event.type === "COLLISION_ENTER" || event.type === "COLLISION_STAY") {
+                const data = event.data as {
+                    entityA?: string;
+                    entityB?: string;
+                    tagA?: string;
+                    tagB?: string;
+                    overlapX?: number;
+                    overlapY?: number;
+                    normalX?: number;
+                    normalY?: number;
+                } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+
+                const contactA = {
+                    otherId: data.entityB,
+                    otherTag: data.tagB,
+                    selfTag: data.tagA,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX,
+                    normalY: data.normalY,
+                };
+                const contactB = {
+                    otherId: data.entityA,
+                    otherTag: data.tagA,
+                    selfTag: data.tagB,
+                    overlapX: data.overlapX,
+                    overlapY: data.overlapY,
+                    normalX: data.normalX !== undefined ? -data.normalX : undefined,
+                    normalY: data.normalY !== undefined ? -data.normalY : undefined,
+                };
+
+                if (event.type === "COLLISION_ENTER") {
+                    this.runtimeContext.recordCollisionEnter(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionEnter(data.entityB, contactB);
+                } else {
+                    this.runtimeContext.recordCollisionStay(data.entityA, contactA);
+                    this.runtimeContext.recordCollisionStay(data.entityB, contactB);
+                }
+                return;
+            }
+
+            if (event.type === "COLLISION_EXIT") {
+                const data = event.data as { entityA?: string; entityB?: string } | undefined;
+                if (!data?.entityA || !data.entityB) return;
+                this.runtimeContext.recordCollisionExit(data.entityA, data.entityB);
+                this.runtimeContext.recordCollisionExit(data.entityB, data.entityA);
+            }
+        };
+        EventBus.on(this.eventHandler);
     }
 
     // ===== Entity Management - ID 동기화 보장 =====
+
+
 
     /**
      * 엔티티 생성
@@ -181,6 +252,9 @@ export class GameCore {
             components: options.components ?? [],
             modules: options.modules ?? [],
             rules: options.rules ?? [],
+            role: options.role ?? "neutral",
+            width: options.width ?? 40,
+            height: options.height ?? 40,
         };
 
         // 1. 로컬 상태에 저장
@@ -195,6 +269,19 @@ export class GameCore {
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
         this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        const baseWidth = entity.width ?? 40;
+        const baseHeight = entity.height ?? 40;
+        collisionSystem.register(
+            id,
+            entity.type,
+            {
+                x: entity.x,
+                y: entity.y,
+                width: baseWidth * (entity.scaleX ?? 1),
+                height: baseHeight * (entity.scaleY ?? 1),
+            },
+            { isSolid: true }
+        );
 
         // 3. 컴포넌트 런타임 등록
         this.registerComponentRuntimes(entity);
@@ -229,6 +316,54 @@ export class GameCore {
         }
 
         this.renderer.update(id, x, y, entity.z, entity.rotationZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        this.notify();
+    }
+
+    /**
+     * 외부 편집기에서 전달된 Transform을 동기화
+     */
+    setEntityTransform(
+        id: string,
+        next: {
+            x: number;
+            y: number;
+            z: number;
+            rotationX?: number;
+            rotationY?: number;
+            rotationZ?: number;
+            scaleX: number;
+            scaleY: number;
+            scaleZ?: number;
+        }
+    ): void {
+        const entity = this.entities.get(id);
+        if (!entity) {
+            console.warn(`[GameCore] Cannot set transform: entity "${id}" not found`);
+            return;
+        }
+
+        entity.x = next.x;
+        entity.y = next.y;
+        entity.z = next.z;
+        if (next.rotationX !== undefined) entity.rotationX = next.rotationX;
+        if (next.rotationY !== undefined) entity.rotationY = next.rotationY;
+        if (next.rotationZ !== undefined) entity.rotationZ = next.rotationZ;
+        entity.scaleX = next.scaleX;
+        entity.scaleY = next.scaleY;
+        if (next.scaleZ !== undefined) entity.scaleZ = next.scaleZ;
+
+        const kinetic = this.getModuleByType<KineticModule>(id, "Kinetic");
+        if (kinetic) {
+            kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
+        }
+
+        this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
+        this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        collisionSystem.updatePosition(id, entity.x, entity.y);
+        const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+        const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+        collisionSystem.updateSize(id, width, height);
         this.notify();
     }
 
@@ -261,9 +396,11 @@ export class GameCore {
 
         // 2. 렌더러에서 제거
         this.renderer.remove(id);
+        collisionSystem.unregister(id);
 
         // 3. 로컬 상태에서 제거
         this.entities.delete(id);
+        this.variableSnapshots.delete(id);
 
         // 4. 구독자 알림
         this.notify();
@@ -293,10 +430,65 @@ export class GameCore {
     }
 
     /**
+     * 엔티티의 StatusModule 반환 (UI용)
+     */
+    getStatusModule(entityId: string): StatusModule | undefined {
+        return this.getModuleByType<StatusModule>(entityId, "Status");
+    }
+
+    /**
      * 엔티티 수 반환
      */
     getEntityCount(): number {
         return this.entities.size;
+    }
+
+    /**
+     * 역할(Role)로 엔티티 조회
+     * @param role 찾을 역할 (예: "player", "enemy", "npc")
+     * @returns 해당 역할의 엔티티 배열
+     */
+    getEntitiesByRole(role: string): GameEntity[] {
+        const result: GameEntity[] = [];
+        for (const entity of this.entities.values()) {
+            if (entity.role === role) {
+                result.push(entity);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 역할(Role)로 가장 가까운 엔티티 찾기
+     * @param role 찾을 역할
+     * @param fromX 기준 X 좌표
+     * @param fromY 기준 Y 좌표
+     * @returns 가장 가까운 엔티티 또는 undefined
+     */
+    getNearestEntityByRole(role: string, fromX: number, fromY: number, excludeId?: string): GameEntity | undefined {
+        const candidates = this.getEntitiesByRole(role);
+        if (candidates.length === 0) return undefined;
+
+        let nearest: GameEntity | undefined;
+        let minDist = Infinity;
+
+        for (const entity of candidates) {
+            // 본인 제외
+            if (excludeId && entity.id === excludeId) continue;
+
+            // 살아있는 엔티티만 고려
+            const status = this.getModuleByType<StatusModule>(entity.id, "Status");
+            if (status && !status.isAlive) continue;
+
+            const dx = entity.x - fromX;
+            const dy = entity.y - fromY;
+            const dist = dx * dx + dy * dy;
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = entity;
+            }
+        }
+        return nearest;
     }
 
     /**
@@ -327,6 +519,7 @@ export class GameCore {
      */
     setInputState(input: InputState): void {
         this.inputState = { ...input };
+        this.runtimeContext.setInput(this.inputState);
     }
 
     /**
@@ -385,19 +578,17 @@ export class GameCore {
      */
     private registerComponentRuntimes(entity: GameEntity): void {
         for (const comp of entity.components) {
-    
             // 1️⃣ 모든 컴포넌트는 ComponentRuntime으로 등록
             this.componentRuntimes.push({
                 entityId: entity.id,
                 component: comp,
                 initialScale: { x: entity.scaleX, y: entity.scaleY },
             });
-    
             // 2️⃣ Trigger가 있는 컴포넌트만 TriggerRuntime 등록
             if (comp.trigger) {
                 this.triggerRuntimes.push({
                     entityId: entity.id,
-                    component: comp, // 🔥 Trigger를 가진 "컴포넌트"
+                    component: comp as any, // 🔥 Trigger를 가진 "컴포넌트"
                     triggered: false,
                 });
             }
@@ -427,6 +618,7 @@ export class GameCore {
         }
 
         const runtimes: ModuleRuntime[] = [];
+        const modulesMap: Record<string, IModule> = {};
 
         for (const moduleData of entity.modules) {
             switch (moduleData.type) {
@@ -441,6 +633,7 @@ export class GameCore {
                         speed: moduleData.speed,
                     });
                     runtimes.push({ entityId: entity.id, module: status });
+                    modulesMap["Status"] = status;
                     break;
                 }
                 case "Kinetic": {
@@ -453,6 +646,7 @@ export class GameCore {
                     });
                     kinetic.position = { x: entity.x, y: entity.y, z: entity.z };
                     runtimes.push({ entityId: entity.id, module: kinetic });
+                    modulesMap["Kinetic"] = kinetic;
                     break;
                 }
                 case "Combat": {
@@ -465,11 +659,13 @@ export class GameCore {
                     });
                     combat.onSpawnProjectile = (signal) => this.spawnProjectile(signal);
                     runtimes.push({ entityId: entity.id, module: combat });
+                    modulesMap["Combat"] = combat;
                     break;
                 }
                 case "Narrative": {
                     const narrative = new NarrativeModule(moduleData.id);
                     runtimes.push({ entityId: entity.id, module: narrative });
+                    modulesMap["Narrative"] = narrative;
                     break;
                 }
             }
@@ -477,6 +673,17 @@ export class GameCore {
 
         if (runtimes.length > 0) {
             this.moduleRuntimes.set(entity.id, runtimes);
+
+            // 전역 런타임 엔티티에도 등록 (Action 시스템과의 동기화)
+            registerRuntimeEntityInstances(
+                entity.id,
+                entity.type,
+                entity.name,
+                entity.x,
+                entity.y,
+                entity.z,
+                modulesMap
+            );
         }
     }
 
@@ -499,14 +706,30 @@ export class GameCore {
             const entity = this.entities.get(entityId);
             if (!entity) continue;
 
+            // [Fix] 생존 여부 확인 - 죽은 엔티티는 로직 중단
+            const status = this.getModuleByType<StatusModule>(entityId, "Status");
+            const isDead = status && !status.isAlive;
+
             for (const runtime of runtimes) {
+                // Status, Narrative 등은 죽어도 업데이트 필요할 수 있음 (선택 사항)
+                // 하지만 Kinetic(이동), Combat(공격)은 죽으면 멈춰야 함
+                if (isDead) {
+                    if (runtime.module.type === "Kinetic" || runtime.module.type === "Combat") {
+                        continue;
+                    }
+                }
+
                 switch (runtime.module.type) {
                     case "Kinetic": {
                         const kinetic = runtime.module as KineticModule;
-                        if (kinetic.mode === "TopDown") {
-                            kinetic.processTopDownInput(this.inputState);
-                        } else if (kinetic.mode === "Platformer") {
-                            kinetic.processPlatformerInput(this.inputState);
+
+                        // [Config-Based Input] controllableRoles에 포함된 역할만 키보드 입력 처리
+                        if (hasRole(entity.role, this.gameConfig.controllableRoles)) {
+                            if (kinetic.mode === "TopDown") {
+                                kinetic.processTopDownInput(this.inputState);
+                            } else if (kinetic.mode === "Platformer") {
+                                kinetic.processPlatformerInput(this.inputState);
+                            }
                         }
 
                         kinetic.update(dt);
@@ -519,13 +742,23 @@ export class GameCore {
                         entity.y = kinetic.position.y;
                         entity.z = kinetic.position.z ?? entity.z;
                         this.renderer.update(entity.id, entity.x, entity.y, entity.z, entity.rotationZ);
+                        collisionSystem.updatePosition(entity.id, entity.x, entity.y);
                         break;
                     }
                     case "Combat": {
                         const combat = runtime.module as CombatModule;
                         combat.position = { x: entity.x, y: entity.y, z: entity.z };
                         combat.update(dt);
-                        combat.updateAutoAttack(targets);
+
+                        // [Config-Based] autoAttackRoles에 포함된 역할만 자동 공격
+                        const autoAttackRoles = this.gameConfig.autoAttackRoles;
+                        const canAutoAttack = autoAttackRoles.length === 0 || hasRole(entity.role, autoAttackRoles);
+
+                        if (canAutoAttack) {
+                            // 같은 역할은 공격하지 않음 (player는 player를 공격하지 않음)
+                            const filteredTargets = targets.filter(t => t.role !== entity.role && t.id !== entity.id);
+                            combat.updateAutoAttack(filteredTargets);
+                        }
                         break;
                     }
                     default:
@@ -540,11 +773,19 @@ export class GameCore {
         const targets: TargetInfo[] = [];
         for (const [id, entity] of this.entities) {
             const status = this.getModuleByType<StatusModule>(id, "Status");
-            targets.push({
-                id,
-                position: { x: entity.x, y: entity.y, z: entity.z },
-                hp: status?.hp,
-            });
+            // Debug Log
+            if (status && status.hp <= 0 && status.isAlive) {
+                console.warn(`[GameCore] Entity ${id} has HP ${status.hp} but isAlive is true! Lives: ${status.lives}`);
+            }
+            // [Fix] 살아있는 엔티티만 타겟으로 선정
+            if (status && status.isAlive) {
+                targets.push({
+                    id,
+                    position: { x: entity.x, y: entity.y, z: entity.z },
+                    hp: status.hp,
+                    role: entity.role, // 역할 기반 타겟팅용
+                });
+            }
         }
         return targets;
     }
@@ -587,25 +828,56 @@ export class GameCore {
             projectile.x += projectile.dirX * projectile.speed * dt;
             projectile.y += projectile.dirY * projectile.speed * dt;
             this.renderer.update(id, projectile.x, projectile.y, projectile.z);
-
-            if (projectile.targetId) {
-                const target = this.entities.get(projectile.targetId);
-                if (!target) continue;
-
+            // Check collision with ALL entities (not just targetId)
+            for (const [targetEntityId, target] of this.entities) {
+                // Skip self (projectile owner)
+                if (target.id === projectile.fromId) continue;
+                // Skip already hit
                 if (projectile.hitTargets.has(target.id)) continue;
+
+                // [Fix] 이미 죽은 엔티티는 피격 판정 제외
+                const status = this.getModuleByType<StatusModule>(target.id, "Status");
+                if (status && !status.isAlive) continue;
 
                 const dx = target.x - projectile.x;
                 const dy = target.y - projectile.y;
-                const hit = (dx * dx + dy * dy) <= (this.projectileHitRadius * this.projectileHitRadius);
-                if (!hit) continue;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const boxWidth = target.width ?? 32;
+                const boxHeight = target.height ?? 32;
+                const hitDist = boxWidth / 2 + boxHeight / 2;
 
-                this.applyProjectileHit(projectile, target.id);
-                projectile.hitTargets.add(target.id);
+                if (dist < hitDist) {
+                    // Hit!
+                    projectile.hitTargets.add(target.id);
+                    projectile.pierceCount--;
 
-                if (projectile.pierceCount > 0) {
-                    projectile.pierceCount -= 1;
-                } else {
-                    this.removeProjectile(id);
+                    // Apply Damage
+                    const status = this.getModuleByType<StatusModule>(target.id, "Status");
+                    if (status) {
+                        const actualDamage = status.takeDamage(projectile.damage);
+
+                        // Convert world coords to screen coords for UI
+                        const screenPos = this.renderer.worldToScreen(target.x, target.y - 40, 0);
+
+                        // Emit Damage Event for UI
+                        EventBus.emit("DAMAGE_DEALT", {
+                            x: screenPos.x,
+                            y: screenPos.y,
+                            damage: actualDamage,
+                            isCritical: false
+                        });
+
+                        // Emit Log
+                        EventBus.emit("LOG", {
+                            text: `${target.name}에게 ${actualDamage} 피해!`,
+                            kind: "combat"
+                        });
+                    }
+
+                    if (projectile.pierceCount < 0) {
+                        projectile.life = 0;
+                        break;
+                    }
                 }
             }
         }
@@ -614,15 +886,15 @@ export class GameCore {
     private updateTriggers(): void {
         for (const runtime of this.triggerRuntimes) {
             if (runtime.triggered && runtime.component.once) continue;
-    
+
             const owner = this.entities.get(runtime.entityId);
             if (!owner) continue;
-    
+
             for (const target of this.entities.values()) {
                 if (target.id === owner.id) continue;
-    
+
                 if (!this.isTriggerActivated(owner, target, runtime.component)) continue;
-    
+
                 runtime.triggered = true;
                 EventBus.emit("TRIGGER_ENTER", {
                     from: owner.id,
@@ -631,13 +903,18 @@ export class GameCore {
                 });
             }
         }
-    }    
+    }
 
     private applyProjectileHit(projectile: ProjectileRuntime, targetId: string): void {
         if (projectile.explosionRadius > 0) {
             for (const [id, entity] of this.entities) {
                 if (id === projectile.fromId) continue;
                 if (projectile.hitTargets.has(id)) continue;
+
+                // [Fix] 이미 죽은 엔티티는 폭발 데미지 제외
+                const status = this.getModuleByType<StatusModule>(id, "Status");
+                if (status && !status.isAlive) continue;
+
                 const dx = entity.x - projectile.x;
                 const dy = entity.y - projectile.y;
                 if ((dx * dx + dy * dy) <= (projectile.explosionRadius * projectile.explosionRadius)) {
@@ -655,7 +932,9 @@ export class GameCore {
     private applyDamage(targetId: string, damage: number, attackerId?: string): void {
         const status = this.getModuleByType<StatusModule>(targetId, "Status");
         if (status) {
+            const oldHp = status.hp;
             status.takeDamage(damage);
+            console.log(`[GameCore] ${targetId} took ${damage} dmg. HP: ${oldHp} -> ${status.hp}. Alive: ${status.isAlive}`);
             if (!status.isAlive) {
                 EventBus.emit("ENTITY_DIED", { entityId: targetId, attackerId });
             }
@@ -686,14 +965,20 @@ export class GameCore {
      */
     update(time: number, deltaTime: number): void {
         const dt = deltaTime / 1000;
+        this.runtimeContext.beginFrame();
 
         this.updateModules(dt);
         this.updateProjectiles(dt);
+        collisionSystem.update();
         this.updateTriggers();
 
         for (const runtime of this.componentRuntimes) {
             const entity = this.entities.get(runtime.entityId);
             if (!entity) continue;
+
+            // [Fix] 죽은 엔티티는 컴포넌트 로직도 중단
+            const status = this.getModuleByType<StatusModule>(entity.id, "Status");
+            if (status && !status.isAlive) continue;
 
             this.processComponent(entity, runtime, time, dt);
         }
@@ -717,48 +1002,77 @@ export class GameCore {
         runtime: ComponentRuntime,
         time: number,
         dt: number
-      ): void {
+    ): void {
         const comp = runtime.component;
-      
+
         // 1️⃣ 트리거 판별
-        if (!this.matchTrigger(comp.trigger, time, dt)) return;
-      
+        if (!this.matchTrigger(comp.trigger, entity, time, dt)) return;
+
         // 2️⃣ 조건 판별
         if (!this.matchCondition(comp.condition, entity)) return;
-      
+
         // 3️⃣ 실제 컴포넌트 동작
         switch (comp.type) {
-          case "Transform": {
-            const t = comp as TransformComponent;
-      
-            entity.x += t.x * dt;
-            entity.y += t.y * dt;
-            entity.rotationZ += t.rotation * dt;
-            entity.scaleX = t.scaleX;
-            entity.scaleY = t.scaleY;
-      
-            this.renderer.update(
-              entity.id,
-              entity.x,
-              entity.y,
-              entity.z,
-              entity.rotationZ
-            );
-            this.renderer.setScale(
-              entity.id,
-              entity.scaleX,
-              entity.scaleY,
-              entity.scaleZ
-            );
-            break;
-          }
-      
-          case "Render":
-          case "Variables":
-            // 아직은 런타임 처리 없음
-            break;
+            case "Transform": {
+                const t = comp as TransformComponent;
+
+                entity.x += t.x * dt;
+                entity.y += t.y * dt;
+                entity.rotationZ += t.rotation * dt;
+                entity.scaleX = t.scaleX;
+                entity.scaleY = t.scaleY;
+
+                this.renderer.update(
+                    entity.id,
+                    entity.x,
+                    entity.y,
+                    entity.z,
+                    entity.rotationZ
+                );
+                this.renderer.setScale(
+                    entity.id,
+                    entity.scaleX,
+                    entity.scaleY,
+                    entity.scaleZ
+                );
+                collisionSystem.updatePosition(entity.id, entity.x, entity.y);
+                const width = (entity.width ?? 40) * (entity.scaleX ?? 1);
+                const height = (entity.height ?? 40) * (entity.scaleY ?? 1);
+                collisionSystem.updateSize(entity.id, width, height);
+                break;
+            }
+
+            case "Signal": {
+                const s = comp as SignalComponent;
+                const signalKey = s.signalKey?.trim();
+                if (!signalKey) break;
+
+                const targetId = s.targetEntityId?.trim() || entity.id;
+                if (!this.entities.has(targetId)) {
+                    console.warn(`[GameCore] Signal target not found: ${targetId}`);
+                    break;
+                }
+
+                let value: number | string | boolean | null = null;
+                if (s.signalValue?.kind === "EntityVariable") {
+                    const variable = entity.variables?.find(v => v.name === s.signalValue.name);
+                    if (variable) {
+                        value = variable.value as number | string | boolean;
+                    }
+                } else if (s.signalValue?.kind === "Literal") {
+                    value = s.signalValue.value ?? null;
+                }
+
+                this.runtimeContext.setSignal(targetId, signalKey, value);
+                break;
+            }
+
+            case "Render":
+            case "Variables":
+                // 아직은 런타임 처리 없음
+                break;
         }
-      }
+    }
 
     // ===== Subscription =====
 
@@ -780,37 +1094,50 @@ export class GameCore {
     }
     private matchTrigger(
         trigger: Trigger | undefined,
+        entity: GameEntity,
         time: number,
         dt: number
-      ): boolean {
+    ): boolean {
         if (!trigger) return true;
-      
+
         switch (trigger.type) {
-          case "OnUpdate":
-            return true;
-      
-          case "OnStart":
-            return time === 0;
-      
-          default:
-            return false;
+            case "OnUpdate":
+                return true;
+
+            case "OnStart":
+                return time === 0;
+
+            case "VariableOnChanged": {
+                const name = trigger.params?.name as string | undefined;
+                if (!name) return false;
+                const current = entity.variables?.find((v) => v.name === name)?.value;
+                const entityMap = this.variableSnapshots.get(entity.id) ?? new Map();
+                const hasPrev = entityMap.has(name);
+                const prevValue = entityMap.get(name);
+                entityMap.set(name, current);
+                this.variableSnapshots.set(entity.id, entityMap);
+                return hasPrev && prevValue !== current;
+            }
+
+            default:
+                return false;
         }
-      }
-      
-      private matchCondition(
+    }
+
+    private matchCondition(
         condition: Condition | undefined,
         entity: GameEntity
-      ): boolean {
+    ): boolean {
         if (!condition) return true;
-      
+
         switch (condition.type) {
-          case "Always":
-            return true;
-      
-          default:
-            return false;
+            case "Always":
+                return true;
+
+            default:
+                return false;
         }
-      }
+    }
     // ===== Lifecycle =====
 
     /**
@@ -818,6 +1145,10 @@ export class GameCore {
      * 모든 엔티티와 컴포넌트 런타임 해제
      */
     destroy(): void {
+        if (this.eventHandler) {
+            EventBus.off(this.eventHandler);
+            this.eventHandler = undefined;
+        }
         // 1. 모든 엔티티를 렌더러에서 제거
         for (const id of this.entities.keys()) {
             this.renderer.remove(id);
@@ -838,9 +1169,15 @@ export class GameCore {
         this.componentRuntimes = [];
         this.moduleRuntimes.clear();
         this.projectileRuntimes.clear();
+        collisionSystem.clear();
+        this.variableSnapshots.clear();
         this.listeners.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");
+    }
+
+    getRuntimeContext(): RuntimeContext {
+        return this.runtimeContext;
     }
 
     // ===== Serialization (저장/불러오기용) =====
