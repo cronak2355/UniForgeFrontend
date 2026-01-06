@@ -13,6 +13,7 @@ import Loading from './components/common/Loading';
 import { useAuth } from './contexts/AuthContext';
 import "./App.css";
 import EditorLayout from "./editor/EditorLayout";
+import { AssetsEditorPage } from './AssetsEditor';
 
 function AppRoutes() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,7 @@ function AppRoutes() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <EditorLayout />/*<Navigate to="/auth" replace /> */} />
+            <Route path="/assets-editor" element={<AssetsEditorPage />} />
         </Routes>
     );
 }

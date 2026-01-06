@@ -15,7 +15,7 @@ interface PartRiggerProps {
   onClose: () => void;
 }
 
-type Tool = 'brush' | 'eraser' | 'move';
+type Tool = 'brush' | 'eraser' | 'move' | 'setPivot';
 
 export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose }: PartRiggerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -145,24 +145,46 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
         ctx.fillRect(x * scale, y * scale, scale, scale);
       });
 
-      // 선택된 부위 중심점 표시
+      // 선택된 부위 중심점/피벗 표시
       if (isSelected && part.pixels.size > 0) {
         const bounds = getPartBounds(part.pixels);
-        const centerX = (bounds.minX + bounds.maxX + 1) / 2;
-        const centerY = (bounds.minY + bounds.maxY + 1) / 2;
+        const partWidth = bounds.maxX - bounds.minX + 1;
+        const partHeight = bounds.maxY - bounds.minY + 1;
+
+        // 피벗이 설정되어 있으면 피벗 위치, 아니면 중심점
+        const pivotX = part.pivotX ?? 0.5;
+        const pivotY = part.pivotY ?? 0.5;
+        const pivotCanvasX = bounds.minX + partWidth * pivotX;
+        const pivotCanvasY = bounds.minY + partHeight * pivotY;
+
         const pose = frames[currentFrame][part.id] || DEFAULT_POSE;
+        const hasPivot = part.pivotX !== undefined;
 
         ctx.beginPath();
         ctx.arc(
-          (centerX + pose.x) * scale,
-          (centerY + pose.y) * scale,
-          6, 0, Math.PI * 2
+          (pivotCanvasX + pose.x) * scale,
+          (pivotCanvasY + pose.y) * scale,
+          hasPivot ? 8 : 6, 0, Math.PI * 2
         );
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = hasPivot ? '#ff6600' : '#ffffff';
         ctx.fill();
-        ctx.strokeStyle = part.color;
+        ctx.strokeStyle = hasPivot ? '#ffcc00' : part.color;
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // 피벗 십자 표시
+        if (hasPivot) {
+          const px = (pivotCanvasX + pose.x) * scale;
+          const py = (pivotCanvasY + pose.y) * scale;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(px - 12, py);
+          ctx.lineTo(px + 12, py);
+          ctx.moveTo(px, py - 12);
+          ctx.lineTo(px, py + 12);
+          ctx.stroke();
+        }
       }
     });
 
@@ -329,6 +351,20 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
       setIsRotating(e.shiftKey);
       setDragStart(getCanvasPos(e));
       setDragStartPose(frames[currentFrame][selectedPartId] || { ...DEFAULT_POSE });
+    } else if (tool === 'setPivot' && selectedPartId && selectedPart && selectedPart.pixels.size > 0) {
+      // 피벗 설정: 클릭한 위치를 파츠의 회전 중심으로 설정
+      const pixelPos = getPixelPos(e);
+      const bounds = getPartBounds(selectedPart.pixels);
+      const partWidth = bounds.maxX - bounds.minX + 1;
+      const partHeight = bounds.maxY - bounds.minY + 1;
+
+      // 파츠 바운딩 박스 내 상대 비율로 변환 (0~1)
+      const pivotX = Math.max(0, Math.min(1, (pixelPos.x - bounds.minX) / partWidth));
+      const pivotY = Math.max(0, Math.min(1, (pixelPos.y - bounds.minY) / partHeight));
+
+      setParts(prev => prev.map(p =>
+        p.id === selectedPartId ? { ...p, pivotX, pivotY } : p
+      ));
     }
   };
 
@@ -447,7 +483,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
   // ==================== 프레임 관리 ====================
 
   const addFrame = () => {
-    if (frameCount >= 12) return;
+    if (frameCount >= 64) return;
     setFrames(prev => [...prev, {}]);
     setFrameCount(prev => prev + 1);
   };
@@ -559,6 +595,14 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: part.color }} />
                 <span className="text-sm text-white">{part.name}</span>
                 <span className="text-xs text-neutral-400">({part.pixels.size}px)</span>
+
+                {/* 피벗 표시 */}
+                {part.pivotX !== undefined && (
+                  <span className="text-[10px] text-orange-400 ml-1" title={`피벗: ${Math.round((part.pivotX ?? 0.5) * 100)}%, ${Math.round((part.pivotY ?? 0.5) * 100)}%`}>
+                    🎯
+                  </span>
+                )}
+
                 <button
                   onClick={(e) => { e.stopPropagation(); deletePart(part.id); }}
                   className="text-neutral-500 hover:text-red-400 ml-1"
@@ -600,6 +644,13 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
                 className={`px-3 py-1 text-xs rounded ${tool === 'move' ? 'bg-[#2563eb] text-white' : 'bg-neutral-800 text-neutral-400'}`}
               >
                 ✋ 움직이기
+              </button>
+              <button
+                onClick={() => setTool('setPivot')}
+                className={`px-3 py-1 text-xs rounded ${tool === 'setPivot' ? 'bg-orange-600 text-white' : 'bg-neutral-800 text-neutral-400'}`}
+                title="클릭한 위치를 회전 중심으로 설정"
+              >
+                🎯 피벗
               </button>
 
               <div className="w-px h-5 bg-neutral-700 mx-1" />
@@ -708,18 +759,18 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
                 <button onClick={removeFrame} disabled={frameCount <= 2} className="w-6 h-6 bg-neutral-800 text-neutral-400 rounded hover:bg-neutral-700 disabled:opacity-50">
                   −
                 </button>
-                <button onClick={addFrame} disabled={frameCount >= 12} className="w-6 h-6 bg-neutral-800 text-neutral-400 rounded hover:bg-neutral-700 disabled:opacity-50">
+                <button onClick={addFrame} disabled={frameCount >= 64} className="w-6 h-6 bg-neutral-800 text-neutral-400 rounded hover:bg-neutral-700 disabled:opacity-50">
                   +
                 </button>
               </div>
 
-              <div className="flex gap-1">
+              <div className="grid grid-cols-5 gap-1">
                 {Array.from({ length: frameCount }).map((_, i) => (
                   <button
                     key={i}
                     onClick={() => { setCurrentFrame(i); setTool('move'); }}
-                    className={`flex-1 py-2 text-sm rounded transition-all ${currentFrame === i
-                      ? 'bg-[#2563eb] text-white'
+                    className={`aspect-square flex items-center justify-center text-xs rounded transition-all ${currentFrame === i
+                      ? 'bg-[#2563eb] text-white font-bold'
                       : previewFrame === i && isPlaying
                         ? 'bg-[#2563eb]/50 text-white'
                         : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
@@ -771,20 +822,24 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
                 </button>
                 <button
                   onClick={() => {
-                    // 회전
-                    const newFrames = frames.map((_, i) => {
-                      const pose: FrameData = {};
-                      parts.forEach(part => {
-                        const rot = (i / frameCount) * 360 / 4;
-                        pose[part.id] = { x: 0, y: 0, rotation: rot, scale: 1 };
-                      });
-                      return pose;
-                    });
+                    // 선택된 파츠만 좌우 반전 토글
+                    if (!selectedPartId) {
+                      alert('먼저 파츠를 선택하세요!');
+                      return;
+                    }
+                    const currentPoses = frames[currentFrame] || {};
+                    const current = currentPoses[selectedPartId] || { ...DEFAULT_POSE };
+                    const newPoses = {
+                      ...currentPoses,
+                      [selectedPartId]: { ...current, flipX: !current.flipX }
+                    };
+                    const newFrames = [...frames];
+                    newFrames[currentFrame] = newPoses;
                     setFrames(newFrames);
                   }}
                   className="py-1.5 bg-neutral-800 text-xs text-neutral-300 rounded hover:bg-neutral-700"
                 >
-                  🔄 회전
+                  ↔️ 좌우반전
                 </button>
                 <button
                   onClick={() => {
@@ -815,7 +870,7 @@ export function PartRigger({ sourceCanvas, pixelSize, onFramesGenerated, onClose
           </button>
         </div>
       </div>
-    </div>,
+    </div >,
     document.body
   );
 }

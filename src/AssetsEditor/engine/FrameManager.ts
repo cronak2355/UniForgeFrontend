@@ -2,7 +2,7 @@
 
 import type { RGBA } from './PixelEngine';
 
-export const MAX_FRAMES = 4;
+export const MAX_FRAMES = 64;
 
 export interface Frame {
   id: string;
