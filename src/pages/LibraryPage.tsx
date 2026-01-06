@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchMyGames } from '../services/gameService';
 
 // --- Types ---
 interface LibraryItem {
@@ -21,11 +22,12 @@ interface Collection {
 }
 
 // --- Mock Data ---
-const MOCK_GAMES: LibraryItem[] = [
-    { id: 'g1', title: 'Neon Racer 2077', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80', author: 'CyberDev', purchaseDate: '2023.12.01' },
-    { id: 'g2', title: 'Cosmic Voyager', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', author: 'StarStudio', purchaseDate: '2023.12.15' },
-    { id: 'g3', title: 'Medieval Legends', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?w=400&q=80', author: 'KnightSoft', purchaseDate: '2024.01.10' },
-];
+// const MOCK_GAMES: LibraryItem[] = [
+//     { id: 'g1', title: 'Neon Racer 2077', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80', author: 'CyberDev', purchaseDate: '2023.12.01' },
+//     { id: 'g2', title: 'Cosmic Voyager', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', author: 'StarStudio', purchaseDate: '2023.12.15' },
+//     { id: 'g3', title: 'Medieval Legends', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?w=400&q=80', author: 'KnightSoft', purchaseDate: '2024.01.10' },
+// ];
+
 
 const MOCK_ASSETS: LibraryItem[] = [
     { id: 'a1', title: 'Sci-Fi Weapon Pack', type: 'asset', assetType: '3D Model', thumbnail: 'https://images.unsplash.com/photo-1612404730960-5c71579fca2c?w=400&q=80', author: 'AssetMaster', purchaseDate: '2023.11.20', collectionId: 'c1' },
@@ -53,18 +55,40 @@ export default function LibraryPage() {
     const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [myGames, setMyGames] = useState<LibraryItem[]>([]);
+    const [loadingGames, setLoadingGames] = useState(true);
 
     // --- Effects ---
     // Close dropdown on outside click
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
+        if (!user) return;
+
+        const loadMyGames = async () => {
+            try {
+                const games = await fetchMyGames(user.id);
+
+                const mapped: LibraryItem[] = games.map(game => ({
+                    id: String(game.gameId),
+                    title: game.title,
+                    type: 'game',
+                    thumbnail:
+                        game.thumbnailUrl ??
+                        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
+                    author: `User ${game.authorId}`,
+                    purchaseDate: game.createdAt.split('T')[0],
+                }));
+
+                setMyGames(mapped);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingGames(false);
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+
+        loadMyGames();
+    }, [user]);
+
 
     // --- Actions ---
     const handleLogout = () => {
@@ -86,7 +110,11 @@ export default function LibraryPage() {
 
     // --- Filter Logic ---
     const getFilteredItems = () => {
-        let items = activeTab === 'games' ? MOCK_GAMES : MOCK_ASSETS;
+        let items =
+            activeTab === 'games'
+                ? myGames
+                : MOCK_ASSETS;
+
 
         if (searchTerm) {
             items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));

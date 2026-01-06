@@ -13,6 +13,7 @@ import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 import { useNavigate } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
+import { saveScenes } from "./api/sceneApi";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -66,6 +67,7 @@ function EditorLayoutInner() {
     const [dropAssetTag, setDropAssetTag] = useState("Character");
     const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
     const navigate = useNavigate();
+
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -184,17 +186,31 @@ function EditorLayoutInner() {
                 borderBottom: `1px solid ${colors.borderColor}`,
             }}>
                 <button
-                    onClick={() => {
-                        // SAVE
-                        const json = SceneSerializer.serialize(core, "MyScene");
-                        const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `${json.sceneId}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                    onClick={async () => {
+                        try {
+                            const sceneJson = SceneSerializer.serialize(core, "MyScene");
+                            const gameId = 1; // 임시 값
+                            await saveScenes(gameId, sceneJson);
+
+                            alert("Saved to server");
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to save project");
+                        }
                     }}
+
+                    // onClick={() => {
+                    //     // SAVE
+                    //     const json = SceneSerializer.serialize(core, "MyScene");
+                    //     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+                    //     const url = URL.createObjectURL(blob);
+                    //     const a = document.createElement("a");
+                    //     a.href = url;
+                    //     a.download = `${json.sceneId}.json`;
+                    //     a.click();
+                    //     URL.revokeObjectURL(url);
+                    // }}
+
                     style={{
                         padding: '6px 12px',
                         fontSize: '13px',
