@@ -8,6 +8,8 @@ import type { EditorState } from "../EditorCore";
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
 // 모듈 팩토리
 import { getRuntimeEntity } from "../core/modules/ModuleFactory";
+// 게임 설정
+import { type GameConfig, defaultGameConfig, hasRole } from "../core/GameConfig";
 
 /**
  * Phaser 씬 내부 클래스
@@ -70,7 +72,8 @@ class PhaserRenderScene extends Phaser.Scene {
                     globals: {
                         scene: this,
                         renderer: this.phaserRenderer,
-                        entities: this.phaserRenderer.core.getEntities()
+                        entities: this.phaserRenderer.core.getEntities(),
+                        gameCore: this.phaserRenderer.gameCore
                     }
                 };
 
@@ -94,9 +97,10 @@ class PhaserRenderScene extends Phaser.Scene {
         if (this.phaserRenderer.isRuntimeMode) {
             EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
 
-            // 카메라 추적: player 역할이나 이름이 player인 엔티티 따라가기
+            // 카메라 추적: cameraFollowRoles에 포함된 역할 엔티티 따라가기
+            const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
             const playerEntity = Array.from(this.phaserRenderer.core.getEntities().values())
-                .find(e => e.role === "player" || e.name.toLowerCase().includes("player"));
+                .find(e => hasRole(e.role, cameraRoles));
 
             if (playerEntity) {
                 const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
@@ -137,8 +141,12 @@ class PhaserRenderScene extends Phaser.Scene {
             return;
         }
 
-        // Kinetic 모듈을 가진 엔티티만 업데이트
+        // Kinetic 모듈을 가진 controllableRoles 역할 엔티티만 키보드 입력으로 업데이트
+        const controllableRoles = this.phaserRenderer.gameConfig?.controllableRoles ?? defaultGameConfig.controllableRoles;
         this.phaserRenderer.core.getEntities().forEach((entity) => {
+            // controllableRoles에 없으면 키보드 입력 스킵
+            if (!hasRole(entity.role, controllableRoles)) return;
+
             // Kinetic 모듈이 없으면 스킵
             const hasKinetic = entity.modules?.some(m => m.type === "Kinetic");
             if (!hasKinetic) return;
@@ -223,6 +231,15 @@ export class PhaserRenderer implements IRenderer {
 
     /** Runtime mode flag - Rules and TICK only run when true */
     isRuntimeMode = false;
+
+    /** GameCore instance for role-based targeting (set by runtime) */
+    gameCore?: {
+        getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
+        getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
+    };
+
+    /** 게임 설정 (역할별 기능 매핑) */
+    gameConfig?: GameConfig;
 
     // ===== Lifecycle =====
 

@@ -52,15 +52,39 @@ ConditionRegistry.register("HpAbove", (ctx: ActionContext, params: Record<string
 
 /**
  * InRange - 타겟이 지정 거리 내에 있는지 확인
- * params: { targetId: string, range: number }
+ * params: { targetId?: string, targetRole?: string, range: number }
  */
 ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string, unknown>) => {
     const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
-    const targetId = params.targetId as string;
     const range = (params.range as number) ?? 100;
+
+    // [Role-Based Targeting] targetId 또는 targetRole 지원
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    if (!targetId && targetRole) {
+        // 역할로 가장 가까운 엔티티 찾기
+        const gameCore = ctx.globals?.gameCore;
+        const entityObj = renderer.getGameObject?.(entityId);
+        if (gameCore?.getNearestEntityByRole && entityObj) {
+            const nearest = gameCore.getNearestEntityByRole(targetRole, entityObj.x, entityObj.y, entityId);
+            if (nearest) {
+                targetId = nearest.id;
+            }
+        }
+    }
 
     if (!targetId) return false;
 
@@ -78,15 +102,39 @@ ConditionRegistry.register("InRange", (ctx: ActionContext, params: Record<string
 
 /**
  * OutOfRange - 타겟이 지정 거리 밖에 있는지 확인
- * params: { targetId: string, range: number }
+ * params: { targetId?: string, targetRole?: string, range: number }
  */
 ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<string, unknown>) => {
     const renderer = ctx.globals?.renderer;
     if (!renderer) return false;
 
     const entityId = ctx.entityId;
-    const targetId = params.targetId as string;
     const range = (params.range as number) ?? 100;
+
+    // [Role-Based Targeting] targetId 또는 targetRole 지원
+    // targetId에 공백만 있으면 무시 (trim 처리)
+    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
+    const targetRole = params.targetRole as string | undefined;
+
+    // targetId가 입력되었지만 실제 존재하지 않는 경우 (사용자 오타 방지)
+    if (targetId) {
+        const targetObj = renderer.getGameObject?.(targetId);
+        if (!targetObj) {
+            targetId = undefined; // ID로 못 찾으면 역할 기반 검색으로 폴백
+        }
+    }
+
+    if (!targetId && targetRole) {
+        // 역할로 가장 가까운 엔티티 찾기
+        const gameCore = ctx.globals?.gameCore;
+        const entityObj = renderer.getGameObject?.(entityId);
+        if (gameCore?.getNearestEntityByRole && entityObj) {
+            const nearest = gameCore.getNearestEntityByRole(targetRole, entityObj.x, entityObj.y, entityId);
+            if (nearest) {
+                targetId = nearest.id;
+            }
+        }
+    }
 
     if (!targetId) return false;
 

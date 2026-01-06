@@ -6,6 +6,7 @@ import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { TilePlacement } from "./EditorCore";
 import { registerRuntimeEntity, clearRuntimeEntities } from "./core/modules/ModuleFactory";
+import { defaultGameConfig } from "./core/GameConfig";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -68,6 +69,9 @@ export function RunTimeCanvas() {
         rendererRef.current = renderer;
         const gameRuntime = new GameCore(renderer);
         setGameCore(gameRuntime); // State update triggers UI render
+        renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
+        renderer.gameConfig = defaultGameConfig; // 역할 기반 설정 연결
+        gameRuntime.setGameConfig(defaultGameConfig); // GameCore에도 설정 연결
         renderer.useEditorCoreRuntimePhysics = false;
         renderer.onInputState = (input) => {
             gameRuntime.setInputState(input);
@@ -113,6 +117,7 @@ export function RunTimeCanvas() {
                     components: e.components,
                     modules: e.modules,
                     rules: e.rules,
+                    role: e.role, // 에디터에서 설정한 역할 적용
                 });
 
                 // 런타임 모듈 인스턴스 등록은 GameCore.createEntity 내부에서 처리됨 (동기화 보장)
@@ -125,7 +130,7 @@ export function RunTimeCanvas() {
             entities.forEach(e => {
                 const status = e.modules.find(m => m.type === "Status");
                 if (status) {
-                    console.log(` - ${e.name} (${e.id}): HP=${status.hp}/${status.maxHp}, Role=${e.role}`);
+                    console.log(` - ${e.name} (${e.id}): HP=${status.hp}/${status.maxHp}, Role=${e.role}, Rules=${e.rules?.length ?? 0}`);
                 }
             });
 

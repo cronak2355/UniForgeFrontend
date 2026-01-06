@@ -120,6 +120,39 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         </div>
       </div>
 
+      {/* Role Section */}
+      <div style={sectionStyle}>
+        <div style={titleStyle}>Role</div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>🎭</span>
+          <select
+            style={{ ...inputStyle, width: '100px' }}
+            value={['player', 'enemy', 'npc', 'neutral', 'projectile'].includes(localEntity.role) ? localEntity.role : 'custom'}
+            onChange={(e) => {
+              if (e.target.value !== 'custom') {
+                handleUpdate({ ...localEntity, role: e.target.value });
+              }
+            }}
+          >
+            <option value="player">Player</option>
+            <option value="enemy">Enemy</option>
+            <option value="npc">NPC</option>
+            <option value="neutral">Neutral</option>
+            <option value="projectile">Projectile</option>
+            <option value="custom">Custom...</option>
+          </select>
+          {!['player', 'enemy', 'npc', 'neutral', 'projectile'].includes(localEntity.role) && (
+            <input
+              type="text"
+              placeholder="custom role"
+              style={{ ...inputStyle, width: '80px', marginLeft: '8px' }}
+              value={localEntity.role}
+              onChange={(e) => handleUpdate({ ...localEntity, role: e.target.value })}
+            />
+          )}
+        </div>
+      </div>
+
       {/* Module Section */}
       <ModuleSection
         entity={localEntity}

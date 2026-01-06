@@ -122,8 +122,8 @@ const RULE_TEMPLATES: { label: string; description: string; rule: GameRule }[] =
         description: "범위 내 플레이어 추적",
         rule: {
             event: "TICK",
-            conditions: [{ type: "InRange", targetId: "demo-player", range: 300 }],
-            actions: [{ type: "ChaseTarget", targetId: "demo-player", speed: 80 }]
+            conditions: [{ type: "InRange", targetRole: "player", range: 300 }],
+            actions: [{ type: "ChaseTarget", targetRole: "player" }]
         }
     },
     {
@@ -131,8 +131,8 @@ const RULE_TEMPLATES: { label: string; description: string; rule: GameRule }[] =
         description: "가까우면 공격",
         rule: {
             event: "TICK",
-            conditions: [{ type: "InRange", targetId: "demo-player", range: 60 }],
-            actions: [{ type: "Attack", range: 60, damage: 10 }]
+            conditions: [{ type: "InRange", targetRole: "player", range: 60 }],
+            actions: [{ type: "Attack", targetRole: "player" }]
         }
     },
     {

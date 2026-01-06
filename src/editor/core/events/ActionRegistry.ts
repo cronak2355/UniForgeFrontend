@@ -19,6 +19,11 @@ export interface ActionGlobals {
     scene?: unknown;
     /** 모든 엔티티 맵 */
     entities?: Map<string, EditorEntity>;
+    /** GameCore 인스턴스 (역할 기반 타겟팅용) */
+    gameCore?: {
+        getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
+        getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
+    };
 }
 
 /**

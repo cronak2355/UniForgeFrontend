@@ -5,6 +5,7 @@ import { GameLog } from "./GameLog";
 import { FloatingText } from "./FloatingText";
 import { DialogueBox } from "./DialogueBox";
 import { EventBus, type GameEvent } from "../core/events/EventBus";
+import { hasRole } from "../core/GameConfig";
 
 
 interface Props {
@@ -28,13 +29,10 @@ export function GameUIOverlay({ gameCore }: Props) {
 
         const loop = () => {
             if (gameCore) {
-                // Find Player Entity by role (or fallback to name)
+                // hudDisplayRoles에 포함된 역할의 엔티티 찾기
+                const hudRoles = gameCore.getGameConfig().hudDisplayRoles;
                 const entities = Array.from(gameCore.getAllEntities().values());
-                const player = entities.find(e =>
-                    e.role === "player" ||
-                    e.name.toLowerCase() === "player" ||
-                    e.name.toLowerCase().includes("player")
-                );
+                const player = entities.find(e => hasRole(e.role, hudRoles));
 
                 if (player) {
                     // Get runtime StatusModule (not static editor data)

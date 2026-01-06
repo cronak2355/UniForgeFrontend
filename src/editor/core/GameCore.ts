@@ -24,6 +24,7 @@ import { StatusModule } from "./modules/StatusModule";
 import { CombatModule, type TargetInfo, type ProjectileSpawnSignal } from "./modules/CombatModule";
 import { NarrativeModule } from "./modules/NarrativeModule";
 import { registerRuntimeEntityInstances } from "./modules/ModuleFactory";
+import { type GameConfig, defaultGameConfig, hasRole } from "./GameConfig";
 
 /**
  * 게임 엔티티 데이터 구조 (순수 JavaScript 객체)
@@ -47,8 +48,8 @@ export interface GameEntity {
     rules: GameRule[];
     width?: number;
     height?: number;
-    /** 엔티티 역할 */
-    role?: "player" | "enemy" | "npc" | "neutral";
+    /** 엔티티 역할 (게임 로직 타겟팅용) */
+    role: string;
 }
 
 /**
@@ -71,6 +72,7 @@ export interface CreateEntityOptions {
     width?: number;
     height?: number;
     color?: number;
+    role?: string;
 }
 
 interface TriggerRuntime {
@@ -140,8 +142,25 @@ export class GameCore {
     // ===== 구독자 (상태 변경 알림) =====
     private listeners: Set<() => void> = new Set();
 
+    // ===== 게임 설정 =====
+    private gameConfig: GameConfig = defaultGameConfig;
+
     constructor(renderer: IRenderer) {
         this.renderer = renderer;
+    }
+
+    /**
+     * 게임 설정 변경
+     */
+    setGameConfig(config: GameConfig): void {
+        this.gameConfig = config;
+    }
+
+    /**
+     * 현재 게임 설정 반환
+     */
+    getGameConfig(): GameConfig {
+        return this.gameConfig;
     }
 
     // ===== Entity Management - ID 동기화 보장 =====
@@ -188,6 +207,7 @@ export class GameCore {
             components: options.components ?? [],
             modules: options.modules ?? [],
             rules: options.rules ?? [],
+            role: options.role ?? "neutral",
         };
 
         // 1. 로컬 상태에 저장
@@ -311,6 +331,54 @@ export class GameCore {
      */
     getEntityCount(): number {
         return this.entities.size;
+    }
+
+    /**
+     * 역할(Role)로 엔티티 조회
+     * @param role 찾을 역할 (예: "player", "enemy", "npc")
+     * @returns 해당 역할의 엔티티 배열
+     */
+    getEntitiesByRole(role: string): GameEntity[] {
+        const result: GameEntity[] = [];
+        for (const entity of this.entities.values()) {
+            if (entity.role === role) {
+                result.push(entity);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 역할(Role)로 가장 가까운 엔티티 찾기
+     * @param role 찾을 역할
+     * @param fromX 기준 X 좌표
+     * @param fromY 기준 Y 좌표
+     * @returns 가장 가까운 엔티티 또는 undefined
+     */
+    getNearestEntityByRole(role: string, fromX: number, fromY: number, excludeId?: string): GameEntity | undefined {
+        const candidates = this.getEntitiesByRole(role);
+        if (candidates.length === 0) return undefined;
+
+        let nearest: GameEntity | undefined;
+        let minDist = Infinity;
+
+        for (const entity of candidates) {
+            // 본인 제외
+            if (excludeId && entity.id === excludeId) continue;
+
+            // 살아있는 엔티티만 고려
+            const status = this.getModuleByType<StatusModule>(entity.id, "Status");
+            if (status && !status.isAlive) continue;
+
+            const dx = entity.x - fromX;
+            const dy = entity.y - fromY;
+            const dist = dx * dx + dy * dy;
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = entity;
+            }
+        }
+        return nearest;
     }
 
     /**
@@ -529,14 +597,30 @@ export class GameCore {
             const entity = this.entities.get(entityId);
             if (!entity) continue;
 
+            // [Fix] 생존 여부 확인 - 죽은 엔티티는 로직 중단
+            const status = this.getModuleByType<StatusModule>(entityId, "Status");
+            const isDead = status && !status.isAlive;
+
             for (const runtime of runtimes) {
+                // Status, Narrative 등은 죽어도 업데이트 필요할 수 있음 (선택 사항)
+                // 하지만 Kinetic(이동), Combat(공격)은 죽으면 멈춰야 함
+                if (isDead) {
+                    if (runtime.module.type === "Kinetic" || runtime.module.type === "Combat") {
+                        continue;
+                    }
+                }
+
                 switch (runtime.module.type) {
                     case "Kinetic": {
                         const kinetic = runtime.module as KineticModule;
-                        if (kinetic.mode === "TopDown") {
-                            kinetic.processTopDownInput(this.inputState);
-                        } else if (kinetic.mode === "Platformer") {
-                            kinetic.processPlatformerInput(this.inputState);
+
+                        // [Config-Based Input] controllableRoles에 포함된 역할만 키보드 입력 처리
+                        if (hasRole(entity.role, this.gameConfig.controllableRoles)) {
+                            if (kinetic.mode === "TopDown") {
+                                kinetic.processTopDownInput(this.inputState);
+                            } else if (kinetic.mode === "Platformer") {
+                                kinetic.processPlatformerInput(this.inputState);
+                            }
                         }
 
                         kinetic.update(dt);
@@ -555,7 +639,16 @@ export class GameCore {
                         const combat = runtime.module as CombatModule;
                         combat.position = { x: entity.x, y: entity.y, z: entity.z };
                         combat.update(dt);
-                        combat.updateAutoAttack(targets);
+
+                        // [Config-Based] autoAttackRoles에 포함된 역할만 자동 공격
+                        const autoAttackRoles = this.gameConfig.autoAttackRoles;
+                        const canAutoAttack = autoAttackRoles.length === 0 || hasRole(entity.role, autoAttackRoles);
+
+                        if (canAutoAttack) {
+                            // 같은 역할은 공격하지 않음 (player는 player를 공격하지 않음)
+                            const filteredTargets = targets.filter(t => t.role !== entity.role && t.id !== entity.id);
+                            combat.updateAutoAttack(filteredTargets);
+                        }
                         break;
                     }
                     default:
@@ -570,11 +663,19 @@ export class GameCore {
         const targets: TargetInfo[] = [];
         for (const [id, entity] of this.entities) {
             const status = this.getModuleByType<StatusModule>(id, "Status");
-            targets.push({
-                id,
-                position: { x: entity.x, y: entity.y, z: entity.z },
-                hp: status?.hp,
-            });
+            // Debug Log
+            if (status && status.hp <= 0 && status.isAlive) {
+                console.warn(`[GameCore] Entity ${id} has HP ${status.hp} but isAlive is true! Lives: ${status.lives}`);
+            }
+            // [Fix] 살아있는 엔티티만 타겟으로 선정
+            if (status && status.isAlive) {
+                targets.push({
+                    id,
+                    position: { x: entity.x, y: entity.y, z: entity.z },
+                    hp: status.hp,
+                    role: entity.role, // 역할 기반 타겟팅용
+                });
+            }
         }
         return targets;
     }
@@ -623,6 +724,10 @@ export class GameCore {
                 if (target.id === projectile.fromId) continue;
                 // Skip already hit
                 if (projectile.hitTargets.has(target.id)) continue;
+
+                // [Fix] 이미 죽은 엔티티는 피격 판정 제외
+                const status = this.getModuleByType<StatusModule>(target.id, "Status");
+                if (status && !status.isAlive) continue;
 
                 const dx = target.x - projectile.x;
                 const dy = target.y - projectile.y;
@@ -695,6 +800,11 @@ export class GameCore {
             for (const [id, entity] of this.entities) {
                 if (id === projectile.fromId) continue;
                 if (projectile.hitTargets.has(id)) continue;
+
+                // [Fix] 이미 죽은 엔티티는 폭발 데미지 제외
+                const status = this.getModuleByType<StatusModule>(id, "Status");
+                if (status && !status.isAlive) continue;
+
                 const dx = entity.x - projectile.x;
                 const dy = entity.y - projectile.y;
                 if ((dx * dx + dy * dy) <= (projectile.explosionRadius * projectile.explosionRadius)) {
@@ -712,7 +822,9 @@ export class GameCore {
     private applyDamage(targetId: string, damage: number, attackerId?: string): void {
         const status = this.getModuleByType<StatusModule>(targetId, "Status");
         if (status) {
+            const oldHp = status.hp;
             status.takeDamage(damage);
+            console.log(`[GameCore] ${targetId} took ${damage} dmg. HP: ${oldHp} -> ${status.hp}. Alive: ${status.isAlive}`);
             if (!status.isAlive) {
                 EventBus.emit("ENTITY_DIED", { entityId: targetId, attackerId });
             }
@@ -751,6 +863,10 @@ export class GameCore {
         for (const runtime of this.componentRuntimes) {
             const entity = this.entities.get(runtime.entityId);
             if (!entity) continue;
+
+            // [Fix] 죽은 엔티티는 컴포넌트 로직도 중단
+            const status = this.getModuleByType<StatusModule>(entity.id, "Status");
+            if (status && !status.isAlive) continue;
 
             this.processComponent(entity, runtime, time, dt);
         }
