@@ -8,13 +8,12 @@ export function ensureEntityLogic(entity: EditorEntity): EditorEntity {
 
   const logic = buildLogicItems({
     components: entity.components ?? [],
-    rules: entity.rules ?? [],
   });
 
   return { ...entity, logic };
 }
 
 export function syncLegacyFromLogic(entity: EditorEntity): EditorEntity {
-  const { components, rules } = splitLogicItems(entity.logic);
-  return { ...entity, components, rules };
+  const components = splitLogicItems(entity.logic);
+  return { ...entity, components };
 }

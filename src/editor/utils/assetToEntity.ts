@@ -17,8 +17,7 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
     texture: asset.name,
     variables: [],
     events: [],
-    logic: buildLogicItems({ components: [], rules: [] }),
+    logic: buildLogicItems({ components: [] }),
     components: [],
-    rules: [],
   };
 }

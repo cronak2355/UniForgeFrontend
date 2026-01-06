@@ -72,10 +72,10 @@ export const ComponentSection = memo(function ComponentSection({
     availableEntities,
     showHeader = true,
 }: Props) {
-    const { components, rules } = splitLogicItems(entity.logic);
+    const components = splitLogicItems(entity.logic);
 
     const updateComponents = (next: EditorComponent[]) => {
-        const nextLogic = buildLogicItems({ components: next, rules });
+        const nextLogic = buildLogicItems({ components: next });
         onUpdateEntity({ ...entity, logic: nextLogic });
     };
 

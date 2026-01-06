@@ -1,8 +1,8 @@
 import { EditorState } from "../EditorCore";
 import type { EditorEntity } from "../types/Entity";
-import type { GameRule } from "./events/RuleEngine";
 import type { Asset } from "../types/Asset";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
+import type { LogicComponent } from "../types/Component";
 
 export interface SceneEventJSON {
   id: string;
@@ -61,14 +61,15 @@ export class SceneSerializer {
   }
 
   private static serializeEntity(e: EditorEntity): SceneEntityJSON {
-    const { rules } = splitLogicItems(e.logic);
+    const components = splitLogicItems(e.logic);
+    const logicComponents = components.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const events: SceneEventJSON[] = [];
 
-    rules.forEach((rule: any) => {
+    logicComponents.forEach((rule, idx) => {
       const triggerType = rule.event;
-      rule.actions.forEach((action: any, idx: number) => {
+      rule.actions.forEach((action: any, actionIdx: number) => {
         events.push({
-          id: `ev_${idx}`,
+          id: `ev_${idx}_${actionIdx}`,
           trigger: triggerType,
           action: action.type,
           params: {
@@ -104,18 +105,16 @@ export class SceneSerializer {
 
     json.entities.forEach((e) => {
       const legacyModules = (e as SceneEntityJSON & { modules?: any[] }).modules ?? [];
-      const rules: GameRule[] = e.events.map((ev, i) => ({
+      const variables = (e.variables ?? []).map((v) => ({ ...v }));
+      const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => ({
+        id: `logic_${i}`,
+        type: "Logic",
         event: ev.trigger,
         eventParams: {},
-        actions: [
-          {
-            type: ev.action,
-            ...ev.params,
-          },
-        ],
+        conditions: [],
+        conditionLogic: "AND",
+        actions: [{ type: ev.action, ...(ev.params || {}) }],
       }));
-
-      const variables = (e.variables ?? []).map((v) => ({ ...v }));
       const existingNames = new Set(variables.map((v) => v.name));
       const pushVar = (name: string, type: string, value: any) => {
         if (existingNames.has(name)) return;
@@ -170,11 +169,9 @@ export class SceneSerializer {
         variables: variables as any[],
         events: [],
         logic: buildLogicItems({
-          components: [],
-          rules,
+          components: logicComponents,
         }),
-        components: [],
-        rules,
+        components: logicComponents,
       };
 
       state.addEntity(entity);

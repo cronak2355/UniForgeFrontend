@@ -1,13 +1,16 @@
 ﻿import Phaser from "phaser";
 import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer";
 // EAC ?쒖뒪??import
-import { EventBus, RuleEngine } from "../core/events";
+import { EventBus, ActionRegistry, ConditionRegistry } from "../core/events";
 import { splitLogicItems } from "../types/Logic";
 import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
 import type { EditorState } from "../EditorCore";
+import type { ActionContext } from "../core/events/ActionRegistry";
+import type { GameEvent } from "../core/events";
 // 臾쇰━ ?붿쭊 (?붿쭊 ?낅┰??
 import { runtimePhysics, type InputState } from "../core/RuntimePhysics";
 import type { RuntimeContext } from "../core/RuntimeContext";
+import type { LogicComponent } from "../types/Component";
 // 紐⑤뱢 ?⑺넗由?
 // 寃뚯엫 ?ㅼ젙
 import { type GameConfig, defaultGameConfig, hasRole } from "../core/GameConfig";
@@ -48,25 +51,86 @@ class PhaserRenderScene extends Phaser.Scene {
         // EAC ?쒖뒪??珥덇린??(?대깽??湲곕컲 ?≪뀡??
         this._keyboardAdapter = new KeyboardAdapter(this);
 
-        // EventBus??由ъ뒪???깅줉
+        // EventBus handler helpers
+        const eventAliases: Record<string, string[]> = {
+            TICK: ["OnUpdate", "TICK"],
+            KEY_DOWN: ["OnSignalReceive", "KEY_DOWN"],
+            KEY_UP: ["OnSignalReceive", "KEY_UP"],
+            COLLISION_ENTER: ["OnCollision", "COLLISION_ENTER"],
+            COLLISION_STAY: ["OnCollision", "COLLISION_STAY"],
+            COLLISION_EXIT: ["OnCollision", "COLLISION_EXIT"],
+            ENTITY_DIED: ["OnDestroy", "ENTITY_DIED"],
+        };
+
+        const shouldSkipEntity = (ctx: ActionContext, event: GameEvent) => {
+            const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
+            const entity = entities?.get(ctx.entityId);
+            const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
+            if (typeof hpValue === "number" && hpValue <= 0) {
+                return true;
+            }
+
+            if (event.targetId && event.targetId !== ctx.entityId) {
+                return true;
+            }
+
+            return false;
+        };
+
+        const matchesEvent = (component: LogicComponent, event: GameEvent) => {
+            const allowedEvents = eventAliases[event.type] ?? [event.type];
+            if (!allowedEvents.includes(component.event)) return false;
+            if (component.eventParams) {
+                for (const [key, value] of Object.entries(component.eventParams)) {
+                    if (event.data?.[key] !== value) return false;
+                }
+            }
+            return true;
+        };
+
+        const passesConditions = (component: LogicComponent, ctx: ActionContext) => {
+            const conditions = component.conditions ?? [];
+            if (conditions.length === 0) return true;
+
+            const logic = component.conditionLogic ?? "AND";
+            if (logic === "OR") {
+                for (const c of conditions) {
+                    const { type, ...params } = c;
+                    if (ConditionRegistry.check(type, ctx, params)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            for (const c of conditions) {
+                const { type, ...params } = c;
+                if (!ConditionRegistry.check(type, ctx, params)) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // EventBus handler
         EventBus.on((event) => {
-            // ?고???紐⑤뱶?먯꽌留??숈옉
+            // runtime only
             if (!this.phaserRenderer.isRuntimeMode) {
                 return;
             }
-            // ?뷀떚?곌? ?놁쑝硫??ㅽ궢
             if (this.phaserRenderer.getAllEntityIds().length === 0) {
                 return;
             }
 
             this.phaserRenderer.core.getEntities().forEach((entity) => {
-                const rules = entity.rules ?? splitLogicItems(entity.logic).rules;
-                if (!rules || rules.length === 0) return;
+                const components = splitLogicItems(entity.logic);
+                const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
+                if (logicComponents.length === 0) return;
                 const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
                 const input = runtimeContext?.getInput();
                 const entityCtx = runtimeContext?.getEntityContext(entity.id);
 
-                const ctx = {
+                const ctx: ActionContext = {
                     entityId: entity.id,
                     eventData: event.data || {},
                     input,
@@ -74,11 +138,29 @@ class PhaserRenderScene extends Phaser.Scene {
                     globals: { scene: this, renderer: this.phaserRenderer, entities: this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities(), gameCore: this.phaserRenderer.gameCore }
                 };
 
-                RuleEngine.handleEvent(event, ctx as Parameters<typeof RuleEngine.handleEvent>[1], rules);
+                if (shouldSkipEntity(ctx, event)) {
+                    return;
+                }
+
+                for (const component of logicComponents) {
+                    if (!matchesEvent(component, event)) continue;
+                    if (!passesConditions(component, ctx)) continue;
+
+                    if (event.type === "OnStart") {
+                        console.log("[OnStart] component triggered", {
+                            entityId: ctx.entityId,
+                            event: component.event,
+                        });
+                    }
+
+                    for (const action of component.actions ?? []) {
+                        const { type, ...params } = action;
+                        ActionRegistry.run(type, ctx, params);
+                    }
+                }
             });
         });
-
-        console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
+console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
 
         // ??以鍮??꾨즺 ?뚮┝
         this.phaserRenderer.onSceneReady();
@@ -232,7 +314,7 @@ export class PhaserRenderer implements IRenderer {
     getRuntimeContext?: () => RuntimeContext | null;
     useEditorCoreRuntimePhysics = true;
 
-    /** Runtime mode flag - Rules and TICK only run when true */
+    /** Runtime mode flag - logic components and TICK only run when true */
     isRuntimeMode = false;
 
     /** GameCore instance for role-based targeting (set by runtime) */

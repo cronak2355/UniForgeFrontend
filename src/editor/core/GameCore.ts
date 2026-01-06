@@ -15,7 +15,6 @@ import type {
 import type { Trigger } from "../types/Trigger";
 import type { Condition } from "../types/Condition";
 import type { EditorVariable } from "../types/Variable";
-import type { GameRule } from "./events/RuleEngine";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
 import { RuntimeContext } from "./RuntimeContext";
@@ -40,7 +39,6 @@ export interface GameEntity {
     scaleZ: number;
     variables: EditorVariable[];
     components: EditorComponent[];
-    rules: GameRule[];
     width?: number;
     height?: number;
     /** ?뷀떚????븷 (寃뚯엫 濡쒖쭅 ?寃잜똿?? */
@@ -61,7 +59,6 @@ export interface CreateEntityOptions {
     scaleZ?: number;
     variables?: EditorVariable[];
     components?: EditorComponent[];
-    rules?: GameRule[];
     texture?: string;
     width?: number;
     height?: number;
@@ -214,7 +211,6 @@ export class GameCore {
             scaleZ: options.scaleZ ?? 1,
             variables: options.variables ?? [],
             components: options.components ?? [],
-            rules: options.rules ?? [],
             role: options.role ?? "neutral",
             width: options.width ?? 40,
             height: options.height ?? 40,
@@ -840,7 +836,6 @@ export class GameCore {
                 scaleZ: entityData.scaleZ,
                 variables: entityData.variables,
                 components: entityData.components,
-                rules: entityData.rules,
             });
         }
     }

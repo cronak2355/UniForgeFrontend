@@ -301,12 +301,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     role: "neutral",
                     logic: buildLogicItems({
                         components: [],
-                        rules: [],
                     }),
                     components: [],
                     variables: [],
                     events: [],
-                    rules: []
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {

@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import type { EditorEntity } from "../types/Entity";
-import type { GameRule } from "../core/events/RuleEngine";
+import type { LogicComponent } from "../types/Component";
 import { ActionRegistry } from "../core/events/ActionRegistry";
 import { colors } from "../constants/colors";
 import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
@@ -190,54 +190,61 @@ function normalizeEvent(event: string): string {
 
 export const RuleSection = memo(function RuleSection({ entity, onUpdateEntity }: Props) {
     const { entities: allEntities } = useEditorCoreSnapshot();
-    const { components, rules } = splitLogicItems(entity.logic);
+    const allComponents = splitLogicItems(entity.logic);
+    const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
+    const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
 
+    const commitLogic = (nextLogicComponents: LogicComponent[]) => {
+        const nextComponents = [...otherComponents, ...nextLogicComponents];
+        const nextLogic = buildLogicItems({ components: nextComponents });
+        onUpdateEntity({ ...entity, logic: nextLogic });
+    };
+
     useEffect(() => {
-        const normalized = rules.map((rule) => {
+        const normalized = logicComponents.map((rule) => {
             const nextEvent = normalizeEvent(rule.event);
             if (nextEvent === rule.event) return rule;
             return { ...rule, event: nextEvent };
         });
-        const changed = normalized.some((rule, idx) => rule.event !== rules[idx]?.event);
+        const changed = normalized.some((rule, idx) => rule.event !== logicComponents[idx]?.event);
         if (changed) {
-            const nextLogic = buildLogicItems({ components, rules: normalized });
-            onUpdateEntity({ ...entity, logic: nextLogic });
+            commitLogic(normalized);
         }
-    }, [components, entity, onUpdateEntity, rules]);
+    }, [entity, onUpdateEntity, logicComponents]);
 
     const otherEntities = Array.from(allEntities.values())
         .filter((e) => e.id !== entity.id)
         .map((e) => ({ id: e.id, name: e.name }));
 
     const handleAddComponent = () => {
-        const newRule: GameRule = {
+        const newComponent: LogicComponent = {
+            id: crypto.randomUUID(),
+            type: "Logic",
             event: "OnUpdate",
+            eventParams: {},
             conditions: [],
             conditionLogic: "AND",
             actions: [],
         };
-        const nextLogic = buildLogicItems({ components, rules: [...rules, newRule] });
-        onUpdateEntity({ ...entity, logic: nextLogic });
+        commitLogic([...logicComponents, newComponent]);
     };
 
-    const handleUpdateRule = (index: number, rule: GameRule) => {
-        const newRules = [...rules];
-        newRules[index] = rule;
-        const nextLogic = buildLogicItems({ components, rules: newRules });
-        onUpdateEntity({ ...entity, logic: nextLogic });
+    const handleUpdateRule = (index: number, rule: LogicComponent) => {
+        const nextRules = [...logicComponents];
+        nextRules[index] = rule;
+        commitLogic(nextRules);
     };
 
     const handleRemoveRule = (index: number) => {
-        const nextRules = rules.filter((_, i) => i !== index);
-        const nextLogic = buildLogicItems({ components, rules: nextRules });
-        onUpdateEntity({ ...entity, logic: nextLogic });
+        const nextRules = logicComponents.filter((_, i) => i != index);
+        commitLogic(nextRules);
     };
 
     return (
         <div style={styles.sectionContainer}>
             <div style={styles.sectionHeader}>
-                <div style={styles.sectionTitle}>Components ({rules.length})</div>
+                <div style={styles.sectionTitle}>Components ({logicComponents.length})</div>
                 <div style={styles.headerButtons}>
                     <button onClick={handleAddComponent} style={styles.addButton}>
                         + Add Component
@@ -246,7 +253,7 @@ export const RuleSection = memo(function RuleSection({ entity, onUpdateEntity }:
             </div>
 
             <div style={styles.ruleList}>
-                {rules.map((rule, index) => (
+                {logicComponents.map((rule, index) => (
                     <RuleItem
                         key={index}
                         rule={rule}
@@ -257,7 +264,7 @@ export const RuleSection = memo(function RuleSection({ entity, onUpdateEntity }:
                         onRemove={() => handleRemoveRule(index)}
                     />
                 ))}
-                {rules.length === 0 && (
+                {logicComponents.length === 0 && (
                     <div style={styles.emptyState}>
                         No components yet. Add one to define logic.
                     </div>
@@ -275,11 +282,11 @@ const RuleItem = memo(function RuleItem({
     onUpdate,
     onRemove,
 }: {
-    rule: GameRule;
+    rule: LogicComponent;
     index: number;
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
-    onUpdate: (rule: GameRule) => void;
+    onUpdate: (rule: LogicComponent) => void;
     onRemove: () => void;
 }) {
     const [expanded, setExpanded] = useState(true);

@@ -18,19 +18,15 @@ export class PresetManager {
             id: crypto.randomUUID(),
         }));
 
-        const newRules = preset.rules.map((r) => ({ ...r }));
-
-        const { components } = splitLogicItems(entity.logic);
+        const components = splitLogicItems(entity.logic);
         const nextLogic = buildLogicItems({
             components,
-            rules: newRules,
         });
 
         return {
             ...entity,
             logic: nextLogic,
             variables: newVariables,
-            rules: newRules,
         };
     }
 

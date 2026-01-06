@@ -252,10 +252,8 @@ export class DragDropMode extends EditorMode {
             events: [],
             logic: buildLogicItems({
                 components: [],
-                rules: [],
             }),
             components: [],
-            rules: [],
         };
 
         // Notify React side immediately about the created entity so Hierarchy updates

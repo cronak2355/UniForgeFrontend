@@ -5,10 +5,7 @@ import type { EditorState, EditorContext } from "./EditorCore";
 import type { EditorComponent, AutoRotateComponent, PulseComponent } from "./types/Component";
 import { editorCore } from "./EditorCore";
 // events/index.ts를 import하면 DefaultActions와 DefaultConditions가 자동 등록됨
-import { EventBus, RuleEngine } from "./core/events";
-import { KeyboardAdapter } from "./core/events/adapters/KeyboardAdapter";
 import { buildLogicItems } from "./types/Logic";
-import { splitLogicItems } from "./types/Logic";
 
 const tileSize = 32;
 
@@ -28,7 +25,6 @@ export class EditorScene extends Phaser.Scene {
   private map!: Phaser.Tilemaps.Tilemap;
   private tileset!: Phaser.Tilemaps.Tileset;
   // private transformGizmo!: TransformGizmo;
-  private _keyboardAdapter!: KeyboardAdapter;
   private gridGfx!: Phaser.GameObjects.Graphics;
 
   public baselayer!: Phaser.Tilemaps.TilemapLayer;
@@ -139,29 +135,6 @@ export class EditorScene extends Phaser.Scene {
 
     this.entityGroup = this.add.group();
     this.assetGroup = this.add.group();
-
-    // --- EAC 시스템 초기화 (타일맵 로드와 무관하게 즉시 초기화) ---
-    this._keyboardAdapter = new KeyboardAdapter(this);
-
-    EventBus.on((event) => {
-      // 씬에 있는 모든 엔티티에 대해 룰 체크
-      editorCore.getEntities().forEach((entity) => {
-        const rules = entity.rules ?? splitLogicItems(entity.logic).rules;
-        if (!rules || rules.length === 0) return;
-
-        // ActionContext 생성
-        const ctx = {
-          entityId: entity.id,
-          eventData: event.data || {},
-          globals: { scene: this, entities: editorCore.getEntities() }
-        };
-
-        RuleEngine.handleEvent(event, ctx as Parameters<typeof RuleEngine.handleEvent>[1], rules);
-      });
-    });
-
-    console.log("[EditorScene] EAC System initialized");
-    // --- EAC 끝 ---
 
     const getCanvasPos = (clientX: number, clientY: number) => {
 
@@ -526,10 +499,8 @@ export class EditorScene extends Phaser.Scene {
       events: [],
       logic: buildLogicItems({
         components: [],
-        rules: [],
       }),
       components: [],
-      rules: [],
     };
   }
 

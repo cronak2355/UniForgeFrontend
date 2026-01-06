@@ -142,7 +142,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     texture: e.name,
                     variables: e.variables,
                     components: e.components,
-                    rules: e.rules,
                     role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜
                 });
 

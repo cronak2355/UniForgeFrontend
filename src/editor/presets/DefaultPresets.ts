@@ -17,13 +17,7 @@ export const DefaultPresets: Record<string, EntityPreset> = {
             { id: "preset-speed", name: "speed", type: "float", value: 1 },
             { id: "preset-attack", name: "attack", type: "float", value: 10 },
             { id: "preset-defense", name: "defense", type: "float", value: 0 }
-        ],
-        rules: [
-            {
-                event: "KEY_DOWN",
-                eventParams: { key: "Space" },
-                conditions: [{ type: "IsGrounded" }],
-                actions: [{ type: "Jump", force: 400 }]
+        ]
             },
             {
                 event: "KEY_DOWN",
@@ -53,8 +47,7 @@ export const DefaultPresets: Record<string, EntityPreset> = {
             { id: "preset-speed", name: "speed", type: "float", value: 1 },
             { id: "preset-attack", name: "attack", type: "float", value: 10 },
             { id: "preset-defense", name: "defense", type: "float", value: 5 }
-        ],
-        rules: []
+        ]
     },
     enemy_chaser: {
         id: "enemy_chaser",
@@ -68,7 +61,6 @@ export const DefaultPresets: Record<string, EntityPreset> = {
             { id: "preset-attack-interval", name: "attackInterval", type: "float", value: 1000 },
             { id: "preset-hp", name: "hp", type: "float", value: 50 },
             { id: "preset-max-hp", name: "maxHp", type: "float", value: 50 }
-        ],
-        rules: []
+        ]
     }
 };

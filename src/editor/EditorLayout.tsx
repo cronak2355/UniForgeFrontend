@@ -274,7 +274,6 @@ function EditorLayoutInner() {
                                             role: entity.role,
                                             variables: entity.variables,
                                             components: entity.components,
-                                            rules: entity.rules,
                                         }))
                                     );
                                     setRunSession((v) => v + 1);

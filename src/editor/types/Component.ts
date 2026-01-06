@@ -6,7 +6,8 @@ import type { Condition } from "./Condition";
 export type ComponentType =
   | "Transform"
   | "Render"
-  | "Signal";
+  | "Signal"
+  | "Logic";
 
 /* ================= Base ================= */
 
@@ -43,6 +44,21 @@ export interface RenderComponent extends BaseComponent {
   spriteId: string;
 }
 
+
+/* ================= Logic ================= */
+
+export type LogicCondition = { type: string; [key: string]: unknown };
+export type LogicAction = { type: string; [key: string]: unknown };
+
+export interface LogicComponent extends BaseComponent {
+  type: "Logic";
+  event: string;
+  eventParams?: Record<string, unknown>;
+  conditions?: LogicCondition[];
+  conditionLogic?: "AND" | "OR";
+  actions: LogicAction[];
+}
+
 /* ================= Signal ================= */
 
 export type SignalValue =
@@ -61,7 +77,8 @@ export interface SignalComponent extends BaseComponent {
 export type EditorComponent =
   | TransformComponent
   | RenderComponent
-  | SignalComponent;
+  | SignalComponent
+  | LogicComponent;
 
 /* ================= Defaults ================= */
 
@@ -90,6 +107,16 @@ export const ComponentDefaults: ComponentDefault = {
 
     trigger: { type: "OnStart" },
     condition: { type: "Always" },
+  },
+
+
+  Logic: {
+    type: "Logic",
+    event: "OnUpdate",
+    eventParams: {},
+    conditions: [],
+    conditionLogic: "AND",
+    actions: [],
   },
 
   Signal: {
