@@ -7,12 +7,21 @@ export interface Asset {
     description: string | null;
     price: number;
     createdAt: string;
+    imageUrl?: string | null;
     // Helper fields for UI (to be populated or mapped)
     image?: string;
     author?: string;
     rating?: number;
     type?: string;
     genre?: string;
+}
+
+export interface AssetVersion {
+    id: string;
+    assetId: string;
+    s3RootPath: string | null;
+    status: string;
+    createdAt: string;
 }
 
 export interface Game {

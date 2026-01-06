@@ -35,8 +35,8 @@ function EditorLayoutInner() {
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
-
-    // Backup entities before Run mode for restoration
+    const [isUploadingAsset, setIsUploadingAsset] = useState(false);
+    const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
@@ -72,6 +72,8 @@ function EditorLayoutInner() {
         setDropModalFile(null);
         setDropAssetName("");
         setDropAssetTag("Character");
+        setIsUploadingAsset(false);
+        setUploadError("");
     };
 
     useEffect(() => {
@@ -554,6 +556,15 @@ function EditorLayoutInner() {
                                 </select>
                             </label>
                         </div>
+                        {uploadError && (
+                            <div style={{
+                                marginTop: "10px",
+                                color: "#f87171",
+                                fontSize: "12px",
+                            }}>
+                                {uploadError}
+                            </div>
+                        )}
                         <div style={{
                             marginTop: "16px",
                             display: "flex",
@@ -562,6 +573,8 @@ function EditorLayoutInner() {
                         }}>
                             <button
                                 type="button"
+                                onClick={handleAddAsset}
+                                disabled={isUploadingAsset}
                                 style={{
                                     padding: "8px 14px",
                                     fontSize: "12px",

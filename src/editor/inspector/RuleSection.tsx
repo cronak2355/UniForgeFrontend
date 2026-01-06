@@ -499,6 +499,16 @@ function ConditionEditor({
                 />
             )}
 
+            {condition.type === "SignalFlag" && (
+                <input
+                    type="text"
+                    placeholder="signalKey"
+                    value={(condition.key as string) || ""}
+                    onChange={(e) => onUpdate({ ...condition, key: e.target.value })}
+                    style={styles.textInput}
+                />
+            )}
+
             <button
                 onClick={onRemove}
                 style={styles.removeButton}
@@ -575,6 +585,16 @@ function ActionEditor({
                     <ParamInput label="range" value={action.range as number} defaultValue={100} onChange={(v) => onUpdate({ ...action, range: v })} />
                     <ParamInput label="damage" value={action.damage as number} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} />
                 </>
+            )}
+
+            {action.type === "ClearSignal" && (
+                <input
+                    type="text"
+                    placeholder="signalKey"
+                    value={(action.key as string) || ""}
+                    onChange={(e) => onUpdate({ ...action, key: e.target.value })}
+                    style={styles.textInput}
+                />
             )}
 
             {/* ShowDialogue 파라미터 */}

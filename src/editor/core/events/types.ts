@@ -363,6 +363,13 @@ export interface StopSoundAction {
     soundId: string;
 }
 
+/** ?µ?? ?¡ì…˜: ?œìŠ¤??”íŽœ??*/
+export interface ClearSignalAction {
+    type: "ClearSignal";
+    key: string;
+    entityId?: string;
+}
+
 /** 액션 유니온 타입 */
 export type Action =
     // 변수
@@ -388,7 +395,8 @@ export type Action =
     | StartCooldownAction
     // 오디오
     | PlaySoundAction
-    | StopSoundAction;
+    | StopSoundAction
+    | ClearSignalAction;
 
 // ============================================================
 // ECA RULE (전체 규칙)

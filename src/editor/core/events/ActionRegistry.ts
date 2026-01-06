@@ -54,7 +54,54 @@ export interface ActionContext {
      * 전역 컨텍스트
      * 렌더러, 씬, 엔티티 맵 등에 대한 타입 안전한 접근 제공
      */
-    globals?: ActionGlobals;
+    globals?: Record<string, unknown>;
+
+    /** 전역 입력 스냅샷 */
+    input?: {
+        left: boolean;
+        right: boolean;
+        up: boolean;
+        down: boolean;
+        jump: boolean;
+    };
+
+    /** 엔티티별 런타임 컨텍스트 */
+    entityContext?: {
+        collisions: {
+            current: Array<{
+                otherId: string;
+                otherTag?: string;
+                selfTag?: string;
+                overlapX?: number;
+                overlapY?: number;
+                normalX?: number;
+                normalY?: number;
+            }>;
+            entered: Array<{
+                otherId: string;
+                otherTag?: string;
+                selfTag?: string;
+                overlapX?: number;
+                overlapY?: number;
+                normalX?: number;
+                normalY?: number;
+            }>;
+            exited: Array<{
+                otherId: string;
+                otherTag?: string;
+                selfTag?: string;
+                overlapX?: number;
+                overlapY?: number;
+                normalX?: number;
+                normalY?: number;
+            }>;
+            grounded: boolean;
+        };
+        signals: {
+            flags: Record<string, boolean>;
+            values: Record<string, number | string | boolean | null>;
+        };
+    };
 }
 
 /**

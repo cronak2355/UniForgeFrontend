@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = 'https://uniforge.kr'; // import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
@@ -68,6 +69,11 @@ const CreateAssetPage = () => {
         }
     };
 
+    const getAuthHeaders = (): HeadersInit => {
+        const token = authService.getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -78,6 +84,12 @@ const CreateAssetPage = () => {
 
         if (!file) {
             setError('파일을 선택해주세요.');
+            return;
+        }
+
+        // 로그인 체크
+        if (!authService.isAuthenticated()) {
+            setError('로그인이 필요합니다.');
             return;
         }
 
@@ -146,16 +158,16 @@ const CreateAssetPage = () => {
                 throw new Error('업로드 URL 생성에 실패했습니다.');
             }
 
-            const { uploadUrl, s3Key } = await uploadUrlResponse.json();
+            const { uploadUrl } = await uploadUrlResponse.json();
             setUploadProgress(60);
 
-            // Step 4: Upload file to S3 using presigned URL
+            // Step 4: Upload file directly to S3
             const s3Response = await fetch(uploadUrl, {
                 method: 'PUT',
+                body: file,
                 headers: {
                     'Content-Type': file.type
-                },
-                body: file
+                }
             });
 
             if (!s3Response.ok) {
@@ -171,7 +183,7 @@ const CreateAssetPage = () => {
 
             setUploadProgress(100);
 
-            // Success! Navigate to the new asset
+            // Success!
             setTimeout(() => {
                 navigate(`/assets/${asset.id}`);
             }, 500);
