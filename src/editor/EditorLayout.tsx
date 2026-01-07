@@ -349,8 +349,8 @@ function EditorLayoutInner() {
                         try {
                             const sceneJson = SceneSerializer.serialize(core, "MyScene");
                             const gameId = 1; // 임시 값
+                            console.log(sceneJson)
                             await saveScenes(gameId, sceneJson);
-
                             alert("Saved to server");
                         } catch (e) {
                             console.error(e);
