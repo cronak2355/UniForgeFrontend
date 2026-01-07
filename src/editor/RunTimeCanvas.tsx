@@ -139,7 +139,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 // ??λ맂 ?뷀떚???앹꽦
                 gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
-                    texture: e.name,
+                    texture: e.texture ?? e.name,
                     variables: e.variables,
                     components: e.components,
                     role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜

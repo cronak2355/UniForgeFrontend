@@ -178,7 +178,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             for (const e of currentEntities) {
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
-                    texture: e.name,
+                    texture: e.texture ?? e.name,
                     variables: e.variables,
                     components: splitLogicItems(e.logic),
                 });
@@ -298,6 +298,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     id,
                     type: activeDragged.tag as "sprite" | "container" | "nineSlice",
                     name: activeDragged.name,
+                    texture: activeDragged.name,
                     x: worldX,
                     y: worldY,
                     z: 0,
@@ -315,7 +316,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
                     name: created.name,
-                    texture: created.name,
+                    texture: created.texture ?? created.name,
                     variables: created.variables,
                     components: [],
                 });
@@ -413,7 +414,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             if (!gameCore.hasEntity(ent.id)) {
                 gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
                     name: ent.name,
-                    texture: ent.name,
+                    texture: ent.texture ?? ent.name,
                     variables: ent.variables,
                     components: splitLogicItems(ent.logic),
                 });
