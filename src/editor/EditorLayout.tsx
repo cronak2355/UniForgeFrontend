@@ -70,7 +70,7 @@ function EditorLayoutInner() {
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
-    
+
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
@@ -457,8 +457,15 @@ function EditorLayoutInner() {
                             }}
                         >
                             <MenuItem label="Export" onClick={() => {
-                                setIsFileMenuOpen(false);
-                                navigate("/build"); // 🔥 빌드 페이지 이동
+                                const sceneJson = SceneSerializer.serialize(core, "MyScene");
+
+                                // 🔑 여기
+                                sessionStorage.setItem(
+                                    "UNITY_BUILD_SCENE_JSON",
+                                    JSON.stringify(sceneJson)
+                                );
+
+                                navigate("/build");
                             }} />
                         </div>
                     )}

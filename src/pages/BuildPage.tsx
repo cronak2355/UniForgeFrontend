@@ -1,7 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UnitySceneExporter } from "../editor/core/UnitySceneExport";
+import type { EditorEntity } from "../editor/types/Entity";
+import { SceneSerializer } from "../editor/core/SceneSerializer";
 import { EditorState } from "../editor/EditorCore";
+import { createEntitySnapshot } from "../editor/core/EditorEntitySnapshot";
 
 type BuildMode = "unity" | "library";
 
@@ -302,6 +305,23 @@ export default function BuildPage() { // 메인
     const [rankingEnabled, setRankingEnabled] = useState(false);
     const [commentEnabled, setCommentEnabled] = useState(true);
     const [tags, setTags] = useState<string[]>([]);
+    const [sceneJson, setSceneJson] = useState<any | null>(null);
+
+    useEffect(() => {
+        const raw = sessionStorage.getItem("UNITY_BUILD_SCENE_JSON");
+        if (!raw) {
+            console.error("❌ Build JSON 없음");
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(raw);
+            setSceneJson(parsed);
+            console.log("✅ Build JSON loaded", parsed);
+        } catch (e) {
+            console.error("❌ JSON 파싱 실패", e);
+        }
+    }, []);
 
     return (
         <div style={styles.page}>
@@ -396,8 +416,8 @@ export default function BuildPage() { // 메인
             </header>
 
             {/* --- MAIN CONTENT --- */}
-            {buildMode === "unity" && (
-                <UnityBuildPanel editorState={editorState} />
+            {buildMode === "unity" && sceneJson && (
+                <UnityBuildPanel sceneJson={sceneJson} />
             )}
 
             {buildMode === "library" && (
@@ -476,11 +496,16 @@ function LibraryBuildPanel({
         </div>
     );
 }
-function UnityBuildPanel({ editorState }: UnityBuildPanelProps) {
+function UnityBuildPanel({ sceneJson }: { sceneJson: any }) {
     const handleSend = async () => {
-        const buildJson = UnitySceneExporter.export(editorState);
-        await sendToUnity(buildJson);
+        if (!sceneJson) {
+            alert("Scene JSON이 없습니다.");
+            return;
+        }
+
+        await sendToUnity(sceneJson);
     };
+
     return (
         <div style={{ padding: 64 }}>
             <h2>유니티로 전환</h2>
