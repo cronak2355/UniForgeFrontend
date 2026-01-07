@@ -36,6 +36,8 @@ export interface UnityEventJSON {
     id: string;
     trigger: string;
     triggerParams?: Record<string, unknown>;
+    conditionLogic?: "AND" | "OR";
+    conditions?: Array<{ type: string; [key: string]: unknown }>;
     action: string;
     params?: Record<string, unknown>;
 }
@@ -74,6 +76,8 @@ export class UnitySceneExporter {
                     id: `ev_${component.id}_${idx}`,
                     trigger: component.event,
                     triggerParams: component.eventParams,
+                    conditionLogic: component.conditionLogic,
+                    conditions: component.conditions ?? [],
                     action: action.type,
                     params: {
                         ...action,
