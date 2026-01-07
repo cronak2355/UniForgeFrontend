@@ -9,7 +9,7 @@ export interface SceneEventJSON {
   trigger: string;
   triggerParams?: Record<string, unknown>;
   conditionLogic?: "AND" | "OR";
-  conditions?: Array<{ type: string; [key: string]: unknown }>;
+  conditions?: Array<{ type: string;[key: string]: unknown }>;
   action: string;
   params?: Record<string, unknown>;
 }
@@ -70,6 +70,10 @@ export class SceneSerializer {
 
     logicComponents.forEach((rule, idx) => {
       const triggerType = rule.event;
+      // Debug: Log conditions during serialization
+      if (rule.conditions && rule.conditions.length > 0) {
+        console.log(`[Serialize] Entity ${e.id} Rule ${idx} conditions:`, JSON.stringify(rule.conditions));
+      }
       rule.actions.forEach((action: any, actionIdx: number) => {
         events.push({
           id: `ev_${idx}_${actionIdx}`,
@@ -119,15 +123,21 @@ export class SceneSerializer {
 
     json.entities.forEach((e) => {
       const variables = (e.variables ?? []).map((v) => ({ ...v }));
-      const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => ({
-        id: `logic_${i}`,
-        type: "Logic",
-        event: ev.trigger,
-        eventParams: ev.triggerParams ?? {},
-        conditions: ev.conditions ?? [],
-        conditionLogic: ev.conditionLogic ?? "AND",
-        actions: [{ type: ev.action, ...(ev.params || {}) }],
-      }));
+      const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => {
+        // Debug: Log conditions during deserialization
+        if (ev.conditions && ev.conditions.length > 0) {
+          console.log(`[Deserialize] Entity ${e.id} Event ${i} conditions:`, JSON.stringify(ev.conditions));
+        }
+        return {
+          id: `logic_${i}`,
+          type: "Logic",
+          event: ev.trigger,
+          eventParams: ev.triggerParams ?? {},
+          conditions: ev.conditions ?? [],
+          conditionLogic: ev.conditionLogic ?? "AND",
+          actions: [{ type: ev.action, ...(ev.params || {}) }],
+        };
+      });
 
       const entity: EditorEntity = {
         id: e.id,

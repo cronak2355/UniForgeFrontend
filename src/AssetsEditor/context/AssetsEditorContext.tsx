@@ -12,6 +12,13 @@ import {
 import { PixelEngine, type RGBA, type PixelSize } from '../engine/PixelEngine';
 import type { Frame } from '../engine/FrameManager';
 import { generateAsset } from '../services/SagemakerService';
+import {
+  exportSpriteSheet,
+  downloadBlob,
+  downloadMetadata,
+  type SpriteSheetLayout,
+  type ExportFormat,
+} from '../services/SpriteSheetExporter';
 
 export type Tool = 'brush' | 'eraser' | 'eyedropper' | 'fill';
 
@@ -97,6 +104,11 @@ interface AssetsEditorContextType {
 
   // Export
   downloadWebP: (filename: string) => Promise<void>;
+  exportAsSpriteSheet: (options?: {
+    layout?: SpriteSheetLayout;
+    format?: ExportFormat;
+    includeMetadata?: boolean;
+  }) => Promise<void>;
   saveToLibrary: (name: string, type: Asset['type'], stats: Asset['stats']) => Promise<void>;
 
   // Library
@@ -751,6 +763,46 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     document.body.removeChild(link);
   }, []);
 
+  const exportAsSpriteSheet = useCallback(async (options?: {
+    layout?: SpriteSheetLayout;
+    format?: ExportFormat;
+    includeMetadata?: boolean;
+  }) => {
+    if (!engineRef.current) return;
+
+    const allFrames = engineRef.current.getAllFrames();
+    if (allFrames.length === 0) {
+      alert('No frames to export');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await exportSpriteSheet(
+        allFrames,
+        pixelSize,
+        options?.layout ?? 'horizontal',
+        options?.format ?? 'webp',
+        0.9
+      );
+
+      // Download sprite sheet
+      downloadBlob(result.blob, result.filename);
+
+      // Download metadata if requested
+      if (options?.includeMetadata !== false) {
+        downloadMetadata(result.metadata);
+      }
+
+      console.log('[SpriteSheet Export] Success:', result.metadata);
+    } catch (e) {
+      console.error('[SpriteSheet Export] Error:', e);
+      alert('Failed to export sprite sheet: ' + (e instanceof Error ? e.message : 'Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pixelSize]);
+
   const saveToLibrary = useCallback(
     async (name: string, type: Asset['type'], stats: Asset['stats']) => {
       if (!engineRef.current) return;
@@ -828,6 +880,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
         // Export
         downloadWebP,
+        exportAsSpriteSheet,
         saveToLibrary,
         assets,
         deleteAsset,

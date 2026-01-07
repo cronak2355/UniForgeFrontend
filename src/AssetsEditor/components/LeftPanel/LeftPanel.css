@@ -68,27 +68,25 @@
     margin: 0.25rem 0;
 }
 
-/* ===== Frames Grid (Horizontal Filmstrip) ===== */
+/* ===== Frames Grid (4 columns, vertical scroll) ===== */
 .frames-grid {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 0.375rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.375rem;
+    overflow-y: auto;
+    padding-right: 0.375rem;
     scrollbar-width: thin;
+    max-height: 200px;
 }
 
 .frames-grid .frame-item {
-    flex-shrink: 0;
-    width: 50px;
-    height: 50px;
+    width: 100%;
+    aspect-ratio: 1;
 }
 
 .frames-grid .frame-add-btn {
-    flex-shrink: 0;
-    width: 50px;
-    height: 50px;
+    width: 100%;
+    aspect-ratio: 1;
 }
 
 .frame-item {
@@ -443,4 +441,38 @@
 
 .frames-grid::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Export Button ===== */
+.export-btn {
+    width: 100%;
+    padding: 0.625rem;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: white;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.export-btn:hover {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    transform: translateY(-1px);
+}
+
+.export-btn:active {
+    transform: translateY(0);
+}
+
+.export-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
