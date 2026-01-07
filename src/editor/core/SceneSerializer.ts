@@ -8,6 +8,8 @@ export interface SceneEventJSON {
   id: string;
   trigger: string;
   triggerParams?: Record<string, unknown>;
+  conditionLogic?: "AND" | "OR";
+  conditions?: Array<{ type: string; [key: string]: unknown }>;
   action: string;
   params?: Record<string, unknown>;
 }
@@ -73,6 +75,8 @@ export class SceneSerializer {
           id: `ev_${idx}_${actionIdx}`,
           trigger: triggerType,
           triggerParams: rule.eventParams,
+          conditionLogic: rule.conditionLogic,
+          conditions: rule.conditions ?? [],
           action: action.type,
           params: {
             ...action,
@@ -120,8 +124,8 @@ export class SceneSerializer {
         type: "Logic",
         event: ev.trigger,
         eventParams: ev.triggerParams ?? {},
-        conditions: [],
-        conditionLogic: "AND",
+        conditions: ev.conditions ?? [],
+        conditionLogic: ev.conditionLogic ?? "AND",
         actions: [{ type: ev.action, ...(ev.params || {}) }],
       }));
 

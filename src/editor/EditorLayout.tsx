@@ -414,8 +414,8 @@ function EditorLayoutInner() {
                         try {
                             const sceneJson = SceneSerializer.serialize(core, "MyScene");
                             const gameId = 1; // 임시 값
+                            console.log(sceneJson)
                             await saveScenes(gameId, sceneJson);
-
                             alert("Saved to server");
                         } catch (e) {
                             console.error(e);
@@ -522,8 +522,15 @@ function EditorLayoutInner() {
                             }}
                         >
                             <MenuItem label="Export" onClick={() => {
-                                setIsFileMenuOpen(false);
-                                navigate("/build"); // 🔥 빌드 페이지 이동
+                                const sceneJson = SceneSerializer.serialize(core, "MyScene");
+
+                                // 🔑 여기
+                                sessionStorage.setItem(
+                                    "UNITY_BUILD_SCENE_JSON",
+                                    JSON.stringify(sceneJson)
+                                );
+
+                                navigate("/build");
                             }} />
                         </div>
                     )}
