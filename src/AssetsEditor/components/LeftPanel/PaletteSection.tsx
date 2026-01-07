@@ -27,7 +27,7 @@ export function PaletteSection() {
         <div className="left-panel-section flex-grow">
             {/* Palette */}
             <div className="subsection">
-                <h3 className="section-title muted">Palette</h3>
+                <h3 className="lp-section-title muted">Palette</h3>
                 <div className="palette-grid">
                     {PALETTE_COLORS.map(c => (
                         <button
@@ -43,7 +43,7 @@ export function PaletteSection() {
             {/* Brush Size */}
             <div className="subsection">
                 <div className="brush-size-header">
-                    <h3 className="section-title muted">Size</h3>
+                    <h3 className="lp-section-title muted">Size</h3>
                     <span className="brush-size-value">{brushSize}px</span>
                 </div>
                 <input

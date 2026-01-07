@@ -382,21 +382,47 @@ export default function LibraryPage() {
                     <main style={{ flex: 1, padding: '2rem' }}>
                         {/* Toolbar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ position: 'relative', width: '400px' }}>
-                                <i className="fa-solid fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}></i>
-                                <input
-                                    type="text"
-                                    placeholder={activeTab === 'games' ? "내 게임 검색..." : "내 에셋 검색..."}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{
-                                        width: '100%', backgroundColor: '#111', border: '1px solid #333',
-                                        borderRadius: '8px', padding: '10px 10px 10px 40px', color: 'white',
-                                        fontSize: '0.95rem', outline: 'none'
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                                    onBlur={(e) => e.target.style.borderColor = '#333'}
-                                />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ position: 'relative', width: '400px' }}>
+                                    <i className="fa-solid fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}></i>
+                                    <input
+                                        type="text"
+                                        placeholder={activeTab === 'games' ? "내 게임 검색..." : "내 에셋 검색..."}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        style={{
+                                            width: '100%', backgroundColor: '#111', border: '1px solid #333',
+                                            borderRadius: '8px', padding: '10px 10px 10px 40px', color: 'white',
+                                            fontSize: '0.95rem', outline: 'none'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                                        onBlur={(e) => e.target.style.borderColor = '#333'}
+                                    />
+                                </div>
+                                {activeTab === 'assets' && (
+                                    <button
+                                        onClick={() => navigate('/create-asset')}
+                                        style={{
+                                            padding: '10px 20px',
+                                            backgroundColor: '#2563eb',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'white',
+                                            fontSize: '0.95rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            fontWeight: 500,
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                                    >
+                                        <i className="fa-solid fa-plus"></i>
+                                        새 에셋 업로드
+                                    </button>
+                                )}
                             </div>
                             <div style={{ color: '#666' }}>
                                 총 {filteredItems.length}개 항목

@@ -19,11 +19,8 @@ export interface UnityEntityJSON {
     id: string;
     type: string;
     name: string;
-    position: {
-        x: number;
-        y: number;
-        z: number;
-    };
+    x: number;
+    y: number;
     variables: UnityVariableJSON[];
     events: UnityEventJSON[];
 }
@@ -46,7 +43,7 @@ export interface UnityEventJSON {
 export interface UnityTileJSON {
     x: number;
     y: number;
-    index: number;
+    idx: number;
 }
 
 export class UnitySceneExporter {
@@ -60,7 +57,7 @@ export class UnitySceneExporter {
             tiles: Array.from(state.getTiles().values()).map(t => ({
                 x: t.x,
                 y: t.y,
-                index: t.tile,
+                idx: t.tile,
             })),
             assets: state.getAssets(),
         };
@@ -90,11 +87,8 @@ export class UnitySceneExporter {
             id: e.id,
             type: e.type,
             name: e.name,
-            position: {
-                x: e.x,
-                y: e.y,
-                z: e.z ?? 0,
-            },
+            x: e.x,
+            y: e.y,
             variables: e.variables.map(v => ({
                 id: v.id,
                 name: v.name,

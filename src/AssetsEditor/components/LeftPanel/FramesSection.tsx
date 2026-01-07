@@ -25,8 +25,8 @@ export function FramesSection() {
 
     return (
         <div className="left-panel-section">
-            <div className="section-header">
-                <h3 className="section-title">Frames</h3>
+            <div className="lp-section-header">
+                <h3 className="lp-section-title">Frames</h3>
                 <span className="frame-count">
                     {frames.length} / {maxFrames}
                 </span>

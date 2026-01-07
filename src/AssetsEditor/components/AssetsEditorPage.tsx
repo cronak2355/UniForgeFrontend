@@ -73,7 +73,7 @@ function EditorContent() {
       </div>
 
       {/* Floating Left Panel */}
-      <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40 h-[80vh]">
+      <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40">
         <LeftPanel />
       </div>
 

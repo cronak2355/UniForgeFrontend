@@ -21,6 +21,10 @@ import { type GameConfig, defaultGameConfig, hasRole } from "../core/GameConfig"
  */
 class PhaserRenderScene extends Phaser.Scene {
     public phaserRenderer!: PhaserRenderer;
+
+    get editorCore(): EditorState {
+        return this.phaserRenderer.core;
+    }
     private _keyboardAdapter!: KeyboardAdapter;
 
     // RPG ?ㅽ????대룞???꾪븳 ???곹깭
@@ -160,7 +164,7 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             });
         });
-console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
+        console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
 
         // ??以鍮??꾨즺 ?뚮┝
         this.phaserRenderer.onSceneReady();

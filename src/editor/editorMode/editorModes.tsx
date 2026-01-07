@@ -256,13 +256,23 @@ export class DragDropMode extends EditorMode {
             components: [],
         };
 
+        // Save entity to EditorCore so it can be exported
+        es.editorCore?.addEntity(entity);
+
         // Notify React side immediately about the created entity so Hierarchy updates
         es.onSelectEntity?.(entity);
 
         created.on("pointerdown", () => {
-            // On click, just set selection in core if available (do not re-add)
+            // On click, set selection and switch to EntityEditMode for dragging
             try {
-                (es as any).editorCore?.setSelectedEntity?.(entity);
+                es.editorCore?.setSelectedEntity?.(entity);
+                // Switch to EntityEditMode to enable dragging
+                const editMode = new EntityEditMode();
+                es.setEditorMode(editMode);
+                es.editorCore?.sendContextToEditorModeStateMachine({
+                    currentMode: editMode,
+                    mouse: "mousedown"
+                });
             } catch (e) {
                 // ignore
             }

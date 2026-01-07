@@ -42,7 +42,7 @@ export function ToolsSection() {
         <div className="left-panel-section">
             {/* Resolution */}
             <div className="subsection">
-                <h3 className="section-title muted">Resolution</h3>
+                <h3 className="lp-section-title muted">Resolution</h3>
                 <div className="resolution-buttons">
                     {RESOLUTIONS.map(size => (
                         <button
@@ -59,7 +59,7 @@ export function ToolsSection() {
             <div className="divider" />
 
             {/* Tools */}
-            <h3 className="section-title muted">Tools</h3>
+            <h3 className="lp-section-title muted">Tools</h3>
             <div className="tools-grid">
                 {TOOLS.map(t => (
                     <button

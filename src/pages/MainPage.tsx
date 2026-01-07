@@ -108,7 +108,7 @@ const MainPage = () => {
                             게임 플레이스
                         </button>
                         <button
-                            onClick={() => navigate('/assets-editor')}
+                            onClick={() => navigate('/marketplace')}
                             style={{
                                 background: 'transparent',
                                 border: 'none',
@@ -130,7 +130,7 @@ const MainPage = () => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            에셋 에디터
+                            에셋 플레이스
                         </button>
                         <button
                             onClick={() => navigate('/library')}
