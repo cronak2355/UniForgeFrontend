@@ -9,7 +9,8 @@ import type { IRenderer } from "../renderer/IRenderer";
 import type {
     EditorComponent,
     TransformComponent,
-    SignalComponent
+    SignalComponent,
+    LogicComponent
 } from "../types/Component";
 
 import type { Trigger } from "../types/Trigger";
@@ -17,6 +18,8 @@ import type { Condition } from "../types/Condition";
 import type { EditorVariable } from "../types/Variable";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
+import { ConditionRegistry } from "./events/ConditionRegistry";
+import { ActionRegistry, type ActionContext } from "./events/ActionRegistry";
 import { RuntimeContext } from "./RuntimeContext";
 import { collisionSystem } from "./CollisionSystem";
 import { type GameConfig, defaultGameConfig } from "./GameConfig";
@@ -317,6 +320,24 @@ export class GameCore {
     }
 
     /**
+     * Update entity logic (components and variables) dynamically
+     */
+    updateEntityLogic(id: string, components: EditorComponent[], variables: EditorVariable[]): void {
+        const entity = this.entities.get(id);
+        if (!entity) return;
+
+        // Update variables
+        entity.variables = variables; // Reference update or deep copy? Reference is fine for editor sync
+
+        // Update Components
+        this.unregisterComponentRuntimes(id);
+        entity.components = components;
+        this.registerComponentRuntimes(entity);
+
+        this.notify();
+    }
+
+    /**
      * ?뷀떚???뚯쟾
      */
     rotateEntity(id: string, rotation: number): void {
@@ -603,8 +624,7 @@ export class GameCore {
             const entity = this.entities.get(runtime.entityId);
             if (!entity) continue;
 
-            // [Fix] 二쎌? ?뷀떚?곕뒗 而댄룷?뚰듃 濡쒖쭅??以묐떒
-            if (!this.isEntityAlive(entity)) continue;
+
 
             this.processComponent(entity, runtime, time, dt);
         }
@@ -694,8 +714,56 @@ export class GameCore {
             }
 
             case "Render":
-                // ?꾩쭅? ?고???泥섎━ ?놁쓬
+                // 현재 런타임 처리 없음
                 break;
+
+            case "Logic": {
+                const logic = comp as LogicComponent;
+
+                // 1. 이벤트(트리거) 체크
+                if (logic.event === "OnStart") {
+                    const key = `${entity.id}:${comp.id}`;
+                    if (this.startedComponents.has(key)) break;
+                    this.startedComponents.add(key);
+                } // OnUpdate는 항상 통과
+
+                // 2. 조건 배열 평가
+                const conditions = logic.conditions || [];
+                const conditionLogic = logic.conditionLogic ?? "AND";
+
+                const ctx: ActionContext = {
+                    entityId: entity.id,
+                    eventData: {},
+                    globals: {
+                        entities: this.entities,
+                        gameCore: this,
+                        renderer: this.renderer,
+                    },
+                    input: this.inputState,
+                    entityContext: this.runtimeContext.getEntityContext(entity.id),
+                };
+
+                let conditionsPassed = false;
+                if (conditions.length === 0) {
+                    conditionsPassed = true;
+                } else if (conditionLogic === "AND") {
+                    conditionsPassed = conditions.every(c =>
+                        ConditionRegistry.check(c.type, ctx, c as Record<string, unknown>)
+                    );
+                } else {
+                    conditionsPassed = conditions.some(c =>
+                        ConditionRegistry.check(c.type, ctx, c as Record<string, unknown>)
+                    );
+                }
+
+                if (!conditionsPassed) break;
+
+                // 3. 액션 배열 실행
+                for (const action of logic.actions) {
+                    ActionRegistry.run(action.type, ctx, action as Record<string, unknown>);
+                }
+                break;
+            }
         }
     }
 
@@ -767,14 +835,22 @@ export class GameCore {
         entity: GameEntity
     ): boolean {
         if (!condition) return true;
+        if (condition.type === "Always") return true;
 
-        switch (condition.type) {
-            case "Always":
-                return true;
+        // Build ActionContext for ConditionRegistry
+        const ctx = {
+            entityId: entity.id,
+            eventData: {},
+            globals: {
+                entities: this.entities,
+                gameCore: this,
+                renderer: this.renderer,
+            },
+            input: this.inputState,
+            entityContext: this.runtimeContext.getEntityContext(entity.id),
+        };
 
-            default:
-                return false;
-        }
+        return ConditionRegistry.check(condition.type, ctx, condition as unknown as Record<string, unknown>);
     }
     // ===== Lifecycle =====
 

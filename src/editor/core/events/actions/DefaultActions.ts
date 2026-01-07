@@ -95,36 +95,21 @@ function applyDamage(
     const target = getEntityById(ctx, targetId);
     if (!target) return false;
 
-    const hp = getNumberVar(target, "hp");
-    const maxHp = getNumberVar(target, "maxHp");
+    let hp = getNumberVar(target, "hp");
+    let maxHp = getNumberVar(target, "maxHp");
     if (hp === undefined && maxHp === undefined) {
-        return false;
+        // [Fix] Auto-initialize HP if missing so Attack works by default
+        console.log(`[Action] Initializing default HP (100) for entity ${targetId}`);
+        hp = 100;
+        maxHp = 100;
+        setVar(target, "maxHp", 100);
+        setVar(target, "hp", 100);
     }
-    const nextHp = Math.max(0, (hp ?? maxHp ?? 0) - damage);
+    const nextHp = Math.max(0, (hp ?? maxHp ?? 100) - damage);
     setVar(target, "hp", nextHp);
 
-    const targetObj = renderer?.getGameObject?.(targetId);
-    const screenPos = targetObj && renderer?.worldToScreen
-        ? renderer.worldToScreen(targetObj.x, targetObj.y - 40, 0)
-        : targetObj
-            ? { x: targetObj.x, y: targetObj.y - 40 }
-            : undefined;
 
-    if (screenPos) {
-        EventBus.emit("DAMAGE_DEALT", {
-            x: screenPos.x,
-            y: screenPos.y,
-            damage,
-            isCritical: false,
-            targetId,
-        });
-    }
 
-    EventBus.emit("ATTACK_HIT", { targetId, damage, attackerId: ctx.entityId });
-
-    if (nextHp <= 0) {
-        EventBus.emit("ENTITY_DIED", { entityId: targetId, attackerId: ctx.entityId });
-    }
 
     EventBus.emit("HP_CHANGED", {
         entityId: targetId,
@@ -544,6 +529,24 @@ ActionRegistry.register("ClearSignal", (ctx: ActionContext, params: Record<strin
     ctx.entityContext.signals.values[key] = null;
 });
 
+// Disable Action: Remove entity from game
+ActionRegistry.register("Disable", (ctx: ActionContext) => {
+    const gameCore = ctx.globals?.gameCore as { removeEntity?: (id: string) => void } | undefined;
+    if (gameCore?.removeEntity) {
+        gameCore.removeEntity(ctx.entityId);
+    } else {
+        // Fallback: Hide via renderer
+        const renderer = ctx.globals?.renderer;
+        const obj = renderer?.getGameObject?.(ctx.entityId);
+        if (obj?.setVisible) {
+            obj.setVisible(false);
+        }
+        if (obj?.setActive) {
+            obj.setActive(false);
+        }
+    }
+});
+
 console.log(
-    "[DefaultActions] 13 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, Enable, ChangeScene, ClearSignal"
+    "[DefaultActions] 14 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, Enable, Disable, ChangeScene, ClearSignal"
 );

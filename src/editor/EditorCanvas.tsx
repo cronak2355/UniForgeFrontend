@@ -1,11 +1,12 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
 import { GameCore } from "./core/GameCore";
+import { GameUIOverlay } from "./ui/GameUIOverlay";
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
-import { buildLogicItems } from "./types/Logic";
+import { buildLogicItems, splitLogicItems } from "./types/Logic";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -90,6 +91,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
     const addEntityRef = useRef(addEntity);
 
+    const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
 
     useEffect(() => {
@@ -138,6 +140,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;
+        setGameCore(gameCore);
+
+        // NOTE: Game loop is NOT enabled in Editor mode.
+        // Logic only runs in RunTimeCanvas (Build & Run).
 
         let active = true;
 
@@ -174,7 +180,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     name: e.name,
                     texture: e.name,
                     variables: e.variables,
-                    components: [],
+                    components: splitLogicItems(e.logic),
                 });
             }
 
@@ -409,7 +415,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     name: ent.name,
                     texture: ent.name,
                     variables: ent.variables,
-                    components: [],
+                    components: splitLogicItems(ent.logic),
                 });
             } else {
                 gameCore.setEntityTransform(ent.id, {
@@ -422,6 +428,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     scaleX: ent.scaleX ?? 1,
                     scaleY: ent.scaleY ?? 1,
                 });
+                gameCore.updateEntityLogic(ent.id, splitLogicItems(ent.logic), ent.variables);
             }
         }
     }, [entities]);
@@ -507,7 +514,14 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             {/* Phaser Canvas Container */}
             <div
-                ref={ref}
+                style={{
+                    flex: 1,
+                    position: 'relative',
+                    background: colors.bgPrimary,
+                    border: `2px solid ${colors.borderColor}`,
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                }}
                 onDragOver={(e) => {
                     e.preventDefault();
                 }}
@@ -520,17 +534,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     if (!allowedTypes.has(file.type)) return;
                     onExternalImageDrop?.(file);
                 }}
-                style={{
-                    flex: 1,
-                    background: colors.bgPrimary,
-                    border: `2px solid ${colors.borderColor}`,
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                }}
                 onMouseLeave={() => {
                     rendererRef.current?.clearPreviewTile();
                 }}
-            />
+            >
+                <div ref={ref} style={{ width: '100%', height: '100%' }} />
+                <GameUIOverlay gameCore={gameCore} showHud={false} />
+            </div>
         </div>
     );
 }

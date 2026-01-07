@@ -101,6 +101,14 @@ export class SceneSerializer {
   }
 
   static deserialize(json: SceneJSON, state: EditorState): void {
+    if (json.assets) {
+      json.assets.forEach((a) => {
+        if (!state.getAssets().find((existing) => existing.id === a.id)) {
+          state.addAsset(a);
+        }
+      });
+    }
+
     json.tiles.forEach((t) => {
       state.setTile(t.x, t.y, t.idx);
     });

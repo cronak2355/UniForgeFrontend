@@ -10,9 +10,10 @@ import { hasRole } from "../core/GameConfig";
 
 interface Props {
     gameCore: GameCore | null;
+    showHud?: boolean;
 }
 
-export function GameUIOverlay({ gameCore }: Props) {
+export function GameUIOverlay({ gameCore, showHud = true }: Props) {
     // HUD State
     const [hp, setHp] = useState(100);
     const [maxHp, setMaxHp] = useState(100);
@@ -25,6 +26,8 @@ export function GameUIOverlay({ gameCore }: Props) {
 
     // Polling / Event Subscription
     useEffect(() => {
+        if (!showHud) return;
+
         let frameId: number;
 
         const loop = () => {
@@ -50,6 +53,12 @@ export function GameUIOverlay({ gameCore }: Props) {
         };
         loop();
 
+        return () => {
+            cancelAnimationFrame(frameId);
+        };
+    }, [gameCore, showHud]);
+
+    useEffect(() => {
         // Dialogue Event
         const handleEvent = (e: GameEvent) => {
             if (e.type === "DIALOGUE_SHOW") {
@@ -59,30 +68,33 @@ export function GameUIOverlay({ gameCore }: Props) {
         EventBus.on(handleEvent);
 
         return () => {
-            cancelAnimationFrame(frameId);
             EventBus.off(handleEvent);
         };
-    }, [gameCore]);
+    }, []);
 
     return (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            {/* 1. HUD Layer */}
-            <GameHUD
-                playerHp={hp}
-                playerMaxHp={maxHp}
-                playerMp={mp}
-                playerMaxMp={maxMp}
-                playerName="Player"
-                playerLevel={1}
-                score={score}
-                style={{ pointerEvents: 'auto' }}
-            />
+            {showHud && (
+                <>
+                    {/* 1. HUD Layer */}
+                    <GameHUD
+                        playerHp={hp}
+                        playerMaxHp={maxHp}
+                        playerMp={mp}
+                        playerMaxMp={maxMp}
+                        playerName="Player"
+                        playerLevel={1}
+                        score={score}
+                        style={{ pointerEvents: 'auto' }}
+                    />
 
-            {/* 2. Log Layer */}
-            <GameLog />
+                    {/* 2. Log Layer */}
+                    <GameLog />
 
-            {/* 3. Floating Text Layer (Damage Numbers) */}
-            <FloatingText />
+                    {/* 3. Floating Text Layer (Damage Numbers) */}
+                    <FloatingText />
+                </>
+            )}
 
             {/* 4. Dialogue Layer */}
             {dialogue && (

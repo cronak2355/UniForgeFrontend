@@ -125,46 +125,60 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
+    if (variable && typeof variable.value === "number") {
+        return variable.value == expectedValue;
+    }
     return variable?.value === expectedValue;
 });
 
 ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
-    const compareValue = params.value as number;
+    const compareValue = Number(params.value);
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable || typeof variable.value !== "number") return false;
-    return variable.value > compareValue;
+    if (!variable) return false;
+    const val = Number(variable.value);
+    if (isNaN(val)) return false;
+    return val > compareValue;
 });
 
 ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
+    if (variable && typeof variable.value === "number") {
+        return variable.value != expectedValue;
+    }
     return variable?.value !== expectedValue;
 });
 
 ConditionRegistry.register("VarLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
-    const compareValue = params.value as number;
+    const compareValue = Number(params.value);
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable || typeof variable.value !== "number") return false;
-    return variable.value < compareValue;
+    if (!variable) return false;
+    const val = Number(variable.value);
+    if (isNaN(val)) return false;
+    return val < compareValue;
 });
 
 ConditionRegistry.register("VarGreaterOrEqual", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
-    const compareValue = params.value as number;
+    const compareValue = Number(params.value);
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable || typeof variable.value !== "number") return false;
-    return variable.value >= compareValue;
+    if (!variable) return false;
+    const val = Number(variable.value);
+    if (isNaN(val)) return false;
+    return val >= compareValue;
 });
 
 ConditionRegistry.register("VarLessOrEqual", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
-    const compareValue = params.value as number;
+    const compareValue = Number(params.value);
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable || typeof variable.value !== "number") return false;
-    return variable.value <= compareValue;
+    if (!variable) return false;
+    const val = Number(variable.value);
+    if (isNaN(val)) return false;
+    return val <= compareValue;
 });
 
 // --- Input Conditions ---
@@ -179,6 +193,10 @@ ConditionRegistry.register("InputKey", (ctx: ActionContext, params: Record<strin
     const key = (params.key as string) ?? "";
     const eventKey = ctx.eventData?.key as string | undefined;
     if (eventKey && eventKey === key) {
+        return true;
+    }
+    // [Fix] Check extended keys map from InputSystem
+    if (ctx.input?.keys?.[key] === true) {
         return true;
     }
     switch (key) {

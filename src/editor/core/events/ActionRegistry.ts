@@ -1,3 +1,5 @@
+import type { InputState } from "../RuntimePhysics";
+
 export type EntityVariable = { name: string; value: unknown };
 
 export type EntityLike = {
@@ -42,13 +44,7 @@ export interface ActionContext {
     entityId: string;
     eventData: Record<string, unknown>;
     globals?: ActionGlobals;
-    input?: {
-        left: boolean;
-        right: boolean;
-        up: boolean;
-        down: boolean;
-        jump: boolean;
-    };
+    input?: InputState;
     entityContext?: {
         collisions: {
             current: Array<{

@@ -60,6 +60,50 @@ function MenuItem({
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
+    // Auto-save / Load Logic
+    // Auto-save / Load Logic
+    useEffect(() => {
+        // 1. Initial Load
+        try {
+            const saved = localStorage.getItem("editor_autosave");
+            if (saved) {
+                const json = JSON.parse(saved);
+                console.log("[EditorLayout] Found autosave, loading...");
+                core.clear(); // Clear default entries
+                SceneSerializer.deserialize(json, core);
+            }
+        } catch (err) {
+            console.error("[EditorLayout] Failed to load autosave", err);
+        }
+
+        // 2. Setup Auto-save subscription
+        let saveTimer: any = null;
+        const saveState = () => {
+            const json = SceneSerializer.serialize(core);
+            localStorage.setItem("editor_autosave", JSON.stringify(json));
+            console.log("[AutoSave] Saved state to storage.");
+        };
+
+        const unsubscribe = core.subscribe(() => {
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveState, 1000);
+        });
+
+        const onBeforeUnload = () => {
+            if (saveTimer) clearTimeout(saveTimer);
+            saveState();
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener("beforeunload", onBeforeUnload);
+            if (saveTimer) clearTimeout(saveTimer);
+            saveState();
+        };
+    }, []); // Run once on mount
+
+
     const [mode, setMode] = useState<Mode>("dev");
     const [runSession, setRunSession] = useState(0);
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
@@ -70,7 +114,7 @@ function EditorLayoutInner() {
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
-    
+
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
         const cm = new CameraMode();
@@ -89,6 +133,23 @@ function EditorLayoutInner() {
         dm.asset = a;
         core.sendContextToEditorModeStateMachine({ currentMode: dm, currentDraggingAsset: a, mouse: "mousedown" });
     };
+
+    // Key handler for deletion
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Delete" || e.key === "Backspace") {
+                const active = document.activeElement;
+                if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    core.removeEntity(selected.id);
+                }
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [core]);
 
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
 
@@ -137,19 +198,23 @@ function EditorLayoutInner() {
         }
 
         if (import.meta.env.DEV) {
-            const assetUrl = URL.createObjectURL(dropModalFile);
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const assetUrl = e.target?.result as string;
+                const nextId =
+                    core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
 
-            core.addAsset({
-                id: nextId,
-                tag: dropAssetTag,
-                name,
-                url: assetUrl,
-                idx: -1,
-            });
+                core.addAsset({
+                    id: nextId,
+                    tag: dropAssetTag,
+                    name,
+                    url: assetUrl,
+                    idx: -1,
+                });
 
-            resetDropModal();
+                resetDropModal();
+            };
+            reader.readAsDataURL(dropModalFile);
             return;
         }
         setIsUploadingAsset(true);

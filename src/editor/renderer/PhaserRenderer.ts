@@ -31,6 +31,7 @@ class PhaserRenderScene extends Phaser.Scene {
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
     private spaceKey!: Phaser.Input.Keyboard.Key;
+    private keyState: Record<string, boolean> = {};
 
     constructor() {
         super("PhaserRenderScene");
@@ -118,6 +119,38 @@ class PhaserRenderScene extends Phaser.Scene {
 
         // EventBus handler
         EventBus.on((event) => {
+            if (event.type === "KEY_DOWN") {
+                const code = event.data?.key as string;
+                if (code) this.keyState[code] = true;
+            }
+            if (event.type === "KEY_UP") {
+                const code = event.data?.key as string;
+                if (code) this.keyState[code] = false;
+            }
+
+            // [System Event] AI Attack Handling
+            if (event.type === "AI_ATTACK") {
+                const data = event.data || {};
+                const attackerId = data.attackerId as string;
+                const targetId = data.targetId as string;
+
+                if (attackerId) {
+                    const ctx: ActionContext = {
+                        entityId: attackerId,
+                        eventData: data,
+                        globals: {
+                            scene: this,
+                            renderer: this.phaserRenderer,
+                            entities: this.phaserRenderer.core.getEntities(),
+                            gameCore: this.phaserRenderer.gameCore
+                        }
+                    };
+                    ActionRegistry.run("Attack", ctx, { targetId });
+                }
+            }
+
+
+
             // runtime only
             if (!this.phaserRenderer.isRuntimeMode) {
                 return;
@@ -212,7 +245,8 @@ class PhaserRenderScene extends Phaser.Scene {
             down: this.cursors.down.isDown || this.wasd.S.isDown,
             jump: (this.spaceKey?.isDown === true) ||
                 (this.cursors?.up?.isDown === true) ||
-                (this.wasd?.W?.isDown === true)
+                (this.wasd?.W?.isDown === true),
+            keys: { ...this.keyState }
         };
         this.phaserRenderer.onInputState?.(input);
 
@@ -446,7 +480,7 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
 
-    spawn(id: string, type: string, x: number, y: number, z: number = 0, options?: SpawnOptions): void {
+    spawn(id: string, type: string, x: number, y: number, z: number = 10, options?: SpawnOptions): void {
         if (!this.scene || !this.scene.textures) {
             console.error("[PhaserRenderer] Cannot spawn: scene not initialized");
             return;
@@ -463,14 +497,15 @@ export class PhaserRenderer implements IRenderer {
         // ?띿뒪泥섍? ?덉쑝硫??ㅽ봽?쇱씠?? ?놁쑝硫??ш컖??
         if (options?.texture && this.scene.textures.exists(options.texture)) {
             const sprite = this.scene.add.sprite(x, y, options.texture);
-            sprite.setDepth(z);
+            sprite.setDepth(Math.max(z, 10));
             obj = sprite;
         } else {
             const width = options?.width ?? 40;
             const height = options?.height ?? 40;
             const color = options?.color ?? 0xffffff;
             const rect = this.scene.add.rectangle(x, y, width, height, color);
-            rect.setDepth(z);
+            // Enforce minimum depth for entities
+            rect.setDepth(Math.max(z, 10));
             obj = rect;
         }
 
@@ -518,7 +553,7 @@ export class PhaserRenderer implements IRenderer {
         gameObj.setPosition(x, y);
 
         if (z !== undefined) {
-            gameObj.setDepth(z);
+            gameObj.setDepth(Math.max(z, 10));
         }
 
         if (rotation !== undefined) {
@@ -676,7 +711,7 @@ export class PhaserRenderer implements IRenderer {
         this.previewLayer.setPosition(offsetX, offsetY);
 
         this.baseLayer.setDepth(0);
-        this.previewLayer.setDepth(1);
+        this.previewLayer.setDepth(5);
     }
 
     setTile(x: number, y: number, tileIndex: number): void {

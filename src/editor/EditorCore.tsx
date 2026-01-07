@@ -86,6 +86,10 @@ export class EditorState implements IGameState {
         if (!entity.id) {
             entity.id = Date.now().toString();
         }
+        // [User Request] Default depth 10 for testing
+        if (entity.z === undefined) {
+            entity.z = 10;
+        }
         const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
         this.entities.set(entity.id, normalized);
         if (this.selectedEntity?.id === entity.id) {
@@ -103,6 +107,15 @@ export class EditorState implements IGameState {
     removeTile(x: number, y: number) {
         const key = `${x},${y}`;
         if (this.tiles.delete(key)) {
+            this.notify();
+        }
+    }
+
+    removeEntity(id: string) {
+        if (this.entities.delete(id)) {
+            if (this.selectedEntity?.id === id) {
+                this.selectedEntity = null;
+            }
             this.notify();
         }
     }

@@ -6,6 +6,7 @@ export interface InputState {
     up: boolean;
     down: boolean;
     jump: boolean;
+    keys?: Record<string, boolean>;
 }
 
 export interface PhysicsState {

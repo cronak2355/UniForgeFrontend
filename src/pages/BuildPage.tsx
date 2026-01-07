@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { UnitySceneExporter } from "../editor/core/UnitySceneExport";
-import { EditorState } from "../editor/EditorCore";
+import { editorCore } from "../editor/EditorCore";
 
 type BuildMode = "unity" | "library";
 
@@ -36,12 +36,7 @@ interface TagInputProps {
     onChange: (tags: string[]) => void;
 }
 
-interface UnityBuildPanelProps {
-    editorState: EditorState;
-}
-
-// ✅ 싱글톤 인스턴스
-export const editorState = new EditorState();
+// editorCore 싱글톤 사용 (import에서 가져옴)
 
 
 export function TagInput({ tags, onChange }: TagInputProps) {
@@ -397,7 +392,7 @@ export default function BuildPage() { // 메인
 
             {/* --- MAIN CONTENT --- */}
             {buildMode === "unity" && (
-                <UnityBuildPanel editorState={editorState} />
+                <UnityBuildPanel />
             )}
 
             {buildMode === "library" && (
@@ -476,9 +471,15 @@ function LibraryBuildPanel({
         </div>
     );
 }
-function UnityBuildPanel({ editorState }: UnityBuildPanelProps) {
+function UnityBuildPanel() {
     const handleSend = async () => {
-        const buildJson = UnitySceneExporter.export(editorState);
+        // 전역 editorCore 싱글톤 사용
+        console.log("[Unity Export] Starting export...");
+        console.log("[Unity Export] editorCore entities:", editorCore.getEntities().size);
+
+        const buildJson = UnitySceneExporter.export(editorCore);
+        console.log("[Unity Export] Generated JSON:", JSON.stringify(buildJson, null, 2));
+
         await sendToUnity(buildJson);
     };
     return (
@@ -495,6 +496,8 @@ function UnityBuildPanel({ editorState }: UnityBuildPanelProps) {
 async function sendToUnity(jsonData: any) {
     try {
         const prettyJson = JSON.stringify(jsonData, null, 2);
+        console.log("[Unity Export] Sending to Unity at localhost:7777/import...");
+
         const res = await fetch("http://localhost:7777/import", {
             method: "POST",
             headers: {
@@ -505,8 +508,10 @@ async function sendToUnity(jsonData: any) {
 
         if (!res.ok) throw new Error("Unity 연결 실패");
 
+        console.log("[Unity Export] Success!");
         alert("Unity로 전송 완료!");
     } catch (e) {
-        alert("Unity가 실행 중인지 확인하세요.");
+        console.error("[Unity Export] Error:", e);
+        alert("Unity가 실행 중인지 확인하세요. (localhost:7777)");
     }
 }
