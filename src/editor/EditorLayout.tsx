@@ -15,9 +15,7 @@ import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
-
-// Entry Style Color Palette
-// const colors = { ... } replaced by import
+import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 
 export default function EditorLayout() {
     return (
@@ -38,7 +36,10 @@ function MenuItem({
 }) {
     return (
         <div
-            onClick={onClick}
+            onClick={(e) => {
+                e.stopPropagation(); // Prevent closing if we want to handle it manually (optional)
+                onClick();
+            }}
             style={{
                 padding: "8px 12px",
                 fontSize: "13px",
@@ -53,6 +54,63 @@ function MenuItem({
             }}
         >
             {label}
+        </div>
+    );
+}
+
+function TopBarMenu({
+    label,
+    children
+}: {
+    label: string;
+    children: React.ReactNode
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+        <div
+            style={{ position: "relative" }}
+            onMouseLeave={() => setIsOpen(false)}
+        >
+            <button
+                onClick={() => setIsOpen(v => !v)}
+                style={{
+                    padding: '6px 16px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: isOpen ? colors.textPrimary : colors.textSecondary,
+                    background: isOpen ? 'rgba(255,255,255,0.05)' : 'transparent',
+                    border: '1px solid transparent',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                }}
+                onMouseEnter={(e) => {
+                    if (!isOpen) e.currentTarget.style.color = colors.textPrimary;
+                }}
+                onMouseLeave={(e) => {
+                    if (!isOpen) e.currentTarget.style.color = colors.textSecondary;
+                }}
+            >
+                {label}
+            </button>
+            {isOpen && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: "32px",
+                        left: 0,
+                        width: "180px",
+                        background: colors.bgSecondary,
+                        border: `1px solid ${colors.borderColor}`,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                        borderRadius: "6px",
+                        zIndex: 1000,
+                        padding: "4px 0",
+                    }}
+                >
+                    {children}
+                </div>
+            )}
         </div>
     );
 }
@@ -109,11 +167,14 @@ function EditorLayoutInner() {
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
-    const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+    // const [isFileMenuOpen, setIsFileMenuOpen] = useState(false); // REMOVED
     const navigate = useNavigate();
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
+
+    // New State for Asset Library Modal
+    const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -154,7 +215,6 @@ function EditorLayoutInner() {
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
 
     // keep local selection in sync with core selection
-    // 드래그 중에도 이전 선택을 유지 (selectedEntity가 null이 아닐 때만 업데이트)
     useEffect(() => {
         if (selectedEntity !== null) {
             setLocalSelectedEntity(selectedEntity);
@@ -290,7 +350,7 @@ function EditorLayoutInner() {
             color: colors.textPrimary,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
         }}>
-            {/* ===== HEADER BAR ===== */}
+            {/* ===== UNIFIED TOP BAR ===== */}
             <div style={{
                 height: '48px',
                 display: 'flex',
@@ -298,46 +358,122 @@ function EditorLayoutInner() {
                 padding: '0 16px',
                 background: colors.bgSecondary,
                 borderBottom: `1px solid ${colors.borderColor}`,
+                justifyContent: 'space-between',
             }}>
-                {/* Logo with Cube Icon */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {/* Blue Cube SVG Icon */}
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" fill={colors.borderAccent} />
-                        <path d="M12 2L3 7L12 12L21 7L12 2Z" fill={colors.accentLight} />
-                        <path d="M12 12V22L3 17V7L12 12Z" fill={colors.borderAccent} opacity="0.8" />
-                        <path d="M12 12V22L21 17V7L12 12Z" fill={colors.borderAccent} opacity="0.6" />
-                    </svg>
-                    <span style={{
-                        fontSize: '15px',
-                        fontWeight: 600,
-                        color: colors.textPrimary,
-                        letterSpacing: '0.3px',
-                    }}>
-                        Uniforge
-                    </span>
+                {/* Left Group: Logo + Menus */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    {/* Logo (Refactored) */}
+                    <div
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                        onClick={() => navigate('/main')}
+                    >
+                        <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
+                        <span style={{
+                            fontSize: '18px',
+                            fontWeight: 700,
+                            color: 'white',
+                            letterSpacing: '-0.5px',
+                        }}>
+                            Uniforge<span style={{ color: '#3b82f6' }}>.</span>
+                        </span>
+                    </div>
+
+                    {/* Menus */}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+
+                        {/* File Menu */}
+                        <TopBarMenu label="file">
+                            <MenuItem label="Load Project" onClick={() => {
+                                document.getElementById('hidden-load-input')?.click();
+                            }} />
+                            <MenuItem label="Save Project" onClick={async () => {
+                                try {
+                                    const sceneJson = SceneSerializer.serialize(core, "MyScene");
+                                    const gameId = 1; // 임시 값
+                                    await saveScenes(gameId, sceneJson);
+                                    alert("Saved to server");
+                                } catch (e) {
+                                    console.error(e);
+                                    alert("Failed to save project");
+                                }
+                            }} />
+                            <MenuItem label="Export" onClick={() => {
+                                navigate("/build");
+                            }} />
+
+                            {/* Hidden Input for Load */}
+                            <div style={{ display: 'none' }}>
+                                <input
+                                    id="hidden-load-input"
+                                    type="file"
+                                    accept=".json"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = (evt) => {
+                                            const text = evt.target?.result as string;
+                                            try {
+                                                const json = JSON.parse(text);
+                                                core.clear(); // Clear existing
+                                                SceneSerializer.deserialize(json, core);
+                                            } catch (err) {
+                                                console.error("Failed to load JSON", err);
+                                                alert("Failed to load project file.");
+                                            }
+                                        };
+                                        reader.readAsText(file);
+                                        e.target.value = "";
+                                    }}
+                                />
+                            </div>
+                        </TopBarMenu>
+
+                        {/* Assets Menu */}
+                        <TopBarMenu label="assets">
+                            <MenuItem label="Import Asset" onClick={() => { alert("Import Asset - Coming Soon"); }} />
+                            <MenuItem label="Asset Library" onClick={() => { setIsAssetLibraryOpen(true); }} />
+                        </TopBarMenu>
+
+                        {/* Edit Menu */}
+                        <TopBarMenu label="edit">
+                            <MenuItem label="Undo" onClick={() => { alert("Undo - Coming Soon"); }} />
+                            <MenuItem label="Redo" onClick={() => { alert("Redo - Coming Soon"); }} />
+                            <MenuItem label="Cut" onClick={() => { alert("Cut - Coming Soon"); }} />
+                            <MenuItem label="Copy" onClick={() => { alert("Copy - Coming Soon"); }} />
+                            <MenuItem label="Paste" onClick={() => { alert("Paste - Coming Soon"); }} />
+                        </TopBarMenu>
+
+                    </div>
                 </div>
-                <div style={{ marginLeft: 'auto' }}>
+
+                {/* Right Group: Play Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
-                        type="button"
+                        title="Pause"
                         style={{
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            background: colors.borderAccent,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: '6px',
-                            color: colors.textPrimary,
+                            background: 'transparent',
+                            border: 'none',
                             cursor: 'pointer',
+                            color: colors.borderAccent,
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px'
                         }}
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="4" width="4" height="16" />
+                            <rect x="14" y="4" width="4" height="16" />
+                        </svg>
+                    </button>
+                    <button
+                        title={mode === "dev" ? "Play" : "Stop"}
                         onClick={() => {
                             setMode((prev) => {
                                 const next = prev === "dev" ? "run" : "dev";
                                 if (next === "run") {
-                                    // Save entity state before running
                                     const backup = new Map<string, EditorEntity>();
                                     core.getEntities().forEach((entity, id) => {
-                                        // Deep clone each entity
                                         backup.set(id, JSON.parse(JSON.stringify(entity)));
                                     });
                                     entityBackupRef.current = backup;
@@ -352,39 +488,16 @@ function EditorLayoutInner() {
                                         core.setSelectedEntity(preferred as any);
                                         setLocalSelectedEntity(preferred as any);
                                     }
-                                    console.log(
-                                        "[Run] Entities snapshot:",
-                                        Array.from(core.getEntities().values()).map((entity) => ({
-                                            id: entity.id,
-                                            name: entity.name,
-                                            type: entity.type,
-                                            x: entity.x,
-                                            y: entity.y,
-                                            z: entity.z,
-                                            rotation: entity.rotation,
-                                            rotationX: entity.rotationX,
-                                            rotationY: entity.rotationY,
-                                            rotationZ: entity.rotationZ,
-                                            scaleX: entity.scaleX,
-                                            scaleY: entity.scaleY,
-                                            role: entity.role,
-                                            variables: entity.variables,
-                                            components: entity.components,
-                                        }))
-                                    );
                                     setRunSession((v) => v + 1);
                                 } else {
-                                    // Restore entity state from backup
                                     if (entityBackupRef.current) {
                                         entityBackupRef.current.forEach((backupEntity, id) => {
                                             const currentEntity = core.getEntities().get(id);
                                             if (currentEntity) {
-                                                // Restore position, hp, etc.
                                                 Object.assign(currentEntity, backupEntity);
                                             }
                                         });
                                         entityBackupRef.current = null;
-                                        // Force UI update
                                         core.setSelectedEntity(core.getSelectedEntity());
                                         const refreshed = core.getSelectedEntity();
                                         setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
@@ -393,151 +506,32 @@ function EditorLayoutInner() {
                                 return next;
                             });
                         }}
-                    >
-                        {mode === "dev" ? "실행" : "편집"}
-                    </button>
-                </div>
-            </div>
 
-            {/* ===== TOP MENU BAR ===== */}
-            <div style={{
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '0 12px',
-                background: colors.bgSecondary,
-                borderBottom: `1px solid ${colors.borderColor}`,
-            }}>
-                <button
-                    onClick={async () => {
-                        try {
-                            const sceneJson = SceneSerializer.serialize(core, "MyScene");
-                            const gameId = 1; // 임시 값
-                            console.log(sceneJson)
-                            await saveScenes(gameId, sceneJson);
-                            alert("Saved to server");
-                        } catch (e) {
-                            console.error(e);
-                            alert("Failed to save project");
-                        }
-                    }}
-
-                    // onClick={() => {
-                    //     // SAVE
-                    //     const json = SceneSerializer.serialize(core, "MyScene");
-                    //     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-                    //     const url = URL.createObjectURL(blob);
-                    //     const a = document.createElement("a");
-                    //     a.href = url;
-                    //     a.download = `${json.sceneId}.json`;
-                    //     a.click();
-                    //     URL.revokeObjectURL(url);
-                    // }}
-
-                    style={{
-                        padding: '6px 12px',
-                        fontSize: '13px',
-                        color: colors.textSecondary,
-                        cursor: 'pointer',
-                        borderRadius: '4px',
-                        background: 'transparent',
-                        border: 'none',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                    Save Project
-                </button>
-
-                <label
-                    style={{
-                        padding: '6px 12px',
-                        fontSize: '13px',
-                        color: colors.textSecondary,
-                        cursor: 'pointer',
-                        borderRadius: '4px',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                    Load Project
-                    <input
-                        type="file"
-                        accept=".json"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = (evt) => {
-                                const text = evt.target?.result as string;
-                                try {
-                                    const json = JSON.parse(text);
-                                    core.clear(); // Clear existing
-                                    SceneSerializer.deserialize(json, core);
-                                } catch (err) {
-                                    console.error("Failed to load JSON", err);
-                                    alert("Failed to load project file.");
-                                }
-                            };
-                            reader.readAsText(file);
-                            // Reset input
-                            e.target.value = "";
-                        }}
-                    />
-                </label>
-
-                {/* ===== FILE MENU ===== */}
-                <div style={{ position: "relative" }}>
-                    <button
-                        onClick={() => setIsFileMenuOpen(v => !v)}
                         style={{
-                            padding: '6px 12px',
-                            fontSize: '13px',
-                            color: colors.textSecondary,
-                            cursor: 'pointer',
-                            borderRadius: '4px',
                             background: 'transparent',
                             border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px',
+                            color: mode === "run" ? "#ef4444" : colors.borderAccent
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
                     >
-                        File
+                        {mode === "dev" ? (
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5V19L19 12L8 5Z" />
+                            </svg>
+                        ) : (
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="5" y="5" width="14" height="14" />
+                            </svg>
+                        )}
                     </button>
 
-                    {isFileMenuOpen && (
-                        <div
-                            style={{
-                                position: "absolute",
-                                top: "36px",
-                                left: 0,
-                                width: "180px",
-                                background: colors.bgSecondary,
-                                border: `1px solid ${colors.borderColor}`,
-                                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                                borderRadius: "6px",
-                                zIndex: 1000,
-                            }}
-                        >
-                            <MenuItem label="Export" onClick={() => {
-                                const sceneJson = SceneSerializer.serialize(core, "MyScene");
-
-                                // 🔑 여기
-                                sessionStorage.setItem(
-                                    "UNITY_BUILD_SCENE_JSON",
-                                    JSON.stringify(sceneJson)
-                                );
-
-                                navigate("/build");
-                            }} />
-                        </div>
-                    )}
                 </div>
             </div>
 
-            {/* ===== MAIN EDITOR AREA ===== */}
+            {/* ===== MAIN EDITOR AREA (ORIGINAL) ===== */}
             <div style={{
                 display: 'flex',
                 flex: 1,
@@ -651,7 +645,7 @@ function EditorLayoutInner() {
                 </div>
             </div>
 
-            {/* ===== BOTTOM - Asset Panel ===== */}
+            {/* ===== BOTTOM - Asset Panel (ORIGINAL) ===== */}
             <div style={{
                 borderTop: `2px solid ${colors.borderAccent}`,
             }}>
@@ -661,6 +655,11 @@ function EditorLayoutInner() {
                     changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
                 />
             </div>
+
+            {/* Asset Library Modal */}
+            {isAssetLibraryOpen && (
+                <AssetLibraryModal onClose={() => setIsAssetLibraryOpen(false)} />
+            )}
 
             {dropModalFile && (
                 <div

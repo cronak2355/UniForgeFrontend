@@ -22,13 +22,6 @@ interface Collection {
 }
 
 // --- Mock Data ---
-// const MOCK_GAMES: LibraryItem[] = [
-//     { id: 'g1', title: 'Neon Racer 2077', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80', author: 'CyberDev', purchaseDate: '2023.12.01' },
-//     { id: 'g2', title: 'Cosmic Voyager', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', author: 'StarStudio', purchaseDate: '2023.12.15' },
-//     { id: 'g3', title: 'Medieval Legends', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?w=400&q=80', author: 'KnightSoft', purchaseDate: '2024.01.10' },
-// ];
-
-
 const MOCK_ASSETS: LibraryItem[] = [
     { id: 'a1', title: 'Sci-Fi Weapon Pack', type: 'asset', assetType: '3D Model', thumbnail: 'https://images.unsplash.com/photo-1612404730960-5c71579fca2c?w=400&q=80', author: 'AssetMaster', purchaseDate: '2023.11.20', collectionId: 'c1' },
     { id: 'a2', title: 'Horror Sound Effects', type: 'asset', assetType: 'Sound', thumbnail: 'https://images.unsplash.com/photo-1516280440614-6697288d5d38?w=400&q=80', author: 'AudioLab', purchaseDate: '2023.12.05', collectionId: 'c2' },
@@ -42,7 +35,13 @@ const INITIAL_COLLECTIONS: Collection[] = [
     { id: 'c2', name: '공포 / 호러', icon: 'fa-ghost' },
 ];
 
-export default function LibraryPage() {
+interface Props {
+    onClose?: () => void;
+    isModal?: boolean;
+    hideGamesTab?: boolean;
+}
+
+export default function LibraryPage({ onClose, isModal = false, hideGamesTab = false }: Props) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -51,7 +50,8 @@ export default function LibraryPage() {
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Data State
-    const [activeTab, setActiveTab] = useState<'games' | 'assets'>('games');
+    // If hideGamesTab is true, force initial tab to 'assets'
+    const [activeTab, setActiveTab] = useState<'games' | 'assets'>(hideGamesTab ? 'assets' : 'games');
     const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -110,6 +110,12 @@ export default function LibraryPage() {
 
     // --- Filter Logic ---
     const getFilteredItems = () => {
+        // If games tab is hidden, we only care about assets
+        if (hideGamesTab && activeTab === 'games') {
+            // Should not happen if state init is correct, but safety
+            return [];
+        }
+
         let items =
             activeTab === 'games'
                 ? myGames
@@ -133,15 +139,18 @@ export default function LibraryPage() {
     return (
         <div style={{
             backgroundColor: '#000000', // Fallback
-            minHeight: '100vh',
+            minHeight: isModal ? '100%' : '100vh', // Adjust height for modal
+            height: isModal ? '100%' : 'auto',
             display: 'flex',
             flexDirection: 'column',
             color: 'white',
             overflowX: 'hidden',
-            position: 'relative' // For absolute pos children
+            position: 'relative', // For absolute pos children
+            borderRadius: isModal ? '10px' : '0', // Optional border radius if container needs it
         }}>
             {/* --- Geometric Background Elements --- */}
-            <div style={{ position: 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+            {/* If isModal, use absolute to contain within parent. If page, use fixed to cover screen. */}
+            <div style={{ position: isModal ? 'absolute' : 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none', borderRadius: isModal ? '10px' : '0' }}>
                 {/* 1. Deep Gradient Base */}
                 <div style={{
                     position: 'absolute', inset: 0,
@@ -186,7 +195,7 @@ export default function LibraryPage() {
             </div>
 
             {/* --- Content Wrapper --- */}
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, height: '100%' }}>
                 {/* --- Header (Consistent Style) --- */}
                 <header style={{
                     display: 'flex',
@@ -198,37 +207,43 @@ export default function LibraryPage() {
                     backdropFilter: 'blur(10px)',
                     position: 'sticky',
                     top: 0,
-                    zIndex: 100
+                    zIndex: 100,
+                    borderTopLeftRadius: isModal ? '10px' : '0',
+                    borderTopRightRadius: isModal ? '10px' : '0',
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                         <div
                             style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            onClick={() => navigate('/main')}
+                            onClick={() => !onClose && navigate('/main')}
                         >
                             <i className="fa-solid fa-cube" style={{ marginRight: '8px', color: '#3b82f6' }}></i>
                             <span className="gradient-text">Uniforge</span>
                             <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>라이브러리</span>
                         </div>
 
-                        {/* Navigation Tabs (Integrated in Header) */}
+                        {/* Navigation Tabs */}
                         <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                            <button
-                                onClick={() => { setActiveTab('games'); setSelectedCollectionId(null); }}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: activeTab === 'games' ? '#1a1a1a' : 'transparent',
-                                    border: '1px solid',
-                                    borderColor: activeTab === 'games' ? '#333' : 'transparent',
-                                    borderRadius: '8px',
-                                    color: activeTab === 'games' ? 'white' : '#888',
-                                    fontSize: '0.95rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <i className="fa-solid fa-gamepad" style={{ marginRight: '8px' }}></i>
-                                나의 게임
-                            </button>
+                            {!hideGamesTab && (
+                                <button
+                                    onClick={() => { setActiveTab('games'); setSelectedCollectionId(null); }}
+                                    style={{
+                                        padding: '8px 16px',
+                                        background: activeTab === 'games' ? '#1a1a1a' : 'transparent',
+                                        border: '1px solid',
+                                        borderColor: activeTab === 'games' ? '#333' : 'transparent',
+                                        borderRadius: '8px',
+                                        color: activeTab === 'games' ? 'white' : '#888',
+                                        fontSize: '0.95rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <i className="fa-solid fa-gamepad" style={{ marginRight: '8px' }}></i>
+                                    나의 게임
+                                </button>
+                            )}
+
+                            {/* Always show "My Assets" or just "Assets" text if it's the only one? Keeping it consistent for now */}
                             <button
                                 onClick={() => { setActiveTab('assets'); setSelectedCollectionId(null); }}
                                 style={{
@@ -250,15 +265,29 @@ export default function LibraryPage() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button onClick={() => navigate('/main')} style={{
-                            background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
-                            padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem'
-                        }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#888'}
-                        >
-                            홈으로
-                        </button>
+                        {onClose ? (
+                            <button onClick={onClose} style={{
+                                background: 'transparent', border: '1px solid #333', color: '#fff', cursor: 'pointer',
+                                padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem',
+                                display: 'flex', alignItems: 'center', gap: '8px'
+                            }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1a1a1a'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <i className="fa-solid fa-times"></i>
+                                닫기
+                            </button>
+                        ) : (
+                            <button onClick={() => navigate('/main')} style={{
+                                background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
+                                padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem'
+                            }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                            >
+                                홈으로
+                            </button>
+                        )}
 
                         {/* User Profile Dropdown */}
                         <div style={{ position: 'relative' }} ref={dropdownRef}>
@@ -309,18 +338,23 @@ export default function LibraryPage() {
                 </header>
 
                 {/* --- Main Content Area --- */}
-                <div style={{ display: 'flex', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto' }}>
+                <div style={{ display: 'flex', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto', overflowY: isModal ? 'auto' : 'visible' }}>
 
                     {/* --- Sidebar (Only for Assets) --- */}
+                    {/* Ensure sidebar sticks correctly in modal */}
                     {activeTab === 'assets' && (
                         <aside style={{
                             width: '240px',
                             padding: '2rem 1rem',
                             borderRight: '1px solid #1a1a1a',
                             position: 'sticky',
-                            top: '73px',
-                            height: 'calc(100vh - 73px)',
-                            overflowY: 'auto'
+                            top: '0', // In modal, header scrolls or stays? If header sticky, top should be 0 relative to content area if we manage scroll
+                            // But here header is sticky top 0 of root.
+                            // If root is 100% height and overflow hidden? No, root is flex column.
+                            // If isModal, we probably want the content area to scroll, not the window.
+                            // Let's rely on standard sticky behavior for now, but in modal container height is constrained.
+                            height: 'auto',
+                            minHeight: '100%'
                         }}>
                             <div style={{ padding: '0 8px 16px', color: '#666', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
                                 Collections
@@ -399,7 +433,7 @@ export default function LibraryPage() {
                                         onBlur={(e) => e.target.style.borderColor = '#333'}
                                     />
                                 </div>
-                                {activeTab === 'assets' && (
+                                {activeTab === 'assets' && !isModal && (
                                     <button
                                         onClick={() => navigate('/create-asset')}
                                         style={{
