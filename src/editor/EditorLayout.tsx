@@ -15,6 +15,7 @@ import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
+import { buildLogicItems, splitLogicItems } from "./types/Logic";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -55,6 +56,27 @@ function MenuItem({
             {label}
         </div>
     );
+}
+
+function cloneEntityForPaste(source: EditorEntity): EditorEntity {
+    const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
+    const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
+    const components = baseComponents.map((comp) => ({
+        ...comp,
+        id: crypto.randomUUID(),
+    }));
+
+    return {
+        ...cloned,
+        id: crypto.randomUUID(),
+        name: `${source.name} Copy`,
+        x: (source.x ?? 0) + 20,
+        y: (source.y ?? 0) + 20,
+        variables: (cloned.variables ?? []).map((v) => ({ ...v, id: crypto.randomUUID() })),
+        events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
+        components,
+        logic: buildLogicItems({ components }),
+    };
 }
 
 function EditorLayoutInner() {
@@ -114,6 +136,7 @@ function EditorLayoutInner() {
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
+    const copyEntityRef = useRef<EditorEntity | null>(null);
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -137,10 +160,41 @@ function EditorLayoutInner() {
     // Key handler for deletion
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Delete" || e.key === "Backspace") {
-                const active = document.activeElement;
-                if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+            const active = document.activeElement;
+            if (
+                active instanceof HTMLInputElement ||
+                active instanceof HTMLTextAreaElement ||
+                active instanceof HTMLSelectElement ||
+                (active instanceof HTMLElement && active.isContentEditable)
+            ) {
+                return;
+            }
 
+            const isMeta = e.ctrlKey || e.metaKey;
+
+            if (isMeta && (e.key === "c" || e.key === "C")) {
+                if (mode !== "dev") return;
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    copyEntityRef.current = JSON.parse(JSON.stringify(selected)) as EditorEntity;
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "v" || e.key === "V")) {
+                if (mode !== "dev") return;
+                const source = copyEntityRef.current;
+                if (!source) return;
+                const clone = cloneEntityForPaste(source);
+                core.addEntity(clone as any);
+                core.setSelectedEntity(clone as any);
+                setLocalSelectedEntity(clone);
+                e.preventDefault();
+                return;
+            }
+
+            if (e.key === "Delete" || e.key === "Backspace") {
                 const selected = core.getSelectedEntity();
                 if (selected) {
                     core.removeEntity(selected.id);
@@ -149,7 +203,7 @@ function EditorLayoutInner() {
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [core]);
+    }, [core, mode]);
 
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
 
