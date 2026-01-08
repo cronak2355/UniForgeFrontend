@@ -89,7 +89,7 @@ class ActionRegistryClass {
     private actions = new Map<string, ActionFn>();
 
     constructor() {
-        console.log("[ActionRegistry] Initialized");
+        console.log("[ActionRegistry] 초기화 됨");
     }
 
     register(name: string, fn: ActionFn) {
