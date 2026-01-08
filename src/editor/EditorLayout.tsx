@@ -117,6 +117,8 @@ function TopBarMenu({
             )}
         </div>
     );
+}
+
 function cloneEntityForPaste(source: EditorEntity): EditorEntity {
     const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
     const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
