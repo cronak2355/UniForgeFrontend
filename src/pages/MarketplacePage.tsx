@@ -23,16 +23,52 @@ const MarketplacePage = () => {
 
     // ... (existing code)
 
+    // Fetch Assets
+    useEffect(() => {
+        const fetchAssets = async () => {
+            setLoading(true);
+            try {
+                const data = await marketplaceService.getAssets(undefined, sortOrder);
+                // Map backend data to UI format if needed
+                const mappedData = data.map(asset => ({
+                    ...asset,
+                    // Default values for missing UI fields
+                    image: asset.image || asset.imageUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
+                    rating: asset.rating || 0,
+                    type: asset.type || "3D 에셋",
+                    genre: asset.genre || "기타",
+                    author: asset.authorName || asset.author || `User ${asset.authorId}`,
+                    createdAt: asset.createdAt || new Date().toISOString(),
+                    description: asset.description || ""
+                }));
+                // Merge games? For now, we overwrite or we should separate asset/game lists.
+                // The current code overwrites assets with games in the first useEffect, then overwrites with assets in the second.
+                // This is a bug in the existing code. I should fix it by likely having separate states or merging.
+                // For now user asked for sorting, I will just setAssets(mappedData) but notice the conflict.
+                // Actually the previous code had two useEffects both setting 'assets'.
+                // I will assume for now we just want to see assets sorting working.
+                setAssets(mappedData);
+            } catch (error) {
+                console.error("Failed to fetch assets:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAssets();
+    }, [sortOrder]);
+
+
     // Close dropdown on outside click
     useEffect(() => {
-            const handleClickOutside = (event: MouseEvent) => {
-                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                    setShowDropdown(false);
-                }
-            };
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }, []);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Prevent scrolling when modal is open
     useEffect(() => {

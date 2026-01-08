@@ -157,17 +157,14 @@ function EditorLayoutInner() {
                 // Validate and filter assets
                 if (json.assets && Array.isArray(json.assets)) {
                     json.assets = json.assets.filter((asset: any) => {
-                        // Keep only assets with valid URLs (not S3 paths that might be broken)
-                        const isValid = asset.url && (
-                            asset.url.startsWith('/') ||
-                            asset.url.startsWith('http://') ||
-                            asset.url.startsWith('https://') ||
-                            !asset.url.includes('s3.amazonaws.com')
-                        );
-                        if (!isValid) {
-                            console.warn(`[EditorLayout] Filtered out invalid asset: ${asset.name} (${asset.url})`);
+                        // Filter out S3 URLs (they contain broken references)
+                        // Use 'amazonaws.com' to catch regional S3 URLs like s3.ap-northeast-2.amazonaws.com
+                        const isS3Url = asset.url && asset.url.includes('amazonaws.com');
+                        if (isS3Url) {
+                            console.warn(`[EditorLayout] Filtered out S3 asset: ${asset.name} (${asset.url})`);
+                            return false;
                         }
-                        return isValid;
+                        return true;
                     });
                 }
 
