@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://uniforge.kr';
+const API_BASE_URL = 'https://uniforge.kr/api'; // Hardcoded for production
 
 class PurchaseService {
     private getToken(): string | null {
