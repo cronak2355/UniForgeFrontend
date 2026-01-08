@@ -118,6 +118,7 @@ function TopBarMenu({
         </div>
     );
 }
+
 function cloneEntityForPaste(source: EditorEntity): EditorEntity {
     const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
     const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
@@ -356,7 +357,7 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+            const uploadUrl = presignData.uploadUrl;
             if (!uploadUrl) {
                 throw new Error("Upload URL missing in response.");
             }
