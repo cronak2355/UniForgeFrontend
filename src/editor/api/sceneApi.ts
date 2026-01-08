@@ -1,6 +1,6 @@
 import type { SceneJSON } from "../core/SceneSerializer";
 
-const API_BASE = "/api";
+const API_BASE = "https://uniforge.kr/api";
 
 export async function saveScenes(
     gameId: number,
