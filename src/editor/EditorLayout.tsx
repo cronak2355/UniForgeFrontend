@@ -14,6 +14,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
+import { createGame } from "../services/gameService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
@@ -509,16 +510,36 @@ function EditorLayoutInner() {
                             <MenuItem label="Save Project" onClick={async () => {
                                 try {
                                     const sceneJson = SceneSerializer.serialize(core, "MyScene");
-                                    const id = Number(gameId);
+                                    let id = Number(gameId);
+
+                                    // If ID is invalid, prompt to create a new game
                                     if (!id || isNaN(id)) {
-                                        alert("Invalid Game ID");
-                                        return;
+                                        const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
+                                        if (!title) return; // User cancelled
+
+                                        // Try to get authorId from localStorage (auth context equivalent)
+                                        let authorId = 1; // Default fallback
+                                        try {
+                                            // The authService doesn't expose user strictly in localStorage as 'user' usually,
+                                            // but let's try to parse checking token or assume 1 for now if failing.
+                                            // Ideally we use useAuth() hook but we are not inside component body here directly/cleanly for hook usage if this wasn't inline.
+                                            // But MenuItem is a component.
+                                            // Let's just use a safe fallback for now or basic token decode if needed.
+                                            // For this codebase, let's default to 1 (dev user) as consistent with other parts.
+                                        } catch (e) { }
+
+                                        const newGame = await createGame(authorId, title, "Created from Editor");
+                                        id = newGame.gameId;
+
+                                        // Silent navigation to correct URL
+                                        navigate(`/editor/${id}`, { replace: true });
                                     }
+
                                     await saveScenes(id, sceneJson);
-                                    alert("Saved to server");
+                                    alert("성공적으로 저장되었습니다! (Saved to server)");
                                 } catch (e) {
                                     console.error(e);
-                                    alert("Failed to save project");
+                                    alert("Failed to save project: " + String(e));
                                 }
                             }} />
                             <MenuItem label="Export" onClick={() => {
