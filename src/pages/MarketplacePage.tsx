@@ -60,10 +60,6 @@ const MarketplacePage = () => {
 
     // ... (existing code)
 
-    return (
-        // ...
-        {/* Section Header */ }
-
     // Close dropdown on outside click
     useEffect(() => {
             const handleClickOutside = (event: MouseEvent) => {
