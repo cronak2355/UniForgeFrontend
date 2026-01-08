@@ -22,7 +22,7 @@ function AppRoutes() {
     if (isLoading) {
         return <Loading />;
     }
-
+    console.log("skkrrrr")
     return (
         <Routes>
             <Route path="/" element={isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />} />

@@ -428,7 +428,7 @@ function EditorLayoutInner() {
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
                 body: JSON.stringify({
-                    ownerType: "ASSET",
+                    ownerType: "asset",
                     ownerId: assetId,
                     imageType,
                     s3Key,
