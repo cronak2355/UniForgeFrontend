@@ -56,29 +56,62 @@ export default function LibraryPage() {
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [myGames, setMyGames] = useState<LibraryItem[]>([]);
+    const [myAssets, setMyAssets] = useState<LibraryItem[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
 
     // --- Effects ---
-    // Close dropdown on outside click
+    // Fetch Data
     useEffect(() => {
         if (!user) return;
 
-        const loadMyGames = async () => {
+        const loadData = async () => {
+            setLoadingGames(true);
             try {
+                // 1. Fetch Games
                 const games = await fetchMyGames(user.id);
-
-                const mapped: LibraryItem[] = games.map(game => ({
+                const mappedGames: LibraryItem[] = games.map(game => ({
                     id: String(game.gameId),
                     title: game.title,
                     type: 'game',
-                    thumbnail:
-                        game.thumbnailUrl ??
-                        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
+                    thumbnail: game.thumbnailUrl ?? 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
                     author: `User ${game.authorId}`,
                     purchaseDate: game.createdAt.split('T')[0],
                 }));
+                setMyGames(mappedGames);
 
-                setMyGames(mapped);
+                // 2. Fetch Assets via Library Service
+                // Note: current libraryService returns { refId, itemType, ... }
+                // We need to fetch details for each asset. Ideally backend should return "expanded" or we prefer "lazy loading".
+                // For MVP, we will fetch library items, then fetch asset details for items where type='ASSET'.
+
+                const { libraryService } = await import('../services/libraryService');
+                const { marketplaceService } = await import('../services/marketplaceService');
+
+                const libraryItems = await libraryService.getLibrary(user.id);
+                const assetItems = libraryItems.filter(item => item.itemType === 'ASSET');
+
+                if (assetItems.length > 0) {
+                    const assetDetails = await Promise.all(
+                        assetItems.map(item => marketplaceService.getAssetById(item.refId).catch(() => null))
+                    );
+
+                    const mappedAssets: LibraryItem[] = assetDetails
+                        .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
+                        .map(detail => ({
+                            id: detail.id,
+                            title: detail.name,
+                            type: 'asset',
+                            assetType: 'Unknown', // Genre not yet in AssetResponse (added but DTO update needed if we want it here)
+                            thumbnail: detail.imageUrl ?? 'https://via.placeholder.com/400',
+                            author: detail.authorName, // Using authorName from response
+                            purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
+                        }));
+
+                    setMyAssets(mappedAssets);
+                } else {
+                    setMyAssets([]);
+                }
+
             } catch (e) {
                 console.error(e);
             } finally {
@@ -86,8 +119,11 @@ export default function LibraryPage() {
             }
         };
 
-        loadMyGames();
+        loadData();
     }, [user]);
+
+    // Added state for assets
+
 
 
     // --- Actions ---
@@ -113,8 +149,7 @@ export default function LibraryPage() {
         let items =
             activeTab === 'games'
                 ? myGames
-                : MOCK_ASSETS;
-
+                : myAssets; // Use real assets
 
         if (searchTerm) {
             items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
