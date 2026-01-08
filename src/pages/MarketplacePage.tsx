@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { marketplaceService, Asset } from '../services/marketplaceService';
 import { fetchMarketplaceGames } from "../services/marketplaceGameService";
 
+const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400";
+
 const MarketplacePage = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -18,14 +20,14 @@ const MarketplacePage = () => {
     const [loading, setLoading] = useState(true);
 
     // Todo: define item type properly
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
     useEffect(() => {
         const fetchGames = async () => {
             try {
                 const data = await fetchMarketplaceGames();
 
                 const mapped = data.map(game => ({
-                    id: game.gameId,
+                    id: game.gameId.toString(),
                     name: game.title,
                     image: game.thumbnailUrl ?? DEFAULT_IMAGE,
                     author: `User ${game.authorId}`,
@@ -33,6 +35,9 @@ const MarketplacePage = () => {
                     price: 0,    // 임시
                     type: "Game",
                     genre: "기타",
+                    authorId: game.authorId.toString(),
+                    description: game.description || "",
+                    createdAt: game.createdAt || new Date().toISOString(),
                 }));
 
                 setAssets(mapped);
@@ -57,7 +62,9 @@ const MarketplacePage = () => {
                     rating: asset.rating || 0,
                     type: asset.type || "3D 에셋",
                     genre: asset.genre || "기타",
-                    author: asset.author || `User ${asset.authorId}`
+                    author: asset.author || `User ${asset.authorId}`,
+                    createdAt: asset.createdAt || new Date().toISOString(),
+                    description: asset.description || ""
                 }));
                 setAssets(mappedData);
             } catch (error) {
@@ -122,7 +129,7 @@ const MarketplacePage = () => {
             // genre/type 필터는 계속 적용
         }
         if (selectedCategory === "급상승") {
-            if (item.rating < 4.7) return false;
+            if ((item.rating || 0) < 4.7) return false;
         }
         if (selectedCategory === "신규") {
             return true; // 나중에 createdAt으로 교체
@@ -538,7 +545,7 @@ const MarketplacePage = () => {
                             <div style={{ width: '50%', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <img
                                     src={selectedItem.image}
-                                    alt={selectedItem.title}
+                                    alt={selectedItem.name}
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />
                             </div>
@@ -556,7 +563,7 @@ const MarketplacePage = () => {
                                         <span style={{ color: '#666', fontSize: '0.9rem' }}>{selectedItem.genre}</span>
                                     </div>
 
-                                    <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>{selectedItem.title}</h2>
+                                    <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>{selectedItem.name}</h2>
                                     <p style={{ color: '#888', marginBottom: '1.5rem' }}>by {selectedItem.author}</p>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24', marginBottom: '1.5rem' }}>
@@ -575,14 +582,14 @@ const MarketplacePage = () => {
                                 <div style={{ borderTop: '1px solid #222', paddingTop: '1.5rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                         <span style={{ color: '#888' }}>가격</span>
-                                        <span style={{ fontSize: '1.5rem', fontWeight: 700, color: selectedItem.price === '무료' ? '#22c55e' : 'white' }}>
-                                            {selectedItem.price}
+                                        <span style={{ fontSize: '1.5rem', fontWeight: 700, color: selectedItem.price === 0 ? '#22c55e' : 'white' }}>
+                                            {selectedItem.price === 0 ? 'Free' : `₩${selectedItem.price.toLocaleString()}`}
                                         </span>
                                     </div>
 
                                     <button
                                         onClick={() => {
-                                            alert(`${selectedItem.title}이(가) 라이브러리에 다운로드되었습니다.`);
+                                            alert(`${selectedItem.name}이(가) 라이브러리에 다운로드되었습니다.`);
                                         }}
                                         style={{
                                             width: '100%',
