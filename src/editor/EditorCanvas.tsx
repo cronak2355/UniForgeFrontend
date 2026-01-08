@@ -252,16 +252,18 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
-                if (!activeTilingType) {
-                    renderer.setPreviewTile(tx, ty, selectedAsset.idx);
-                } else if (isPointerDownRef.current) {
-                    if (activeTilingType === "drawing") {
+                if (activeTilingType === "drawing") {
+                    if (isPointerDownRef.current) {
                         renderer.setTile(tx, ty, selectedAsset.idx);
                         core.setTile(tx, ty, selectedAsset.idx);
-                    } else if (activeTilingType === "erase") {
-                        renderer.removeTile(tx, ty);
-                        core.removeTile(tx, ty);
+                    } else {
+                        renderer.setPreviewTile(tx, ty, selectedAsset.idx);
                     }
+                } else if (activeTilingType === "erase" && isPointerDownRef.current) {
+                    renderer.removeTile(tx, ty);
+                    core.removeTile(tx, ty);
+                } else {
+                    renderer.clearPreviewTile();
                 }
                 return;
             }

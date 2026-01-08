@@ -130,6 +130,9 @@ export class EditorScene extends Phaser.Scene {
     console.log("[EditorScene] create() called - starting initialization");
     this.ready = true;
 
+    const cam = this.cameras.main;
+    cam.roundPixels = true;
+
     this.gridGfx = this.add.graphics();
     this.gridGfx.setDepth(9999);
 
@@ -179,6 +182,10 @@ export class EditorScene extends Phaser.Scene {
       if (!this.ready) return;
       const { p, inside } = feedPointer(e.clientX, e.clientY);
       if (!inside) return;
+      const canvas = this.sys?.game?.canvas;
+      if (canvas && e.pointerId != null) {
+        try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      }
 
       const buildContext = (pointer: Phaser.Input.Pointer, mouse: "mousedown" | "mouseup" | "mousemove"): EditorContext => ({
         currentMode: this.editorMode,
@@ -236,8 +243,7 @@ export class EditorScene extends Phaser.Scene {
 
     const onWinPointerMove = (e: PointerEvent) => {
       if (!this.ready) return;
-      const { p, inside } = feedPointer(e.clientX, e.clientY);
-      if (!inside) return;
+      const { p } = feedPointer(e.clientX, e.clientY);
 
       // 드래그 중에는 현재 선택된 엔티티를 유지 (포인터가 엔티티 바깥으로 나가도 선택 해제 안 함)
       const currentEntity = this.editorCore?.getSelectedEntity();
@@ -262,6 +268,10 @@ export class EditorScene extends Phaser.Scene {
     const onWinPointerUp = (e: PointerEvent) => {
       if (!this.ready) return;
       const { p } = feedPointer(e.clientX, e.clientY);
+      const canvas = this.sys?.game?.canvas;
+      if (canvas && e.pointerId != null) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      }
       // allow mode to transition before snapshotting context
       this.editorMode.onPointerUp(this, p);
       const ctx: EditorContext = {
