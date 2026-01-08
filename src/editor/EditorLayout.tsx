@@ -147,17 +147,50 @@ function EditorLayoutInner() {
     // Auto-save / Load Logic
     // Auto-save / Load Logic
     useEffect(() => {
-        // 1. Initial Load
+        // 1. Initial Load with validation
         try {
             const saved = localStorage.getItem("editor_autosave");
             if (saved) {
                 const json = JSON.parse(saved);
-                console.log("[EditorLayout] Found autosave, loading...");
+                console.log("[EditorLayout] Found autosave, loading with validation...");
+
+                // Validate and filter assets
+                if (json.assets && Array.isArray(json.assets)) {
+                    json.assets = json.assets.filter((asset: any) => {
+                        // Keep only assets with valid URLs (not S3 paths that might be broken)
+                        const isValid = asset.url && (
+                            asset.url.startsWith('/') ||
+                            asset.url.startsWith('http://') ||
+                            asset.url.startsWith('https://') ||
+                            !asset.url.includes('s3.amazonaws.com')
+                        );
+                        if (!isValid) {
+                            console.warn(`[EditorLayout] Filtered out invalid asset: ${asset.name} (${asset.url})`);
+                        }
+                        return isValid;
+                    });
+                }
+
+                // Validate and filter entities that reference broken assets
+                if (json.entities && Array.isArray(json.entities)) {
+                    const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
+                    json.entities = json.entities.filter((entity: any) => {
+                        // Check if entity's texture exists in valid assets
+                        if (entity.texture && !validAssetNames.has(entity.texture)) {
+                            console.warn(`[EditorLayout] Filtered out entity with broken texture: ${entity.name} (${entity.texture})`);
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+
                 core.clear(); // Clear default entries
                 SceneSerializer.deserialize(json, core);
+                console.log("[EditorLayout] Autosave loaded successfully with validation");
             }
         } catch (err) {
             console.error("[EditorLayout] Failed to load autosave", err);
+            console.log("[EditorLayout] Starting with default assets");
         }
 
         // 2. Setup Auto-save subscription
@@ -372,7 +405,15 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const assetUrl = presignData.readUrl || uploadUrl.split("?")[0];
+            const downloadUrl =
+                presignData.downloadUrl ||
+                presignData.getUrl ||
+                presignData.readUrl ||
+                presignData.fileUrl ||
+                presignData.assetUrl ||
+                presignData.url;
+
+            const assetUrl = downloadUrl;
 
             const nextId =
                 core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
