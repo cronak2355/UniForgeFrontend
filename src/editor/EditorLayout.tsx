@@ -387,7 +387,7 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl;
+            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
             if (!uploadUrl) {
                 throw new Error("Upload URL missing in response.");
             }
@@ -402,15 +402,47 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const downloadUrl =
-                presignData.downloadUrl ||
-                presignData.getUrl ||
-                presignData.readUrl ||
-                presignData.fileUrl ||
-                presignData.assetUrl ||
-                presignData.url;
+            const extractS3Key = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                    return key || null;
+                } catch {
+                    return null;
+                }
+            };
 
-            const assetUrl = downloadUrl;
+            const s3Key =
+                presignData.s3Key ||
+                presignData.key ||
+                extractS3Key(uploadUrl);
+
+            if (!s3Key) {
+                throw new Error("S3 key missing in response.");
+            }
+
+            const imageType = "preview";
+            const imageRes = await fetch("https://uniforge.kr/api/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    ownerType: "ASSET",
+                    ownerId: assetId,
+                    imageType,
+                    s3Key,
+                    contentType,
+                }),
+            });
+
+            if (!imageRes.ok) {
+                const message = await imageRes.text();
+                throw new Error(message || "Failed to register image.");
+            }
+
+            const assetUrl = `https://uniforge.kr/api/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
 
             const nextId =
                 core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
