@@ -49,33 +49,6 @@ const MarketplacePage = () => {
         fetchGames();
     }, []);
 
-    // Fetch Assets
-    useEffect(() => {
-        const fetchAssets = async () => {
-            try {
-                const data = await marketplaceService.getAssets();
-                // Map backend data to UI format if needed
-                const mappedData = data.map(asset => ({
-                    ...asset,
-                    // Default values for missing UI fields
-                    image: asset.image || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
-                    rating: asset.rating || 0,
-                    type: asset.type || "3D 에셋",
-                    genre: asset.genre || "기타",
-                    author: asset.author || `User ${asset.authorId}`,
-                    createdAt: asset.createdAt || new Date().toISOString(),
-                    description: asset.description || ""
-                }));
-                setAssets(mappedData);
-            } catch (error) {
-                console.error("Failed to fetch assets:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAssets();
-    }, []);
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
