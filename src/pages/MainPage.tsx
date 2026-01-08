@@ -317,13 +317,13 @@ const MainPage = () => {
                         </div>
                     </div>
 
-                    <div className="action-card" onClick={() => navigate('/marketplace')}>
+                    <div className="action-card" onClick={() => navigate('/assets-editor')}>
                         <div className="action-card-icon">
                             <i className="fa-solid fa-puzzle-piece"></i>
                         </div>
                         <div className="action-card-content">
-                            <h3>에셋 플레이스</h3>
-                            <p>고퀄리티 에셋으로 게임을 빠르게 완성하세요</p>
+                            <h3>에셋 에디터</h3>
+                            <p>나만의 에셋을 만들고 편집해보세요</p>
                         </div>
                         <div className="action-card-arrow">
                             <i className="fa-solid fa-arrow-right"></i>

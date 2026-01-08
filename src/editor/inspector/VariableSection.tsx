@@ -9,6 +9,34 @@ export function VariableSection({
   onAdd: () => void;
   onUpdate: (v: EditorVariable) => void;
 }) {
+  const coerceType = (variable: EditorVariable, nextType: EditorVariable["type"]) => {
+    if (nextType === variable.type) return variable;
+    if (nextType === "bool") {
+      return { ...variable, type: nextType, value: false };
+    }
+    if (nextType === "string") {
+      return { ...variable, type: nextType, value: String(variable.value ?? "") };
+    }
+    const numeric =
+      typeof variable.value === "number"
+        ? variable.value
+        : Number(String(variable.value ?? ""));
+    const fallback = Number.isNaN(numeric) ? 0 : numeric;
+    return { ...variable, type: nextType, value: fallback };
+  };
+
+  const coerceValue = (variable: EditorVariable, raw: string): number | string => {
+    if (variable.type === "int") {
+      const next = parseInt(raw, 10);
+      return Number.isNaN(next) ? 0 : next;
+    }
+    if (variable.type === "float") {
+      const next = Number(raw);
+      return Number.isNaN(next) ? 0 : next;
+    }
+    return raw;
+  };
+
   return (
     <div>
       {/* 헤더 */}
@@ -37,7 +65,16 @@ export function VariableSection({
             key={v.id}
             className="variable-item"
           >
-            <span className="variable-type">{v.type}</span>
+            <select
+              className="variable-type"
+              value={v.type}
+              onChange={(e) => onUpdate(coerceType(v, e.target.value as EditorVariable["type"]))}
+            >
+              <option value="int">int</option>
+              <option value="float">float</option>
+              <option value="string">string</option>
+              <option value="bool">bool</option>
+            </select>
 
             <input
               className="variable-input"
@@ -47,13 +84,24 @@ export function VariableSection({
               }
             />
 
-            <input
-              className="bg-black border border-white px-1 text-xs"
-              value={String(v.value)}
-              onChange={e =>
-                onUpdate({ ...v, value: e.target.value })
-              }
-            />
+            {v.type === "bool" ? (
+              <select
+                className="bg-black border border-white px-1 text-xs"
+                value={v.value === true ? "true" : "false"}
+                onChange={e => onUpdate({ ...v, value: e.target.value === "true" })}
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            ) : (
+              <input
+                className="bg-black border border-white px-1 text-xs"
+                value={String(v.value)}
+                onChange={e =>
+                  onUpdate({ ...v, value: coerceValue(v, e.target.value) })
+                }
+              />
+            )}
           </div>
         ))}
       </div>

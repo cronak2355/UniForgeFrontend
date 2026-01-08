@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetPanel } from "./AssetPanel";
@@ -10,8 +10,12 @@ import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
-
+import { useNavigate } from 'react-router-dom';
+import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
+import { saveScenes } from "./api/sceneApi";
+import { syncLegacyFromLogic } from "./utils/entityLogic";
+import { buildLogicItems, splitLogicItems } from "./types/Logic";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -26,8 +30,100 @@ export default function EditorLayout() {
 
 type Mode = "dev" | "run";
 
+function MenuItem({
+    label,
+    onClick,
+}: {
+    label: string;
+    onClick: () => void;
+}) {
+    return (
+        <div
+            onClick={onClick}
+            style={{
+                padding: "8px 12px",
+                fontSize: "13px",
+                cursor: "pointer",
+                color: "#ddd",
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+            }}
+        >
+            {label}
+        </div>
+    );
+}
+
+function cloneEntityForPaste(source: EditorEntity): EditorEntity {
+    const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
+    const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
+    const components = baseComponents.map((comp) => ({
+        ...comp,
+        id: crypto.randomUUID(),
+    }));
+
+    return {
+        ...cloned,
+        id: crypto.randomUUID(),
+        name: `${source.name} Copy`,
+        x: (source.x ?? 0) + 20,
+        y: (source.y ?? 0) + 20,
+        variables: (cloned.variables ?? []).map((v) => ({ ...v, id: crypto.randomUUID() })),
+        events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
+        components,
+        logic: buildLogicItems({ components }),
+    };
+}
+
 function EditorLayoutInner() {
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
+
+    // Auto-save / Load Logic
+    // Auto-save / Load Logic
+    useEffect(() => {
+        // 1. Initial Load
+        try {
+            const saved = localStorage.getItem("editor_autosave");
+            if (saved) {
+                const json = JSON.parse(saved);
+                console.log("[EditorLayout] Found autosave, loading...");
+                core.clear(); // Clear default entries
+                SceneSerializer.deserialize(json, core);
+            }
+        } catch (err) {
+            console.error("[EditorLayout] Failed to load autosave", err);
+        }
+
+        // 2. Setup Auto-save subscription
+        let saveTimer: any = null;
+        const saveState = () => {
+            const json = SceneSerializer.serialize(core);
+            localStorage.setItem("editor_autosave", JSON.stringify(json));
+            console.log("[AutoSave] Saved state to storage.");
+        };
+
+        const unsubscribe = core.subscribe(() => {
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveState, 1000);
+        });
+
+        const onBeforeUnload = () => {
+            if (saveTimer) clearTimeout(saveTimer);
+            saveState();
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener("beforeunload", onBeforeUnload);
+            if (saveTimer) clearTimeout(saveTimer);
+            saveState();
+        };
+    }, []); // Run once on mount
 
 
     const [mode, setMode] = useState<Mode>("dev");
@@ -35,8 +131,12 @@ function EditorLayoutInner() {
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+    const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+    const navigate = useNavigate();
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
+    const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
+    const copyEntityRef = useRef<EditorEntity | null>(null);
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -57,6 +157,54 @@ function EditorLayoutInner() {
         core.sendContextToEditorModeStateMachine({ currentMode: dm, currentDraggingAsset: a, mouse: "mousedown" });
     };
 
+    // Key handler for deletion
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            const active = document.activeElement;
+            if (
+                active instanceof HTMLInputElement ||
+                active instanceof HTMLTextAreaElement ||
+                active instanceof HTMLSelectElement ||
+                (active instanceof HTMLElement && active.isContentEditable)
+            ) {
+                return;
+            }
+
+            const isMeta = e.ctrlKey || e.metaKey;
+
+            if (isMeta && (e.key === "c" || e.key === "C")) {
+                if (mode !== "dev") return;
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    copyEntityRef.current = JSON.parse(JSON.stringify(selected)) as EditorEntity;
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "v" || e.key === "V")) {
+                if (mode !== "dev") return;
+                const source = copyEntityRef.current;
+                if (!source) return;
+                const clone = cloneEntityForPaste(source);
+                core.addEntity(clone as any);
+                core.setSelectedEntity(clone as any);
+                setLocalSelectedEntity(clone);
+                e.preventDefault();
+                return;
+            }
+
+            if (e.key === "Delete" || e.key === "Backspace") {
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    core.removeEntity(selected.id);
+                }
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [core, mode]);
+
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
 
     // keep local selection in sync with core selection
@@ -66,6 +214,15 @@ function EditorLayoutInner() {
             setLocalSelectedEntity(selectedEntity);
         }
     }, [selectedEntity]);
+
+    useEffect(() => {
+        if (mode !== "run") return;
+        const id = selectedEntity?.id;
+        if (!id) return;
+        const latest = core.getEntities().get(id);
+        if (!latest) return;
+        setLocalSelectedEntity(latest);
+    }, [mode, selectedEntity, core]);
 
     const resetDropModal = () => {
         setDropModalFile(null);
@@ -95,19 +252,23 @@ function EditorLayoutInner() {
         }
 
         if (import.meta.env.DEV) {
-            const assetUrl = URL.createObjectURL(dropModalFile);
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const assetUrl = e.target?.result as string;
+                const nextId =
+                    core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
 
-            core.addAsset({
-                id: nextId,
-                tag: dropAssetTag,
-                name,
-                url: assetUrl,
-                idx: -1,
-            });
+                core.addAsset({
+                    id: nextId,
+                    tag: dropAssetTag,
+                    name,
+                    url: assetUrl,
+                    idx: -1,
+                });
 
-            resetDropModal();
+                resetDropModal();
+            };
+            reader.readAsDataURL(dropModalFile);
             return;
         }
         setIsUploadingAsset(true);
@@ -227,7 +388,61 @@ function EditorLayoutInner() {
                             setMode((prev) => {
                                 const next = prev === "dev" ? "run" : "dev";
                                 if (next === "run") {
+                                    // Save entity state before running
+                                    const backup = new Map<string, EditorEntity>();
+                                    core.getEntities().forEach((entity, id) => {
+                                        // Deep clone each entity
+                                        backup.set(id, JSON.parse(JSON.stringify(entity)));
+                                    });
+                                    entityBackupRef.current = backup;
+                                    core.setSelectedEntity(null);
+                                    setLocalSelectedEntity(null);
+                                    const entitiesList = Array.from(core.getEntities().values());
+                                    const preferred =
+                                        entitiesList.find((entity) => entity.role === "player") ??
+                                        entitiesList[0] ??
+                                        null;
+                                    if (preferred) {
+                                        core.setSelectedEntity(preferred as any);
+                                        setLocalSelectedEntity(preferred as any);
+                                    }
+                                    console.log(
+                                        "[Run] Entities snapshot:",
+                                        Array.from(core.getEntities().values()).map((entity) => ({
+                                            id: entity.id,
+                                            name: entity.name,
+                                            type: entity.type,
+                                            x: entity.x,
+                                            y: entity.y,
+                                            z: entity.z,
+                                            rotation: entity.rotation,
+                                            rotationX: entity.rotationX,
+                                            rotationY: entity.rotationY,
+                                            rotationZ: entity.rotationZ,
+                                            scaleX: entity.scaleX,
+                                            scaleY: entity.scaleY,
+                                            role: entity.role,
+                                            variables: entity.variables,
+                                            components: entity.components,
+                                        }))
+                                    );
                                     setRunSession((v) => v + 1);
+                                } else {
+                                    // Restore entity state from backup
+                                    if (entityBackupRef.current) {
+                                        entityBackupRef.current.forEach((backupEntity, id) => {
+                                            const currentEntity = core.getEntities().get(id);
+                                            if (currentEntity) {
+                                                // Restore position, hp, etc.
+                                                Object.assign(currentEntity, backupEntity);
+                                            }
+                                        });
+                                        entityBackupRef.current = null;
+                                        // Force UI update
+                                        core.setSelectedEntity(core.getSelectedEntity());
+                                        const refreshed = core.getSelectedEntity();
+                                        setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
+                                    }
                                 }
                                 return next;
                             });
@@ -248,29 +463,132 @@ function EditorLayoutInner() {
                 background: colors.bgSecondary,
                 borderBottom: `1px solid ${colors.borderColor}`,
             }}>
-                {['File', 'Edit', 'Assets', 'View'].map((menu) => (
-                    <span
-                        key={menu}
+                <button
+                    onClick={async () => {
+                        try {
+                            const sceneJson = SceneSerializer.serialize(core, "MyScene");
+                            const gameId = 1; // 임시 값
+                            console.log(sceneJson)
+                            await saveScenes(gameId, sceneJson);
+                            alert("Saved to server");
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to save project");
+                        }
+                    }}
+
+                    // onClick={() => {
+                    //     // SAVE
+                    //     const json = SceneSerializer.serialize(core, "MyScene");
+                    //     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+                    //     const url = URL.createObjectURL(blob);
+                    //     const a = document.createElement("a");
+                    //     a.href = url;
+                    //     a.download = `${json.sceneId}.json`;
+                    //     a.click();
+                    //     URL.revokeObjectURL(url);
+                    // }}
+
+                    style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        background: 'transparent',
+                        border: 'none',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
+                    Save Project
+                </button>
+
+                <label
+                    style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
+                    Load Project
+                    <input
+                        type="file"
+                        accept=".json"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (evt) => {
+                                const text = evt.target?.result as string;
+                                try {
+                                    const json = JSON.parse(text);
+                                    core.clear(); // Clear existing
+                                    SceneSerializer.deserialize(json, core);
+                                } catch (err) {
+                                    console.error("Failed to load JSON", err);
+                                    alert("Failed to load project file.");
+                                }
+                            };
+                            reader.readAsText(file);
+                            // Reset input
+                            e.target.value = "";
+                        }}
+                    />
+                </label>
+
+                {/* ===== FILE MENU ===== */}
+                <div style={{ position: "relative" }}>
+                    <button
+                        onClick={() => setIsFileMenuOpen(v => !v)}
                         style={{
                             padding: '6px 12px',
                             fontSize: '13px',
                             color: colors.textSecondary,
                             cursor: 'pointer',
                             borderRadius: '4px',
-                            transition: 'all 0.15s',
+                            background: 'transparent',
+                            border: 'none',
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = colors.bgTertiary;
-                            e.currentTarget.style.color = colors.textPrimary;
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = colors.textSecondary;
-                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = colors.textPrimary; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSecondary; }}
                     >
-                        {menu}
-                    </span>
-                ))}
+                        File
+                    </button>
+
+                    {isFileMenuOpen && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "36px",
+                                left: 0,
+                                width: "180px",
+                                background: colors.bgSecondary,
+                                border: `1px solid ${colors.borderColor}`,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                                borderRadius: "6px",
+                                zIndex: 1000,
+                            }}
+                        >
+                            <MenuItem label="Export" onClick={() => {
+                                const sceneJson = SceneSerializer.serialize(core, "MyScene");
+
+                                // 🔑 여기
+                                sessionStorage.setItem(
+                                    "UNITY_BUILD_SCENE_JSON",
+                                    JSON.stringify(sceneJson)
+                                );
+
+                                navigate("/build");
+                            }} />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* ===== MAIN EDITOR AREA ===== */}
@@ -327,6 +645,7 @@ function EditorLayoutInner() {
                 }}>
                     {mode === "dev" ? (
                         <EditorCanvas
+                            key={`edit-${runSession}`}
                             assets={assets}
                             selected_asset={selectedAsset}
                             draggedAsset={draggedAsset}
@@ -338,7 +657,12 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                        <RunTimeCanvas key={`run-${runSession}`} />
+                        <RunTimeCanvas
+                            key={`run-${runSession}`}
+                            onRuntimeEntitySync={(runtimeEntity) => {
+                                setLocalSelectedEntity(runtimeEntity);
+                            }}
+                        />
                     )}
                 </div>
 
@@ -366,14 +690,17 @@ function EditorLayoutInner() {
                         Inspector
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        <InspectorPanel
-                            entity={localSelectedEntity}
-                            onUpdateEntity={(updatedEntity) => {
-                                core.addEntity(updatedEntity as any);
-                                core.setSelectedEntity(updatedEntity as any);
-                                setLocalSelectedEntity(updatedEntity);
-                            }}
-                        />
+                        {localSelectedEntity && (
+                            <InspectorPanel
+                                entity={localSelectedEntity}
+                                onUpdateEntity={(updatedEntity) => {
+                                    const normalized = syncLegacyFromLogic(updatedEntity);
+                                    core.addEntity(normalized as any);
+                                    core.setSelectedEntity(normalized as any);
+                                    setLocalSelectedEntity(normalized);
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -512,14 +839,14 @@ function EditorLayoutInner() {
                                     padding: "8px 14px",
                                     fontSize: "12px",
                                     fontWeight: 600,
-                                    background: isUploadingAsset ? colors.bgPrimary : colors.bgTertiary,
+                                    background: colors.bgTertiary,
                                     border: `1px solid ${colors.borderColor}`,
                                     borderRadius: "6px",
                                     color: colors.textPrimary,
-                                    cursor: isUploadingAsset ? "not-allowed" : "pointer",
+                                    cursor: "pointer",
                                 }}
                             >
-                                {isUploadingAsset ? "Uploading..." : "Add Asset"}
+                                Add Asset
                             </button>
                             <button
                                 type="button"

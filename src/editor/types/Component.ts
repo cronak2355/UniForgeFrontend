@@ -6,7 +6,8 @@ import type { Condition } from "./Condition";
 export type ComponentType =
   | "Transform"
   | "Render"
-  | "Variables";
+  | "Signal"
+  | "Logic";
 
 /* ================= Base ================= */
 
@@ -43,11 +44,32 @@ export interface RenderComponent extends BaseComponent {
   spriteId: string;
 }
 
-/* ================= Variables ================= */
 
-export interface VariablesComponent extends BaseComponent {
-  type: "Variables";
-  values: Record<string, number | boolean | string>;
+/* ================= Logic ================= */
+
+export type LogicCondition = { type: string; [key: string]: unknown };
+export type LogicAction = { type: string; [key: string]: unknown };
+
+export interface LogicComponent extends BaseComponent {
+  type: "Logic";
+  event: string;
+  eventParams?: Record<string, unknown>;
+  conditions?: LogicCondition[];
+  conditionLogic?: "AND" | "OR";
+  actions: LogicAction[];
+}
+
+/* ================= Signal ================= */
+
+export type SignalValue =
+  | { kind: "Literal"; value: number | string | boolean | null }
+  | { kind: "EntityVariable"; name: string };
+
+export interface SignalComponent extends BaseComponent {
+  type: "Signal";
+  targetEntityId?: string;
+  signalKey: string;
+  signalValue: SignalValue;
 }
 
 /* ================= Union ================= */
@@ -55,7 +77,8 @@ export interface VariablesComponent extends BaseComponent {
 export type EditorComponent =
   | TransformComponent
   | RenderComponent
-  | VariablesComponent;
+  | SignalComponent
+  | LogicComponent;
 
 /* ================= Defaults ================= */
 
@@ -74,7 +97,6 @@ export const ComponentDefaults: ComponentDefault = {
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-
     trigger: { type: "OnUpdate" },
     condition: { type: "Always" },
   },
@@ -87,11 +109,23 @@ export const ComponentDefaults: ComponentDefault = {
     condition: { type: "Always" },
   },
 
-  Variables: {
-    type: "Variables",
-    values: {},
 
-    trigger: { type: "OnStart" },
+  Logic: {
+    type: "Logic",
+    event: "OnUpdate",
+    eventParams: {},
+    conditions: [],
+    conditionLogic: "AND",
+    actions: [],
+  },
+
+  Signal: {
+    type: "Signal",
+    targetEntityId: "",
+    signalKey: "STATE_CHANGED",
+    signalValue: { kind: "Literal", value: null },
+
+    trigger: { type: "OnUpdate" },
     condition: { type: "Always" },
   },
 };

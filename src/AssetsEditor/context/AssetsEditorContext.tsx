@@ -12,6 +12,13 @@ import {
 import { PixelEngine, type RGBA, type PixelSize } from '../engine/PixelEngine';
 import type { Frame } from '../engine/FrameManager';
 import { generateAsset } from '../services/SagemakerService';
+import {
+  exportSpriteSheet,
+  downloadBlob,
+  downloadMetadata,
+  type SpriteSheetLayout,
+  type ExportFormat,
+} from '../services/SpriteSheetExporter';
 
 export type Tool = 'brush' | 'eraser' | 'eyedropper' | 'fill';
 
@@ -97,6 +104,11 @@ interface AssetsEditorContextType {
 
   // Export
   downloadWebP: (filename: string) => Promise<void>;
+  exportAsSpriteSheet: (options?: {
+    layout?: SpriteSheetLayout;
+    format?: ExportFormat;
+    includeMetadata?: boolean;
+  }) => Promise<void>;
   saveToLibrary: (name: string, type: Asset['type'], stats: Asset['stats']) => Promise<void>;
 
   // Library
@@ -130,7 +142,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   // Frame state
   const [frames, setFrames] = useState<Frame[]>([]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-  const [maxFrames, setMaxFrames] = useState(4);
+  const [maxFrames, setMaxFrames] = useState(64);
 
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -504,28 +516,63 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
         const removeBackgroundAlg = (data: Uint8ClampedArray, w: number, h: number, bgColor: { r: number, g: number, b: number }) => {
           const isGreenDominant = bgColor.g > bgColor.r + 30 && bgColor.g > bgColor.b + 30;
-          const tolerance = isGreenDominant ? 100 : 60;
+          // Use featherAmount as sensitivity/tolerance modifier
+          // VERY LOW base tolerance to avoid eating into character
+          const baseTolerance = isGreenDominant ? 25 : 10;
+          const tolerance = baseTolerance + ((featherAmount || 0) * 2);
+
           const visited = new Uint8Array(w * h);
           const stack: number[] = [];
           for (let x = 0; x < w; x++) { stack.push(x); stack.push((h - 1) * w + x); visited[x] = 1; visited[(h - 1) * w + x] = 1; }
           for (let y = 1; y < h - 1; y++) { stack.push(y * w); stack.push(y * w + w - 1); visited[y * w] = 1; visited[y * w + w - 1] = 1; }
-          const isMatch = (idx: number) => {
+          // Euclidean Tolerance (Soft Fill)
+          const toleranceSq = tolerance * tolerance;
+
+          const getDistSq = (idx: number) => {
             const r = data[idx * 4]; const g = data[idx * 4 + 1]; const b = data[idx * 4 + 2];
-            const dist = Math.abs(r - bgColor.r) + Math.abs(g - bgColor.g) + Math.abs(b - bgColor.b);
-            return dist < tolerance * 3;
+            const dr = r - bgColor.r; const dg = g - bgColor.g; const db = b - bgColor.b;
+            return dr * dr + dg * dg + db * db;
           };
           let writePtr = 0;
-          for (let i = 0; i < stack.length; i++) { if (isMatch(stack[i])) stack[writePtr++] = stack[i]; }
+          for (let i = 0; i < stack.length; i++) {
+            const d2 = getDistSq(stack[i]);
+            if (d2 < toleranceSq) stack[writePtr++] = stack[i];
+          }
           stack.length = writePtr;
+
           while (stack.length > 0) {
             const idx = stack.pop()!;
-            data[idx * 4 + 3] = 0;
+
+            // Soft Removal Logic (Delicate)
+            const d2 = getDistSq(idx);
+            const dist = Math.sqrt(d2);
+
+            // If dist is very close to BG (e.g. < 50% tolerance), remove fully.
+            // If dist is approaching tolerance (edge), fade it.
+            // Alpha = (dist / tolerance) ^ 2 * 255.
+            // This keeps edge pixels efficiently while removing solid BG.
+            let alpha = 0;
+            if (dist > tolerance * 0.2) {
+              const ratio = (dist - (tolerance * 0.2)) / (tolerance * 0.8);
+              alpha = Math.floor(ratio * ratio * 255);
+            }
+            // Apply new alpha if it's lower than current
+            if (alpha < data[idx * 4 + 3]) {
+              data[idx * 4 + 3] = alpha;
+            }
+
             const x = idx % w; const y = Math.floor(idx / w);
             const neighbors = [{ nx: x + 1, ny: y }, { nx: x - 1, ny: y }, { nx: x, ny: y + 1 }, { nx: x, ny: y - 1 }];
             for (const { nx, ny } of neighbors) {
               if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
                 const nIdx = ny * w + nx;
-                if (visited[nIdx] === 0) { visited[nIdx] = 1; if (isMatch(nIdx)) stack.push(nIdx); }
+                if (visited[nIdx] === 0) {
+                  const nd2 = getDistSq(nIdx);
+                  if (nd2 < toleranceSq) {
+                    visited[nIdx] = 1;
+                    stack.push(nIdx);
+                  }
+                }
               }
             }
           }
@@ -638,11 +685,19 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   }, [pixelSize, syncFrameState]);
 
   // Load Image (Trigger)
-  const loadAIImage = useCallback(async (blob: Blob) => {
+  const loadAIImage = useCallback(async (input: Blob | string) => {
     if (!engineRef.current) return;
 
     setIsLoading(true);
     try {
+      let blob: Blob;
+      if (typeof input === 'string') {
+        const res = await fetch(input);
+        blob = await res.blob();
+      } else {
+        blob = input;
+      }
+
       const imageBitmap = await createImageBitmap(blob);
       setOriginalAIImage(imageBitmap);
       setFeatherAmount(0); // Reset feather
@@ -657,7 +712,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [processAndApplyImage]);
 
-  // Re-process when feather changes
+  // Re-process when feather changes - DISABLED based on user feedback
+  // User wants to use this slider primarily for Tolerance setting for Remove BG,
+  // and expects it to apply only when action is triggered.
+  /*
   useEffect(() => {
     if (!originalAIImage) return;
     const timer = setTimeout(() => {
@@ -665,6 +723,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     }, 100); // 100ms debounce
     return () => clearTimeout(timer);
   }, [featherAmount, originalAIImage, processAndApplyImage]);
+  */
 
   // Manual cleanup when changing images?
   // Not needed, state replacement handles it.
@@ -703,6 +762,46 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     link.click();
     document.body.removeChild(link);
   }, []);
+
+  const exportAsSpriteSheet = useCallback(async (options?: {
+    layout?: SpriteSheetLayout;
+    format?: ExportFormat;
+    includeMetadata?: boolean;
+  }) => {
+    if (!engineRef.current) return;
+
+    const allFrames = engineRef.current.getAllFrames();
+    if (allFrames.length === 0) {
+      alert('No frames to export');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await exportSpriteSheet(
+        allFrames,
+        pixelSize,
+        options?.layout ?? 'horizontal',
+        options?.format ?? 'webp',
+        0.9
+      );
+
+      // Download sprite sheet
+      downloadBlob(result.blob, result.filename);
+
+      // Download metadata if requested
+      if (options?.includeMetadata !== false) {
+        downloadMetadata(result.metadata);
+      }
+
+      console.log('[SpriteSheet Export] Success:', result.metadata);
+    } catch (e) {
+      console.error('[SpriteSheet Export] Error:', e);
+      alert('Failed to export sprite sheet: ' + (e instanceof Error ? e.message : 'Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pixelSize]);
 
   const saveToLibrary = useCallback(
     async (name: string, type: Asset['type'], stats: Asset['stats']) => {
@@ -781,6 +880,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
         // Export
         downloadWebP,
+        exportAsSpriteSheet,
         saveToLibrary,
         assets,
         deleteAsset,

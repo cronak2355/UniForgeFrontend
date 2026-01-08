@@ -25,7 +25,7 @@ export interface SignupRequest {
 }
 
 class AuthService {
-    public getToken(): string | null {
+    private getToken(): string | null {
         return localStorage.getItem('token');
     }
 

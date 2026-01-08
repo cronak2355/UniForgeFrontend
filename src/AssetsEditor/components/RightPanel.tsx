@@ -6,6 +6,8 @@ import {
   type SimpleAnimationType
 } from '../services/simpleAnimationService';
 import { PartRigger } from './PartRigger';
+import { useJob } from '../context/JobContext';
+import { StylePresetService } from '../services/StylePresetService';
 import { generateAsset, fetchAssetAsBlob } from '../services/SagemakerService';
 
 interface ChatMessage {
@@ -38,6 +40,7 @@ export function RightPanel() {
     featherAmount,
     setFeatherAmount,
     triggerBackgroundRemoval,
+    exportAsSpriteSheet,
   } = useAssetsEditor();
 
   // ==================== State ====================
@@ -134,24 +137,46 @@ export function RightPanel() {
     selectFrame(0);
   };
 
+  // Job Context
+  const { addJob } = useJob();
+
+  // Style Presets State (3D Granularity)
+  const [visualStyles] = useState(StylePresetService.getVisualStyles());
+  const [themes] = useState(StylePresetService.getThemes());
+  const [moods] = useState(StylePresetService.getMoods());
+
+  const [selectedStyleId, setSelectedStyleId] = useState('pixel_art');
+  const [selectedThemeId, setSelectedThemeId] = useState('fantasy');
+  const [selectedMoodId, setSelectedMoodId] = useState('neutral');
+
   // ==================== Handlers ====================
 
   /**
-   * AI 단일 이미지 생성 (SageMaker 연동)
+   * AI 단일 이미지 생성 (Background Job)
    */
   const handleGenerateSingle = async () => {
     if (!aiPrompt.trim()) return;
 
     const userPrompt = aiPrompt;
+
+    // 스타일/테마/무드 적용
+    const finalPrompt = StylePresetService.buildPrompt(userPrompt, selectedStyleId, selectedThemeId, selectedMoodId);
+
+    // UI 표시용 이름 찾기
+    const styleName = visualStyles.find(s => s.id === selectedStyleId)?.name || 'Raw';
+    const themeName = themes.find(t => t.id === selectedThemeId)?.name || 'Raw';
+    const moodName = moods.find(m => m.id === selectedMoodId)?.name || 'Neutral';
+
+    // 채팅창에는 사용자 입력만 표시 + 요약
     addChatMessage('user', `✨ ${userPrompt}`);
+    addChatMessage('user', `🎨 [${styleName} | ${themeName} | ${moodName}]`);
     setAiPrompt('');
-    setIsLoading(true);
 
-
-    try {
+    // 백그라운드 작업 추가
+    addJob('AI 이미지 생성', async () => {
       // SageMaker API 호출
       const result = await generateAsset({
-        prompt: userPrompt,
+        prompt: finalPrompt, // Enriched prompt
         asset_type: assetType === 'effect' ? 'object' : assetType,
         width: pixelSize,
         height: pixelSize,
@@ -162,24 +187,28 @@ export function RightPanel() {
       }
 
       if (result.asset_url) {
-        // S3에서 이미지 가져오기
+        // Blob 반환 (JobNotification이 받아서 loadAIImage 호출)
         const blob = await fetchAssetAsBlob(result.asset_url);
-        await loadAIImage(blob);
-        addChatMessage('ai', '✨ 이미지 생성 완료!');
+
+        // Convert to Base64 (DataURL) for reliable history state transfer
+        const base64Url = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+
+        addChatMessage('ai', '✨ 백그라운드 생성 완료! 결과를 확인하세요.');
+        return base64Url;
       } else {
         throw new Error('이미지 URL이 없습니다');
       }
-    } catch (error) {
-      console.error('AI Single Error:', error);
-      addChatMessage('ai', `❌ 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    } finally {
-      setIsLoading(false);
-    }
+    });
+
+    // UI 차단 없음 (isLoading 제거)
   };
 
   /**
-   * AI Refine (Image-to-Image)
-   * 현재 캔버스 내용을 바탕으로 AI가 다듬기
+   * AI Refine (Background Job)
    */
   const handleRefine = async () => {
     if (!aiPrompt.trim()) return;
@@ -190,21 +219,23 @@ export function RightPanel() {
       return;
     }
 
-    const base64Image = sourceCanvas.toDataURL('image/png').split(',')[1]; // Remove data:image/png;base64, prefix
-
+    const base64Image = sourceCanvas.toDataURL('image/png').split(',')[1];
     const userPrompt = aiPrompt;
-    addChatMessage('user', `✨ Refine: ${userPrompt}`);
-    setAiPrompt('');
-    setIsLoading(true);
 
-    try {
+    // 스타일/테마/무드 적용
+    const finalPrompt = StylePresetService.buildPrompt(userPrompt, selectedStyleId, selectedThemeId, selectedMoodId);
+
+    addChatMessage('user', `✨ Refine: ${userPrompt} [${selectedThemeId}]`);
+    setAiPrompt('');
+
+    addJob('AI 리파인 작업', async () => {
       const result = await generateAsset({
-        prompt: userPrompt,
+        prompt: finalPrompt,
         asset_type: assetType === 'effect' ? 'object' : assetType,
         width: pixelSize,
         height: pixelSize,
         image: base64Image,
-        strength: 0.65, // Default strength for refinement
+        strength: 0.65,
       });
 
       if (!result.success) {
@@ -213,18 +244,21 @@ export function RightPanel() {
 
       if (result.asset_url) {
         const blob = await fetchAssetAsBlob(result.asset_url);
-        await loadAIImage(blob);
-        addChatMessage('ai', '✨ 리파인 완료!');
+        addChatMessage('ai', '✨ 리파인 완료! 결과를 적용해보세요.');
+        return blob;
       } else {
         throw new Error('No image URL returned');
       }
-    } catch (error) {
-      console.error('AI Refine Error:', error);
-      addChatMessage('ai', `❌ 리파인 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    } finally {
-      setIsLoading(false);
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleGenerateSingle();
     }
   };
+
 
   /**
    * 간단 애니메이션 생성 (로컬 변형)
@@ -236,6 +270,8 @@ export function RightPanel() {
       return;
     }
 
+    // 로컬 작업은 빠르므로 isLoading으로 UI 막지 않거나, 최소한으로 사용
+    // 여기서는 통일성을 위해 addJob을 쓰지 않고 바로 실행 (빠름)
     setIsLoading(true);
     try {
       const generatedFrames = generateSimpleAnimation(sourceCanvas, animationType, pixelSize);
@@ -302,13 +338,6 @@ export function RightPanel() {
       return;
     }
     setShowRigger(true);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleGenerateSingle();
-    }
   };
 
   // ==================== Render ====================
@@ -424,6 +453,56 @@ export function RightPanel() {
               {/* Input Area */}
               <div className="p-4 bg-black/10 border-t border-white/5 space-y-3">
 
+                {/* Style & Concept Settings (3-Step Granularity) */}
+                <div className="flex flex-col gap-2 mb-2">
+
+                  {/* 1. Visual Style Selector */}
+                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
+                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Style</span>
+                    <select
+                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
+                      value={selectedStyleId}
+                      onChange={(e) => setSelectedStyleId(e.target.value)}
+                    >
+                      {visualStyles.map(s => (
+                        <option key={s.id} value={s.id} className="bg-[#1a1a1a] text-white py-1">{s.name}</option>
+                      ))}
+                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
+                    </select>
+                  </div>
+
+                  {/* 2. Theme Selector */}
+                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
+                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Theme</span>
+                    <select
+                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
+                      value={selectedThemeId}
+                      onChange={(e) => setSelectedThemeId(e.target.value)}
+                    >
+                      {themes.map(t => (
+                        <option key={t.id} value={t.id} className="bg-[#1a1a1a] text-white py-1">{t.name}</option>
+                      ))}
+                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
+                    </select>
+                  </div>
+
+                  {/* 3. Mood Selector */}
+                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
+                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Mood</span>
+                    <select
+                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
+                      value={selectedMoodId}
+                      onChange={(e) => setSelectedMoodId(e.target.value)}
+                    >
+                      {moods.map(m => (
+                        <option key={m.id} value={m.id} className="bg-[#1a1a1a] text-white py-1">{m.name}</option>
+                      ))}
+                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
+                    </select>
+                  </div>
+
+                </div>
+
                 {/* Controls Row */}
                 <div className="flex items-center gap-2">
                   {/* Type Selector */}
@@ -442,7 +521,7 @@ export function RightPanel() {
 
                   {/* Feather Slider */}
                   <div className="flex-1 flex items-center gap-2 bg-white/5 px-2 py-1 border border-white/5">
-                    <span className="text-[10px] text-white/40 uppercase">Feather</span>
+                    <span className="text-[10px] text-white/40 uppercase">Feather / Tol</span>
                     <input
                       type="range" min="0" max="100" value={featherAmount}
                       onChange={e => setFeatherAmount(Number(e.target.value))}
@@ -459,12 +538,7 @@ export function RightPanel() {
                     <textarea
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleGenerateSingle();
-                        }
-                      }}
+                      onKeyDown={handleKeyDown}
                       placeholder="Describe asset..."
                       rows={3}
                       className="w-full bg-[#0a0a0a] border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors resize-none font-mono"
@@ -474,29 +548,26 @@ export function RightPanel() {
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={handleGenerateSingle}
-                      disabled={isLoading || !aiPrompt.trim()}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest text-[10px] border border-blue-400/20 shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:translate-y-0.5"
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] border border-white/10 relative overflow-hidden group"
                     >
-                      <span>Generate</span>
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        <span>✨ Generate Asset</span>
+                      </span>
+                      <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform" />
                     </button>
 
                     <div className="flex gap-2">
                       <button
                         onClick={handleRefine}
-                        disabled={isLoading || !aiPrompt.trim()}
-                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest text-[10px] border border-purple-400/20 shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:translate-y-0.5"
-                        title="Refine current canvas with AI"
+                        className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-[10px] uppercase tracking-widest transition-colors border border-white/5"
                       >
-                        <span>Refine</span>
+                        Refine Selected
                       </button>
-
                       <button
                         onClick={triggerBackgroundRemoval}
-                        disabled={isLoading}
-                        className="flex-1 py-3 bg-teal-600 hover:bg-teal-500 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest text-[10px] border border-teal-400/20 shadow-lg shadow-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:translate-y-0.5"
-                        title="Auto-remove solid background (Green/White)"
+                        className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400/50 hover:text-red-400 text-[10px] uppercase tracking-widest transition-colors border border-red-500/10 hover:border-red-500/30"
                       >
-                        <span>Remove BG</span>
+                        Remove BG
                       </button>
                     </div>
                   </div>
@@ -505,86 +576,100 @@ export function RightPanel() {
             </div>
           )}
 
-          {/* --- Animation Tab --- */}
+          {/* --- Animation Studio --- */}
           {activeTab === 'animate' && (
             <div className="p-4 space-y-4 overflow-y-auto">
-              <button
-                onClick={handleOpenRigger}
-                className="w-full py-4 bg-gradient-to-r from-violet-900/50 to-indigo-900/50 border border-indigo-500/30 hover:border-indigo-500/70 flex items-center justify-center gap-2 text-sm font-medium text-white transition-all"
-              >
-                <span>🦴</span> Auto Rigger
-              </button>
-
               <div>
-                <h4 className="text-[10px] uppercase text-white/40 tracking-widest mb-2 font-bold">Presets</h4>
+                <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">Simple Animation</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {SIMPLE_PRESETS.map(preset => (
+                  {SIMPLE_PRESETS.map((p) => (
                     <button
-                      key={preset.id}
-                      onClick={() => handleGenerateSimpleAnimation(preset.id)}
-                      className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 p-3 flex flex-col items-center gap-2 transition-all"
+                      key={p.id}
+                      onClick={() => handleGenerateSimpleAnimation(p.id)}
+                      className="flex flex-col items-center justify-center p-3 bg-white/5 border border-white/10 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all group"
                     >
-                      <span className="text-2xl pt-1 grayscale hover:grayscale-0 transition-all">{preset.emoji}</span>
-                      <span className="text-[10px] text-white/70 uppercase tracking-wide">{preset.nameKo}</span>
+                      <span className="text-xl mb-1 group-hover:scale-110 transition-transform">{p.emoji}</span>
+                      <span className="text-[10px] text-white/60 group-hover:text-white uppercase">{p.nameKo}</span>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Auto Rigger Button */}
+              <div className="pt-4 border-t border-white/10">
+                <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">Advanced</h3>
+                <button
+                  onClick={handleOpenRigger}
+                  className="w-full py-3 bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-white/10 hover:border-purple-500/50 text-white/80 hover:text-white transition-all flex items-center justify-center gap-2 group"
+                >
+                  <span className="text-lg">🦴</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Auto Rigger</span>
+                </button>
+              </div>
+
             </div>
           )}
 
-          {/* --- Export Tab --- */}
+          {/* --- Export --- */}
           {activeTab === 'export' && (
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Filename</label>
-                <input
-                  value={exportName}
-                  onChange={(e) => setExportName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 px-3 py-2 text-xs text-white focus:border-blue-500/50 outline-none transition-colors font-mono"
-                />
-              </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">Export Settings</h3>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-white/40 uppercase">File Name</label>
+                    <input
+                      type="text"
+                      value={exportName}
+                      onChange={(e) => setExportName(e.target.value)}
+                      className="w-full bg-black/20 border border-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500/50 font-mono"
+                    />
+                  </div>
 
-              <div className="p-4 bg-white/5 space-y-2 border border-white/5">
-                <div className="flex justify-between text-xs text-white/60 font-mono">
-                  <span>Resolution</span>
-                  <span className="text-white">{pixelSize} x {pixelSize}</span>
-                </div>
-                <div className="flex justify-between text-xs text-white/60 font-mono">
-                  <span>Frames</span>
-                  <span className="text-white">{frames.length}</span>
-                </div>
-                <div className="flex justify-between text-xs text-white/60 font-mono">
-                  <span>Duration</span>
-                  <span className="text-white">{(frames.length / fps).toFixed(1)}s</span>
+                  <button
+                    onClick={() => downloadWebP(exportName)}
+                    className="w-full py-3 bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/30 hover:border-green-500/50 transition-all text-xs font-bold uppercase tracking-widest mt-4"
+                  >
+                    Download Current Frame (.webp)
+                  </button>
+
+                  {frames.length > 1 && (
+                    <button
+                      onClick={() => exportAsSpriteSheet({ layout: 'horizontal', format: 'webp' })}
+                      disabled={isLoading}
+                      className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 transition-all text-xs font-bold uppercase tracking-widest mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      📦 Export Sprite Sheet ({frames.length} frames)
+                    </button>
+                  )}
                 </div>
               </div>
-
-              <button
-                onClick={() => downloadWebP(exportName)}
-                disabled={frames.length === 0}
-                className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 hover:border-white/30 text-xs font-bold uppercase tracking-widest text-white disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-              >
-                📥 Export WebP
-              </button>
             </div>
           )}
 
         </div>
       </div>
 
-
-      {/* 🦴 Rigger Modal (Overlay) */}
+      {/* 🦴 Rigger Modal (Floating) */}
       {showRigger && (
-        <PartRigger
-          sourceCanvas={getWorkCanvas()}
-          pixelSize={pixelSize}
-          onFramesGenerated={handleRigFramesGenerated}
-          onClose={() => setShowRigger(false)}
-        />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-10">
+          <div className="bg-[#1a1a1a] border border-white/10 shadow-2xl rounded-lg w-full max-w-5xl h-full max-h-[90vh] overflow-hidden flex flex-col relative">
+            <button
+              onClick={() => setShowRigger(false)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white z-10"
+            >
+              ✕
+            </button>
+            <PartRigger
+              sourceCanvas={getWorkCanvas()}
+              pixelSize={pixelSize}
+              onClose={() => setShowRigger(false)}
+              onFramesGenerated={handleRigFramesGenerated}
+            />
+          </div>
+        </div>
       )}
+
     </div>
   );
 }
-
-export default RightPanel;

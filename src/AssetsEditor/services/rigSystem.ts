@@ -15,6 +15,10 @@ export interface RigPart {
   color: string;
   pixels: Set<string>;  // "x,y" 형태
   zIndex: number;
+  // Bone Animation Fields
+  pivotX?: number;  // 회전 중심 X (파츠 바운딩박스 내 상대 비율, 0~1)
+  pivotY?: number;  // 회전 중심 Y (파츠 바운딩박스 내 상대 비율, 0~1)
+  parentId?: string | null;  // 부모 파츠 ID (null = 루트)
 }
 
 export interface PartPose {
@@ -22,6 +26,7 @@ export interface PartPose {
   y: number;      // 이동 Y
   rotation: number; // 회전 (도)
   scale: number;    // 크기
+  flipX?: boolean;  // 좌우 반전
 }
 
 export interface FrameData {
@@ -33,24 +38,25 @@ export const DEFAULT_POSE: PartPose = {
   y: 0,
   rotation: 0,
   scale: 1,
+  flipX: false,
 };
 
 export const PART_COLORS = [
-  '#ef4444', '#22c55e', '#3b82f6', '#eab308', 
+  '#ef4444', '#22c55e', '#3b82f6', '#eab308',
   '#a855f7', '#f97316', '#06b6d4', '#ec4899',
 ];
 
 // 부위의 중심점 계산 (픽셀 중심 기준)
 export function getPartCenter(pixels: Set<string>): Point {
   if (pixels.size === 0) return { x: 0, y: 0 };
-  
+
   let sumX = 0, sumY = 0;
   pixels.forEach(key => {
     const [x, y] = key.split(',').map(Number);
     sumX += x + 0.5;  // 픽셀 중심
     sumY += y + 0.5;
   });
-  
+
   return {
     x: sumX / pixels.size,
     y: sumY / pixels.size,
@@ -60,7 +66,7 @@ export function getPartCenter(pixels: Set<string>): Point {
 // 부위의 바운딩 박스 계산
 export function getPartBounds(pixels: Set<string>): { minX: number; minY: number; maxX: number; maxY: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  
+
   pixels.forEach(key => {
     const [x, y] = key.split(',').map(Number);
     minX = Math.min(minX, x);
@@ -68,11 +74,11 @@ export function getPartBounds(pixels: Set<string>): { minX: number; minY: number
     maxX = Math.max(maxX, x);
     maxY = Math.max(maxY, y);
   });
-  
+
   return { minX, minY, maxX, maxY };
 }
 
-// 프레임 렌더링
+// 프레임 렌더링 (본 애니메이션 지원)
 export function renderAnimationFrame(
   sourceCanvas: HTMLCanvasElement,
   parts: RigPart[],
@@ -84,14 +90,14 @@ export function renderAnimationFrame(
   result.height = canvasSize;
   const ctx = result.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  
+
   const sourceCtx = sourceCanvas.getContext('2d')!;
   const sourceData = sourceCtx.getImageData(0, 0, canvasSize, canvasSize);
-  
+
   // 부위에 속하지 않은 픽셀 먼저 그리기
   const allPartPixels = new Set<string>();
   parts.forEach(p => p.pixels.forEach(px => allPartPixels.add(px)));
-  
+
   const baseImageData = ctx.createImageData(canvasSize, canvasSize);
   for (let y = 0; y < canvasSize; y++) {
     for (let x = 0; x < canvasSize; x++) {
@@ -106,16 +112,16 @@ export function renderAnimationFrame(
     }
   }
   ctx.putImageData(baseImageData, 0, 0);
-  
+
   // zIndex 순으로 부위 렌더링
   const sortedParts = [...parts].sort((a, b) => a.zIndex - b.zIndex);
-  
+
   sortedParts.forEach(part => {
     if (part.pixels.size === 0) return;
-    
+
     const pose = poses[part.id] || DEFAULT_POSE;
     const bounds = getPartBounds(part.pixels);
-    
+
     // 부위 이미지 추출
     const partWidth = bounds.maxX - bounds.minX + 1;
     const partHeight = bounds.maxY - bounds.minY + 1;
@@ -123,7 +129,7 @@ export function renderAnimationFrame(
     partCanvas.width = partWidth;
     partCanvas.height = partHeight;
     const partCtx = partCanvas.getContext('2d')!;
-    
+
     const partImageData = partCtx.createImageData(partWidth, partHeight);
     part.pixels.forEach(key => {
       const [px, py] = key.split(',').map(Number);
@@ -135,40 +141,41 @@ export function renderAnimationFrame(
       partImageData.data[dstIdx + 3] = sourceData.data[srcIdx + 3];
     });
     partCtx.putImageData(partImageData, 0, 0);
-    
-    // 부위의 로컬 중심점 (partCanvas 내에서)
-    const centerInPart = {
-      x: partWidth / 2,
-      y: partHeight / 2,
+
+    // 피벗 위치 계산
+    const pivotRatioX = part.pivotX ?? 0.5;
+    const pivotRatioY = part.pivotY ?? 0.5;
+    const pivotInPart = {
+      x: partWidth * pivotRatioX,
+      y: partHeight * pivotRatioY,
     };
-    
-    // 원래 위치의 중심점 (캔버스 전체에서)
-    const originalCenter = {
-      x: bounds.minX + centerInPart.x,
-      y: bounds.minY + centerInPart.y,
+    const pivotInCanvas = {
+      x: bounds.minX + partWidth * pivotRatioX,
+      y: bounds.minY + partHeight * pivotRatioY,
     };
-    
+
     // 변환 적용하여 그리기
     ctx.save();
-    
-    // 1. 원래 중심 + 이동값 위치로 이동
-    ctx.translate(originalCenter.x + pose.x, originalCenter.y + pose.y);
-    
+
+    // 1. 피벗 위치 + 이동 오프셋으로 이동
+    ctx.translate(pivotInCanvas.x + pose.x, pivotInCanvas.y + pose.y);
+
     // 2. 회전
     ctx.rotate((pose.rotation * Math.PI) / 180);
-    
-    // 3. 스케일
-    ctx.scale(pose.scale, pose.scale);
-    
-    // 4. 이미지를 중심 기준으로 그리기
+
+    // 3. 스케일 (flipX 포함)
+    const scaleX = (pose.flipX ? -1 : 1) * pose.scale;
+    ctx.scale(scaleX, pose.scale);
+
+    // 4. 이미지를 피벗 기준으로 그리기
     ctx.drawImage(
       partCanvas,
-      -centerInPart.x,
-      -centerInPart.y
+      -pivotInPart.x,
+      -pivotInPart.y
     );
-    
+
     ctx.restore();
   });
-  
+
   return ctx.getImageData(0, 0, canvasSize, canvasSize);
 }

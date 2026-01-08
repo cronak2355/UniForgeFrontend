@@ -1,13 +1,42 @@
 // src/AssetsEditor/components/AssetsEditorPage.tsx
 
 import { AssetsEditorProvider, useAssetsEditor } from '../context/AssetsEditorContext';
+import { useJob } from '../context/JobContext';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Canvas } from './Canvas';
-import { LeftToolbar } from './LeftToolbar';
+import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 
 // Floating Glass Layout
 function EditorContent() {
-  const { pixelSize } = useAssetsEditor();
+  const { pixelSize, loadAIImage } = useAssetsEditor();
+  const { registerApplyHandler, unregisterApplyHandler } = useJob();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // 글로벌 Apply Handler 등록 (이 컴포넌트가 마운트 되어 있을 때만 동작)
+  useEffect(() => {
+    registerApplyHandler((blob) => loadAIImage(blob));
+
+    // Check for pending job result from navigation
+    if (location.state && location.state.pendingJobResult) {
+      // We have a pending result to apply
+      const result = location.state.pendingJobResult;
+      console.log("Applying pending job result from navigation");
+
+      // Clear state so it doesn't re-apply on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+
+      // Apply
+      // Result is Blob (from JobContext addJob return) or whatever
+      // In RightPanel generateSingle/Refine, we return 'blob'.
+      // So 'result' is Blob.
+      loadAIImage(result);
+    }
+
+    return () => unregisterApplyHandler();
+  }, [loadAIImage, registerApplyHandler, unregisterApplyHandler, location, navigate]);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-grid-pattern relative flex items-center justify-center">
@@ -43,9 +72,9 @@ function EditorContent() {
         <Canvas />
       </div>
 
-      {/* Floating Left Toolbar */}
-      <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40 h-[80vh]">
-        <LeftToolbar />
+      {/* Floating Left Panel */}
+      <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40">
+        <LeftPanel />
       </div>
 
       {/* Floating Right Panel */}
@@ -64,3 +93,5 @@ export default function AssetsEditorPage() {
     </AssetsEditorProvider>
   );
 }
+
+

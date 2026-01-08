@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 * {
   box-sizing: border-box;
 }
@@ -67,8 +69,7 @@ body {
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  /* Prevent page scroll */
+  /* overflow: hidden 제거 - 스크롤 활성화 */
 }
 
 /* Glass Utility Class */
@@ -102,6 +103,7 @@ body {
 
 /* Range Input Styling */
 input[type="range"] {
+  appearance: none;
   -webkit-appearance: none;
   background: transparent;
   cursor: pointer;

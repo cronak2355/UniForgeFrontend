@@ -1,16 +1,20 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import { GameCore } from "./core/GameCore";
+import { GameUIOverlay } from "./ui/GameUIOverlay"; // Import UI Overlay
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
+import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
-import { registerRuntimeEntity, clearRuntimeEntities } from "./core/modules/ModuleFactory";
+import { defaultGameConfig } from "./core/GameConfig";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
 
+
+
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
-    // 타일 에셋을 하나의 캔버스로 합쳐 타일셋 텍스처를 만든다.
+    // ????먯뀑???섎굹??罹붾쾭?ㅻ줈 ?⑹퀜 ??쇱뀑 ?띿뒪泥섎? 留뚮뱺??
     const tileAssets = assets.filter((asset) => asset.tag === "Tile");
     if (tileAssets.length === 0) return null;
 
@@ -53,7 +57,7 @@ function applyAllTiles(renderer: PhaserRenderer, tiles: TilePlacement[]) {
 }
 
 function indexTiles(tiles: TilePlacement[]) {
-    // 타일 배열을 좌표 키 맵으로 변환해 diff 계산에 사용한다.
+    // ???諛곗뿴??醫뚰몴 ??留듭쑝濡?蹂?섑빐 diff 怨꾩궛???ъ슜?쒕떎.
     const map = new Map<string, TilePlacement>();
     for (const t of tiles) {
         map.set(`${t.x},${t.y}`, t);
@@ -61,95 +65,167 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function RunTimeCanvas() {
+type RunTimeCanvasProps = {
+    onRuntimeEntitySync?: (entity: EditorEntity) => void;
+};
+
+export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
+    const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
+    const selectedEntityIdRef = useRef<string | null>(null);
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
-    const { assets, tiles, entities } = useEditorCoreSnapshot();
+    const { core, assets, tiles, entities, selectedEntity } = useEditorCoreSnapshot();
 
     useEffect(() => {
-        // 런타임 렌더러/게임코어 초기화 (최초 1회)
+        selectedEntityIdRef.current = selectedEntity?.id ?? null;
+    }, [selectedEntity]);
+
+    useEffect(() => {
+        // ?고????뚮뜑??寃뚯엫肄붿뼱 珥덇린??(理쒖큹 1??
         if (!ref.current) return;
         if (rendererRef.current) return;
 
-        const renderer = new PhaserRenderer();
+        const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
-        const gameCore = new GameCore(renderer);
-        gameCoreRef.current = gameCore;
+        const gameRuntime = new GameCore(renderer);
+        setGameCore(gameRuntime); // State update triggers UI render
+        renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
+        renderer.gameConfig = defaultGameConfig; // ??븷 湲곕컲 ?ㅼ젙 ?곌껐
+        gameRuntime.setGameConfig(defaultGameConfig); // GameCore?먮룄 ?ㅼ젙 ?곌껐
         renderer.useEditorCoreRuntimePhysics = false;
+        renderer.getRuntimeContext = () => gameRuntime.getRuntimeContext();
         renderer.onInputState = (input) => {
-            gameCore.setInputState(input);
+            gameRuntime.setInputState(input);
         };
 
         let active = true;
 
         (async () => {
-            // 렌더러 초기화 후 텍스처/타일셋/초기 상태를 로드한다.
+            // ?뚮뜑??珥덇린?????띿뒪泥???쇱뀑/珥덇린 ?곹깭瑜?濡쒕뱶?쒕떎.
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
 
+            // Enable runtime mode for Rules and TICK events
+            renderer.isRuntimeMode = true;
+
             for (const asset of assets) {
-                // 타일은 타일셋 캔버스로 처리하므로 비타일만 로드한다.
+                // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
                 if (asset.tag === "Tile") continue;
                 await renderer.loadTexture(asset.name, asset.url);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(assets);
             if (tilesetCanvas) {
-                // 타일셋 텍스처 등록 후 타일맵 생성
+                // ??쇱뀑 ?띿뒪泥??깅줉 ????쇰㏊ ?앹꽦
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
             }
 
             for (const t of tiles) {
-                // 저장된 타일 배치 복원
+                // ??λ맂 ???諛곗튂 蹂듭썝
                 renderer.setTile(t.x, t.y, t.tile);
             }
 
-            for (const e of entities) {
-                // 저장된 엔티티 생성
-                gameCore.createEntity(e.id, e.type, e.x, e.y, {
+            // 理쒖떊 ?몄쭛 ?곗씠?곕줈 ?뷀떚???앹꽦 (Inspector 蹂寃?諛섏쁺)
+            const freshEntities = Array.from(core.getEntities().values());
+
+            for (const e of freshEntities) {
+                // ??λ맂 ?뷀떚???앹꽦
+                gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
-                    texture: e.name,
+                    texture: e.texture ?? e.name,
                     variables: e.variables,
                     components: e.components,
-                    modules: e.modules,
-                    rules: e.rules,
+                    role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜
                 });
 
-                // 런타임 모듈 인스턴스 등록 (ECA 액션에서 메서드 호출 가능하게)
-                registerRuntimeEntity(e.id, e.type, e.name, e.x, e.y, 0, e.modules);
+                // ?고???紐⑤뱢 ?몄뒪?댁뒪 ?깅줉? GameCore.createEntity ?대??먯꽌 泥섎━??(?숆린??蹂댁옣)
             }
 
-            // 런타임 업데이트 루프 연결 (컴포넌트 처리)
-            renderer.onUpdateCallback = (time, delta) => {
-                gameCore.update(time, delta);
-            };
+            if (renderer.isRuntimeMode) {
+                console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
+            }
 
-            rendererReadyRef.current = true;
+            // ?고????낅뜲?댄듃 猷⑦봽 ?곌껐 (而댄룷?뚰듃 泥섎━)
+            renderer.onUpdateCallback = (time, delta) => {
+                gameRuntime.update(time, delta);
+
+                const selectedId = selectedEntityIdRef.current;
+                if (!selectedId) return;
+
+                const runtimeEntity = gameRuntime.getEntity(selectedId);
+                const editorEntity = core.getEntities().get(selectedId);
+                if (!runtimeEntity || !editorEntity) return;
+
+                const nextVars = runtimeEntity.variables.map((v) => ({ ...v }));
+                const nextEntity = {
+                    ...editorEntity,
+                    x: runtimeEntity.x ?? editorEntity.x,
+                    y: runtimeEntity.y ?? editorEntity.y,
+                    z: runtimeEntity.z ?? editorEntity.z,
+                    rotationX: runtimeEntity.rotationX ?? editorEntity.rotationX,
+                    rotationY: runtimeEntity.rotationY ?? editorEntity.rotationY,
+                    rotationZ: runtimeEntity.rotationZ ?? editorEntity.rotationZ,
+                    rotation:
+                        typeof runtimeEntity.rotationZ === "number"
+                            ? runtimeEntity.rotationZ
+                            : editorEntity.rotation,
+                    scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
+                    scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
+                    scaleZ: runtimeEntity.scaleZ ?? editorEntity.scaleZ,
+                    variables: nextVars,
+                };
+                const sameVars =
+                    editorEntity.variables.length === nextVars.length &&
+                    editorEntity.variables.every((v, idx) => {
+                        const next = nextVars[idx];
+                        return (
+                            v.id === next.id &&
+                            v.name === next.name &&
+                            v.type === next.type &&
+                            v.value === next.value
+                        );
+                    });
+                const sameTransform =
+                    editorEntity.x === nextEntity.x &&
+                    editorEntity.y === nextEntity.y &&
+                    editorEntity.z === nextEntity.z &&
+                    editorEntity.rotationX === nextEntity.rotationX &&
+                    editorEntity.rotationY === nextEntity.rotationY &&
+                    editorEntity.rotationZ === nextEntity.rotationZ &&
+                    editorEntity.scaleX === nextEntity.scaleX &&
+                    editorEntity.scaleY === nextEntity.scaleY &&
+                    editorEntity.scaleZ === nextEntity.scaleZ;
+                if (sameVars && sameTransform) return;
+
+                if (onRuntimeEntitySync) {
+                    onRuntimeEntitySync(nextEntity as any);
+                } else {
+                    core.addEntity(nextEntity as any);
+                }
+            };
         })();
 
         return () => {
-            // 언마운트 시 리소스 정리
+            // ?몃쭏?댄듃 ??由ъ냼???뺣━
             active = false;
-            clearRuntimeEntities(); // 런타임 엔티티 정리
-            gameCoreRef.current?.destroy();
+            gameRuntime.destroy && gameRuntime.destroy();
             renderer.onUpdateCallback = undefined;
             renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
-            gameCoreRef.current = null;
-            rendererReadyRef.current = false;
+            setGameCore(null);
         };
     }, []);
 
     useEffect(() => {
-        // 타일 변경사항만 반영 (추가/삭제 diff)
+        // ???蹂寃쎌궗??쭔 諛섏쁺 (異붽?/??젣 diff)
         const renderer = rendererRef.current;
         if (!renderer) return;
 
@@ -242,17 +318,26 @@ export function RunTimeCanvas() {
                 </span>
             </div>
 
-            {/* Phaser Canvas Container */}
-            <div
-                ref={ref}
-                style={{
-                    flex: 1,
-                    background: colors.bgPrimary,
-                    border: `2px solid ${colors.borderColor}`,
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                }}
-            />
+            {/* Phaser Canvas Container + UI Overlay */}
+            <div style={{
+                flex: 1,
+                position: 'relative', // Relative for overlay
+                background: colors.bgPrimary,
+                border: `2px solid ${colors.borderColor}`,
+                borderRadius: '6px',
+                overflow: 'hidden',
+            }}>
+                {/* Phaser Container */}
+                <div ref={ref} style={{ width: '100%', height: '100%' }} />
+
+                {/* Game UI Overlay */}
+                <GameUIOverlay gameCore={gameCore} />
+            </div>
         </div>
     );
 }
+
+
+
+
+

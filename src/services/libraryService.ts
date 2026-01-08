@@ -26,7 +26,7 @@ class LibraryService {
         return response.json();
     }
 
-    async getLibrary(userId: string): Promise<LibraryItem[]> {
+    async getLibrary(userId: number): Promise<LibraryItem[]> {
         return this.request<LibraryItem[]>(`/library?userId=${userId}`);
     }
 }

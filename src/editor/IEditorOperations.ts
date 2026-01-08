@@ -7,7 +7,7 @@
  * Unity 호환: 동일한 인터페이스로 Unity Editor에서도 구현 가능
  */
 
-import type { Vector3 } from "./core/modules/IModule";
+import type { Vector3 } from "./renderer/IRenderer";
 
 /**
  * 선택된 오브젝트 정보

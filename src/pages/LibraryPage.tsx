@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchMyGames } from '../services/gameService';
 
 // --- Types ---
 interface LibraryItem {
@@ -21,11 +22,12 @@ interface Collection {
 }
 
 // --- Mock Data ---
-const MOCK_GAMES: LibraryItem[] = [
-    { id: 'g1', title: 'Neon Racer 2077', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80', author: 'CyberDev', purchaseDate: '2023.12.01' },
-    { id: 'g2', title: 'Cosmic Voyager', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', author: 'StarStudio', purchaseDate: '2023.12.15' },
-    { id: 'g3', title: 'Medieval Legends', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?w=400&q=80', author: 'KnightSoft', purchaseDate: '2024.01.10' },
-];
+// const MOCK_GAMES: LibraryItem[] = [
+//     { id: 'g1', title: 'Neon Racer 2077', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80', author: 'CyberDev', purchaseDate: '2023.12.01' },
+//     { id: 'g2', title: 'Cosmic Voyager', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', author: 'StarStudio', purchaseDate: '2023.12.15' },
+//     { id: 'g3', title: 'Medieval Legends', type: 'game', thumbnail: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?w=400&q=80', author: 'KnightSoft', purchaseDate: '2024.01.10' },
+// ];
+
 
 const MOCK_ASSETS: LibraryItem[] = [
     { id: 'a1', title: 'Sci-Fi Weapon Pack', type: 'asset', assetType: '3D Model', thumbnail: 'https://images.unsplash.com/photo-1612404730960-5c71579fca2c?w=400&q=80', author: 'AssetMaster', purchaseDate: '2023.11.20', collectionId: 'c1' },
@@ -53,18 +55,40 @@ export default function LibraryPage() {
     const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [myGames, setMyGames] = useState<LibraryItem[]>([]);
+    const [loadingGames, setLoadingGames] = useState(true);
 
     // --- Effects ---
     // Close dropdown on outside click
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
+        if (!user) return;
+
+        const loadMyGames = async () => {
+            try {
+                const games = await fetchMyGames(user.id);
+
+                const mapped: LibraryItem[] = games.map(game => ({
+                    id: String(game.gameId),
+                    title: game.title,
+                    type: 'game',
+                    thumbnail:
+                        game.thumbnailUrl ??
+                        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
+                    author: `User ${game.authorId}`,
+                    purchaseDate: game.createdAt.split('T')[0],
+                }));
+
+                setMyGames(mapped);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingGames(false);
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+
+        loadMyGames();
+    }, [user]);
+
 
     // --- Actions ---
     const handleLogout = () => {
@@ -86,7 +110,11 @@ export default function LibraryPage() {
 
     // --- Filter Logic ---
     const getFilteredItems = () => {
-        let items = activeTab === 'games' ? MOCK_GAMES : MOCK_ASSETS;
+        let items =
+            activeTab === 'games'
+                ? myGames
+                : MOCK_ASSETS;
+
 
         if (searchTerm) {
             items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -354,21 +382,47 @@ export default function LibraryPage() {
                     <main style={{ flex: 1, padding: '2rem' }}>
                         {/* Toolbar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ position: 'relative', width: '400px' }}>
-                                <i className="fa-solid fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}></i>
-                                <input
-                                    type="text"
-                                    placeholder={activeTab === 'games' ? "내 게임 검색..." : "내 에셋 검색..."}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{
-                                        width: '100%', backgroundColor: '#111', border: '1px solid #333',
-                                        borderRadius: '8px', padding: '10px 10px 10px 40px', color: 'white',
-                                        fontSize: '0.95rem', outline: 'none'
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                                    onBlur={(e) => e.target.style.borderColor = '#333'}
-                                />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ position: 'relative', width: '400px' }}>
+                                    <i className="fa-solid fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}></i>
+                                    <input
+                                        type="text"
+                                        placeholder={activeTab === 'games' ? "내 게임 검색..." : "내 에셋 검색..."}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        style={{
+                                            width: '100%', backgroundColor: '#111', border: '1px solid #333',
+                                            borderRadius: '8px', padding: '10px 10px 10px 40px', color: 'white',
+                                            fontSize: '0.95rem', outline: 'none'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                                        onBlur={(e) => e.target.style.borderColor = '#333'}
+                                    />
+                                </div>
+                                {activeTab === 'assets' && (
+                                    <button
+                                        onClick={() => navigate('/create-asset')}
+                                        style={{
+                                            padding: '10px 20px',
+                                            backgroundColor: '#2563eb',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'white',
+                                            fontSize: '0.95rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            fontWeight: 500,
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                                    >
+                                        <i className="fa-solid fa-plus"></i>
+                                        새 에셋 업로드
+                                    </button>
+                                )}
                             </div>
                             <div style={{ color: '#666' }}>
                                 총 {filteredItems.length}개 항목

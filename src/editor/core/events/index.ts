@@ -1,7 +1,6 @@
 export * from "./EventBus";
 export * from "./ActionRegistry";
 export * from "./ConditionRegistry";
-export * from "./RuleEngine";
 export * from "./SignalStore";
 
 // 사이드 이펙트(등록)를 위해 import

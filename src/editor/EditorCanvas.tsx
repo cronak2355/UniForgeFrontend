@@ -1,10 +1,12 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useEditorCoreSnapshot, useEditorCore } from "../contexts/EditorCoreContext";
 import { GameCore } from "./core/GameCore";
+import { GameUIOverlay } from "./ui/GameUIOverlay";
 import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
+import { buildLogicItems, splitLogicItems } from "./types/Logic";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -89,6 +91,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
     const addEntityRef = useRef(addEntity);
 
+    const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
 
     useEffect(() => {
@@ -107,45 +110,77 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         addEntityRef.current = addEntity;
     }, [addEntity]);
 
+    // Refs to avoid stale closures in initialization
+    const assetsRef = useRef(assets);
+    const tilesRef = useRef(tiles);
+    const entitiesRef = useRef(entities);
+
+    useEffect(() => {
+        assetsRef.current = assets;
+    }, [assets]);
+
+    useEffect(() => {
+        tilesRef.current = tiles;
+    }, [tiles]);
+
+    useEffect(() => {
+        entitiesRef.current = entities;
+    }, [entities]);
+
     useEffect(() => {
         if (!ref.current) return;
         if (rendererRef.current) return;
 
-        const renderer = new PhaserRenderer();
+        // Clear any leftover canvas from previous Phaser game
+        while (ref.current.firstChild) {
+            ref.current.removeChild(ref.current.firstChild);
+        }
+
+        const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;
+        setGameCore(gameCore);
+
+        // NOTE: Game loop is NOT enabled in Editor mode.
+        // Logic only runs in RunTimeCanvas (Build & Run).
 
         let active = true;
 
         (async () => {
+            // Small delay to ensure previous game is fully destroyed
+            await new Promise(resolve => setTimeout(resolve, 50));
+            if (!active) return;
+
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
 
-            for (const asset of assets) {
+            // Use refs to get current values (not stale closure)
+            const currentAssets = assetsRef.current;
+            const currentTiles = tilesRef.current;
+            const currentEntities = entitiesRef.current;
+
+            for (const asset of currentAssets) {
                 if (asset.tag === "Tile") continue;
                 await renderer.loadTexture(asset.name, asset.url);
-                loadedTexturesRef.current.add(asset.name);
             }
 
-            const tilesetCanvas = await buildTilesetCanvas(assets);
+            const tilesetCanvas = await buildTilesetCanvas(currentAssets);
             if (tilesetCanvas) {
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
-                tilemapReadyRef.current = true;
-                tileSignatureRef.current = buildTileSignature(assets);
             }
 
-            for (const t of tiles) {
+            for (const t of currentTiles) {
                 renderer.setTile(t.x, t.y, t.tile);
             }
 
-            for (const e of entities) {
+            for (const e of currentEntities) {
                 gameCore.createEntity(e.id, e.type, e.x, e.y, {
                     name: e.name,
-                    texture: e.name,
+                    texture: e.texture ?? e.name,
                     variables: e.variables,
-                    components: [],
+                    components: splitLogicItems(e.logic),
                 });
             }
 
@@ -263,22 +298,25 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     id,
                     type: activeDragged.tag as "sprite" | "container" | "nineSlice",
                     name: activeDragged.name,
+                    texture: activeDragged.name,
                     x: worldX,
                     y: worldY,
                     z: 0,
-                    components: [],
-                    modules: [],
-                    variables: [],
-                    events: [],
-                    rules: [],
                     rotation: 0,
                     scaleX: 1,
                     scaleY: 1,
+                    role: "neutral",
+                    logic: buildLogicItems({
+                        components: [],
+                    }),
+                    components: [],
+                    variables: [],
+                    events: [],
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
                     name: created.name,
-                    texture: created.name,
+                    texture: created.texture ?? created.name,
                     variables: created.variables,
                     components: [],
                 });
@@ -376,12 +414,22 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             if (!gameCore.hasEntity(ent.id)) {
                 gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
                     name: ent.name,
-                    texture: ent.name,
+                    texture: ent.texture ?? ent.name,
                     variables: ent.variables,
-                    components: [],
+                    components: splitLogicItems(ent.logic),
                 });
             } else {
-                gameCore.moveEntity(ent.id, ent.x, ent.y);
+                gameCore.setEntityTransform(ent.id, {
+                    x: ent.x,
+                    y: ent.y,
+                    z: ent.z ?? 0,
+                    rotationX: ent.rotationX ?? 0,
+                    rotationY: ent.rotationY ?? 0,
+                    rotationZ: ent.rotationZ ?? ent.rotation ?? 0,
+                    scaleX: ent.scaleX ?? 1,
+                    scaleY: ent.scaleY ?? 1,
+                });
+                gameCore.updateEntityLogic(ent.id, splitLogicItems(ent.logic), ent.variables);
             }
         }
     }, [entities]);
@@ -467,7 +515,14 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             {/* Phaser Canvas Container */}
             <div
-                ref={ref}
+                style={{
+                    flex: 1,
+                    position: 'relative',
+                    background: colors.bgPrimary,
+                    border: `2px solid ${colors.borderColor}`,
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                }}
                 onDragOver={(e) => {
                     e.preventDefault();
                 }}
@@ -480,17 +535,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     if (!allowedTypes.has(file.type)) return;
                     onExternalImageDrop?.(file);
                 }}
-                style={{
-                    flex: 1,
-                    background: colors.bgPrimary,
-                    border: `2px solid ${colors.borderColor}`,
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                }}
                 onMouseLeave={() => {
                     rendererRef.current?.clearPreviewTile();
                 }}
-            />
+            >
+                <div ref={ref} style={{ width: '100%', height: '100%' }} />
+                <GameUIOverlay gameCore={gameCore} showHud={false} />
+            </div>
         </div>
     );
 }

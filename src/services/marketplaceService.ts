@@ -43,17 +43,24 @@ class MarketplaceService {
         return this.request<Asset[]>('/assets');
     }
 
-    async getAssetById(assetId: string): Promise<Asset> {
+    async getAssetById(assetId: number): Promise<Asset> {
         return this.request<Asset>(`/assets/${assetId}`);
     }
 
-    async getAssetVersions(assetId: string): Promise<AssetVersion[]> {
+    async getAssetVersions(assetId: number): Promise<AssetVersion[]> {
         return this.request<AssetVersion[]>(`/assets/${assetId}/versions`);
     }
 
     async getGames(): Promise<Game[]> {
         return this.request<Game[]>('/marketplace/games');
     }
+}
+
+export interface AssetVersion {
+    id: number;
+    s3RootPath: string;
+    status: string;
+    createdAt: string;
 }
 
 export const marketplaceService = new MarketplaceService();
