@@ -33,11 +33,17 @@ export class EditorState implements IGameState {
     private listeners: (() => void)[] = [];
 
     constructor() {
+        const assetUrl = (fileName: string) => {
+            const base =
+                (import.meta as { env?: { BASE_URL?: string } })?.env?.BASE_URL || "/";
+            const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+            return new URL(`${normalizedBase}${fileName}`, window.location.origin).toString();
+        };
         this.assets = [
-            { id: "1", name: "test1", tag: "Tile", url: "/TestAsset.webp", idx: -1 },
-            { id: "2", name: "test2", tag: "Tile", url: "/TestAsset2.webp", idx: -1 },
-            { id: "3", name: "test3", tag: "Tile", url: "/TestAsset3.webp", idx: -1 },
-            { id: "4", name: "dragon", tag: "Character", url: "/RedDragon.webp", idx: -1 },
+            { id: "1", name: "test1", tag: "Tile", url: assetUrl("TestAsset.webp"), idx: -1 },
+            { id: "2", name: "test2", tag: "Tile", url: assetUrl("TestAsset2.webp"), idx: -1 },
+            { id: "3", name: "test3", tag: "Tile", url: assetUrl("TestAsset3.webp"), idx: -1 },
+            { id: "4", name: "dragon", tag: "Character", url: assetUrl("RedDragon.webp"), idx: -1 },
         ];
     }
 
