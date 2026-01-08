@@ -158,8 +158,8 @@ function EditorLayoutInner() {
                 if (json.assets && Array.isArray(json.assets)) {
                     json.assets = json.assets.filter((asset: any) => {
                         // Filter out S3 URLs (they contain broken references)
-                        // Keep only local assets (relative paths like "TestAsset.webp")
-                        const isS3Url = asset.url && asset.url.includes('s3.amazonaws.com');
+                        // Use 'amazonaws.com' to catch regional S3 URLs like s3.ap-northeast-2.amazonaws.com
+                        const isS3Url = asset.url && asset.url.includes('amazonaws.com');
                         if (isS3Url) {
                             console.warn(`[EditorLayout] Filtered out S3 asset: ${asset.name} (${asset.url})`);
                             return false;
