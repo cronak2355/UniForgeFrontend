@@ -36,8 +36,16 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
         asset.idx = idx;
 
         const img = new Image();
-        img.src = asset.url;
-        await img.decode();
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = (e) => {
+                console.error(`Failed to load image for tile: ${asset.name}`, e);
+                // Resolve anyway to prevent crashing the whole tileset generation
+                // Just draw a placeholder or skip
+                resolve(null);
+            };
+            img.src = asset.url;
+        });
 
         const x = (idx % TILESET_COLS) * TILE_SIZE;
         const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
