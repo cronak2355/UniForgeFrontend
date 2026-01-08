@@ -349,8 +349,7 @@ function EditorLayoutInner() {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const assetUrl = e.target?.result as string;
-                const nextId =
-                    core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+                const nextId = assetId;
 
                 core.addAsset({
                     id: nextId,
@@ -444,11 +443,8 @@ function EditorLayoutInner() {
 
             const assetUrl = `https://uniforge.kr/api/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
 
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
-
             core.addAsset({
-                id: nextId,
+                id: assetId,
                 tag: dropAssetTag,
                 name,
                 url: assetUrl,
