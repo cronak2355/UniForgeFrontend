@@ -1,6 +1,6 @@
 import type { SceneJSON } from "../core/SceneSerializer";
 
-const API_BASE = "/api";
+const API_BASE = "https://uniforge.kr/api";
 
 export async function saveScenes(
     gameId: number,
@@ -24,6 +24,7 @@ export async function saveScenes(
     );
 
     if (!res.ok) {
-        throw new Error("Failed to save scene");
+        const errorText = await res.text();
+        throw new Error(`Failed to save scene: ${errorText}`);
     }
 }

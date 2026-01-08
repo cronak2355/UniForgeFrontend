@@ -700,13 +700,14 @@ export class GameCore {
                 }
 
                 let value: number | string | boolean | null = null;
-                if (s.signalValue?.kind === "EntityVariable") {
-                    const variable = entity.variables?.find(v => v.name === s.signalValue.name);
+                const signalVal = s.signalValue;
+                if (signalVal?.kind === "EntityVariable" && "name" in signalVal) {
+                    const variable = entity.variables?.find(v => v.name === signalVal.name);
                     if (variable) {
                         value = variable.value as number | string | boolean;
                     }
-                } else if (s.signalValue?.kind === "Literal") {
-                    value = s.signalValue.value ?? null;
+                } else if (signalVal?.kind === "Literal") {
+                    value = signalVal.value ?? null;
                 }
 
                 this.runtimeContext.setSignal(targetId, signalKey, value);

@@ -16,6 +16,10 @@ import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
+import { buildLogicItems, splitLogicItems } from "./types/Logic";
+
+// Entry Style Color Palette
+// const colors = { ... } replaced by import
 
 export default function EditorLayout() {
     return (
@@ -113,6 +117,25 @@ function TopBarMenu({
             )}
         </div>
     );
+function cloneEntityForPaste(source: EditorEntity): EditorEntity {
+    const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
+    const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
+    const components = baseComponents.map((comp) => ({
+        ...comp,
+        id: crypto.randomUUID(),
+    }));
+
+    return {
+        ...cloned,
+        id: crypto.randomUUID(),
+        name: `${source.name} Copy`,
+        x: (source.x ?? 0) + 20,
+        y: (source.y ?? 0) + 20,
+        variables: (cloned.variables ?? []).map((v) => ({ ...v, id: crypto.randomUUID() })),
+        events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
+        components,
+        logic: buildLogicItems({ components }),
+    };
 }
 
 function EditorLayoutInner() {
@@ -173,6 +196,7 @@ function EditorLayoutInner() {
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
     const [uploadError, setUploadError] = useState("");
     const entityBackupRef = useRef<Map<string, EditorEntity> | null>(null);
+    const copyEntityRef = useRef<EditorEntity | null>(null);
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
@@ -199,10 +223,41 @@ function EditorLayoutInner() {
     // Key handler for deletion
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Delete" || e.key === "Backspace") {
-                const active = document.activeElement;
-                if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+            const active = document.activeElement;
+            if (
+                active instanceof HTMLInputElement ||
+                active instanceof HTMLTextAreaElement ||
+                active instanceof HTMLSelectElement ||
+                (active instanceof HTMLElement && active.isContentEditable)
+            ) {
+                return;
+            }
 
+            const isMeta = e.ctrlKey || e.metaKey;
+
+            if (isMeta && (e.key === "c" || e.key === "C")) {
+                if (mode !== "dev") return;
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    copyEntityRef.current = JSON.parse(JSON.stringify(selected)) as EditorEntity;
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "v" || e.key === "V")) {
+                if (mode !== "dev") return;
+                const source = copyEntityRef.current;
+                if (!source) return;
+                const clone = cloneEntityForPaste(source);
+                core.addEntity(clone as any);
+                core.setSelectedEntity(clone as any);
+                setLocalSelectedEntity(clone);
+                e.preventDefault();
+                return;
+            }
+
+            if (e.key === "Delete" || e.key === "Backspace") {
                 const selected = core.getSelectedEntity();
                 if (selected) {
                     core.removeEntity(selected.id);
@@ -211,7 +266,7 @@ function EditorLayoutInner() {
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [core]);
+    }, [core, mode]);
 
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
 
@@ -286,7 +341,7 @@ function EditorLayoutInner() {
                 fileName: dropModalFile.name,
                 contentType,
             });
-            const requestUrl = `https://uniforge.kr/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+            const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
             const token = localStorage.getItem("token");
             const presignRes = await fetch(requestUrl, {
                 headers: {
