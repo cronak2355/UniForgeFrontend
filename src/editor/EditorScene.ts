@@ -130,6 +130,9 @@ export class EditorScene extends Phaser.Scene {
     console.log("[EditorScene] create() called - starting initialization");
     this.ready = true;
 
+    const cam = this.cameras.main;
+    cam.roundPixels = true;
+
     this.gridGfx = this.add.graphics();
     this.gridGfx.setDepth(9999);
 
