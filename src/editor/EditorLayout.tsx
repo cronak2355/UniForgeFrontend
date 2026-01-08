@@ -347,25 +347,6 @@ function EditorLayoutInner() {
             return;
         }
 
-        if (import.meta.env.DEV) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const assetUrl = e.target?.result as string;
-                const nextId = assetId;
-
-                core.addAsset({
-                    id: nextId,
-                    tag: dropAssetTag,
-                    name,
-                    url: assetUrl,
-                    idx: -1,
-                });
-
-                resetDropModal();
-            };
-            reader.readAsDataURL(dropModalFile);
-            return;
-        }
         setIsUploadingAsset(true);
         setUploadError("");
 
