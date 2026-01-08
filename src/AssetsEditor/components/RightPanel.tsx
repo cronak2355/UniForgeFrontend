@@ -40,6 +40,7 @@ export function RightPanel() {
     featherAmount,
     setFeatherAmount,
     triggerBackgroundRemoval,
+    exportAsSpriteSheet,
   } = useAssetsEditor();
 
   // ==================== State ====================
@@ -629,8 +630,18 @@ export function RightPanel() {
                     onClick={() => downloadWebP(exportName)}
                     className="w-full py-3 bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/30 hover:border-green-500/50 transition-all text-xs font-bold uppercase tracking-widest mt-4"
                   >
-                    Download Sprite Sheet (.webp)
+                    Download Current Frame (.webp)
                   </button>
+
+                  {frames.length > 1 && (
+                    <button
+                      onClick={() => exportAsSpriteSheet({ layout: 'horizontal', format: 'webp' })}
+                      disabled={isLoading}
+                      className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 transition-all text-xs font-bold uppercase tracking-widest mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      📦 Export Sprite Sheet ({frames.length} frames)
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

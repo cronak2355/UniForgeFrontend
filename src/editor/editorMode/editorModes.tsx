@@ -25,30 +25,29 @@ export class CameraMode extends EditorMode {
     private prevY: number = 0;
     onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer): void {
         this.isDrag = true;
-        const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
-        const x = worldPoint.x;
-        const y = worldPoint.y;
-        this.prevX = x
-        this.prevY = y
+        this.prevX = p.x;
+        this.prevY = p.y;
     }
     onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer): void {
         if (!this.isDrag)
             return;
 
-        const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
-        const x = (worldPoint.x - this.prevX) / 2;
-        const y = (worldPoint.y - this.prevY) / 2;
+        const cam = scene.cameras.main;
+        const moveX = Number.isFinite(p.movementX) ? p.movementX : (p.x - this.prevX);
+        const moveY = Number.isFinite(p.movementY) ? p.movementY : (p.y - this.prevY);
+        const x = moveX / (cam.zoom);
+        const y = moveY / (cam.zoom);
 
-        scene.cameras.main.scrollX -= x;
-        scene.cameras.main.scrollY -= y;
+        cam.scrollX -= x;
+        cam.scrollY -= y;
 
-        this.prevX = worldPoint.x;
-        this.prevY = worldPoint.y;
-        //?쇰떒 鍮꾩썙??   
+        this.prevX = p.x;
+        this.prevY = p.y;
+        //???? ??????   
     }
     onPointerUp(_scene: Phaser.Scene, _p: Phaser.Input.Pointer): void {
         this.isDrag = false;
-        //?쇰떒 鍮꾩썙???섏쨷??湲곕뒫 ?ｌ뼱???섎㈃ ?ｊ린
+        //???? ??????????????????????????? ????
         this.prevX = 0;
         this.prevY = 0;
     }
@@ -76,8 +75,8 @@ export class TilingMode extends EditorMode {
         const es = scene as EditorScene;
         const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
 
-        this.prevX = worldPoint.x
-        this.prevY = worldPoint.y
+        this.prevX = p.x;
+        this.prevY = p.y;
         if (!tilePos) return;
         const logicalX = tilePos.x - es.tileOffsetX;
         const logicalY = tilePos.y - es.tileOffsetY;
@@ -102,17 +101,21 @@ export class TilingMode extends EditorMode {
             case "": {
                 if (!this.isDrag)
                     return;
-                const x = (worldPoint.x - this.prevX) / 2;
-                const y = (worldPoint.y - this.prevY) / 2;
+                const cam = scene.cameras.main;
+                const moveX = Number.isFinite(p.movementX) ? p.movementX : (p.x - this.prevX);
+                const moveY = Number.isFinite(p.movementY) ? p.movementY : (p.y - this.prevY);
+                const x = moveX / (cam.zoom);
+                const y = moveY / (cam.zoom);
 
-                scene.cameras.main.scrollX -= x;
-                scene.cameras.main.scrollY -= y;
+                cam.scrollX -= x;
+                cam.scrollY -= y;
 
-                this.prevX = worldPoint.x;
-                this.prevY = worldPoint.y;
+                this.prevX = p.x;
+                this.prevY = p.y;
                 break;
             }
             case "drawing":
+
                 if (!tilePos)
                     return;
                 if (this.isDrag) {

@@ -9,7 +9,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+  S3_BUCKET: "uni-static-assets-73743824-hyo"
   CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
 
 jobs:
