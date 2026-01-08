@@ -350,12 +350,15 @@ function EditorLayoutInner() {
         setUploadError("");
 
         try {
+            const imageType = "preview";
             const params = new URLSearchParams({
-                fileName: dropModalFile.name,
                 contentType,
+                imageType,
             });
+
             const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
             const token = localStorage.getItem("token");
+
             const presignRes = await fetch(requestUrl, {
                 headers: {
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -368,9 +371,11 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-            if (!uploadUrl) {
-                throw new Error("Upload URL missing in response.");
+            const uploadUrl = presignData.uploadUrl;
+            const s3Key = presignData.s3Key;
+
+            if (!uploadUrl || !s3Key) {
+                throw new Error("Upload URL or S3 key missing in response.");
             }
 
             const uploadRes = await fetch(uploadUrl, {
@@ -383,26 +388,6 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const extractS3Key = (url: string) => {
-                try {
-                    const parsed = new URL(url);
-                    const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
-                    return key || null;
-                } catch {
-                    return null;
-                }
-            };
-
-            const s3Key =
-                presignData.s3Key ||
-                presignData.key ||
-                extractS3Key(uploadUrl);
-
-            if (!s3Key) {
-                throw new Error("S3 key missing in response.");
-            }
-
-            const imageType = "preview";
             const imageRes = await fetch("https://uniforge.kr/api/images", {
                 method: "POST",
                 headers: {
@@ -423,7 +408,7 @@ function EditorLayoutInner() {
                 throw new Error(message || "Failed to register image.");
             }
 
-            const assetUrl = `https://uniforge.kr/api/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+            const assetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
 
             core.addAsset({
                 id: assetId,
