@@ -372,7 +372,15 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const assetUrl = presignData.readUrl || uploadUrl.split("?")[0];
+            const downloadUrl =
+                presignData.downloadUrl ||
+                presignData.getUrl ||
+                presignData.readUrl ||
+                presignData.fileUrl ||
+                presignData.assetUrl ||
+                presignData.url;
+
+            const assetUrl = downloadUrl;
 
             const nextId =
                 core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
