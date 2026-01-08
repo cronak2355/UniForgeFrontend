@@ -116,16 +116,16 @@ export function AssetPanel({ changeSelectedAsset, assets, changeDraggedAsset }: 
               onPointerCancel={() => changeDraggedAsset(null)}
               onClick={() => handleTileClick(asset)}
             >
-            <img
-              src={asset.url}
-              alt={asset.name}
-              draggable={false}
-              style={{
-                maxWidth: '44px',
-                maxHeight: '44px',
-                objectFit: 'contain',
-              }}
-            />
+              <img
+                src={asset.url}
+                alt={asset.name}
+                draggable={false}
+                style={{
+                  maxWidth: '44px',
+                  maxHeight: '44px',
+                  objectFit: 'contain',
+                }}
+              />
             </div>
           ))}
       </div>
