@@ -36,6 +36,7 @@ function AppRoutes() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
+            <Route path="/editor/:gameId" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <BuildPage /> : <Navigate to="/auth" replace />} />
             <Route path="/assets-editor" element={isAuthenticated ? <AssetsEditorPage /> : <Navigate to="/auth" replace />} />
 

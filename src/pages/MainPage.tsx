@@ -1,5 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { createGame } from '../services/gameService';
 import { useState, useRef, useEffect } from 'react';
 
 const TITLE_WORDS = ['나만의', '간단히', '혼자서', '가볍게'];
@@ -304,7 +305,17 @@ const MainPage = () => {
                         </div>
                     </div>
 
-                    <div className="action-card primary" onClick={() => { navigate('/editor') }}>
+                    <div className="action-card primary" onClick={async () => {
+                        try {
+                            // Ensure authorId is valid number (fallback to 1 for dev-user)
+                            const authorId = Number(user?.id) || 1;
+                            const newGame = await createGame(authorId, "Untitled Game", "New Project");
+                            navigate(`/editor/${newGame.gameId}`);
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to create a new game.");
+                        }
+                    }}>
                         <div className="action-card-icon">
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
                         </div>

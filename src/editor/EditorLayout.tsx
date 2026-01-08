@@ -10,7 +10,7 @@ import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
@@ -116,6 +116,7 @@ function TopBarMenu({
 }
 
 function EditorLayoutInner() {
+    const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
     // Auto-save / Load Logic
@@ -389,8 +390,12 @@ function EditorLayoutInner() {
                             <MenuItem label="Save Project" onClick={async () => {
                                 try {
                                     const sceneJson = SceneSerializer.serialize(core, "MyScene");
-                                    const gameId = 1; // 임시 값
-                                    await saveScenes(gameId, sceneJson);
+                                    const id = Number(gameId);
+                                    if (!id || isNaN(id)) {
+                                        alert("Invalid Game ID");
+                                        return;
+                                    }
+                                    await saveScenes(id, sceneJson);
                                     alert("Saved to server");
                                 } catch (e) {
                                     console.error(e);
