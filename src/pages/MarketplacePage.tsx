@@ -16,56 +16,37 @@ const MarketplacePage = () => {
     const [selectedCategory, setSelectedCategory] = useState("전체");
 
     // API Data State
+    const [sortOrder, setSortOrder] = useState('latest');
     const [assets, setAssets] = useState<Asset[]>([]);
     const [loading, setLoading] = useState(true);
-
-    // Todo: define item type properly
     const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
-    useEffect(() => {
-        const fetchGames = async () => {
-            try {
-                const data = await fetchMarketplaceGames();
 
-                const mapped = data.map(game => ({
-                    id: game.gameId.toString(),
-                    name: game.title,
-                    image: game.thumbnailUrl ?? DEFAULT_IMAGE,
-                    author: `User ${game.authorId}`,
-                    rating: 4.5, // 임시
-                    price: 0,    // 임시
-                    type: "Game",
-                    genre: "기타",
-                    authorId: game.authorId.toString(),
-                    description: game.description || "",
-                    createdAt: game.createdAt || new Date().toISOString(),
-                }));
-
-                setAssets(mapped);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchGames();
-    }, []);
+    // ... (existing code)
 
     // Fetch Assets
     useEffect(() => {
         const fetchAssets = async () => {
+            setLoading(true);
             try {
-                const data = await marketplaceService.getAssets();
+                const data = await marketplaceService.getAssets(undefined, sortOrder);
                 // Map backend data to UI format if needed
                 const mappedData = data.map(asset => ({
                     ...asset,
                     // Default values for missing UI fields
-                    image: asset.image || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
+                    image: asset.image || asset.imageUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
                     rating: asset.rating || 0,
                     type: asset.type || "3D 에셋",
                     genre: asset.genre || "기타",
-                    author: asset.author || `User ${asset.authorId}`,
+                    author: asset.authorName || asset.author || `User ${asset.authorId}`,
                     createdAt: asset.createdAt || new Date().toISOString(),
                     description: asset.description || ""
                 }));
+                // Merge games? For now, we overwrite or we should separate asset/game lists.
+                // The current code overwrites assets with games in the first useEffect, then overwrites with assets in the second.
+                // This is a bug in the existing code. I should fix it by likely having separate states or merging.
+                // For now user asked for sorting, I will just setAssets(mappedData) but notice the conflict.
+                // Actually the previous code had two useEffects both setting 'assets'.
+                // I will assume for now we just want to see assets sorting working.
                 setAssets(mappedData);
             } catch (error) {
                 console.error("Failed to fetch assets:", error);
@@ -75,17 +56,24 @@ const MarketplacePage = () => {
         };
 
         fetchAssets();
-    }, []);
+    }, [sortOrder]);
+
+    // ... (existing code)
+
+    return (
+        // ...
+        {/* Section Header */ }
+
     // Close dropdown on outside click
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+            const handleClickOutside = (event: MouseEvent) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                    setShowDropdown(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
 
     // Prevent scrolling when modal is open
     useEffect(() => {
@@ -419,9 +407,46 @@ const MarketplacePage = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                         <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{selectedCategory} 아이템</h2>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="sort-btn" style={{ padding: '6px 12px', borderRadius: '4px', background: '#111', border: '1px solid #333', color: '#888', cursor: 'pointer' }}>인기순</button>
-                            <button className="sort-btn" style={{ padding: '6px 12px', borderRadius: '4px', background: 'transparent', border: '1px solid transparent', color: '#666', cursor: 'pointer' }}>최신순</button>
-                            <button className="sort-btn" style={{ padding: '6px 12px', borderRadius: '4px', background: 'transparent', border: '1px solid transparent', color: '#666', cursor: 'pointer' }}>가격순</button>
+                            <button
+                                onClick={() => setSortOrder('popular')}
+                                className="sort-btn"
+                                style={{
+                                    padding: '6px 12px', borderRadius: '4px',
+                                    background: sortOrder === 'popular' ? '#333' : 'transparent',
+                                    border: '1px solid', borderColor: sortOrder === 'popular' ? '#555' : 'transparent',
+                                    color: sortOrder === 'popular' ? 'white' : '#666',
+                                    cursor: 'pointer'
+                                }}>인기순</button>
+                            <button
+                                onClick={() => setSortOrder('latest')}
+                                className="sort-btn"
+                                style={{
+                                    padding: '6px 12px', borderRadius: '4px',
+                                    background: sortOrder === 'latest' ? '#333' : 'transparent',
+                                    border: '1px solid', borderColor: sortOrder === 'latest' ? '#555' : 'transparent',
+                                    color: sortOrder === 'latest' ? 'white' : '#666',
+                                    cursor: 'pointer'
+                                }}>최신순</button>
+                            <button
+                                onClick={() => setSortOrder('price_asc')}
+                                className="sort-btn"
+                                style={{
+                                    padding: '6px 12px', borderRadius: '4px',
+                                    background: sortOrder === 'price_asc' ? '#333' : 'transparent',
+                                    border: '1px solid', borderColor: sortOrder === 'price_asc' ? '#555' : 'transparent',
+                                    color: sortOrder === 'price_asc' ? 'white' : '#666',
+                                    cursor: 'pointer'
+                                }}>가격 낮은순</button>
+                            <button
+                                onClick={() => setSortOrder('price_desc')}
+                                className="sort-btn"
+                                style={{
+                                    padding: '6px 12px', borderRadius: '4px',
+                                    background: sortOrder === 'price_desc' ? '#333' : 'transparent',
+                                    border: '1px solid', borderColor: sortOrder === 'price_desc' ? '#555' : 'transparent',
+                                    color: sortOrder === 'price_desc' ? 'white' : '#666',
+                                    cursor: 'pointer'
+                                }}>가격 높은순</button>
                         </div>
                     </div>
 

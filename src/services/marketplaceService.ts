@@ -39,8 +39,11 @@ class MarketplaceService {
         return response.json();
     }
 
-    async getAssets(): Promise<Asset[]> {
-        return this.request<Asset[]>('/assets');
+    async getAssets(authorId?: string, sort: string = 'latest'): Promise<Asset[]> {
+        const params = new URLSearchParams();
+        if (authorId) params.append('authorId', authorId);
+        if (sort) params.append('sort', sort);
+        return this.request<Asset[]>(`/assets?${params.toString()}`);
     }
 
     async getAssetById(assetId: number): Promise<Asset> {
