@@ -390,7 +390,7 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+            const uploadUrl = presignData.uploadUrl;
             if (!uploadUrl) {
                 throw new Error("Upload URL missing in response.");
             }
@@ -405,11 +405,15 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const assetUrl =
+            const downloadUrl =
+                presignData.downloadUrl ||
+                presignData.getUrl ||
+                presignData.readUrl ||
                 presignData.fileUrl ||
                 presignData.assetUrl ||
-                presignData.url ||
-                uploadUrl.split("?")[0];
+                presignData.url;
+
+            const assetUrl = downloadUrl;
 
             const nextId =
                 core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
