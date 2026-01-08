@@ -34,10 +34,11 @@ export class EditorState implements IGameState {
 
     constructor() {
         this.assets = [
-            { id: 0, name: "test1", tag: "Tile", url: "TestAsset.webp", idx: -1 },
-            { id: 1, name: "test2", tag: "Tile", url: "TestAsset2.webp", idx: -1 },
-            { id: 2, name: "test3", tag: "Tile", url: "TestAsset3.webp", idx: -1 },
-            { id: 3, name: "dragon", tag: "Character", url: "RedDragon.webp", idx: -1 },
+            { id: "0", name: "test1", tag: "Tile", url: "/TestAsset.webp", idx: -1 },
+            { id: "1", name: "test2", tag: "Tile", url: "/TestAsset2.webp", idx: -1 },
+            { id: "2", name: "test3", tag: "Tile", url: "/TestAsset3.webp", idx: -1 },
+            { id: "3", name: "dragon", tag: "Character", url: "/RedDragon.webp", idx: -1 },
+            { id: "4", name: "green_tree", tag: "Character", url: "/GreenTree.webp", idx: -1 },
         ];
     }
 
