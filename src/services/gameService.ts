@@ -25,3 +25,29 @@ export async function fetchPublicGames(): Promise<GameSummary[]> {
     }
     return res.json();
 }
+
+export async function createGame(authorId: number, title: string, description: string): Promise<GameSummary> {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    // Backend expects RequestParams, not JSON body for this endpoint
+    const params = new URLSearchParams();
+    params.append('authorId', authorId.toString());
+    params.append('title', title);
+    if (description) params.append('description', description);
+
+    const res = await fetch(`${API_BASE}/games?${params.toString()}`, {
+        method: "POST",
+        headers,
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to create game");
+    }
+    const data = await res.json();
+    // Map backend Entity (id) to Frontend Interface (gameId)
+    return { ...data, gameId: data.id };
+}
