@@ -15,6 +15,7 @@ import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
 import { createGame } from "../services/gameService";
+import { authService } from "../services/authService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
@@ -513,22 +514,19 @@ function EditorLayoutInner() {
                                     let id = Number(gameId);
 
                                     // If ID is invalid, prompt to create a new game
+                                    // If ID is invalid, prompt to create a new game
                                     if (!id || isNaN(id)) {
                                         const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
                                         if (!title) return; // User cancelled
 
-                                        // Try to get authorId from localStorage (auth context equivalent)
-                                        let authorId = 1; // Default fallback
-                                        try {
-                                            // The authService doesn't expose user strictly in localStorage as 'user' usually,
-                                            // but let's try to parse checking token or assume 1 for now if failing.
-                                            // Ideally we use useAuth() hook but we are not inside component body here directly/cleanly for hook usage if this wasn't inline.
-                                            // But MenuItem is a component.
-                                            // Let's just use a safe fallback for now or basic token decode if needed.
-                                            // For this codebase, let's default to 1 (dev user) as consistent with other parts.
-                                        } catch (e) { }
+                                        // Try to get real authorId from authService
+                                        const user = await authService.getCurrentUser();
+                                        if (!user) {
+                                            alert("로그인이 필요합니다. (Login required to create a game)");
+                                            return;
+                                        }
 
-                                        const newGame = await createGame(authorId, title, "Created from Editor");
+                                        const newGame = await createGame(user.id, title, "Created from Editor");
                                         id = newGame.gameId;
 
                                         // Silent navigation to correct URL
