@@ -6,18 +6,22 @@ export async function saveScenes(
     gameId: number,
     scene: SceneJSON
 ): Promise<void> {
+    const token = localStorage.getItem("token");
+
     const res = await fetch(
         `${API_BASE}/games/${gameId}/versions`,
         {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(scene),
         }
     );
 
     if (!res.ok) {
-        throw new Error("Failed to save scene");
+        const errorText = await res.text();
+        throw new Error(`Failed to save scene: ${errorText}`);
     }
 }
