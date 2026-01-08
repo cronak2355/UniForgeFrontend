@@ -801,45 +801,46 @@ export class PhaserRenderer implements IRenderer {
         const canvas = this.game.canvas;
         if (!canvas) return;
 
-        const getWorldPos = (clientX: number, clientY: number): Vector3 | null => {
+        const getWorldPos = (clientX: number, clientY: number): { world: Vector3; inside: boolean } | null => {
             if (!canvas) return null;
 
             const rect = canvas.getBoundingClientRect();
             const inside = clientX >= rect.left && clientX <= rect.right &&
                 clientY >= rect.top && clientY <= rect.bottom;
 
-            if (!inside) return null;
-
             const screenX = (clientX - rect.left) * (canvas.width / rect.width);
             const screenY = (clientY - rect.top) * (canvas.height / rect.height);
 
-            return this.screenToWorld(screenX, screenY);
+            return { world: this.screenToWorld(screenX, screenY), inside };
         };
 
         const onPointerDown = (e: PointerEvent) => {
-            const world = getWorldPos(e.clientX, e.clientY);
-            if (world && this.onPointerDown) {
+            const result = getWorldPos(e.clientX, e.clientY);
+            if (result?.inside && this.onPointerDown) {
+                const { world } = result;
                 this.onPointerDown(world.x, world.y, world.z);
             }
         };
 
         const onPointerMove = (e: PointerEvent) => {
-            const world = getWorldPos(e.clientX, e.clientY);
-            if (world && this.onPointerMove) {
+            const result = getWorldPos(e.clientX, e.clientY);
+            if (result && this.onPointerMove) {
+                const { world } = result;
                 this.onPointerMove(world.x, world.y, world.z);
             }
         };
 
         const onPointerUp = (e: PointerEvent) => {
-            const world = getWorldPos(e.clientX, e.clientY);
-            if (world && this.onPointerUp) {
+            const result = getWorldPos(e.clientX, e.clientY);
+            if (result && this.onPointerUp) {
+                const { world } = result;
                 this.onPointerUp(world.x, world.y, world.z);
             }
         };
 
         const onWheel = (e: WheelEvent) => {
-            const world = getWorldPos(e.clientX, e.clientY);
-            if (world && this.onScroll) {
+            const result = getWorldPos(e.clientX, e.clientY);
+            if (result?.inside && this.onScroll) {
                 e.preventDefault();
                 this.onScroll(e.deltaY);
             }
