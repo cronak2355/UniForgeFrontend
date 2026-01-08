@@ -410,7 +410,7 @@ function EditorLayoutInner() {
             }
 
             const assetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-
+            console.log(`asset url : ${assetUrl}`)
             core.addAsset({
                 id: assetId,
                 tag: dropAssetTag,
