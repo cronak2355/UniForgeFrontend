@@ -2,6 +2,9 @@
 
 import type { Frame } from '../engine/FrameManager';
 
+// 브라우저 호환성을 위한 안전한 최대 캔버스 크기
+const MAX_CANVAS_SIZE = 8192;
+
 export type SpriteSheetLayout = 'horizontal' | 'vertical' | 'grid';
 export type ExportFormat = 'webp' | 'png';
 
@@ -27,6 +30,7 @@ export interface ExportResult {
     blob: Blob;
     metadata: SpriteSheetMetadata;
     filename: string;
+    warning?: string;  // 레이아웃 변경 경고
 }
 
 /**
@@ -43,8 +47,8 @@ export async function exportSpriteSheet(
         throw new Error('No frames to export');
     }
 
-    // 레이아웃에 따른 캔버스 크기 계산
-    const { columns, rows, width, height } = calculateLayout(frames.length, resolution, layout);
+    // 레이아웃에 따른 캔버스 크기 계산 (자동 폴백 포함)
+    const { columns, rows, width, height, layoutOverridden } = calculateLayout(frames.length, resolution, layout);
 
     // 캔버스 생성
     const canvas = document.createElement('canvas');
@@ -106,20 +110,28 @@ export async function exportSpriteSheet(
         },
     };
 
-    return { blob, metadata, filename };
+    // 경고 메시지 생성
+    const warning = layoutOverridden
+        ? `이미지 크기가 너무 커서 Grid 레이아웃으로 자동 변환되었습니다. (${columns}x${rows})`
+        : undefined;
+
+    return { blob, metadata, filename, warning };
 }
 
 /**
  * 레이아웃에 따른 캔버스 크기 계산
+ * 최대 크기 초과 시 자동으로 grid 레이아웃으로 폴백
  */
 function calculateLayout(
     frameCount: number,
     resolution: number,
     layout: SpriteSheetLayout
-): { columns: number; rows: number; width: number; height: number } {
+): { columns: number; rows: number; width: number; height: number; layoutOverridden: boolean } {
     let columns: number;
     let rows: number;
+    let layoutOverridden = false;
 
+    // 먼저 요청된 레이아웃으로 계산
     switch (layout) {
         case 'horizontal':
             columns = frameCount;
@@ -131,17 +143,29 @@ function calculateLayout(
             break;
         case 'grid':
         default:
-            // 가로 세로 비율이 비슷하게
             columns = Math.ceil(Math.sqrt(frameCount));
             rows = Math.ceil(frameCount / columns);
             break;
     }
 
+    let width = columns * resolution;
+    let height = rows * resolution;
+
+    // 최대 크기 초과 시 grid로 자동 폴백
+    if ((width > MAX_CANVAS_SIZE || height > MAX_CANVAS_SIZE) && layout !== 'grid') {
+        columns = Math.ceil(Math.sqrt(frameCount));
+        rows = Math.ceil(frameCount / columns);
+        width = columns * resolution;
+        height = rows * resolution;
+        layoutOverridden = true;
+    }
+
     return {
         columns,
         rows,
-        width: columns * resolution,
-        height: rows * resolution,
+        width,
+        height,
+        layoutOverridden,
     };
 }
 
