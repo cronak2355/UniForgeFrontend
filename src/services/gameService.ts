@@ -11,7 +11,15 @@ export interface GameSummary {
 const API_BASE = "/api";
 
 export async function fetchMyGames(authorId: number | string): Promise<GameSummary[]> {
-    const res = await fetch(`${API_BASE}/games/my?authorId=${authorId}`);
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/games/my?authorId=${authorId}`, {
+        headers
+    });
     if (!res.ok) {
         throw new Error("Failed to fetch my games");
     }
