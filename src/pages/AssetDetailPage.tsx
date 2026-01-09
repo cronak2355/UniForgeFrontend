@@ -18,8 +18,8 @@ const AssetDetailPage = () => {
             if (!assetId) return;
             try {
                 const [assetData, versionsData] = await Promise.all([
-                    marketplaceService.getAssetById(Number(assetId)),
-                    marketplaceService.getAssetVersions(Number(assetId))
+                    marketplaceService.getAssetById(assetId),
+                    marketplaceService.getAssetVersions(assetId)
                 ]);
                 setAsset(assetData);
                 setVersions(versionsData);

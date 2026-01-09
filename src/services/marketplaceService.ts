@@ -64,11 +64,11 @@ class MarketplaceService {
         return this.request<Asset[]>(`/assets?${params.toString()}`);
     }
 
-    async getAssetById(assetId: number): Promise<Asset> {
+    async getAssetById(assetId: string): Promise<Asset> {
         return this.request<Asset>(`/assets/${assetId}`);
     }
 
-    async getAssetVersions(assetId: number): Promise<AssetVersion[]> {
+    async getAssetVersions(assetId: string): Promise<AssetVersion[]> {
         return this.request<AssetVersion[]>(`/assets/${assetId}/versions`);
     }
 
