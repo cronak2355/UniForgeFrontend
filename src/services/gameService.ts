@@ -1,10 +1,10 @@
 export interface GameSummary {
-    gameId: number;
+    gameId: string;
     title: string;
     description?: string;
     thumbnailUrl?: string | null;
     authorId: string;
-    latestVersionId?: number | null;
+    latestVersionId?: string | null;
     createdAt: string;
 }
 

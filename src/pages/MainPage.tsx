@@ -307,8 +307,8 @@ const MainPage = () => {
 
                     <div className="action-card primary" onClick={async () => {
                         try {
-                            // Ensure authorId is valid number (fallback to 1 for dev-user)
-                            const authorId = Number(user?.id) || 1;
+                            // Use user ID directly (string/UUID); fallback to "1" for dev/legacy
+                            const authorId = user?.id || "1";
                             const newGame = await createGame(authorId, "Untitled Game", "New Project");
                             navigate(`/editor/${newGame.gameId}`);
                         } catch (e) {
