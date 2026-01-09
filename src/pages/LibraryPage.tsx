@@ -86,7 +86,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                 // 2. Fetch Games
                 const games = await fetchMyGames(user.id);
                 const mappedGames: UILibraryItem[] = games.map(game => ({
-                    id: String(game.gameId),
+                    id: game.gameId,
                     title: game.title,
                     type: 'game',
                     thumbnail: game.thumbnailUrl ?? 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
@@ -105,7 +105,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
 
                 if (assetItems.length > 0) {
                     const assetDetails = await Promise.all(
-                        assetItems.map(item => marketplaceService.getAssetById(Number(item.refId)).catch(() => null))
+                        assetItems.map(item => marketplaceService.getAssetById(item.refId).catch(() => null))
                     );
 
                     const mappedAssets: UILibraryItem[] = assetDetails

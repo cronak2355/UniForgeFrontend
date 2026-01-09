@@ -10,7 +10,7 @@ export interface LibraryItem {
 }
 
 class LibraryService {
-    async getLibrary(userId: number): Promise<LibraryItem[]> {
+    async getLibrary(userId: string): Promise<LibraryItem[]> {
         return apiClient.request<LibraryItem[]>(`/library?userId=${userId}`);
     }
 

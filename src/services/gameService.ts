@@ -10,7 +10,7 @@ export interface GameSummary {
 
 const API_BASE = "/api";
 
-export async function fetchMyGames(authorId: number | string): Promise<GameSummary[]> {
+export async function fetchMyGames(authorId: string): Promise<GameSummary[]> {
     const token = localStorage.getItem('token');
     const headers: HeadersInit = {};
     if (token) {
