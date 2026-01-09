@@ -58,22 +58,17 @@ const MarketplacePage = () => {
         fetchAssets();
     }, [sortOrder]);
 
-    // ... (existing code)
-
-    return (
-        // ...
-        {/* Section Header */ }
 
     // Close dropdown on outside click
     useEffect(() => {
-            const handleClickOutside = (event: MouseEvent) => {
-                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                    setShowDropdown(false);
-                }
-            };
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }, []);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Prevent scrolling when modal is open
     useEffect(() => {

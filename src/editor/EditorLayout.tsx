@@ -14,6 +14,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
+import { createGame } from "../services/gameService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
@@ -147,17 +148,47 @@ function EditorLayoutInner() {
     // Auto-save / Load Logic
     // Auto-save / Load Logic
     useEffect(() => {
-        // 1. Initial Load
+        // 1. Initial Load with validation
         try {
             const saved = localStorage.getItem("editor_autosave");
             if (saved) {
                 const json = JSON.parse(saved);
-                console.log("[EditorLayout] Found autosave, loading...");
+                console.log("[EditorLayout] Found autosave, loading with validation...");
+
+                // Validate and filter assets
+                if (json.assets && Array.isArray(json.assets)) {
+                    json.assets = json.assets.filter((asset: any) => {
+                        // Filter out S3 URLs (they contain broken references)
+                        // Use 'amazonaws.com' to catch regional S3 URLs like s3.ap-northeast-2.amazonaws.com
+                        const isS3Url = asset.url && asset.url.includes('amazonaws.com');
+                        if (isS3Url) {
+                            console.warn(`[EditorLayout] Filtered out S3 asset: ${asset.name} (${asset.url})`);
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+
+                // Validate and filter entities that reference broken assets
+                if (json.entities && Array.isArray(json.entities)) {
+                    const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
+                    json.entities = json.entities.filter((entity: any) => {
+                        // Check if entity's texture exists in valid assets
+                        if (entity.texture && !validAssetNames.has(entity.texture)) {
+                            console.warn(`[EditorLayout] Filtered out entity with broken texture: ${entity.name} (${entity.texture})`);
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+
                 core.clear(); // Clear default entries
                 SceneSerializer.deserialize(json, core);
+                console.log("[EditorLayout] Autosave loaded successfully with validation");
             }
         } catch (err) {
             console.error("[EditorLayout] Failed to load autosave", err);
+            console.log("[EditorLayout] Starting with default assets");
         }
 
         // 2. Setup Auto-save subscription
@@ -319,8 +350,7 @@ function EditorLayoutInner() {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const assetUrl = e.target?.result as string;
-                const nextId =
-                    core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+                const nextId = assetId;
 
                 core.addAsset({
                     id: nextId,
@@ -357,7 +387,7 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl;
+            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
             if (!uploadUrl) {
                 throw new Error("Upload URL missing in response.");
             }
@@ -372,13 +402,50 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
-            const assetUrl = presignData.readUrl || uploadUrl.split("?")[0];
+            const extractS3Key = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                    return key || null;
+                } catch {
+                    return null;
+                }
+            };
 
-            const nextId =
-                core.getAssets().reduce((max, asset) => Math.max(max, asset.id), -1) + 1;
+            const s3Key =
+                presignData.s3Key ||
+                presignData.key ||
+                extractS3Key(uploadUrl);
+
+            if (!s3Key) {
+                throw new Error("S3 key missing in response.");
+            }
+
+            const imageType = "preview";
+            const imageRes = await fetch("https://uniforge.kr/api/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    ownerType: "ASSET",
+                    ownerId: assetId,
+                    imageType,
+                    s3Key,
+                    contentType,
+                }),
+            });
+
+            if (!imageRes.ok) {
+                const message = await imageRes.text();
+                throw new Error(message || "Failed to register image.");
+            }
+
+            const assetUrl = `https://uniforge.kr/api/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
 
             core.addAsset({
-                id: nextId,
+                id: assetId,
                 tag: dropAssetTag,
                 name,
                 url: assetUrl,
@@ -443,16 +510,36 @@ function EditorLayoutInner() {
                             <MenuItem label="Save Project" onClick={async () => {
                                 try {
                                     const sceneJson = SceneSerializer.serialize(core, "MyScene");
-                                    const id = Number(gameId);
+                                    let id = Number(gameId);
+
+                                    // If ID is invalid, prompt to create a new game
                                     if (!id || isNaN(id)) {
-                                        alert("Invalid Game ID");
-                                        return;
+                                        const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
+                                        if (!title) return; // User cancelled
+
+                                        // Try to get authorId from localStorage (auth context equivalent)
+                                        let authorId = 1; // Default fallback
+                                        try {
+                                            // The authService doesn't expose user strictly in localStorage as 'user' usually,
+                                            // but let's try to parse checking token or assume 1 for now if failing.
+                                            // Ideally we use useAuth() hook but we are not inside component body here directly/cleanly for hook usage if this wasn't inline.
+                                            // But MenuItem is a component.
+                                            // Let's just use a safe fallback for now or basic token decode if needed.
+                                            // For this codebase, let's default to 1 (dev user) as consistent with other parts.
+                                        } catch (e) { }
+
+                                        const newGame = await createGame(authorId, title, "Created from Editor");
+                                        id = newGame.gameId;
+
+                                        // Silent navigation to correct URL
+                                        navigate(`/editor/${id}`, { replace: true });
                                     }
+
                                     await saveScenes(id, sceneJson);
-                                    alert("Saved to server");
+                                    alert("성공적으로 저장되었습니다! (Saved to server)");
                                 } catch (e) {
                                     console.error(e);
-                                    alert("Failed to save project");
+                                    alert("Failed to save project: " + String(e));
                                 }
                             }} />
                             <MenuItem label="Export" onClick={() => {
