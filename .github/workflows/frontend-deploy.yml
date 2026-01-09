@@ -67,6 +67,11 @@ jobs:
 
       - name: S3 배포
         run: |
+          echo "=== Uploading to S3 ==="
+          echo "Bucket: ${{ env.S3_BUCKET }}"
+          echo "Files to upload:"
+          ls -la dist/
+          
           aws s3 sync dist/ s3://${{ env.S3_BUCKET }}/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
@@ -76,10 +81,30 @@ jobs:
           # index.html과 JSON 파일은 캐시 안 함
           aws s3 cp dist/index.html s3://${{ env.S3_BUCKET }}/index.html \
             --cache-control "no-cache, no-store, must-revalidate"
+          
+          # Verify upload
+          echo "=== Verifying S3 upload ==="
+          aws s3 ls s3://${{ env.S3_BUCKET }}/ | head -10
+          echo "index.html last modified:"
+          aws s3 ls s3://${{ env.S3_BUCKET }}/index.html
 
       - name: CloudFront 캐시 무효화
         run: |
-          aws cloudfront create-invalidation \
+          echo "=== Creating CloudFront Invalidation ==="
+          echo "Distribution ID: ${{ env.CLOUDFRONT_DISTRIBUTION_ID }}"
+          
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*"
-          echo "CloudFront cache invalidation initiated!"
+            --paths "/*" \
+            --query 'Invalidation.Id' --output text)
+          
+          echo "Invalidation ID: $INVALIDATION_ID"
+          
+          # Wait for invalidation to complete (with timeout)
+          echo "Waiting for invalidation to complete..."
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id $INVALIDATION_ID || echo "Warning: Invalidation wait timed out, but it will complete eventually"
+          
+          echo "=== CloudFront cache invalidation completed ==="
+
