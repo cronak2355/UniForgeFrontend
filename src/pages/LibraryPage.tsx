@@ -100,7 +100,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                 // We need to fetch details for each asset. Ideally backend should return "expanded" or we prefer "lazy loading".
                 // For MVP, we will fetch library items, then fetch asset details for items where type='ASSET'.
 
-                const libraryItems = await libraryService.getLibrary(user.id);
+                const libraryItems = await libraryService.getLibrary();
                 const assetItems = libraryItems.filter(item => item.itemType === 'ASSET');
 
                 if (assetItems.length > 0) {
