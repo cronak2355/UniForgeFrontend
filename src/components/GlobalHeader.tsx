@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const GlobalHeader = () => {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     const isDev = import.meta.env.DEV;
     const commitHash = __COMMIT_HASH__;
@@ -36,15 +38,55 @@ const GlobalHeader = () => {
                 </div>
             </div>
 
-            {/* Build Info - Visible only in Dev/Staging or if specifically requested */}
-            <div style={{
-                fontSize: '0.75rem',
-                color: '#444',
-                textAlign: 'right',
-                fontFamily: 'monospace'
-            }}>
-                <div>Build: {commitHash}</div>
-                <div>{buildTime}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                {/* Build Info */}
+                <div style={{
+                    fontSize: '0.75rem',
+                    color: '#444',
+                    textAlign: 'right',
+                    fontFamily: 'monospace'
+                }}>
+                    <div>Build: {commitHash}</div>
+                    <div>{buildTime}</div>
+                </div>
+
+                {/* Auth State */}
+                {user ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ color: '#fff', fontSize: '0.9rem' }}>{user.name}</span>
+                        <button
+                            onClick={logout}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                border: 'none',
+                                color: '#ccc',
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            로그아웃
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => navigate('/auth')}
+                        style={{
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        로그인
+                    </button>
+                )}
             </div>
         </header>
     );

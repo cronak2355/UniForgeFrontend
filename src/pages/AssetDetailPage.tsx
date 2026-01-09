@@ -42,7 +42,7 @@ const AssetDetailPage = () => {
         // 로그인 체크
         if (!authService.isAuthenticated()) {
             if (confirm('로그인이 필요한 서비스입니다. 로그인 페이지로 이동하시겠습니까?')) {
-                navigate('/login');
+                navigate('/auth');
             }
             return;
         }
@@ -55,7 +55,7 @@ const AssetDetailPage = () => {
             console.error(err);
             if (err.message && err.message.includes('401')) {
                 alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-                navigate('/login');
+                navigate('/auth');
             } else {
                 alert(err.message || '라이브러리 추가에 실패했습니다.');
             }
