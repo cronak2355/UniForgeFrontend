@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { marketplaceService, Asset, AssetVersion } from '../services/marketplaceService';
 import { libraryService } from '../services/libraryService';
+import GlobalHeader from '../components/GlobalHeader';
 
 const AssetDetailPage = () => {
     const { assetId } = useParams<{ assetId: string }>();
@@ -22,9 +23,13 @@ const AssetDetailPage = () => {
                 ]);
                 setAsset(assetData);
                 setVersions(versionsData);
-            } catch (err) {
-                setError('에셋을 불러오는데 실패했습니다.');
+            } catch (err: any) {
                 console.error(err);
+                if (err.message && err.message.includes('HTML 반환')) {
+                    setError('존재하지 않는 에셋입니다.');
+                } else {
+                    setError('에셋을 불러오는데 실패했습니다.');
+                }
             } finally {
                 setLoading(false);
             }
@@ -75,33 +80,7 @@ const AssetDetailPage = () => {
             color: 'white',
         }}>
             {/* Header */}
-            <header style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '1rem 2rem',
-                borderBottom: '1px solid #1a1a1a',
-                backgroundColor: 'rgba(10, 10, 10, 0.95)',
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <button
-                        onClick={() => navigate(-1)}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#888',
-                            cursor: 'pointer',
-                            fontSize: '1.2rem'
-                        }}
-                    >
-                        <i className="fa-solid fa-arrow-left"></i>
-                    </button>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => navigate('/main')}>
-                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
-                        <span className="gradient-text">Uniforge</span>
-                    </div>
-                </div>
-            </header>
+            <GlobalHeader />
 
             {/* Main Content */}
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
