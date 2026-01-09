@@ -25,4 +25,9 @@ export const colors = {
     warning: '#f59e0b',
     error: '#ef4444',
     info: '#3b82f6',
+
+    // UI Elements
+    bgInput: '#262626',
+    bgSelected: '#2563eb',
+    accent: '#3b82f6',
 };

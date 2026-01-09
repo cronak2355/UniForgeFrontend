@@ -28,10 +28,14 @@ export function useEditorCoreSnapshot() {
         assets: Array.from(core.getAssets()),
         entities: Array.from(core.getEntities().values()),
         tiles: Array.from(core.getTiles().values()),
+
+        // Scene Data
+        scenes: core.getScenes(),
+        currentSceneId: core.getCurrentSceneId(),
+
         selectedAsset: core.getSelectedAsset(),
         draggedAsset: core.getDraggedAsset(),
         selectedEntity: core.getSelectedEntity(),
         editorMode: core.getEditorMode(),
-
     };
 }
