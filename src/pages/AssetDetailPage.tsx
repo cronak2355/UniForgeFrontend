@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { marketplaceService, Asset, AssetVersion } from '../services/marketplaceService';
+import { libraryService } from '../services/libraryService';
 
 const AssetDetailPage = () => {
     const { assetId } = useParams<{ assetId: string }>();
@@ -9,14 +10,15 @@ const AssetDetailPage = () => {
     const [versions, setVersions] = useState<AssetVersion[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
             if (!assetId) return;
             try {
                 const [assetData, versionsData] = await Promise.all([
-                    marketplaceService.getAssetById(assetId),
-                    marketplaceService.getAssetVersions(assetId)
+                    marketplaceService.getAssetById(Number(assetId)),
+                    marketplaceService.getAssetVersions(Number(assetId))
                 ]);
                 setAsset(assetData);
                 setVersions(versionsData);
@@ -29,6 +31,20 @@ const AssetDetailPage = () => {
         };
         fetchData();
     }, [assetId]);
+
+    const handleAddToLibrary = async () => {
+        if (!assetId) return;
+        setIsAdding(true);
+        try {
+            await libraryService.addToLibrary(assetId, 'ASSET');
+            alert('라이브러리에 성공적으로 추가되었습니다!');
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || '라이브러리 추가에 실패했습니다.');
+        } finally {
+            setIsAdding(false);
+        }
+    };
 
     if (loading) {
         return (

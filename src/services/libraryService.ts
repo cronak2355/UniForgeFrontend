@@ -54,6 +54,13 @@ class LibraryService {
             body: JSON.stringify({ collectionId }),
         });
     }
+
+    async addToLibrary(refId: string, itemType: string = 'ASSET'): Promise<LibraryItem> {
+        return this.request<LibraryItem>('/library', {
+            method: 'POST',
+            body: JSON.stringify({ refId, itemType }),
+        });
+    }
 }
 
 export const libraryService = new LibraryService();
