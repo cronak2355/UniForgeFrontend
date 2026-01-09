@@ -1,10 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../services/apiClient';
 
 const GlobalHeader = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const [backendVersion, setBackendVersion] = useState<string | null>(null);
+
+    useEffect(() => {
+        apiClient.request<{ commitHash: string }>('/system/version')
+            .then(data => setBackendVersion(data.commitHash))
+            .catch(() => setBackendVersion('unknown'));
+    }, []);
 
     const isDev = import.meta.env.DEV;
     const commitHash = __COMMIT_HASH__;
@@ -46,8 +54,9 @@ const GlobalHeader = () => {
                     textAlign: 'right',
                     fontFamily: 'monospace'
                 }}>
-                    <div>Build: {commitHash}</div>
-                    <div>{buildTime}</div>
+                    <div>FE: {commitHash.substring(0, 7)}</div>
+                    <div>BE: {backendVersion ? backendVersion.substring(0, 7) : '...'}</div>
+                    <div style={{ fontSize: '0.6rem', color: '#666' }}>{buildTime}</div>
                 </div>
 
                 {/* Auth State */}
