@@ -1,7 +1,40 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { marketplaceService, Asset, AssetVersion } from '../services/marketplaceService';
+import { libraryService } from '../services/libraryService';
+import GlobalHeader from '../components/GlobalHeader';
 
 const AssetDetailPage = () => {
-    // ... existing hooks
+    const { assetId } = useParams<{ assetId: string }>();
+    const navigate = useNavigate();
+    const [asset, setAsset] = useState<Asset | null>(null);
+    const [versions, setVersions] = useState<AssetVersion[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
+
+    useEffect(() => {
+        const fetchAssetDetails = async () => {
+            if (!assetId) return;
+            try {
+                setLoading(true);
+                const [assetData, versionsData] = await Promise.all([
+                    marketplaceService.getAssetById(assetId),
+                    marketplaceService.getAssetVersions(assetId)
+                ]);
+                setAsset(assetData);
+                setVersions(versionsData);
+            } catch (err: any) {
+                console.error(err);
+                setError(err.message || '에셋을 불러오는 중 오류가 발생했습니다.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAssetDetails();
+    }, [assetId]);
 
     const handleAddToLibrary = async () => {
         if (!assetId) return;
