@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
-
-const API_BASE_URL = 'https://uniforge.kr/api'; // Hardcoded for production
+import { marketplaceService } from '../services/marketplaceService';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
@@ -21,11 +20,6 @@ const CreateAssetPage = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
-
-    const getAuthHeaders = (): Record<string, string> => {
-        const token = localStorage.getItem('token');
-        return token ? { 'Authorization': `Bearer ${token}` } : {};
-    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -96,101 +90,39 @@ const CreateAssetPage = () => {
         setUploadProgress(10);
 
         try {
-            const authHeaders = getAuthHeaders();
-
             // Step 1: Create asset in DB
             setUploadProgress(20);
-            const createResponse = await fetch(
-                `${API_BASE_URL}/assets`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...authHeaders
-                    },
-                    body: JSON.stringify({
-                        name: formData.name,
-                        price: formData.price,
-                        description: formData.description || null
-                    })
-                }
-            );
+            const asset = await marketplaceService.createAsset({
+                name: formData.name,
+                price: formData.price,
+                description: formData.description || null
+            });
 
-            if (!createResponse.ok) {
-                if (createResponse.status === 401) throw new Error('로그인이 필요합니다.');
-                throw new Error('에셋 생성에 실패했습니다.');
-            }
-
-            const asset = await createResponse.json();
             setUploadProgress(30);
 
             // Step 1.5: Upload Thumbnail (if exists)
             if (thumbnailFile) {
-                const presignRes = await fetch(
-                    `${API_BASE_URL}/uploads/presign/image?ownerType=ASSET&ownerId=${asset.id}&imageType=thumbnail&contentType=${encodeURIComponent(thumbnailFile.type)}`,
-                    {
-                        method: 'POST',
-                        headers: authHeaders
-                    }
-                );
+                const { uploadUrl } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
+                if (uploadUrl) {
+                    await fetch(uploadUrl, {
+                        method: 'PUT',
+                        body: thumbnailFile,
+                        headers: { 'Content-Type': thumbnailFile.type }
+                    });
 
-                if (presignRes.ok) {
-                    const { uploadUrl } = await presignRes.json();
-                    if (uploadUrl) {
-                        await fetch(uploadUrl, {
-                            method: 'PUT',
-                            body: thumbnailFile,
-                            headers: { 'Content-Type': thumbnailFile.type }
-                        });
-
-                        // Update asset with imageUrl
-                        const cleanUrl = uploadUrl.split('?')[0];
-                        await fetch(`${API_BASE_URL}/assets/${asset.id}`, {
-                            method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...authHeaders
-                            } as HeadersInit,
-                            body: JSON.stringify({ imageUrl: cleanUrl })
-                        });
-                    }
+                    // Update asset with imageUrl
+                    const cleanUrl = uploadUrl.split('?')[0];
+                    await marketplaceService.updateAsset(asset.id, { imageUrl: cleanUrl });
                 }
             }
             setUploadProgress(40);
 
             // Step 2: Create version to get versionId
-            const versionResponse = await fetch(
-                `${API_BASE_URL}/assets/${asset.id}/versions`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...authHeaders
-                    },
-                    body: JSON.stringify({ s3RootPath: 'pending' })
-                }
-            );
-
-            if (!versionResponse.ok) {
-                throw new Error('버전 생성에 실패했습니다.');
-            }
-
-            const version = await versionResponse.json();
+            const version = await marketplaceService.createVersion(asset.id);
             setUploadProgress(50);
 
             // Step 3: Get presigned upload URL
-            const uploadUrlResponse = await fetch(
-                `${API_BASE_URL}/assets/${asset.id}/versions/${version.id}/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`,
-                {
-                    headers: authHeaders
-                }
-            );
-
-            if (!uploadUrlResponse.ok) {
-                throw new Error('업로드 URL 생성에 실패했습니다.');
-            }
-
-            const { uploadUrl } = await uploadUrlResponse.json();
+            const { uploadUrl } = await marketplaceService.getUploadUrl(asset.id, version.id, file.name, file.type);
             setUploadProgress(60);
 
             // Step 4: Upload file directly to S3
@@ -208,10 +140,7 @@ const CreateAssetPage = () => {
             setUploadProgress(90);
 
             // Step 5: Publish the version
-            await fetch(`${API_BASE_URL}/assets/versions/${version.id}/publish`, {
-                method: 'POST',
-                headers: authHeaders
-            });
+            await marketplaceService.publishVersion(version.id);
 
             setUploadProgress(100);
 

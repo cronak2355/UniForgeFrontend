@@ -1,4 +1,6 @@
-const API_BASE_URL = 'https://uniforge.kr'; // Hardcoded for production (endpoints already contain /api)
+import { apiClient } from './apiClient';
+
+const API_BASE_URL = 'https://uniforge.kr'; // Kept for Google OAuth URL
 
 export interface User {
     id: string;
@@ -25,10 +27,6 @@ export interface SignupRequest {
 }
 
 class AuthService {
-    private getToken(): string | null {
-        return localStorage.getItem('token');
-    }
-
     private setToken(token: string): void {
         localStorage.setItem('token', token);
     }
@@ -37,32 +35,9 @@ class AuthService {
         localStorage.removeItem('token');
     }
 
-    private async request<T>(
-        endpoint: string,
-        options: RequestInit = {}
-    ): Promise<T> {
-        const token = this.getToken();
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
-            ...options.headers,
-        };
-
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
-        });
-
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ message: '오류가 발생했습니다' }));
-            throw new Error(error.message);
-        }
-
-        return response.json();
-    }
-
     async signup(data: SignupRequest): Promise<AuthResponse> {
-        const response = await this.request<AuthResponse>('/api/auth/signup', {
+        // apiClient base is /api, so we just pass /auth/signup
+        const response = await apiClient.request<AuthResponse>('/auth/signup', {
             method: 'POST',
             body: JSON.stringify(data),
         });
@@ -71,7 +46,7 @@ class AuthService {
     }
 
     async login(data: LoginRequest): Promise<AuthResponse> {
-        const response = await this.request<AuthResponse>('/api/auth/login', {
+        const response = await apiClient.request<AuthResponse>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(data),
         });
@@ -80,11 +55,10 @@ class AuthService {
     }
 
     async getCurrentUser(): Promise<User | null> {
-        const token = this.getToken();
-        if (!token) return null;
+        if (!this.isAuthenticated()) return null;
 
         try {
-            return await this.request<User>('/api/auth/me');
+            return await apiClient.request<User>('/auth/me');
         } catch {
             this.removeToken();
             return null;
@@ -96,7 +70,7 @@ class AuthService {
     }
 
     isAuthenticated(): boolean {
-        return this.getToken() !== null;
+        return localStorage.getItem('token') !== null;
     }
 
     handleOAuthCallback(token: string): void {

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://uniforge.kr/api'; // Hardcoded for production
+import { apiClient } from './apiClient';
 
 export interface Asset {
     id: string;
@@ -31,52 +31,59 @@ export interface Game {
 }
 
 class MarketplaceService {
-    private async request<T>(endpoint: string): Promise<T> {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`);
-
-        const contentType = response.headers.get("content-type");
-        const isJson = contentType && contentType.indexOf("application/json") !== -1;
-
-        if (!response.ok) {
-            if (isJson) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch data');
-            } else {
-                const text = await response.text();
-                console.error("Received non-JSON response:", text.substring(0, 500));
-                throw new Error(`Server returned unexpected response (Status: ${response.status})`);
-            }
-        }
-
-        if (!isJson) {
-            const text = await response.text();
-            console.error("Received HTML/Text instead of JSON (Soft 404):", text.substring(0, 200));
-            throw new Error('API 응답이 올바르지 않습니다 (HTML 반환됨). 서버 구성을 확인해주세요.');
-        }
-
-        return response.json();
-    }
-
     async getAssets(authorId?: string, sort: string = 'latest'): Promise<Asset[]> {
         const params = new URLSearchParams();
         if (authorId) params.append('authorId', authorId);
         if (sort) params.append('sort', sort);
-        return this.request<Asset[]>(`/assets?${params.toString()}`);
+        return apiClient.request<Asset[]>(`/assets?${params.toString()}`);
     }
 
     async getAssetById(assetId: string): Promise<Asset> {
-        return this.request<Asset>(`/assets/${assetId}`);
+        return apiClient.request<Asset>(`/assets/${assetId}`);
     }
 
     async getAssetVersions(assetId: string): Promise<AssetVersion[]> {
-        return this.request<AssetVersion[]>(`/assets/${assetId}/versions`);
+        return apiClient.request<AssetVersion[]>(`/assets/${assetId}/versions`);
     }
 
     async getGames(): Promise<Game[]> {
-        return this.request<Game[]>('/marketplace/games');
+        return apiClient.request<Game[]>('/marketplace/games');
+    }
+
+    async createAsset(data: { name: string; price: number; description: string | null }): Promise<Asset> {
+        return apiClient.request<Asset>('/assets', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async getPresignedUrlForImage(ownerId: string, contentType: string): Promise<{ uploadUrl: string }> {
+        return apiClient.request<{ uploadUrl: string }>(`/uploads/presign/image?ownerType=ASSET&ownerId=${ownerId}&imageType=thumbnail&contentType=${encodeURIComponent(contentType)}`, {
+            method: 'POST'
+        });
+    }
+
+    async updateAsset(assetId: string, data: Partial<Asset>): Promise<Asset> {
+        return apiClient.request<Asset>(`/assets/${assetId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async createVersion(assetId: string): Promise<AssetVersion> {
+        return apiClient.request<AssetVersion>(`/assets/${assetId}/versions`, {
+            method: 'POST',
+            body: JSON.stringify({ s3RootPath: 'pending' })
+        });
+    }
+
+    async getUploadUrl(assetId: string, versionId: string, fileName: string, contentType: string): Promise<{ uploadUrl: string }> {
+        return apiClient.request<{ uploadUrl: string }>(`/assets/${assetId}/versions/${versionId}/upload-url?fileName=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(contentType)}`);
+    }
+
+    async publishVersion(versionId: string): Promise<void> {
+        return apiClient.request<void>(`/assets/versions/${versionId}/publish`, { method: 'POST' });
     }
 }
-
-
 
 export const marketplaceService = new MarketplaceService();
