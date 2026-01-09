@@ -186,20 +186,24 @@ const AssetDetailPage = () => {
                                 {asset.price === 0 ? 'Free' : `₩${asset.price.toLocaleString()}`}
                             </div>
 
-                            <button style={{
-                                width: '100%',
-                                padding: '16px',
-                                backgroundColor: '#2563eb',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '1rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                marginBottom: '1rem'
-                            }}>
-                                <i className="fa-solid fa-download" style={{ marginRight: '8px' }}></i>
-                                라이브러리에 추가
+                            <button
+                                onClick={handleAddToLibrary}
+                                disabled={isAdding}
+                                style={{
+                                    width: '100%',
+                                    padding: '16px',
+                                    backgroundColor: isAdding ? '#4b5563' : '#2563eb',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    cursor: isAdding ? 'not-allowed' : 'pointer',
+                                    marginBottom: '1rem'
+                                }}
+                            >
+                                <i className={`fa-solid ${isAdding ? 'fa-spinner fa-spin' : 'fa-download'}`} style={{ marginRight: '8px' }}></i>
+                                {isAdding ? '처리 중...' : '라이브러리에 추가'}
                             </button>
 
                             <button style={{
