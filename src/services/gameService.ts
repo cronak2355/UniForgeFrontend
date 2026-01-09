@@ -3,7 +3,7 @@ export interface GameSummary {
     title: string;
     description?: string;
     thumbnailUrl?: string | null;
-    authorId: number;
+    authorId: string;
     latestVersionId?: number | null;
     createdAt: string;
 }
@@ -11,7 +11,15 @@ export interface GameSummary {
 const API_BASE = "/api";
 
 export async function fetchMyGames(authorId: number | string): Promise<GameSummary[]> {
-    const res = await fetch(`${API_BASE}/games/my?authorId=${authorId}`);
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/games/my?authorId=${authorId}`, {
+        headers
+    });
     if (!res.ok) {
         throw new Error("Failed to fetch my games");
     }
@@ -26,7 +34,7 @@ export async function fetchPublicGames(): Promise<GameSummary[]> {
     return res.json();
 }
 
-export async function createGame(authorId: number, title: string, description: string): Promise<GameSummary> {
+export async function createGame(authorId: string, title: string, description: string): Promise<GameSummary> {
     const token = localStorage.getItem('token');
     const headers: HeadersInit = {};
     if (token) {
@@ -35,7 +43,7 @@ export async function createGame(authorId: number, title: string, description: s
 
     // Backend expects RequestParams, not JSON body for this endpoint
     const params = new URLSearchParams();
-    params.append('authorId', authorId.toString());
+    params.append('authorId', authorId);
     params.append('title', title);
     if (description) params.append('description', description);
 

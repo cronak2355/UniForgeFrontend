@@ -90,7 +90,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const cameraDragRef = useRef(false);
     const dragEntityIdRef = useRef<string | null>(null);
     const ghostIdRef = useRef<string | null>(null);
-    const rendererReadyRef = useRef(false);
+    // Use state instead of ref to trigger re-renders when ready
+    const [isRendererReady, setIsRendererReady] = useState(false);
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
@@ -192,7 +193,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 });
             }
 
-            rendererReadyRef.current = true;
+            setIsRendererReady(true);
         })();
 
         renderer.onEntityClick = (id) => {
@@ -355,7 +356,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
     useEffect(() => {
         const renderer = rendererRef.current;
-        if (!renderer || !rendererReadyRef.current) return;
+        if (!renderer || !isRendererReady) return;
 
         const nextTiles = indexTiles(tiles);
         const prevTiles = prevTilesRef.current;
@@ -371,11 +372,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         }
 
         prevTilesRef.current = nextTiles;
-    }, [tiles]);
+    }, [tiles, isRendererReady]);
 
     useEffect(() => {
         const renderer = rendererRef.current;
-        if (!renderer || !rendererReadyRef.current) return;
+        if (!renderer || !isRendererReady) return;
 
         const nextSignature = buildTileSignature(assets);
         const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
@@ -397,6 +398,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 renderer.initTilemap("tiles");
                 tilemapReadyRef.current = true;
                 tileSignatureRef.current = nextSignature;
+
+                // Re-apply all tiles after tileset logic rebuild
                 applyAllTiles(renderer, tiles);
                 prevTilesRef.current = indexTiles(tiles);
             }
@@ -405,16 +408,19 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         return () => {
             cancelled = true;
         };
-    }, [assets]);
+    }, [assets, isRendererReady]);
 
     useEffect(() => {
         const gameCore = gameCoreRef.current;
-        if (!gameCore || !rendererReadyRef.current) return;
+        if (!gameCore || !isRendererReady) return;
 
         const nextIds = new Set(entities.map((e) => e.id));
         const current = gameCore.getAllEntities();
 
-        for (const id of current.keys()) {
+        // Convert keys to array to avoid modification during iteration issues
+        const currentIds = Array.from(current.keys());
+
+        for (const id of currentIds) {
             if (!nextIds.has(id)) {
                 gameCore.removeEntity(id);
             }
@@ -442,7 +448,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 gameCore.updateEntityLogic(ent.id, splitLogicItems(ent.logic), ent.variables);
             }
         }
-    }, [entities]);
+    }, [entities, isRendererReady]);
 
     // Entry Style Colors
     const colors = {
