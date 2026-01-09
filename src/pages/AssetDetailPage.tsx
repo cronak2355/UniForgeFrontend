@@ -1,51 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { marketplaceService, Asset, AssetVersion } from '../services/marketplaceService';
-import { libraryService } from '../services/libraryService';
-import GlobalHeader from '../components/GlobalHeader';
+import { authService } from '../services/authService';
 
 const AssetDetailPage = () => {
-    const { assetId } = useParams<{ assetId: string }>();
-    const navigate = useNavigate();
-    const [asset, setAsset] = useState<Asset | null>(null);
-    const [versions, setVersions] = useState<AssetVersion[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [isAdding, setIsAdding] = useState(false);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!assetId) return;
-            try {
-                const [assetData, versionsData] = await Promise.all([
-                    marketplaceService.getAssetById(assetId),
-                    marketplaceService.getAssetVersions(assetId)
-                ]);
-                setAsset(assetData);
-                setVersions(versionsData);
-            } catch (err: any) {
-                console.error(err);
-                if (err.message && err.message.includes('HTML 반환')) {
-                    setError('존재하지 않는 에셋입니다.');
-                } else {
-                    setError('에셋을 불러오는데 실패했습니다.');
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, [assetId]);
+    // ... existing hooks
 
     const handleAddToLibrary = async () => {
         if (!assetId) return;
+
+        // 로그인 체크
+        if (!authService.isAuthenticated()) {
+            if (confirm('로그인이 필요한 서비스입니다. 로그인 페이지로 이동하시겠습니까?')) {
+                navigate('/login');
+            }
+            return;
+        }
+
         setIsAdding(true);
         try {
             await libraryService.addToLibrary(assetId, 'ASSET');
             alert('라이브러리에 성공적으로 추가되었습니다!');
         } catch (err: any) {
             console.error(err);
-            alert(err.message || '라이브러리 추가에 실패했습니다.');
+            if (err.message && err.message.includes('401')) {
+                alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+                navigate('/login');
+            } else {
+                alert(err.message || '라이브러리 추가에 실패했습니다.');
+            }
         } finally {
             setIsAdding(false);
         }
