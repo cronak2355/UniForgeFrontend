@@ -14,4 +14,8 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    __COMMIT_HASH__: JSON.stringify(require('child_process').execSync('git rev-parse --short HEAD').toString().trim()),
+    __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })),
+  },
 })
