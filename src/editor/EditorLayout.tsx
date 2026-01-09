@@ -511,11 +511,11 @@ function EditorLayoutInner() {
                             <MenuItem label="Save Project" onClick={async () => {
                                 try {
                                     const sceneJson = SceneSerializer.serialize(core, "MyScene");
-                                    let id = Number(gameId);
+                                    // Use ID as string directly (UUID support)
+                                    let id = gameId;
 
-                                    // If ID is invalid, prompt to create a new game
-                                    // If ID is invalid, prompt to create a new game
-                                    if (!id || isNaN(id)) {
+                                    // If ID is invalid (undefined or empty), prompt to create a new game
+                                    if (!id) {
                                         const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
                                         if (!title) return; // User cancelled
 
@@ -526,8 +526,12 @@ function EditorLayoutInner() {
                                             return;
                                         }
 
+                                        // createGame now expects string authorId and returns string gameId (in GameSummary)
+                                        // But wait, createGame returns GameSummary where gameId might be number if I didn't update the interface?
+                                        // I updated createGame to return Promise<GameSummary>.
+                                        // Let's assume GameSummary.gameId is string or we cast it.
                                         const newGame = await createGame(user.id, title, "Created from Editor");
-                                        id = newGame.gameId;
+                                        id = String(newGame.gameId);
 
                                         // Silent navigation to correct URL
                                         navigate(`/editor/${id}`, { replace: true });

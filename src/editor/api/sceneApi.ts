@@ -3,7 +3,7 @@ import type { SceneJSON } from "../core/SceneSerializer";
 const API_BASE = "https://uniforge.kr/api";
 
 export async function saveScenes(
-    gameId: number,
+    gameId: string,
     scene: SceneJSON
 ): Promise<void> {
     const token = localStorage.getItem('token');
