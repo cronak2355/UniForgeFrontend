@@ -27,9 +27,11 @@ class LibraryService {
             headers,
         });
 
+        const contentType = response.headers.get("content-type");
+        const isJson = contentType && contentType.indexOf("application/json") !== -1;
+
         if (!response.ok) {
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
+            if (isJson) {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to fetch library');
             } else {
@@ -38,6 +40,13 @@ class LibraryService {
                 throw new Error(`Server returned unexpected response (Status: ${response.status})`);
             }
         }
+
+        if (!isJson) {
+            const text = await response.text();
+            console.error("Received HTML/Text instead of JSON (Soft 404):", text.substring(0, 200));
+            throw new Error('API 응답이 올바르지 않습니다 (HTML 반환됨). 서버 구성을 확인해주세요.');
+        }
+
         return response.json();
     }
 
