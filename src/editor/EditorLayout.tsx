@@ -15,7 +15,10 @@ import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes } from "./api/sceneApi";
 import { createGame } from "../services/gameService";
+<<<<<<< HEAD
 import { authService } from "../services/authService";
+=======
+>>>>>>> dev
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
@@ -347,6 +350,28 @@ function EditorLayoutInner() {
             return;
         }
 
+<<<<<<< HEAD
+=======
+        if (import.meta.env.DEV) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const assetUrl = e.target?.result as string;
+                const nextId = assetId;
+
+                core.addAsset({
+                    id: nextId,
+                    tag: dropAssetTag,
+                    name,
+                    url: assetUrl,
+                    idx: -1,
+                });
+
+                resetDropModal();
+            };
+            reader.readAsDataURL(dropModalFile);
+            return;
+        }
+>>>>>>> dev
         setIsUploadingAsset(true);
         setUploadError("");
 
@@ -372,11 +397,17 @@ function EditorLayoutInner() {
             }
 
             const presignData = await presignRes.json();
+<<<<<<< HEAD
             const uploadUrl = presignData.uploadUrl;
             const s3Key = presignData.s3Key;
 
             if (!uploadUrl || !s3Key) {
                 throw new Error("Upload URL or S3 key missing in response.");
+=======
+            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+            if (!uploadUrl) {
+                throw new Error("Upload URL missing in response.");
+>>>>>>> dev
             }
 
             const uploadRes = await fetch(uploadUrl, {
@@ -389,6 +420,7 @@ function EditorLayoutInner() {
                 throw new Error("Upload failed.");
             }
 
+<<<<<<< HEAD
             const imageRes = await fetch("https://uniforge.kr/api/images", {
                 method: "POST",
                 headers: {
@@ -404,10 +436,52 @@ function EditorLayoutInner() {
                 }),
             });
 
+=======
+            const extractS3Key = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                    return key || null;
+                } catch {
+                    return null;
+                }
+            };
+
+            const s3Key =
+                presignData.s3Key ||
+                presignData.key ||
+                extractS3Key(uploadUrl);
+
+            if (!s3Key) {
+                throw new Error("S3 key missing in response.");
+            }
+
+            const imageType = "preview";
+            const imageRes = await fetch("https://uniforge.kr/api/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    ownerType: "ASSET",
+                    ownerId: assetId,
+                    imageType,
+                    s3Key,
+                    contentType,
+                }),
+            });
+
+>>>>>>> dev
             if (!imageRes.ok) {
                 const message = await imageRes.text();
                 throw new Error(message || "Failed to register image.");
             }
+<<<<<<< HEAD
+=======
+
+            const assetUrl = `https://uniforge.kr/api/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+>>>>>>> dev
 
             const assetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
             console.log(`asset url : ${assetUrl}`)
@@ -480,11 +554,15 @@ function EditorLayoutInner() {
                                     let id = Number(gameId);
 
                                     // If ID is invalid, prompt to create a new game
+<<<<<<< HEAD
                                     // If ID is invalid, prompt to create a new game
+=======
+>>>>>>> dev
                                     if (!id || isNaN(id)) {
                                         const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
                                         if (!title) return; // User cancelled
 
+<<<<<<< HEAD
                                         // Try to get real authorId from authService
                                         const user = await authService.getCurrentUser();
                                         if (!user) {
@@ -493,6 +571,20 @@ function EditorLayoutInner() {
                                         }
 
                                         const newGame = await createGame(user.id, title, "Created from Editor");
+=======
+                                        // Try to get authorId from localStorage (auth context equivalent)
+                                        let authorId = 1; // Default fallback
+                                        try {
+                                            // The authService doesn't expose user strictly in localStorage as 'user' usually,
+                                            // but let's try to parse checking token or assume 1 for now if failing.
+                                            // Ideally we use useAuth() hook but we are not inside component body here directly/cleanly for hook usage if this wasn't inline.
+                                            // But MenuItem is a component.
+                                            // Let's just use a safe fallback for now or basic token decode if needed.
+                                            // For this codebase, let's default to 1 (dev user) as consistent with other parts.
+                                        } catch (e) { }
+
+                                        const newGame = await createGame(authorId, title, "Created from Editor");
+>>>>>>> dev
                                         id = newGame.gameId;
 
                                         // Silent navigation to correct URL
