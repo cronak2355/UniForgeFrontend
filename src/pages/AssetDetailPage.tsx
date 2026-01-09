@@ -58,6 +58,12 @@ const AssetDetailPage = () => {
         return (
             <div style={{ backgroundColor: 'black', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                 <p>{error || '에셋을 찾을 수 없습니다.'}</p>
+                {/* Visual debug info if relevant */}
+                {error && error.includes('Server returned') && (
+                    <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666' }}>
+                        <p>서버 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>
+                    </div>
+                )}
             </div>
         );
     }

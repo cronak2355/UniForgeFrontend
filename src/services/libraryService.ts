@@ -28,7 +28,15 @@ class LibraryService {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch library');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch library');
+            } else {
+                const text = await response.text();
+                console.error("Received non-JSON response:", text.substring(0, 500));
+                throw new Error(`Server returned unexpected response (Status: ${response.status})`);
+            }
         }
         return response.json();
     }

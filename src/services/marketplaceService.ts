@@ -34,7 +34,15 @@ class MarketplaceService {
     private async request<T>(endpoint: string): Promise<T> {
         const response = await fetch(`${API_BASE_URL}${endpoint}`);
         if (!response.ok) {
-            throw new Error('Failed to fetch data');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch data');
+            } else {
+                const text = await response.text();
+                console.error("Received non-JSON response:", text.substring(0, 500)); // Log first 500 chars
+                throw new Error(`Server returned unexpected response (Status: ${response.status})`);
+            }
         }
         return response.json();
     }
@@ -59,11 +67,6 @@ class MarketplaceService {
     }
 }
 
-export interface AssetVersion {
-    id: number;
-    s3RootPath: string;
-    status: string;
-    createdAt: string;
-}
+
 
 export const marketplaceService = new MarketplaceService();
