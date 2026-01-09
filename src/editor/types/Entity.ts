@@ -2,6 +2,7 @@ import type { EditorVariable } from "./Variable";
 import type { EditorEvent } from "./Event";
 import type { EditorComponent } from "./Component";
 import type { EditorLogicItem } from "./Logic";
+import type { ModuleGraph } from "./Module";
 
 export interface EditorEntity {
   id: string;
@@ -23,6 +24,8 @@ export interface EditorEntity {
 
   // Unified logic list (components)
   logic: EditorLogicItem[];
+
+  modules?: ModuleGraph[];
 
   // Legacy fields kept for backward compatibility
   components?: EditorComponent[];

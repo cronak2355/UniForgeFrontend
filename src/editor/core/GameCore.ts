@@ -23,6 +23,8 @@ import { ActionRegistry, type ActionContext } from "./events/ActionRegistry";
 import { RuntimeContext } from "./RuntimeContext";
 import { collisionSystem } from "./CollisionSystem";
 import { type GameConfig, defaultGameConfig } from "./GameConfig";
+import { ModuleRuntime } from "./flow/ModuleRuntime";
+import type { ModuleGraph, ModuleLiteral } from "../types/Module";
 
 /**
  * 寃뚯엫 ?뷀떚???곗씠??援ъ“ (?쒖닔 JavaScript 媛앹껜)
@@ -46,6 +48,7 @@ export interface GameEntity {
     height?: number;
     /** ?뷀떚????븷 (寃뚯엫 濡쒖쭅 ?寃잜똿?? */
     role: string;
+    modules?: ModuleGraph[];
 }
 
 /**
@@ -67,6 +70,7 @@ export interface CreateEntityOptions {
     height?: number;
     color?: number;
     role?: string;
+    modules?: ModuleGraph[];
 }
 
 interface TriggerRuntime {
@@ -108,6 +112,7 @@ export class GameCore {
     private variableSnapshots: Map<string, Map<string, unknown>> = new Map();
     private startedComponents: Set<string> = new Set();
     private groundY = 500;
+    private moduleRuntime: ModuleRuntime;
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
     private listeners: Set<() => void> = new Set();
@@ -170,6 +175,11 @@ export class GameCore {
             }
         };
         EventBus.on(this.eventHandler);
+        this.moduleRuntime = new ModuleRuntime({
+            getEntity: (id) => this.entities.get(id),
+            setVar: (entityId, name, value) => this.setEntityVariable(entityId, name, value),
+            getActionContext: (entityId, dt) => this.buildActionContext(entityId, dt),
+        });
     }
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
@@ -215,6 +225,7 @@ export class GameCore {
             variables: options.variables ?? [],
             components: options.components ?? [],
             role: options.role ?? "neutral",
+            modules: options.modules ?? [],
             width: options.width ?? 40,
             height: options.height ?? 40,
         };
@@ -337,6 +348,76 @@ export class GameCore {
         this.notify();
     }
 
+    updateEntityModules(id: string, modules: ModuleGraph[]): void {
+        const entity = this.entities.get(id);
+        if (!entity) return;
+        entity.modules = modules;
+        this.moduleRuntime.removeEntity(id);
+    }
+
+    startModule(entityId: string, moduleId: string): boolean {
+        const entity = this.entities.get(entityId);
+        if (!entity?.modules?.length) return false;
+        const module = entity.modules.find((m) => m.id === moduleId || m.name === moduleId);
+        if (!module) return false;
+        return Boolean(this.moduleRuntime.startModule(entityId, module));
+    }
+
+    private setEntityVariable(entityId: string, name: string, value: ModuleLiteral): void {
+        const entity = this.entities.get(entityId);
+        if (!entity) return;
+        if (!entity.variables) entity.variables = [];
+        const existing = entity.variables.find((v) => v.name === name);
+        if (existing) {
+            if (existing.type === "int" || existing.type === "float") {
+                const num = typeof value === "number" ? value : Number(value);
+                existing.value = Number.isNaN(num) ? 0 : num;
+            } else if (existing.type === "bool") {
+                existing.value = value === true || value === "true";
+            } else {
+                existing.value = String(value ?? "");
+            }
+            return;
+        }
+        const numeric = typeof value === "number" ? value : Number(value);
+        if (!Number.isNaN(numeric)) {
+            entity.variables.push({
+                id: crypto.randomUUID(),
+                name,
+                type: "float",
+                value: numeric,
+            });
+        } else if (value === true || value === false || value === "true" || value === "false") {
+            entity.variables.push({
+                id: crypto.randomUUID(),
+                name,
+                type: "bool",
+                value: value === true || value === "true",
+            });
+        } else {
+            entity.variables.push({
+                id: crypto.randomUUID(),
+                name,
+                type: "string",
+                value: String(value ?? ""),
+            });
+        }
+    }
+
+    private buildActionContext(entityId: string, dt: number): ActionContext {
+        return {
+            entityId,
+            eventData: { dt },
+            globals: {
+                entities: this.entities,
+                gameCore: this,
+                renderer: this.renderer,
+            },
+            input: this.inputState,
+            entityContext: this.runtimeContext.getEntityContext(entityId),
+        };
+    }
+
     /**
      * ?뷀떚???뚯쟾
      */
@@ -371,6 +452,7 @@ export class GameCore {
         // 3. 濡쒖뺄 ?곹깭?먯꽌 ?쒓굅
         this.entities.delete(id);
         this.variableSnapshots.delete(id);
+        this.moduleRuntime.removeEntity(id);
         for (const key of this.startedComponents) {
             if (key.startsWith(`${id}:`)) {
                 this.startedComponents.delete(key);
@@ -628,6 +710,13 @@ export class GameCore {
 
             this.processComponent(entity, runtime, time, dt);
         }
+
+        const results = this.moduleRuntime.update(time, dt);
+        for (const result of results) {
+            if (result.status === "failed") {
+                console.error("[ModuleRuntime] Failed", result);
+            }
+        }
     }
 
     private isTriggerActivated(
@@ -876,6 +965,7 @@ export class GameCore {
         this.variableSnapshots.clear();
         this.startedComponents.clear();
         this.listeners.clear();
+        this.moduleRuntime.clear();
 
         console.log("[GameCore] Destroyed - all entities and runtimes cleaned up");
     }
@@ -913,6 +1003,7 @@ export class GameCore {
                 scaleZ: entityData.scaleZ,
                 variables: entityData.variables,
                 components: entityData.components,
+                modules: entityData.modules,
             });
         }
     }

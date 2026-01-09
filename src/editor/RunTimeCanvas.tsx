@@ -143,6 +143,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     variables: e.variables,
                     components: e.components,
                     role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜
+                    modules: e.modules,
                 });
 
                 // ?고???紐⑤뱢 ?몄뒪?댁뒪 ?깅줉? GameCore.createEntity ?대??먯꽌 泥섎━??(?숆린??蹂댁옣)

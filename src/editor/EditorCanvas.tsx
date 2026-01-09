@@ -7,6 +7,7 @@ import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
+import { createDefaultModuleGraph } from "./types/Module";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -190,6 +191,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: e.texture ?? e.name,
                     variables: e.variables,
                     components: splitLogicItems(e.logic),
+                    modules: e.modules,
                 });
             }
 
@@ -323,6 +325,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     components: [],
                     variables: [],
                     events: [],
+                    modules: [createDefaultModuleGraph()],
                 };
                 addEntityRef.current(created);
                 gameCore.createEntity(created.id, created.type, created.x, created.y, {
@@ -330,6 +333,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: created.texture ?? created.name,
                     variables: created.variables,
                     components: [],
+                    modules: created.modules,
                 });
             }
 
@@ -433,6 +437,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: ent.texture ?? ent.name,
                     variables: ent.variables,
                     components: splitLogicItems(ent.logic),
+                    modules: ent.modules,
                 });
             } else {
                 gameCore.setEntityTransform(ent.id, {
@@ -446,6 +451,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     scaleY: ent.scaleY ?? 1,
                 });
                 gameCore.updateEntityLogic(ent.id, splitLogicItems(ent.logic), ent.variables);
+                if (ent.modules) {
+                    gameCore.updateEntityModules(ent.id, ent.modules);
+                }
             }
         }
     }, [entities, isRendererReady]);

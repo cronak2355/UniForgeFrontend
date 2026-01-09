@@ -2,7 +2,7 @@
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { IGameState } from "./core/IGameState";
-import { ensureEntityLogic, syncLegacyFromLogic } from "./utils/entityLogic";
+import { ensureEntityLogic, ensureEntityModules, syncLegacyFromLogic } from "./utils/entityLogic";
 import { buildLogicItems } from "./types/Logic";
 
 export interface EditorContext {
@@ -43,7 +43,7 @@ export class EditorState implements IGameState {
             { id: "1", name: "test1", tag: "Tile", url: assetUrl("TestAsset.webp"), idx: -1 },
             { id: "2", name: "test2", tag: "Tile", url: assetUrl("TestAsset2.webp"), idx: -1 },
             { id: "3", name: "test3", tag: "Tile", url: assetUrl("TestAsset3.webp"), idx: -1 },
-            { id: "4", name: "dragon", tag: "Character", url: assetUrl("RedDragon.webp"), idx: -1 },
+            { id: "4", name: "tree", tag: "Character", url: assetUrl("GreenTree.webp"), idx: -1 },
         ];
     }
 
@@ -96,7 +96,7 @@ export class EditorState implements IGameState {
         if (entity.z === undefined) {
             entity.z = 10;
         }
-        const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
+        const normalized = syncLegacyFromLogic(ensureEntityModules(ensureEntityLogic(entity)));
         this.entities.set(entity.id, normalized);
         if (this.selectedEntity?.id === entity.id) {
             this.selectedEntity = normalized;

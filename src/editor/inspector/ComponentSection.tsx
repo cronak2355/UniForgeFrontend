@@ -39,6 +39,7 @@ const ACTION_LABELS: Record<string, string> = {
     PlaySound: "PlaySound",
     EmitEventSignal: "EmitEventSignal",
     ClearSignal: "ClearSignal",
+    RunModule: "RunModule",
 };
 
 const CONDITION_TYPES = [
@@ -194,6 +195,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
+    const modules = entity.modules ?? [];
 
     const commitLogic = (nextLogicComponents: LogicComponent[]) => {
         const nextComponents = [...otherComponents, ...nextLogicComponents];
@@ -260,6 +262,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         index={index}
                         variables={variables}
                         entities={otherEntities}
+                        modules={modules}
                         onUpdate={(r) => handleUpdateRule(index, r)}
                         onRemove={() => handleRemoveRule(index)}
                     />
@@ -279,6 +282,7 @@ const RuleItem = memo(function RuleItem({
     index,
     variables,
     entities,
+    modules,
     onUpdate,
     onRemove,
 }: {
@@ -286,6 +290,7 @@ const RuleItem = memo(function RuleItem({
     index: number;
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
+    modules: { id: string; name: string }[];
     onUpdate: (rule: LogicComponent) => void;
     onRemove: () => void;
 }) {
@@ -390,14 +395,15 @@ const RuleItem = memo(function RuleItem({
                         {rule.actions.map((action, i) => (
                             <ActionEditor
                                 key={i}
-                                action={action}
-                                variables={variables}
-                                entities={entities}
-                                onUpdate={(a) => {
-                                    const newActions = [...rule.actions];
-                                    newActions[i] = a;
-                                    onUpdate({ ...rule, actions: newActions });
-                                }}
+                            action={action}
+                            variables={variables}
+                            entities={entities}
+                            modules={modules}
+                            onUpdate={(a) => {
+                                const newActions = [...rule.actions];
+                                newActions[i] = a;
+                                onUpdate({ ...rule, actions: newActions });
+                            }}
                                 onRemove={() => {
                                     onUpdate({ ...rule, actions: rule.actions.filter((_, j) => j !== i) });
                                 }}
@@ -508,17 +514,24 @@ function ActionEditor({
     action,
     variables,
     entities,
+    modules,
     onUpdate,
     onRemove,
 }: {
     action: { type: string; [key: string]: unknown };
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
+    modules: { id: string; name: string }[];
     onUpdate: (a: { type: string; [key: string]: unknown }) => void;
     onRemove: () => void;
 }) {
     const availableActions = ActionRegistry.getAvailableActions();
     const selectedVar = variables.find((v) => v.name === (action.name as string));
+    const selectedModuleId =
+        (action.moduleId as string) ??
+        (action.moduleName as string) ??
+        (action.name as string) ??
+        "";
 
     return (
         <div style={styles.actionRow}>
@@ -609,6 +622,21 @@ function ActionEditor({
                         />
                     )}
                 </>
+            )}
+
+            {action.type === "RunModule" && (
+                <select
+                    value={selectedModuleId}
+                    onChange={(e) => onUpdate({ ...action, moduleId: e.target.value })}
+                    style={styles.smallSelect}
+                >
+                    <option value="">(module)</option>
+                    {modules.map((mod) => (
+                        <option key={mod.id} value={mod.id}>
+                            {mod.name || mod.id}
+                        </option>
+                    ))}
+                </select>
             )}
 
             {action.type === "ClearSignal" && (

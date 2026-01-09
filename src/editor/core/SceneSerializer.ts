@@ -3,6 +3,7 @@ import type { EditorEntity } from "../types/Entity";
 import type { Asset } from "../types/Asset";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { LogicComponent } from "../types/Component";
+import type { ModuleGraph } from "../types/Module";
 
 export interface SceneEventJSON {
   id: string;
@@ -29,6 +30,7 @@ export interface SceneEntityJSON {
   y: number;
   variables: SceneVariableJSON[];
   events: SceneEventJSON[];
+  modules?: ModuleGraph[];
 }
 
 export interface TileJSON {
@@ -105,6 +107,7 @@ export class SceneSerializer {
       y: e.y,
       variables,
       events,
+      modules: e.modules ?? [],
     };
   }
 
@@ -162,6 +165,7 @@ export class SceneSerializer {
           components: logicComponents,
         }),
         components: logicComponents,
+        modules: e.modules ?? [],
       };
 
       state.addEntity(entity);

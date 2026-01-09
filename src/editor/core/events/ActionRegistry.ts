@@ -37,6 +37,7 @@ export interface ActionGlobals {
             fromY: number,
             excludeId?: string
         ): { id: string; x: number; y: number; role: string } | undefined;
+        startModule?(entityId: string, moduleId: string): boolean;
     };
 }
 

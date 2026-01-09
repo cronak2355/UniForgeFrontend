@@ -19,6 +19,7 @@ import { authService } from "../services/authService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
+import { createDefaultModuleGraph } from "./types/Module";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -128,6 +129,9 @@ function cloneEntityForPaste(source: EditorEntity): EditorEntity {
         ...comp,
         id: crypto.randomUUID(),
     }));
+    const modules = (cloned.modules && cloned.modules.length > 0)
+        ? cloned.modules
+        : [createDefaultModuleGraph()];
 
     return {
         ...cloned,
@@ -139,6 +143,7 @@ function cloneEntityForPaste(source: EditorEntity): EditorEntity {
         events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
         components,
         logic: buildLogicItems({ components }),
+        modules,
     };
 }
 
