@@ -218,7 +218,7 @@ class PhaserRenderScene extends Phaser.Scene {
         eventData: {},
         globals: {}
     };
-    private reusableEvent: GameEvent = { type: "TICK", data: {} };
+    private reusableEvent: GameEvent = { type: "TICK", data: {}, timestamp: Date.now() };
 
     // 물리 상태는 RuntimePhysics에서 관리됨
 
@@ -251,7 +251,7 @@ class PhaserRenderScene extends Phaser.Scene {
             // Iterate entities directly
             entities.forEach((entity) => {
                 // Optimization: inline simple alive check
-                const hpVar = entity.variables?.find(v => v.name === "hp");
+                const hpVar = entity.variables?.find((v: any) => v.name === "hp");
                 if (hpVar && (hpVar.value as number) <= 0) return;
 
                 const components = splitLogicItems(entity.logic);
@@ -266,7 +266,7 @@ class PhaserRenderScene extends Phaser.Scene {
                 this.reusableCtx.entityId = entity.id;
                 this.reusableCtx.input = input;
                 this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
-                this.reusableCtx.eventData = this.reusableEvent.data;
+                this.reusableCtx.eventData = this.reusableEvent.data ?? {};
 
                 // Process Logic
                 for (const component of updateComponents) {
@@ -331,7 +331,7 @@ class PhaserRenderScene extends Phaser.Scene {
             // controllableRoles???놁쑝硫??ㅻ낫???낅젰 ?ㅽ궢
             if (!hasRole(entity.role, controllableRoles)) return;
 
-            const hasPhysicsVars = (entity.variables ?? []).some((v) =>
+            const hasPhysicsVars = (entity.variables ?? []).some((v: any) =>
                 v.name === "physicsMode" ||
                 v.name === "maxSpeed" ||
                 v.name === "gravity" ||
@@ -422,10 +422,20 @@ export class PhaserRenderer implements IRenderer {
     /** Runtime mode flag - logic components and TICK only run when true */
     isRuntimeMode = false;
 
+    /** Editor Preview Mode flag - disables dragging if true */
+    public isPreviewMode = false;
+
+    /** Grid Size for snapping */
+    public gridSize = 32;
+
+    /** Callback for entity dragging in editor */
+    onEntityDrag?: (id: string, x: number, y: number) => void;
+
     /** GameCore instance for role-based targeting (set by runtime) */
     gameCore?: {
         getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
         getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
+        getAllEntities?(): Map<string, any>;
     };
 
     /** 寃뚯엫 ?ㅼ젙 (??븷蹂?湲곕뒫 留ㅽ븨) */
@@ -553,117 +563,155 @@ export class PhaserRenderer implements IRenderer {
             return;
         }
 
-        // ID 以묐났 寃??- EditorState????숆린??蹂댁옣
+        // ID 중복 검사
         if (this.entities.has(id)) {
             console.error(`[PhaserRenderer] Entity with id "${id}" already exists! ID sync violation.`);
             return;
         }
 
+        // EditorCore에서 엔티티 데이터 가져오기 (변수 접근용)
+        const entity = this.core.getEntity(id);
+        const isUI = entity?.variables?.some(v => v.name === "isUI" && v.value === true);
+        const uiTypeVar = entity?.variables?.find(v => v.name === "uiType");
+        const uiType = uiTypeVar ? String(uiTypeVar.value) : (entity?.variables?.some(v => v.name === "uiText") ? "text" : "sprite");
+
+        const uiTextVar = entity?.variables?.find(v => v.name === "uiText");
+        const uiText = uiTextVar ? String(uiTextVar.value) : "Text";
+
+        const uiFontSizeVar = entity?.variables?.find(v => v.name === "uiFontSize");
+        const uiFontSize = uiFontSizeVar ? String(uiFontSizeVar.value) : '16px';
+
+        const uiColorVar = entity?.variables?.find(v => v.name === "uiColor");
+        const uiColor = uiColorVar ? String(uiColorVar.value) : '#ffffff';
+
+        const uiBgColorVar = entity?.variables?.find(v => v.name === "uiBackgroundColor");
+        const uiBackgroundColor = uiBgColorVar ? String(uiBgColorVar.value) : undefined;
+
+        const uiBarColorVar = entity?.variables?.find(v => v.name === "uiBarColor");
+        const uiBarColor = uiBarColorVar ? String(uiBarColorVar.value) : '#e74c3c';
+
+        const uiAlignVar = entity?.variables?.find(v => v.name === "uiAlign");
+        const uiAlign = uiAlignVar ? String(uiAlignVar.value) : "center";
+
+        const widthVar = entity?.variables?.find(v => v.name === "width");
+        const width = widthVar ? Number(widthVar.value) : (options?.width ?? 100);
+
+        const heightVar = entity?.variables?.find(v => v.name === "height");
+        const height = heightVar ? Number(heightVar.value) : (options?.height ?? 20);
+
         let obj: Phaser.GameObjects.GameObject;
 
-        // ?띿뒪泥섍? ?덉쑝硫??ㅽ봽?쇱씠?? ?놁쑝硫??ш컖??
-        if (options?.texture && this.scene.textures.exists(options.texture)) {
+        if (uiType === "text") {
+            const textObj = this.scene.add.text(x, y, uiText, {
+                fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
+                color: uiColor,
+                fontFamily: 'monospace',
+                backgroundColor: uiBackgroundColor,
+                padding: { x: 4, y: 2 }
+            });
+            textObj.setOrigin(0.5); // Center origin for consistency
+            obj = textObj;
+        } else if (uiType === "panel") {
+            // Panel is just a rectangle container
+            const rect = this.scene.add.rectangle(x, y, width, height,
+                uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x444444
+            );
+            obj = rect;
+        } else if (uiType === "bar") {
+            // Bar is a container with BG and FG
+            const container = this.scene.add.container(x, y);
+
+            // Background
+            const bg = this.scene.add.rectangle(0, 0, width, height,
+                uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x2c3e50
+            );
+
+            // Foreground (The actual gauge)
+            // Start centered, but we need left-aligned for proper scaling effect usually, 
+            // but for simplicity in Phaser Container, let's keep it centered relative to container and offset it?
+            // Actually, for a bar, left-aligned origin is easier for scaling width.
+            const fg = this.scene.add.rectangle(-width / 2, -height / 2, width, height,
+                uiBarColor ? parseInt(uiBarColor.replace('#', '0x'), 16) : 0xe74c3c
+            ).setOrigin(0, 0); // Top-left origin relative to container center offset
+
+            // Name them for easy access
+            bg.setName("bg");
+            fg.setName("fg");
+
+            container.add([bg, fg]);
+            container.setSize(width, height);
+
+            obj = container;
+        } else if (options?.texture && this.scene.textures.exists(options.texture)) {
+            // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
-            sprite.setDepth(Math.max(z, 10));
             obj = sprite;
         } else {
-            const width = options?.width ?? 40;
-            const height = options?.height ?? 40;
-            const color = options?.color ?? 0xffffff;
-            const rect = this.scene.add.rectangle(x, y, width, height, color);
-            // Enforce minimum depth for entities
-            rect.setDepth(Math.max(z, 10));
+            // Fallback Placeholder
+            const rect = this.scene.add.rectangle(x, y, width, height, 0xff00ff);
             obj = rect;
         }
 
-        // ID ???諛??명꽣?숈뀡 ?ㅼ젙
-        obj.setData("id", id);
-        obj.setData("type", type);
-        (obj as Phaser.GameObjects.Rectangle).setInteractive({ useHandCursor: true });
+        (obj as any).setDepth(Math.max(z, 10));
 
-        // ?대┃ ?대깽??
-        obj.on("pointerdown", () => {
-            if (this.onEntityClick) {
-                this.onEntityClick(id);
+        // UI Element Common Settings
+        if (isUI) {
+            const uiObj = obj as any;
+            if (uiObj.setScrollFactor) uiObj.setScrollFactor(0);
+
+            if (z < 100) uiObj.setDepth(100);
+            else uiObj.setDepth(z);
+        }
+
+        // Add to collections
+        this.entities.set(id, obj);
+        this.scene.add.existing(obj);
+
+        const opts = options as any;
+        if (opts?.role === "projectile" || opts?.role === "enemy" || opts?.role === "player") {
+            this.scene.physics.add.existing(obj);
+        }
+
+        // Set initial color if provided (and supported)
+        let color = options?.color ?? 0xffffff;
+        if (isUI) {
+            // For Text
+            if (obj instanceof Phaser.GameObjects.Text) {
+                const align = uiAlign || "center";
+                const originX = align === "left" ? 0 : align === "right" ? 1 : 0.5;
+                obj.setOrigin(originX, 0.5);
             }
+        } else {
+            if ('setTint' in obj) {
+                // @ts-ignore
+                obj.setTint(color);
+            }
+        }
+
+        obj.setData('id', id);
+        obj.setData('type', uiType || type);
+
+        // Interactive
+        obj.setInteractive();
+
+        obj.on('pointerdown', (_pointer: Phaser.Input.Pointer) => {
+            if (this.onEntityClick) this.onEntityClick(id);
         });
 
-        // Map?????
-        this.entities.set(id, obj);
+        // Dragging logic
+        if (!this.isPreviewMode) {
+            this.scene.input.setDraggable(obj);
 
-        console.log(`[PhaserRenderer] Spawned entity: ${id} at (${x}, ${y}, ${z})`);
-    }
+            obj.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
+                const snappedX = Math.round(dragX / this.gridSize) * this.gridSize;
+                const snappedY = Math.round(dragY / this.gridSize) * this.gridSize;
 
-    hasEntity(id: string): boolean {
-        return this.entities.has(id);
-    }
+                const gameObj = obj as any;
+                gameObj.x = snappedX;
+                gameObj.y = snappedY;
 
-    getAllEntityIds(): string[] {
-        return Array.from(this.entities.keys());
-    }
-
-    /**
-     * ID濡?寃뚯엫 ?ㅻ툕?앺듃 諛섑솚 (Actions?먯꽌 ?ъ슜)
-     */
-    getGameObject(id: string): Phaser.GameObjects.GameObject | null {
-        return this.entities.get(id) ?? null;
-    }
-
-    update(id: string, x: number, y: number, z?: number, rotation?: number): void {
-        const obj = this.entities.get(id);
-        if (!obj) {
-            console.warn(`[PhaserRenderer] Cannot update: entity "${id}" not found`);
-            return;
-        }
-
-        const gameObj = obj as Phaser.GameObjects.Rectangle;
-        gameObj.setPosition(x, y);
-
-        if (z !== undefined) {
-            gameObj.setDepth(Math.max(z, 10));
-        }
-
-        if (rotation !== undefined) {
-            gameObj.setAngle(rotation);
-        }
-    }
-
-    setScale(id: string, scaleX: number, scaleY: number, _scaleZ?: number): void {
-        const obj = this.entities.get(id);
-        if (!obj) {
-            console.warn(`[PhaserRenderer] Cannot set scale: entity "${id}" not found`);
-            return;
-        }
-
-        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform;
-        if (typeof gameObj.setScale === "function") {
-            gameObj.setScale(scaleX, scaleY);
-        }
-    }
-
-    setAlpha(id: string, alpha: number): void {
-        const obj = this.entities.get(id);
-        if (!obj) {
-            console.warn(`[PhaserRenderer] Cannot set alpha: entity "${id}" not found`);
-            return;
-        }
-
-        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Alpha;
-        if (typeof gameObj.setAlpha === "function") {
-            gameObj.setAlpha(alpha);
-        }
-    }
-
-    setTint(id: string, color: number): void {
-        const obj = this.entities.get(id);
-        if (!obj) {
-            console.warn(`[PhaserRenderer] Cannot set tint: entity "${id}" not found`);
-            return;
-        }
-
-        const gameObj = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Tint;
-        if (typeof gameObj.setTint === "function") {
-            gameObj.setTint(color);
+                if (this.onEntityDrag) this.onEntityDrag(id, snappedX, snappedY);
+            });
         }
     }
 
@@ -680,6 +728,8 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Animation =====
 
+    // ===== Animation =====
+
     playAnim(id: string, name: string): void {
         const obj = this.entities.get(id);
         if (!obj) {
@@ -692,6 +742,40 @@ export class PhaserRenderer implements IRenderer {
             sprite.play(name);
         }
     }
+
+    // ===== UI Methods =====
+
+    setText(id: string, text: string): void {
+        const obj = this.entities.get(id);
+        if (obj && obj instanceof Phaser.GameObjects.Text) {
+            obj.setText(text);
+        }
+    }
+
+    setTextAlignment(id: string, align: "left" | "center" | "right"): void {
+        const obj = this.entities.get(id);
+        if (obj && obj instanceof Phaser.GameObjects.Text) {
+            const originX = align === "left" ? 0 : align === "right" ? 1 : 0.5;
+            obj.setOrigin(originX, 0.5);
+        }
+    }
+
+    setBarValue(id: string, value: number, max: number): void {
+        const obj = this.entities.get(id);
+        if (obj && obj instanceof Phaser.GameObjects.Container) {
+            const fg = obj.getByName('fg') as Phaser.GameObjects.Rectangle;
+            const bg = obj.getByName('bg') as Phaser.GameObjects.Rectangle;
+
+            if (fg && bg) {
+                const clampedValue = Math.max(0, Math.min(value, max));
+                const ratio = max > 0 ? clampedValue / max : 0;
+                const fullWidth = bg.width;
+                fg.width = fullWidth * ratio;
+            }
+        }
+    }
+
+
 
     // ===== Camera =====
 
@@ -1032,6 +1116,61 @@ export class PhaserRenderer implements IRenderer {
      */
     getScene(): Phaser.Scene | null {
         return this.scene;
+    }
+
+    // ===== IRenderer Implementation =====
+
+    getGameObject(id: string): any {
+        return this.entities.get(id) ?? null;
+    }
+
+    getAllEntityIds(): string[] {
+        return Array.from(this.entities.keys());
+    }
+
+    hasEntity(id: string): boolean {
+        return this.entities.has(id);
+    }
+
+    update(id: string, x: number, y: number, z?: number, rotation?: number, scaleX: number = 1, scaleY: number = 1, _scaleZ?: number): void {
+        const obj = this.entities.get(id) as any;
+        if (!obj) return;
+
+        obj.x = x;
+        obj.y = y;
+
+        if (typeof z === "number" && typeof obj.setDepth === "function") {
+            obj.setDepth(z);
+        }
+
+        if (typeof rotation === "number") {
+            obj.rotation = rotation;
+        }
+
+        if (typeof obj.setScale === "function") {
+            obj.setScale(scaleX, scaleY);
+        }
+    }
+
+    setScale(id: string, scaleX: number, scaleY: number, _scaleZ?: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setScale === "function") {
+            obj.setScale(scaleX, scaleY);
+        }
+    }
+
+    setAlpha(id: string, alpha: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setAlpha === "function") {
+            obj.setAlpha(alpha);
+        }
+    }
+
+    setTint(id: string, color: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setTint === "function") {
+            obj.setTint(color);
+        }
     }
 }
 

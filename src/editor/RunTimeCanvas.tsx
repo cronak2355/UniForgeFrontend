@@ -166,9 +166,66 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
             }
 
-            // ?고????낅뜲?댄듃 猷⑦봽 ?곌껐 (而댄룷?뚰듃 泥섎━)
+            // 렌더링 루프 콜백 설정
             renderer.onUpdateCallback = (time, delta) => {
                 gameRuntime.update(time, delta);
+
+                // [UI Text Sync] Runtime variable -> Phaser Text
+                // 모든 엔티티를 순회하며 uiText 변수가 있다면 화면에 반영
+                const allEntities = gameRuntime.getAllEntities();
+                if (allEntities) {
+                    for (const entity of allEntities.values()) {
+                        // Check if this is a UI element with bar type
+                        const uiTypeVar = entity.variables?.find((v: any) => v.name === "uiType");
+                        const isUI = entity.variables?.find((v: any) => v.name === "isUI")?.value;
+
+                        if (!isUI) continue; // Skip non-UI entities
+
+                        // Get source entity for cross-entity linking
+                        const uiSourceEntityId = entity.variables?.find((v: any) => v.name === "uiSourceEntity")?.value;
+
+                        // Look up source entity from runtime entities
+                        let sourceEntity = uiSourceEntityId
+                            ? allEntities.get(String(uiSourceEntityId))
+                            : null;
+
+                        // Fallback to global entities if not found in runtime
+                        if (!sourceEntity && uiSourceEntityId) {
+                            sourceEntity = core.getGlobalEntities().get(String(uiSourceEntityId)) as any;
+                        }
+
+                        if (!sourceEntity) continue;
+
+                        const uiTextVar = entity.variables?.find((v: any) => v.name === "uiText");
+                        const uiValueLink = entity.variables?.find((v: any) => v.name === "uiValueVar")?.value;
+
+                        // Priority: Linked Variable (from source entity) > Static Text
+                        if (uiValueLink) {
+                            const linkedVar = sourceEntity.variables?.find((v: any) => v.name === String(uiValueLink));
+                            if (linkedVar && linkedVar.value !== undefined) {
+                                renderer.setText(entity.id, String(linkedVar.value));
+                            }
+                        } else if (uiTextVar) {
+                            renderer.setText(entity.id, String(uiTextVar.value));
+                        }
+
+                        // [UI Bar Sync]
+                        if (uiTypeVar && uiTypeVar.value === "bar") {
+                            const valVarName = entity.variables.find((v: any) => v.name === "uiValueVar")?.value;
+                            const maxVarName = entity.variables.find((v: any) => v.name === "uiMaxVar")?.value;
+
+                            if (valVarName && maxVarName) {
+                                // Look up from SOURCE entity, not UI entity
+                                const valVar = sourceEntity.variables?.find((v: any) => v.name === String(valVarName));
+                                const maxVar = sourceEntity.variables?.find((v: any) => v.name === String(maxVarName));
+
+                                if (valVar && maxVar) {
+                                    renderer.setBarValue(entity.id, Number(valVar.value), Number(maxVar.value));
+                                }
+                            }
+                        }
+                    }
+                }
 
                 const selectedId = selectedEntityIdRef.current;
                 if (!selectedId) return;
@@ -232,7 +289,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         })();
 
         return () => {
-            // ?몃쭏?댄듃 ??由ъ냼???뺣━
+            // 애니메이션 및 정리
             active = false;
             gameRuntime.destroy && gameRuntime.destroy();
             renderer.onUpdateCallback = undefined;
@@ -360,7 +417,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 <div ref={ref} style={{ width: '100%', height: '100%' }} />
 
                 {/* Game UI Overlay */}
-                <GameUIOverlay gameCore={gameCore} />
+                <GameUIOverlay gameCore={gameCore} showHud={false} />
             </div>
         </div>
     );

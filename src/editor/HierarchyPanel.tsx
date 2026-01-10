@@ -15,6 +15,11 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState<"scene" | "entity" | null>(null);
+    const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+    const [showHPBarModal, setShowHPBarModal] = useState(false);
+    const [selectedSourceEntity, setSelectedSourceEntity] = useState<string>("");
+    const [selectedValueVar, setSelectedValueVar] = useState<string>("");
+    const [selectedMaxVar, setSelectedMaxVar] = useState<string>("");
 
     const handleSceneClick = (sceneId: string) => {
         if (core.getCurrentSceneId() !== sceneId) {
@@ -72,6 +77,48 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         setEditType(null);
     };
 
+    // Create HP Bar from template
+    const createHPBar = () => {
+        if (!selectedSourceEntity || !selectedValueVar || !selectedMaxVar) return;
+
+        const barId = crypto.randomUUID();
+        const barEntity: EditorEntity = {
+            id: barId,
+            name: "HP Bar",
+            type: "container",
+            role: "none",
+            events: [],
+            x: 400,
+            y: 50,
+            z: 100,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            variables: [
+                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
+                { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
+                { id: crypto.randomUUID(), name: "height", type: "float", value: 20 },
+                { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
+                { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
+                { id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: selectedSourceEntity },
+                { id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: selectedValueVar },
+                { id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: selectedMaxVar },
+            ],
+            components: [],
+            logic: []
+        };
+        core.addEntity(barEntity);
+        setShowHPBarModal(false);
+        setSelectedSourceEntity("");
+        setSelectedValueVar("");
+        setSelectedMaxVar("");
+        onSelect(barEntity);
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Unified Header */}
@@ -93,27 +140,156 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                 }}>
                     Hierarchy
                 </span>
-                <button
-                    onClick={handleAddScene}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: colors.textSecondary,
-                        cursor: 'pointer',
-                        fontSize: '16px', // Larger '+' sign
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '20px',
-                        height: '20px',
-                    }}
-                    title="Add Scene"
-                >
-                    +
-                </button>
+                <div style={{ display: 'flex', gap: '4px', position: 'relative' }}>
+                    {/* Template Menu Button */}
+                    <button
+                        onClick={() => setShowTemplateMenu(!showTemplateMenu)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: colors.accent,
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                        }}
+                        title="Add UI Template"
+                    >
+                        ⚡ UI
+                    </button>
+                    {showTemplateMenu && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            right: 0,
+                            background: colors.bgSecondary,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: '4px',
+                            padding: '4px',
+                            zIndex: 100,
+                            minWidth: '120px'
+                        }}>
+                            <button
+                                onClick={() => { setShowHPBarModal(true); setShowTemplateMenu(false); }}
+                                style={{
+                                    width: '100%',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: colors.textPrimary,
+                                    cursor: 'pointer',
+                                    padding: '6px 8px',
+                                    textAlign: 'left',
+                                    fontSize: '12px',
+                                    borderRadius: '3px',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = colors.bgInput}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                                ❤️ HP Bar
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        onClick={handleAddScene}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: colors.textSecondary,
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '20px',
+                            height: '20px',
+                        }}
+                        title="Add Scene"
+                    >
+                        +
+                    </button>
+                </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                {/* Global Entities Section */}
+                <div style={{ marginBottom: '8px' }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        color: colors.textSecondary,
+                        userSelect: 'none'
+                    }}>
+                        <i className="fa-solid fa-globe" style={{ marginRight: '6px', fontSize: '14px', color: colors.accent }} />
+                        <span>Global</span>
+                    </div>
+                    <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                        {Array.from(core.getGlobalEntities().values()).map((ge) => {
+                            const isSelected = ge.id === selectedId;
+                            const isEditingGlobal = editingId === ge.id && editType === "entity";
+                            return (
+                                <div
+                                    key={ge.id}
+                                    onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        onSelect(ge);
+                                    }}
+                                    onDoubleClick={(ev) => {
+                                        ev.stopPropagation();
+                                        startEditing(ge.id, ge.name, "entity");
+                                    }}
+                                    style={{
+                                        fontSize: '14px',
+                                        background: isSelected ? colors.bgSelected : 'transparent',
+                                        borderRadius: '3px',
+                                        color: isSelected ? '#fff' : colors.textPrimary,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        userSelect: 'none',
+                                        padding: '4px 8px'
+                                    }}
+                                >
+                                    <i className="fa-solid fa-database" style={{ fontSize: '10px', marginRight: '6px', opacity: 0.7, color: colors.accent }} />
+                                    {isEditingGlobal ? (
+                                        <input
+                                            autoFocus
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            onBlur={saveName}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') saveName();
+                                                if (e.key === 'Escape') {
+                                                    setEditingId(null);
+                                                    setEditType(null);
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                                background: colors.bgPrimary,
+                                                border: `1px solid ${colors.accent}`,
+                                                color: '#fff',
+                                                padding: '0 2px',
+                                                fontSize: '12px',
+                                                width: '100%',
+                                                lineHeight: '1.2'
+                                            }}
+                                        />
+                                    ) : (
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{ge.name}</span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Scenes */}
                 {Array.from(scenes.values())
                     .sort((a, b) => a.name.localeCompare(b.name)) // Sort Scenes
                     .map((scene) => {
@@ -181,6 +357,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                 <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
                                     {entities.map((e) => {
                                         const isEditingEntity = editingId === e.id && editType === "entity";
+                                        const isUIEntity = e.variables?.find((v: any) => v.name === "isUI")?.value === true;
                                         return (
                                             <div
                                                 key={e.id}
@@ -195,6 +372,28 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                                     ev.stopPropagation();
                                                     startEditing(e.id, e.name, "entity");
                                                 }}
+                                                onDragOver={(ev) => {
+                                                    if (isUIEntity) {
+                                                        ev.preventDefault();
+                                                        ev.dataTransfer.dropEffect = "link";
+                                                    }
+                                                }}
+                                                onDrop={(ev) => {
+                                                    ev.preventDefault();
+                                                    if (!isUIEntity) return;
+                                                    const data = ev.dataTransfer.getData("text/plain");
+                                                    const [sourceEntityId, varName] = data.split("|");
+                                                    if (!sourceEntityId || !varName) return;
+
+                                                    // Update the UI entity to link to the dropped variable
+                                                    let vars = e.variables.filter((v: any) =>
+                                                        !["uiSourceEntity", "uiValueVar"].includes(v.name)
+                                                    );
+                                                    vars.push({ id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: sourceEntityId });
+                                                    vars.push({ id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: varName });
+                                                    core.addEntity({ ...e, variables: vars });
+                                                    onSelect({ ...e, variables: vars });
+                                                }}
                                                 style={{
                                                     fontSize: '14px',
                                                     background: (e.id === selectedId && isSceneActive) ? colors.bgSelected : 'transparent',
@@ -204,7 +403,8 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     userSelect: 'none',
-                                                    padding: '4px 8px'
+                                                    padding: '4px 8px',
+                                                    border: isUIEntity ? '1px dashed transparent' : 'none',
                                                 }}
                                             >
                                                 <i className="fa-solid fa-cube" style={{ fontSize: '10px', marginRight: '6px', opacity: 0.7 }} />
@@ -244,6 +444,154 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                         );
                     })}
             </div>
+
+            {/* HP Bar Creation Modal */}
+            {showHPBarModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: colors.bgSecondary,
+                        borderRadius: '8px',
+                        padding: '20px',
+                        minWidth: '300px',
+                        border: `1px solid ${colors.borderColor}`
+                    }}>
+                        <h3 style={{ margin: '0 0 16px 0', color: colors.textPrimary }}>❤️ HP Bar 만들기</h3>
+
+                        {/* Source Entity Selection */}
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
+                                연결할 엔티티
+                            </label>
+                            <select
+                                value={selectedSourceEntity}
+                                onChange={(e) => {
+                                    setSelectedSourceEntity(e.target.value);
+                                    setSelectedValueVar("");
+                                    setSelectedMaxVar("");
+                                }}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    background: colors.bgInput,
+                                    border: `1px solid ${colors.borderColor}`,
+                                    borderRadius: '4px',
+                                    color: colors.textPrimary
+                                }}
+                            >
+                                <option value="">선택하세요</option>
+                                {/* Global */}
+                                {Array.from(core.getGlobalEntities().values()).map((ent: any) => (
+                                    <option key={ent.id} value={ent.id}>🌐 {ent.name}</option>
+                                ))}
+                                {/* Scene */}
+                                {Array.from(core.getEntities().values())
+                                    .filter((ent: any) => !ent.variables?.find((v: any) => v.name === "isUI")?.value)
+                                    .map((ent: any) => (
+                                        <option key={ent.id} value={ent.id}>{ent.name}</option>
+                                    ))}
+                            </select>
+                        </div>
+
+                        {/* Value Variable */}
+                        {selectedSourceEntity && (
+                            <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
+                                    현재 HP 변수
+                                </label>
+                                <select
+                                    value={selectedValueVar}
+                                    onChange={(e) => setSelectedValueVar(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        background: colors.bgInput,
+                                        border: `1px solid ${colors.borderColor}`,
+                                        borderRadius: '4px',
+                                        color: colors.textPrimary
+                                    }}
+                                >
+                                    <option value="">선택하세요</option>
+                                    {(() => {
+                                        const ent = core.getGlobalEntities().get(selectedSourceEntity) || core.getEntities().get(selectedSourceEntity);
+                                        return ent?.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                                            <option key={v.id} value={v.name}>{v.name}</option>
+                                        ));
+                                    })()}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Max Variable */}
+                        {selectedSourceEntity && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
+                                    최대 HP 변수
+                                </label>
+                                <select
+                                    value={selectedMaxVar}
+                                    onChange={(e) => setSelectedMaxVar(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        background: colors.bgInput,
+                                        border: `1px solid ${colors.borderColor}`,
+                                        borderRadius: '4px',
+                                        color: colors.textPrimary
+                                    }}
+                                >
+                                    <option value="">선택하세요</option>
+                                    {(() => {
+                                        const ent = core.getGlobalEntities().get(selectedSourceEntity) || core.getEntities().get(selectedSourceEntity);
+                                        return ent?.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                                            <option key={v.id} value={v.name}>{v.name}</option>
+                                        ));
+                                    })()}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Buttons */}
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => { setShowHPBarModal(false); setSelectedSourceEntity(""); setSelectedValueVar(""); setSelectedMaxVar(""); }}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: 'transparent',
+                                    border: `1px solid ${colors.borderColor}`,
+                                    borderRadius: '4px',
+                                    color: colors.textSecondary,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={createHPBar}
+                                disabled={!selectedSourceEntity || !selectedValueVar || !selectedMaxVar}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: colors.accent,
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    opacity: (!selectedSourceEntity || !selectedValueVar || !selectedMaxVar) ? 0.5 : 1
+                                }}
+                            >
+                                생성
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

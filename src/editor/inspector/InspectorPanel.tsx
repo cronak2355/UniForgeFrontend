@@ -4,12 +4,14 @@ import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
 import { VariableSection } from "./VariableSection";
 import { syncLegacyFromLogic } from "../utils/entityLogic";
+import { useEditorCore } from "../../contexts/EditorCoreContext";
 
 interface Props {
   entity: EditorEntity | null;
   onUpdateEntity: (next: EditorEntity) => void;
 }
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
+  const core = useEditorCore();
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
 
   useEffect(() => {
@@ -228,14 +230,339 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         </div>
       </div>
 
-      {/* Component Section */}
       <div style={sectionStyle}>
         <VariableSection
           variables={variables}
           onAdd={handleAddVariable}
           onUpdate={handleUpdateVariable}
+          entityId={localEntity.id}
           onRemove={handleRemoveVariable}
         />
+      </div>
+
+      {/* UI Settings Section */}
+      <div style={sectionStyle}>
+        <div style={titleStyle}>UI Settings</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* isUI Checkbox */}
+          <div style={rowStyle}>
+            <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Is UI Element</span>
+            <input
+              type="checkbox"
+              checked={localEntity.variables.some(v => v.name === "isUI" && v.value === true)}
+              onChange={(e) => {
+                const isChecked = e.target.checked;
+                let nextVars = localEntity.variables.filter(v => v.name !== "isUI");
+                if (isChecked) {
+                  nextVars.push({ id: crypto.randomUUID(), name: "isUI", type: "bool", value: true });
+                }
+                handleUpdate({ ...localEntity, variables: nextVars });
+              }}
+            />
+          </div>
+
+          {/* UI Type Selector */}
+          {localEntity.variables.some(v => v.name === "isUI" && v.value === true) && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>UI Type</span>
+                <select
+                  style={{ ...inputStyle, width: '120px' }}
+                  value={String(localEntity.variables.find(v => v.name === "uiType")?.value ?? "text")}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    let nextVars = localEntity.variables.filter(v => v.name !== "uiType");
+                    nextVars.push({ id: crypto.randomUUID(), name: "uiType", type: "string", value: type });
+
+                    // Initialize default variables for the selected type
+                    if (type === "bar") {
+                      if (!nextVars.find(v => v.name === "uiBarColor")) nextVars.push({ id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" });
+                      if (!nextVars.find(v => v.name === "width")) nextVars.push({ id: crypto.randomUUID(), name: "width", type: "float", value: 200 });
+                      if (!nextVars.find(v => v.name === "height")) nextVars.push({ id: crypto.randomUUID(), name: "height", type: "float", value: 20 });
+                    }
+                    if (type === "panel") {
+                      if (!nextVars.find(v => v.name === "width")) nextVars.push({ id: crypto.randomUUID(), name: "width", type: "float", value: 200 });
+                      if (!nextVars.find(v => v.name === "height")) nextVars.push({ id: crypto.randomUUID(), name: "height", type: "float", value: 100 });
+                    }
+
+                    handleUpdate({ ...localEntity, variables: nextVars });
+                  }}
+                >
+                  <option value="text">Text</option>
+                  <option value="panel">Panel</option>
+                  <option value="bar">Bar (Gauge)</option>
+                </select>
+              </div>
+
+              {/* Text Specific Settings */}
+              {(localEntity.variables.find(v => v.name === "uiType")?.value ?? "text") === "text" && (
+                <>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Content</span>
+                    <input type="text" style={{ ...inputStyle, width: '120px' }}
+                      value={String(localEntity.variables.find(v => v.name === "uiText")?.value ?? "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiText");
+                        vars.push({ id: crypto.randomUUID(), name: "uiText", type: "string", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Source Entity</span>
+                    <select
+                      style={{ ...inputStyle, width: '120px' }}
+                      value={String(localEntity.variables.find(v => v.name === "uiSourceEntity")?.value ?? "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiSourceEntity" && v.name !== "uiValueVar");
+                        if (val) {
+                          vars.push({ id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: val });
+                        }
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }}
+                    >
+                      <option value="">(None)</option>
+                      <optgroup label="Global">
+                        {Array.from(core.getGlobalEntities().values()).map((e: { id: string; name: string }) => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Scene">
+                        {Array.from(core.getEntities().values())
+                          .filter((e: { id: string }) => e.id !== localEntity.id)
+                          .map((e: { id: string; name: string }) => (
+                            <option key={e.id} value={e.id}>{e.name}</option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Link Var</span>
+                    <select
+                      style={{ ...inputStyle, width: '120px' }}
+                      value={String(localEntity.variables.find(v => v.name === "uiValueVar")?.value ?? "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiValueVar");
+                        if (val) {
+                          vars.push({ id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: val });
+                        }
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }}
+                    >
+                      <option value="">(None)</option>
+                      {(() => {
+                        const sourceEntityId = localEntity.variables.find(v => v.name === "uiSourceEntity")?.value;
+                        if (!sourceEntityId) return null;
+                        // Check both global and scene entities
+                        const sourceEntity = core.getGlobalEntities().get(String(sourceEntityId))
+                          || core.getEntities().get(String(sourceEntityId));
+                        if (!sourceEntity) return null;
+                        return sourceEntity.variables
+                          .filter((v: { name: string }) => !["uiType", "uiText", "uiFontSize", "uiColor", "uiBackgroundColor", "uiAlign", "uiValueVar", "uiSourceEntity", "uiMaxVar", "isUI", "width", "height", "z", "role"].includes(v.name))
+                          .map((v: { id: string; name: string }) => (
+                            <option key={v.id} value={v.name}>{v.name}</option>
+                          ));
+                      })()}
+                    </select>
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Size</span>
+                    <input type="number" style={inputStyle}
+                      value={Number(localEntity.variables.find(v => v.name === "uiFontSize")?.value ?? 16)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        let vars = localEntity.variables.filter(v => v.name !== "uiFontSize");
+                        vars.push({ id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Alignment</span>
+                    <select
+                      style={{ ...inputStyle, width: '120px' }}
+                      value={String(localEntity.variables.find(v => v.name === "uiAlign")?.value ?? "center")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiAlign");
+                        vars.push({ id: crypto.randomUUID(), name: "uiAlign", type: "string", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }}
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Color</span>
+                    <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
+                      value={String(localEntity.variables.find(v => v.name === "uiColor")?.value ?? "#ffffff")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiColor");
+                        vars.push({ id: crypto.randomUUID(), name: "uiColor", type: "string", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                </>
+              )}
+
+              {/* Panel & Bar Shared: Background Color, Size */}
+              {["panel", "bar"].includes(String(localEntity.variables.find(v => v.name === "uiType")?.value)) && (
+                <>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>BG Color</span>
+                    <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
+                      value={String(localEntity.variables.find(v => v.name === "uiBackgroundColor")?.value ?? "#444444")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiBackgroundColor");
+                        vars.push({ id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Width</span>
+                    <input type="number" style={inputStyle}
+                      value={Number(localEntity.variables.find(v => v.name === "width")?.value ?? 100)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        let vars = localEntity.variables.filter(v => v.name !== "width");
+                        vars.push({ id: crypto.randomUUID(), name: "width", type: "float", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Height</span>
+                    <input type="number" style={inputStyle}
+                      value={Number(localEntity.variables.find(v => v.name === "height")?.value ?? 100)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        let vars = localEntity.variables.filter(v => v.name !== "height");
+                        vars.push({ id: crypto.randomUUID(), name: "height", type: "float", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                </>
+              )}
+
+              {/* Bar Specific Settings */}
+              {String(localEntity.variables.find(v => v.name === "uiType")?.value) === "bar" && (
+                <>
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Bar Color</span>
+                    <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
+                      value={String(localEntity.variables.find(v => v.name === "uiBarColor")?.value ?? "#e74c3c")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiBarColor");
+                        vars.push({ id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: val });
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }} />
+                  </div>
+                  {/* Unified Value Picker: Entity.Variable format */}
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Value</span>
+                    <select
+                      style={{ ...inputStyle, width: '140px' }}
+                      value={(() => {
+                        const srcId = localEntity.variables.find(v => v.name === "uiSourceEntity")?.value;
+                        const varName = localEntity.variables.find(v => v.name === "uiValueVar")?.value;
+                        return srcId && varName ? `${srcId}|${varName}` : "";
+                      })()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => !["uiSourceEntity", "uiValueVar"].includes(v.name));
+                        if (val) {
+                          const [entityId, varName] = val.split("|");
+                          vars.push({ id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: entityId });
+                          vars.push({ id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: varName });
+                        }
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }}
+                    >
+                      <option value="">(None)</option>
+                      {/* Global entities */}
+                      {Array.from(core.getGlobalEntities().values()).map((ent: any) => (
+                        <optgroup key={`global-${ent.id}`} label={`🌐 ${ent.name}`}>
+                          {ent.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                            <option key={`${ent.id}-${v.name}`} value={`${ent.id}|${v.name}`}>
+                              {ent.name}.{v.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {/* Scene entities */}
+                      {Array.from(core.getEntities().values())
+                        .filter((ent: any) => ent.id !== localEntity.id && !ent.variables?.find((v: any) => v.name === "isUI")?.value)
+                        .map((ent: any) => (
+                          <optgroup key={`scene-${ent.id}`} label={ent.name}>
+                            {ent.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                              <option key={`${ent.id}-${v.name}`} value={`${ent.id}|${v.name}`}>
+                                {ent.name}.{v.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                    </select>
+                  </div>
+                  {/* Unified Max Picker: Entity.Variable format */}
+                  <div style={rowStyle}>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Max</span>
+                    <select
+                      style={{ ...inputStyle, width: '140px' }}
+                      value={(() => {
+                        const srcId = localEntity.variables.find(v => v.name === "uiSourceEntity")?.value;
+                        const varName = localEntity.variables.find(v => v.name === "uiMaxVar")?.value;
+                        return srcId && varName ? `${srcId}|${varName}` : "";
+                      })()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "uiMaxVar");
+                        if (val) {
+                          const [entityId, varName] = val.split("|");
+                          // Also update source entity if not set
+                          if (!localEntity.variables.find(v => v.name === "uiSourceEntity")?.value) {
+                            vars = vars.filter(v => v.name !== "uiSourceEntity");
+                            vars.push({ id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: entityId });
+                          }
+                          vars.push({ id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: varName });
+                        }
+                        handleUpdate({ ...localEntity, variables: vars });
+                      }}
+                    >
+                      <option value="">(None)</option>
+                      {/* Global entities */}
+                      {Array.from(core.getGlobalEntities().values()).map((ent: any) => (
+                        <optgroup key={`global-max-${ent.id}`} label={`🌐 ${ent.name}`}>
+                          {ent.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                            <option key={`${ent.id}-max-${v.name}`} value={`${ent.id}|${v.name}`}>
+                              {ent.name}.{v.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {/* Scene entities */}
+                      {Array.from(core.getEntities().values())
+                        .filter((ent: any) => ent.id !== localEntity.id && !ent.variables?.find((v: any) => v.name === "isUI")?.value)
+                        .map((ent: any) => (
+                          <optgroup key={`scene-max-${ent.id}`} label={ent.name}>
+                            {ent.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
+                              <option key={`${ent.id}-max-${v.name}`} value={`${ent.id}|${v.name}`}>
+                                {ent.name}.{v.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div style={sectionStyle}>
