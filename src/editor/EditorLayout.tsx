@@ -627,10 +627,29 @@ function EditorLayoutInner() {
                                     alert("Failed to save project: " + String(e));
                                 }
                             }} />
-                            <MenuItem label="Export" onClick={() => {
-                                navigate("/build");
-                            }} />
+                            <MenuItem
+                                label="Export"
+                                onClick={() => {
+                                    try {
+                                        // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
+                                        const sceneJson = SceneSerializer.serialize(core);
 
+                                        // 2. BuildPage에서 읽을 수 있도록 sessionStorage에 저장
+                                        sessionStorage.setItem(
+                                            "UNITY_BUILD_SCENE_JSON",
+                                            JSON.stringify(sceneJson)
+                                        );
+
+                                        console.log("✅ Export Scene JSON saved", sceneJson);
+
+                                        // 3. Build 페이지로 이동
+                                        navigate("/build");
+                                    } catch (e) {
+                                        console.error("❌ Export failed", e);
+                                        alert("빌드 데이터를 생성하는 중 오류가 발생했습니다.");
+                                    }
+                                }}
+                            />
                             {/* Hidden Input for Load */}
                             <div style={{ display: 'none' }}>
                                 <input
