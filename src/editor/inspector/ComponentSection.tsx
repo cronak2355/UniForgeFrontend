@@ -7,6 +7,8 @@ import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
 import * as styles from "./ComponentSection.styles";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { EditorVariable } from "../types/Variable";
+import { ActionEditor } from "./ActionEditor";
+import type { ModuleGraph } from "../types/Module";
 
 type Props = {
     entity: EditorEntity;
@@ -39,6 +41,7 @@ const ACTION_LABELS: Record<string, string> = {
     PlaySound: "PlaySound",
     EmitEventSignal: "EmitEventSignal",
     ClearSignal: "ClearSignal",
+    RunModule: "RunModule",
 };
 
 const CONDITION_TYPES = [
@@ -189,11 +192,18 @@ function normalizeEvent(event: string): string {
 }
 
 export const ComponentSection = memo(function ComponentSection({ entity, onUpdateEntity }: Props) {
-    const { entities: allEntities } = useEditorCoreSnapshot();
+    const { core, entities: allEntities, modules: libraryModules } = useEditorCoreSnapshot();
     const allComponents = splitLogicItems(entity.logic);
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
+    const modules = [
+        ...libraryModules.map((module) => {
+            const override = entity.modules?.find((m) => m.id === module.id);
+            return override ?? module;
+        }),
+        ...(entity.modules ?? []).filter((module) => !libraryModules.some((m) => m.id === module.id)),
+    ];
 
     const commitLogic = (nextLogicComponents: LogicComponent[]) => {
         const nextComponents = [...otherComponents, ...nextLogicComponents];
@@ -230,15 +240,87 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
         commitLogic([...logicComponents, newComponent]);
     };
 
-    const handleUpdateRule = (index: number, rule: LogicComponent) => {
+    const handleUpdateRule = (index: number, rule: LogicComponent, ensureModuleId?: string) => {
         const nextRules = [...logicComponents];
         nextRules[index] = rule;
-        commitLogic(nextRules);
+        let nextModules = entity.modules ?? [];
+        if (ensureModuleId && !nextModules.some((m) => m.id === ensureModuleId)) {
+            const source = libraryModules.find((m) => m.id === ensureModuleId);
+            if (source) {
+                const cloned = JSON.parse(JSON.stringify(source)) as ModuleGraph;
+                nextModules = [...nextModules, cloned];
+            }
+        }
+        const nextComponents = [...otherComponents, ...nextRules];
+        const nextLogic = buildLogicItems({ components: nextComponents });
+        onUpdateEntity({ ...entity, logic: nextLogic, modules: nextModules });
     };
 
     const handleRemoveRule = (index: number) => {
         const nextRules = logicComponents.filter((_, i) => i != index);
         commitLogic(nextRules);
+    };
+
+    const availableActions = ActionRegistry.getAvailableActions();
+    const actionLabels = { ...ACTION_LABELS };
+
+    const ensureVariable = (name: string, value: unknown, explicitType?: EditorVariable["type"]) => {
+        if (!name) return;
+        if (variables.some((v) => v.name === name)) return;
+        let type: EditorVariable["type"] = "string";
+        let nextValue: EditorVariable["value"] = "";
+        if (explicitType) {
+            type = explicitType;
+        }
+        if (typeof value === "boolean") {
+            type = "bool";
+            nextValue = value;
+        } else if (typeof value === "number" && !Number.isNaN(value)) {
+            type = Number.isInteger(value) ? "int" : "float";
+            nextValue = value;
+        } else if (value === undefined || value === null) {
+            type = "int";
+            nextValue = 0;
+        } else {
+            nextValue = String(value);
+        }
+        const nextVar: EditorVariable = {
+            id: crypto.randomUUID(),
+            name,
+            type,
+            value: nextValue,
+        };
+        onUpdateEntity({ ...entity, variables: [...variables, nextVar] });
+    };
+
+    const handleUpdateModuleVariable = (
+        moduleId: string,
+        name: string,
+        value: unknown,
+        explicitType?: EditorVariable["type"]
+    ) => {
+        const entityModules = entity.modules ?? [];
+        let nextModules = [...entityModules];
+        let target = entityModules.find((m) => m.id === moduleId);
+
+        if (!target) {
+            const source = libraryModules.find((m) => m.id === moduleId);
+            if (!source) return;
+            target = JSON.parse(JSON.stringify(source)) as ModuleGraph;
+            nextModules = [...nextModules, target];
+        }
+
+        const nextVars = (target.variables ?? []).map((v) => {
+            if (v.name !== name) return v;
+            return {
+                ...v,
+                type: explicitType ?? v.type,
+                value: value as typeof v.value,
+            };
+        });
+        const updated = { ...target, variables: nextVars };
+        nextModules = nextModules.map((m) => (m.id === updated.id ? updated : m));
+        onUpdateEntity({ ...entity, modules: nextModules });
     };
 
     return (
@@ -260,7 +342,12 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         index={index}
                         variables={variables}
                         entities={otherEntities}
-                        onUpdate={(r) => handleUpdateRule(index, r)}
+                        modules={modules}
+                        availableActions={availableActions}
+                        actionLabels={actionLabels}
+                        onCreateVariable={ensureVariable}
+                        onUpdateModuleVariable={handleUpdateModuleVariable}
+                        onUpdate={(r, ensureModuleId) => handleUpdateRule(index, r, ensureModuleId)}
                         onRemove={() => handleRemoveRule(index)}
                     />
                 ))}
@@ -279,6 +366,11 @@ const RuleItem = memo(function RuleItem({
     index,
     variables,
     entities,
+    modules,
+    availableActions,
+    actionLabels,
+    onCreateVariable,
+    onUpdateModuleVariable,
     onUpdate,
     onRemove,
 }: {
@@ -286,7 +378,17 @@ const RuleItem = memo(function RuleItem({
     index: number;
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
-    onUpdate: (rule: LogicComponent) => void;
+    modules: ModuleGraph[];
+    availableActions: string[];
+    actionLabels: Record<string, string>;
+    onCreateVariable: (name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;
+    onUpdateModuleVariable: (
+        moduleId: string,
+        name: string,
+        value: unknown,
+        explicitType?: EditorVariable["type"]
+    ) => void;
+    onUpdate: (rule: LogicComponent, ensureModuleId?: string) => void;
     onRemove: () => void;
 }) {
     const [expanded, setExpanded] = useState(true);
@@ -304,7 +406,6 @@ const RuleItem = memo(function RuleItem({
     };
 
     const handleAddAction = () => {
-        const availableActions = ActionRegistry.getAvailableActions();
         const actionType = availableActions[0] || "Move";
         onUpdate({
             ...rule,
@@ -316,7 +417,7 @@ const RuleItem = memo(function RuleItem({
         <div style={styles.ruleItemContainer}>
             <div style={styles.ruleItemHeader} onClick={() => setExpanded(!expanded)}>
                 <span style={styles.ruleItemTitle}>
-                    {expanded ? "▼" : "▶"} Component #{index + 1}: {rule.event}
+                    {expanded ? "v" : ">"} Component #{index + 1}: {rule.event}
                 </span>
                 <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={styles.removeButton}>
                     Remove
@@ -391,12 +492,24 @@ const RuleItem = memo(function RuleItem({
                             <ActionEditor
                                 key={i}
                                 action={action}
+                                availableActions={availableActions}
+                                actionLabels={actionLabels}
                                 variables={variables}
                                 entities={entities}
+                                modules={modules}
+                                onCreateVariable={onCreateVariable}
+                                onUpdateModuleVariable={onUpdateModuleVariable}
                                 onUpdate={(a) => {
                                     const newActions = [...rule.actions];
                                     newActions[i] = a;
-                                    onUpdate({ ...rule, actions: newActions });
+                                    const moduleId =
+                                        a.type === "RunModule"
+                                            ? ((a.moduleId as string) ??
+                                              (a.moduleName as string) ??
+                                              (a.name as string) ??
+                                              "")
+                                            : "";
+                                    onUpdate({ ...rule, actions: newActions }, moduleId || undefined);
                                 }}
                                 onRemove={() => {
                                     onUpdate({ ...rule, actions: rule.actions.filter((_, j) => j !== i) });
@@ -500,205 +613,6 @@ function ConditionEditor({
             )}
 
             <button onClick={onRemove} style={styles.removeButton}>×</button>
-        </div>
-    );
-}
-
-function ActionEditor({
-    action,
-    variables,
-    entities,
-    onUpdate,
-    onRemove,
-}: {
-    action: { type: string; [key: string]: unknown };
-    variables: EditorVariable[];
-    entities: { id: string; name: string }[];
-    onUpdate: (a: { type: string; [key: string]: unknown }) => void;
-    onRemove: () => void;
-}) {
-    const availableActions = ActionRegistry.getAvailableActions();
-    const selectedVar = variables.find((v) => v.name === (action.name as string));
-
-    return (
-        <div style={styles.actionRow}>
-            <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                <select
-                    value={action.type}
-                    onChange={(e) => onUpdate({ type: e.target.value })}
-                    style={styles.selectField}
-                >
-                    {availableActions.map((a) => (
-                        <option key={a} value={a}>
-                            {ACTION_LABELS[a] || a} ({a})
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {action.type === "Move" && (
-                <>
-                    <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
-                    <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
-                    <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
-                </>
-            )}
-
-            {action.type === "ChaseTarget" && (
-                <>
-                    <select
-                        value={(action.targetId as string) || ""}
-                        onChange={(e) => onUpdate({ ...action, targetId: e.target.value })}
-                        style={styles.smallSelect}
-                    >
-                        <option value="">(target)</option>
-                        {entities.map((ent) => (
-                            <option key={ent.id} value={ent.id}>
-                                {ent.name || ent.id}
-                            </option>
-                        ))}
-                    </select>
-                    <ParamInput label="speed" value={action.speed as number} defaultValue={80} onChange={(v) => onUpdate({ ...action, speed: v })} />
-                </>
-            )}
-
-            {(action.type === "TakeDamage" || action.type === "Heal") && (
-                <ParamInput label="amount" value={action.amount as number} defaultValue={10} onChange={(v) => onUpdate({ ...action, amount: v })} />
-            )}
-
-            {action.type === "Attack" && (
-                <>
-                    <ParamInput label="range" value={action.range as number} defaultValue={100} onChange={(v) => onUpdate({ ...action, range: v })} />
-                    <ParamInput label="damage" value={action.damage as number} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} />
-                </>
-            )}
-
-            {action.type === "SetVar" && (
-                <>
-                    <input
-                        type="text"
-                        placeholder="name"
-                        value={(action.name as string) || ""}
-                        onChange={(e) => onUpdate({ ...action, name: e.target.value })}
-                        style={styles.textInput}
-                    />
-                    {selectedVar?.type === "bool" ? (
-                        <select
-                            value={action.value === true ? "true" : "false"}
-                            onChange={(e) => onUpdate({ ...action, value: e.target.value === "true" })}
-                            style={styles.smallSelect}
-                        >
-                            <option value="true">true</option>
-                            <option value="false">false</option>
-                        </select>
-                    ) : selectedVar?.type === "int" || selectedVar?.type === "float" ? (
-                        <input
-                            type="number"
-                            placeholder="value"
-                            value={action.value !== undefined ? Number(action.value) : 0}
-                            onChange={(e) => onUpdate({ ...action, value: parseFloat(e.target.value) || 0 })}
-                            style={styles.textInput}
-                        />
-                    ) : (
-                        <input
-                            type="text"
-                            placeholder="value"
-                            value={action.value !== undefined ? String(action.value) : ""}
-                            onChange={(e) => onUpdate({ ...action, value: e.target.value })}
-                            style={styles.textInput}
-                        />
-                    )}
-                </>
-            )}
-
-            {action.type === "ClearSignal" && (
-                <input
-                    type="text"
-                    placeholder="signalKey"
-                    value={(action.key as string) || ""}
-                    onChange={(e) => onUpdate({ ...action, key: e.target.value })}
-                    style={styles.textInput}
-                />
-            )}
-
-            {action.type === "ShowDialogue" && (
-                <input
-                    type="text"
-                    placeholder="dialogue"
-                    value={(action.text as string) || ""}
-                    onChange={(e) => onUpdate({ ...action, text: e.target.value })}
-                    style={styles.textInput}
-                />
-            )}
-
-            {action.type === "PlaySound" && (
-                <input
-                    type="text"
-                    placeholder="soundId"
-                    value={(action.soundId as string) || ""}
-                    onChange={(e) => onUpdate({ ...action, soundId: e.target.value })}
-                    style={styles.textInput}
-                />
-            )}
-
-            {action.type === "EmitEventSignal" && (
-                <input
-                    type="text"
-                    placeholder="signalKey"
-                    value={(action.signalKey as string) || ""}
-                    onChange={(e) => onUpdate({ ...action, signalKey: e.target.value })}
-                    style={styles.textInput}
-                />
-            )}
-
-            {action.type === "Rotate" && (
-                <ParamInput label="speed" value={action.speed as number} defaultValue={90} onChange={(v) => onUpdate({ ...action, speed: v })} />
-            )}
-
-            {action.type === "Pulse" && (
-                <>
-                    <ParamInput label="speed" value={action.speed as number} defaultValue={2} onChange={(v) => onUpdate({ ...action, speed: v })} />
-                    <ParamInput label="min" value={action.minScale as number} defaultValue={0.9} onChange={(v) => onUpdate({ ...action, minScale: v })} />
-                    <ParamInput label="max" value={action.maxScale as number} defaultValue={1.1} onChange={(v) => onUpdate({ ...action, maxScale: v })} />
-                </>
-            )}
-
-            {action.type === "Enable" && (
-                <select
-                    value={action.enabled === false ? "false" : "true"}
-                    onChange={(e) => onUpdate({ ...action, enabled: e.target.value === "true" })}
-                    style={styles.smallSelect}
-                >
-                    <option value="true">enable</option>
-                    <option value="false">disable</option>
-                </select>
-            )}
-
-            <button onClick={onRemove} style={styles.removeButton}>×</button>
-        </div>
-    );
-}
-
-function ParamInput({
-    label,
-    value,
-    defaultValue = 0,
-    onChange,
-}: {
-    label: string;
-    value: number | undefined;
-    defaultValue?: number;
-    onChange: (v: number) => void;
-}) {
-    return (
-        <div style={styles.paramInputContainer}>
-            <span style={styles.paramLabel}>{label}:</span>
-            <input
-                type="number"
-                value={value ?? defaultValue}
-                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                style={styles.smallNumberInput}
-            />
         </div>
     );
 }

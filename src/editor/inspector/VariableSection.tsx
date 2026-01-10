@@ -4,10 +4,12 @@ export function VariableSection({
   variables,
   onAdd,
   onUpdate,
+  onRemove,
 }: {
   variables: EditorVariable[];
   onAdd: () => void;
   onUpdate: (v: EditorVariable) => void;
+  onRemove: (id: string) => void;
 }) {
   const coerceType = (variable: EditorVariable, nextType: EditorVariable["type"]) => {
     if (nextType === variable.type) return variable;
@@ -102,6 +104,12 @@ export function VariableSection({
                 }
               />
             )}
+            <button
+              className="variable-remove"
+              onClick={() => onRemove(v.id)}
+            >
+              x
+            </button>
           </div>
         ))}
       </div>

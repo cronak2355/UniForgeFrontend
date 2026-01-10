@@ -25,17 +25,16 @@ export function useEditorCoreSnapshot() {
 
     return {
         core,
-        assets: Array.from(core.getAssets()),
-        entities: Array.from(core.getEntities().values()),
-        tiles: Array.from(core.getTiles().values()),
+        assets: Array.from(typeof core.getAssets === "function" ? core.getAssets() : []),
+        modules: Array.from(typeof core.getModules === "function" ? core.getModules() : []),
+        entities: Array.from(typeof core.getEntities === "function" ? core.getEntities().values() : []),
+        tiles: Array.from(typeof core.getTiles === "function" ? core.getTiles().values() : []),
+        scenes: typeof core.getScenes === "function" ? core.getScenes() : new Map(),
+        currentSceneId: typeof core.getCurrentSceneId === "function" ? core.getCurrentSceneId() : "default",
 
-        // Scene Data
-        scenes: core.getScenes(),
-        currentSceneId: core.getCurrentSceneId(),
-
-        selectedAsset: core.getSelectedAsset(),
-        draggedAsset: core.getDraggedAsset(),
-        selectedEntity: core.getSelectedEntity(),
-        editorMode: core.getEditorMode(),
+        selectedAsset: typeof core.getSelectedAsset === "function" ? core.getSelectedAsset() : null,
+        draggedAsset: typeof core.getDraggedAsset === "function" ? core.getDraggedAsset() : null,
+        selectedEntity: typeof core.getSelectedEntity === "function" ? core.getSelectedEntity() : null,
+        editorMode: typeof core.getEditorMode === "function" ? core.getEditorMode() : undefined,
     };
 }

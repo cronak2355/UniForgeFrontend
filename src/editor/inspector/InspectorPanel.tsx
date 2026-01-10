@@ -14,7 +14,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
   useEffect(() => {
     if (entity) {
-      setLocalEntity({ ...entity });
+      setLocalEntity({ ...entity, variables: entity.variables ?? [] });
     } else {
       setLocalEntity(null);
     }
@@ -28,29 +28,37 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         color: colors.textSecondary,
         fontSize: '13px',
       }}>
-        오브젝트를 선택해주세요
+        Select an entity to inspect.
       </div>
     );
   }
 
   const handleUpdate = (updated: EditorEntity) => {
     const normalized = syncLegacyFromLogic(updated);
-    setLocalEntity(normalized);
-    onUpdateEntity(normalized);
+    const withVariables = { ...normalized, variables: normalized.variables ?? [] };
+    setLocalEntity(withVariables);
+    onUpdateEntity(withVariables);
   };
+  const variables = localEntity.variables ?? [];
+
 
   const handleAddVariable = () => {
     const nextVar = {
       id: crypto.randomUUID(),
-      name: "변수",
+      name: `var_${variables.length + 1}`,
       type: "int" as const,
       value: 0,
     };
-    handleUpdate({ ...localEntity, variables: [...localEntity.variables, nextVar] });
+    handleUpdate({ ...localEntity, variables: [...variables, nextVar] });
   };
 
-  const handleUpdateVariable = (variable: typeof localEntity.variables[number]) => {
-    const nextVars = localEntity.variables.map((v) => (v.id === variable.id ? variable : v));
+  const handleUpdateVariable = (variable: typeof variables[number]) => {
+    const nextVars = variables.map((v) => (v.id === variable.id ? variable : v));
+    handleUpdate({ ...localEntity, variables: nextVars });
+  };
+
+  const handleRemoveVariable = (id: string) => {
+    const nextVars = variables.filter((v) => v.id !== id);
     handleUpdate({ ...localEntity, variables: nextVars });
   };
 
@@ -223,17 +231,17 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       {/* Component Section */}
       <div style={sectionStyle}>
         <VariableSection
-          variables={localEntity.variables}
+          variables={variables}
           onAdd={handleAddVariable}
           onUpdate={handleUpdateVariable}
+          onRemove={handleRemoveVariable}
         />
       </div>
 
       <div style={sectionStyle}>
-        <div style={titleStyle}>컴포넌트</div>
+        <div style={titleStyle}>Components</div>
         <ComponentSection entity={localEntity} onUpdateEntity={handleUpdate} />
       </div>
-
     </div>
   );
 }
