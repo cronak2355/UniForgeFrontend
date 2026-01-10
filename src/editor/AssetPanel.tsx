@@ -36,7 +36,7 @@ export function AssetPanel({
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
   const onGlobalPointerUp = () => {
-    changeDraggedAsset(null);
+    changeDraggedAsset(null, { defer: true });
     window.removeEventListener("pointerup", onGlobalPointerUp);
   };
 
