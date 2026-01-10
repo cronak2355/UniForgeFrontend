@@ -204,10 +204,12 @@ export class ModuleRuntime {
         const target = String(node.params.target ?? "").trim();
         if (!target) return false;
         const value = this.resolveValueInput(instance, node.id, "value", node.params.value ?? null);
-        if (instance.moduleVariables.has(target)) {
-          instance.moduleVariables.set(target, value);
-        } else {
+        const entity = this.hooks.getEntity(instance.entityId);
+        const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === target));
+        if (hasEntityVar) {
           this.hooks.setVar(instance.entityId, target, value);
+        } else if (instance.moduleVariables.has(target)) {
+          instance.moduleVariables.set(target, value);
         }
         return true;
       }
@@ -218,9 +220,17 @@ export class ModuleRuntime {
         if (actionName === "SetVar") {
           const name = String(params.name ?? "").trim();
           params.value = this.resolveValueInput(instance, node.id, "value", params.value ?? null);
-          if (name && instance.moduleVariables.has(name)) {
-            instance.moduleVariables.set(name, params.value ?? null);
-            return true;
+          if (name) {
+            const entity = this.hooks.getEntity(instance.entityId);
+            const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === name));
+            if (hasEntityVar) {
+              this.hooks.setVar(instance.entityId, name, params.value ?? null);
+              return true;
+            }
+            if (instance.moduleVariables.has(name)) {
+              instance.moduleVariables.set(name, params.value ?? null);
+              return true;
+            }
           }
         }
         ActionRegistry.run(actionName, ctx, params as Record<string, unknown>);
@@ -299,12 +309,15 @@ export class ModuleRuntime {
     if (!edge) return fallback;
     const valueNode = instance.graph.nodes.find((n) => n.id === edge.fromNodeId);
     if (!valueNode || valueNode.kind !== "Value") return fallback;
+    const entity = this.hooks.getEntity(instance.entityId);
+    const variable = entity?.variables?.find((v) => v.name === valueNode.variableName);
+    if (variable) {
+      return (variable.value as ModuleLiteral) ?? null;
+    }
     if (instance.moduleVariables.has(valueNode.variableName)) {
       return instance.moduleVariables.get(valueNode.variableName) ?? null;
     }
-    const entity = this.hooks.getEntity(instance.entityId);
-    const variable = entity?.variables?.find((v) => v.name === valueNode.variableName);
-    return (variable?.value as ModuleLiteral) ?? null;
+    return null;
   }
 
   private findValueEdge(graph: ModuleGraph, nodeId: string, port: string): ModuleEdge | undefined {

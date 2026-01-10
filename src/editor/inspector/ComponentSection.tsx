@@ -8,6 +8,7 @@ import * as styles from "./ComponentSection.styles";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { EditorVariable } from "../types/Variable";
 import { ActionEditor } from "./ActionEditor";
+import type { ModuleGraph } from "../types/Module";
 
 type Props = {
     entity: EditorEntity;
@@ -245,11 +246,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     };
 
     const availableActions = ActionRegistry.getAvailableActions();
-    const moduleActionLabels = modules.reduce<Record<string, string>>((acc, module) => {
-        acc[`Module:${module.id}`] = `Module: ${module.name}`;
-        return acc;
-    }, {});
-    const actionLabels = { ...ACTION_LABELS, ...moduleActionLabels };
+    const actionLabels = { ...ACTION_LABELS };
 
     const ensureVariable = (name: string, value: unknown, explicitType?: EditorVariable["type"]) => {
         if (!name) return;
@@ -333,7 +330,7 @@ const RuleItem = memo(function RuleItem({
     index: number;
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
-    modules: { id: string; name: string }[];
+    modules: ModuleGraph[];
     availableActions: string[];
     actionLabels: Record<string, string>;
     onCreateVariable: (name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;

@@ -240,11 +240,6 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
-    const moduleActionLabels = modules.reduce<Record<string, string>>((acc, module) => {
-        acc[`Module:${module.id}`] = `Module: ${module.name}`;
-        return acc;
-    }, {});
-
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
         const activeEntity = localSelectedEntity ?? selectedEntity;
         if (!activeEntity) return;
@@ -874,7 +869,7 @@ function EditorLayoutInner() {
                     addModule={(module) => core.addModule(module)}
                     updateModule={(module) => core.updateModule(module)}
                     selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                    actionLabels={moduleActionLabels}
+                    actionLabels={undefined}
                     onCreateVariable={handleCreateActionVariable}
                     onUpdateVariable={handleUpdateModuleVariable}
                 />

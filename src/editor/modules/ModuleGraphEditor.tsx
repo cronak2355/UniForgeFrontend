@@ -18,7 +18,7 @@ import { ActionEditor } from "../inspector/ActionEditor";
 type Props = {
   module: ModuleGraph;
   variables: EditorVariable[];
-  modules: { id: string; name: string }[];
+  modules: ModuleGraph[];
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   actionLabels?: Record<string, string>;
@@ -66,6 +66,17 @@ export function ModuleGraphEditor({
   const [newVarType, setNewVarType] = useState<EditorVariable["type"]>("int");
   const [newVarValue, setNewVarValue] = useState("0");
   const moduleVariables = module.variables ?? [];
+  const combinedVariables = useMemo(() => {
+    const moduleVars = moduleVariables.map((v) => ({
+      id: v.id,
+      name: v.name,
+      type: v.type,
+      value: v.value,
+    }));
+    const moduleNames = new Set(moduleVars.map((v) => v.name));
+    const entityOnly = variables.filter((v) => !moduleNames.has(v.name));
+    return [...moduleVars, ...entityOnly];
+  }, [moduleVariables, variables]);
 
   const syncModuleVariable = (name: string, value: unknown, explicitType?: EditorVariable["type"]) => {
     if (!name) return;
@@ -383,12 +394,13 @@ export function ModuleGraphEditor({
                 } else if (newVarType === "bool") {
                   value = newVarValue.toLowerCase() === "true" || newVarValue === "1";
                 }
-                syncModuleVariable(name, value, newVarType);
+                const entityVarExists = variables.some((v) => v.name === name);
+                const moduleVarExists = moduleVariables.some((v) => v.name === name);
+                if (!entityVarExists || moduleVarExists) {
+                  syncModuleVariable(name, value, newVarType);
+                }
 
-                const exists = variables.some((v) => v.name === name);
-                if (!exists && onCreateVariable) {
-                  onCreateVariable(name, value, newVarType);
-                } else if (exists && onUpdateVariable) {
+                if (entityVarExists && onUpdateVariable) {
                   onUpdateVariable(name, value, newVarType);
                 }
                 setNewVarName("");
@@ -527,7 +539,7 @@ export function ModuleGraphEditor({
                   <FlowNodeEditor
                     node={node}
                     availableActions={availableActions}
-                    variables={moduleVariables}
+                    variables={combinedVariables}
                     entities={entityOptions}
                     modules={modules}
                     actionLabels={actionLabels}
@@ -546,7 +558,7 @@ export function ModuleGraphEditor({
                   />
                 )}
                 {node.kind === "Value" && (
-                  <ValueNodeEditor node={node} variables={moduleVariables} onUpdate={(patch) => updateNode(node.id, patch)} />
+                  <ValueNodeEditor node={node} variables={combinedVariables} onUpdate={(patch) => updateNode(node.id, patch)} />
                 )}
                 {node.kind === "Stop" && (
                   <StopNodeEditor node={node} onUpdate={(patch) => updateNode(node.id, patch)} />
@@ -612,7 +624,7 @@ function FlowNodeEditor({
   availableActions: string[];
   variables: EditorVariable[];
   entities: { id: string; name: string }[];
-  modules: { id: string; name: string }[];
+  modules: ModuleGraph[];
   actionLabels?: Record<string, string>;
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdate: (patch: Partial<ModuleFlowNode>) => void;

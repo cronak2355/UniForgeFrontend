@@ -5,7 +5,6 @@ import type { IGameState } from "./core/IGameState";
 import { ensureEntityLogic, ensureEntityModules, syncLegacyFromLogic } from "./utils/entityLogic";
 import { buildLogicItems } from "./types/Logic";
 import type { ModuleGraph } from "./types/Module";
-import { ActionRegistry } from "./core/events/ActionRegistry";
 
 export interface EditorContext {
     currentMode: EditorMode;
@@ -34,7 +33,6 @@ export class EditorState implements IGameState {
     private editorMode: EditorMode = new CameraMode();
 
     private listeners: (() => void)[] = [];
-    private registeredModuleActions: Set<string> = new Set();
 
     constructor() {
         const assetUrl = (fileName: string) => {
@@ -95,7 +93,6 @@ export class EditorState implements IGameState {
 
     addModule(module: ModuleGraph) {
         this.modules.push(module);
-        this.registerModuleAction(module);
         this.notify();
     }
 
@@ -103,7 +100,6 @@ export class EditorState implements IGameState {
         const idx = this.modules.findIndex((m) => m.id === module.id);
         if (idx === -1) return;
         this.modules[idx] = module;
-        this.registerModuleAction(module);
         this.notify();
     }
 
@@ -114,7 +110,6 @@ export class EditorState implements IGameState {
 
     setModules(modules: ModuleGraph[]) {
         this.modules = modules;
-        this.modules.forEach((module) => this.registerModuleAction(module));
         this.notify();
     }
 
@@ -160,16 +155,6 @@ export class EditorState implements IGameState {
         this.entities.clear();
         this.tiles.clear();
         this.notify();
-    }
-
-    private registerModuleAction(module: ModuleGraph) {
-        const actionName = `Module:${module.id}`;
-        if (this.registeredModuleActions.has(actionName)) return;
-        this.registeredModuleActions.add(actionName);
-        ActionRegistry.register(actionName, (ctx) => {
-            const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string) => boolean } | undefined;
-            gameCore?.startModule?.(ctx.entityId, module.id);
-        });
     }
 
     sendContextToEditorModeStateMachine(ctx: EditorContext) {

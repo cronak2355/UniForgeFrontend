@@ -1,5 +1,7 @@
 import { useId } from "react";
 import type { EditorVariable } from "../types/Variable";
+import type { ModuleGraph } from "../types/Module";
+import { colors } from "../constants/colors";
 import * as styles from "./ComponentSection.styles";
 
 export function ActionEditor({
@@ -19,7 +21,7 @@ export function ActionEditor({
   actionLabels?: Record<string, string>;
   variables: EditorVariable[];
   entities: { id: string; name: string }[];
-  modules: { id: string; name: string }[];
+  modules: ModuleGraph[];
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdate: (a: { type: string; [key: string]: unknown }) => void;
   onRemove: () => void;
@@ -32,6 +34,8 @@ export function ActionEditor({
     (action.moduleName as string) ??
     (action.name as string) ??
     "";
+  const selectedModule = modules.find((mod) => mod.id === selectedModuleId) ?? null;
+  const moduleVariables = selectedModule?.variables ?? [];
 
   return (
     <div style={styles.actionRow}>
@@ -219,18 +223,29 @@ export function ActionEditor({
       )}
 
       {action.type === "RunModule" && (
-        <select
-          value={selectedModuleId}
-          onChange={(e) => onUpdate({ ...action, moduleId: e.target.value })}
-          style={styles.smallSelect}
-        >
-          <option value="">(module)</option>
-          {modules.map((mod) => (
-            <option key={mod.id} value={mod.id}>
-              {mod.name || mod.id}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <select
+            value={selectedModuleId}
+            onChange={(e) => onUpdate({ ...action, moduleId: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="">(module)</option>
+            {modules.map((mod) => (
+              <option key={mod.id} value={mod.id}>
+                {mod.name || mod.id}
+              </option>
+            ))}
+          </select>
+          {moduleVariables.length > 0 && (
+            <div style={{ fontSize: 10, color: colors.textSecondary }}>
+              {moduleVariables.map((v) => (
+                <div key={v.id}>
+                  {v.name} ({v.type}): {String(v.value)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {showRemove && (
