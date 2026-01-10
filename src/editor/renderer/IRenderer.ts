@@ -123,6 +123,26 @@ export interface IRenderer {
      */
     playAnim(id: string, name: string): void;
 
+    /**
+     * UI 텍스트 설정
+     * @param id 엔티티 ID
+     * @param text 표시할 텍스트
+     */
+    setText?(id: string, text: string): void;
+
+    /**
+     * UI 바 값 설정
+     * @param id 엔티티 ID
+     * @param value 현재 값
+     * @param max 최대 값
+     */
+    setBarValue?(id: string, value: number, max: number): void;
+
+    /**
+     * UI 텍스트 정렬 설정
+     */
+    setTextAlignment?(id: string, align: "left" | "center" | "right"): void;
+
     // ===== Camera =====
 
     /**

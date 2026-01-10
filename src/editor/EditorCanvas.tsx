@@ -85,6 +85,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
+    const prevEntitiesMapRef = useRef<Map<string, EditorEntity>>(new Map());
     const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
     const isPointerDownRef = useRef(false);
     const cameraDragRef = useRef(false);
@@ -427,6 +428,28 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         }
 
         for (const ent of entities) {
+            const prevEnt = prevEntitiesMapRef.current.get(ent.id);
+            const isUI = ent.variables.some((v: any) => v.name === "isUI" && v.value === true);
+            const uiText = ent.variables.find((v: any) => v.name === "uiText")?.value;
+            const uiColor = ent.variables.find((v: any) => v.name === "uiColor")?.value;
+            const uiFontSize = ent.variables.find((v: any) => v.name === "uiFontSize")?.value;
+
+            const prevIsUI = prevEnt?.variables.some((v: any) => v.name === "isUI" && v.value === true);
+            const prevUiText = prevEnt?.variables.find((v: any) => v.name === "uiText")?.value;
+            const prevUiColor = prevEnt?.variables.find((v: any) => v.name === "uiColor")?.value;
+            const prevUiFontSize = prevEnt?.variables.find((v: any) => v.name === "uiFontSize")?.value;
+
+            const needsRespawn = prevEnt && (
+                isUI !== prevIsUI ||
+                uiText !== prevUiText ||
+                uiColor !== prevUiColor ||
+                uiFontSize !== prevUiFontSize
+            );
+
+            if (gameCore.hasEntity(ent.id) && needsRespawn) {
+                gameCore.removeEntity(ent.id);
+            }
+
             if (!gameCore.hasEntity(ent.id)) {
                 gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
                     name: ent.name,
@@ -448,6 +471,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 gameCore.updateEntityLogic(ent.id, splitLogicItems(ent.logic), ent.variables);
             }
         }
+
+        // Update previous entities map for next render
+        prevEntitiesMapRef.current = new Map(entities.map(e => [e.id, e]));
     }, [entities, isRendererReady]);
 
     // Entry Style Colors
