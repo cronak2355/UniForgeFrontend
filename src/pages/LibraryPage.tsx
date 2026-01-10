@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchMyGames } from '../services/gameService';
 
+// --- Constants ---
+const DEFAULT_GAME_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/3b82f6?text=Game';
+const DEFAULT_ASSET_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/a855f7?text=Asset';
+
 // --- Types ---
 interface UILibraryItem {
     id: string;
@@ -94,7 +98,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                     id: game.gameId,
                     title: game.title,
                     type: 'game',
-                    thumbnail: game.thumbnailUrl ?? 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&q=80',
+                    thumbnail: game.thumbnailUrl ?? DEFAULT_GAME_THUMBNAIL,
                     author: `User ${game.authorId}`,
                     purchaseDate: game.createdAt.split('T')[0],
                 }));
@@ -125,7 +129,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                                 title: detail.name,
                                 type: 'asset',
                                 assetType: detail.genre || 'Unknown',
-                                thumbnail: detail.imageUrl || detail.image || 'https://placehold.co/400x400/1a1a1a/666?text=No+Image',
+                                thumbnail: detail.imageUrl || detail.image || DEFAULT_ASSET_THUMBNAIL,
                                 author: detail.author || `User ${detail.authorId}`,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
                                 collectionId: libItem?.collectionId || undefined

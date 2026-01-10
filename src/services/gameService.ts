@@ -59,3 +59,24 @@ export async function createGame(authorId: string, title: string, description: s
     // Map backend Entity (id) to Frontend Interface (gameId)
     return { ...data, gameId: data.id };
 }
+
+export async function updateGameThumbnail(gameId: string, thumbnailUrl: string): Promise<GameSummary> {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {
+        "Content-Type": "application/json",
+    };
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/games/${gameId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ thumbnailUrl }),
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to update game thumbnail");
+    }
+    return res.json();
+}
