@@ -318,7 +318,7 @@ export default function AdminPage() {
                                                                 backgroundColor: '#222', overflow: 'hidden'
                                                             }}>
                                                                 {a.imageUrl ? (
-                                                                    <img src={a.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/48'} />
+                                                                    <img src={a.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => (e.target as HTMLImageElement).src = 'https://placehold.co/48x48/1a1a1a/666?text=No'} />
                                                                 ) : (
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
                                                                         <i className="fa-solid fa-cube"></i>

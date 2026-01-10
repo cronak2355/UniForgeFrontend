@@ -125,7 +125,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                                 title: detail.name,
                                 type: 'asset',
                                 assetType: detail.genre || 'Unknown',
-                                thumbnail: detail.imageUrl || detail.image || 'https://via.placeholder.com/400',
+                                thumbnail: detail.imageUrl || detail.image || 'https://placehold.co/400x400/1a1a1a/666?text=No+Image',
                                 author: detail.author || `User ${detail.authorId}`,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
                                 collectionId: libItem?.collectionId || undefined
@@ -575,7 +575,7 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                                                 alt={item.title}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                 onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=No+Image';
+                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/1a1a1a/666?text=No+Image';
                                                 }}
                                             />
                                             {/* Action Overlay */}
