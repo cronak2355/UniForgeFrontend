@@ -32,8 +32,17 @@ export class ApiClient {
             }
         }
 
+        // Handle empty responses (204 No Content) or responses without JSON
+        if (response.status === 204 || !contentType) {
+            return undefined as T;
+        }
+
         if (!isJson) {
             const text = await response.text();
+            // If the response is empty or whitespace only, treat as success
+            if (!text || text.trim() === '') {
+                return undefined as T;
+            }
             console.error("Received HTML/Text instead of JSON (Soft 404):", text.substring(0, 200));
             throw new Error('API 응답이 올바르지 않습니다 (HTML 반환됨). 서버 구성을 확인해주세요.');
         }
