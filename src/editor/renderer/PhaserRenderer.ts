@@ -54,68 +54,11 @@ class PhaserRenderScene extends Phaser.Scene {
         }
 
         // EAC ?쒖뒪??珥덇린??(?대깽??湲곕컲 ?≪뀡??
+        // EAC 시스템 초기화 (이벤트 기반 액션)
         this._keyboardAdapter = new KeyboardAdapter(this);
 
-        // EventBus handler helpers
-        const eventAliases: Record<string, string[]> = {
-            TICK: ["OnUpdate", "TICK"],
-            KEY_DOWN: ["OnSignalReceive", "KEY_DOWN"],
-            KEY_UP: ["OnSignalReceive", "KEY_UP"],
-            COLLISION_ENTER: ["OnCollision", "COLLISION_ENTER"],
-            COLLISION_STAY: ["OnCollision", "COLLISION_STAY"],
-            COLLISION_EXIT: ["OnCollision", "COLLISION_EXIT"],
-            ENTITY_DIED: ["OnDestroy", "ENTITY_DIED"],
-        };
-
-        const shouldSkipEntity = (ctx: ActionContext, event: GameEvent) => {
-            const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
-            const entity = entities?.get(ctx.entityId);
-            const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
-            if (typeof hpValue === "number" && hpValue <= 0) {
-                return true;
-            }
-
-            if (event.targetId && event.targetId !== ctx.entityId) {
-                return true;
-            }
-
-            return false;
-        };
-
-        const matchesEvent = (component: LogicComponent, event: GameEvent) => {
-            const allowedEvents = eventAliases[event.type] ?? [event.type];
-            if (!allowedEvents.includes(component.event)) return false;
-            if (component.eventParams) {
-                for (const [key, value] of Object.entries(component.eventParams)) {
-                    if (event.data?.[key] !== value) return false;
-                }
-            }
-            return true;
-        };
-
-        const passesConditions = (component: LogicComponent, ctx: ActionContext) => {
-            const conditions = component.conditions ?? [];
-            if (conditions.length === 0) return true;
-
-            const logic = component.conditionLogic ?? "AND";
-            if (logic === "OR") {
-                for (const c of conditions) {
-                    const { type, ...params } = c;
-                    if (ConditionRegistry.check(type, ctx, params)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            for (const c of conditions) {
-                const { type, ...params } = c;
-                if (!ConditionRegistry.check(type, ctx, params)) {
-                    return false;
-                }
-            }
-            return true;
-        };
+        // EventBus handler helpers moved to class methods for optimization and reuse
+        // See: shouldSkipEntity, matchesEvent, passesConditions
 
         // EventBus handler
         EventBus.on((event) => {
@@ -149,9 +92,11 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
+            // [Optimized] TICK event is now ignored here to prevent GC overhead.
+            // It is handled directly in the update() loop using reusable objects.
+            if (event.type === "TICK") return;
 
-
-            // runtime only
+            // runtime only - handle other events (OnCollision, Signals, etc.)
             if (!this.phaserRenderer.isRuntimeMode) {
                 return;
             }
@@ -175,13 +120,13 @@ class PhaserRenderScene extends Phaser.Scene {
                     globals: { scene: this, renderer: this.phaserRenderer, entities: this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities(), gameCore: this.phaserRenderer.gameCore }
                 };
 
-                if (shouldSkipEntity(ctx, event)) {
+                if (this.shouldSkipEntity(ctx, event)) {
                     return;
                 }
 
                 for (const component of logicComponents) {
-                    if (!matchesEvent(component, event)) continue;
-                    if (!passesConditions(component, ctx)) continue;
+                    if (!this.matchesEvent(component, event)) continue;
+                    if (!this.passesConditions(component, ctx)) continue;
 
                     if (event.type === "OnStart") {
                         console.log("[OnStart] component triggered", {
@@ -199,21 +144,143 @@ class PhaserRenderScene extends Phaser.Scene {
         });
         console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
 
-        // ??以鍮??꾨즺 ?뚮┝
+        // 준?비? 완료 ? 알림
         this.phaserRenderer.onSceneReady();
     }
 
-    // 臾쇰━ ?곹깭??RuntimePhysics?먯꽌 愿由щ맖
+    // -------------------------------------------------------------------------
+    // [Optimization] Helper methods moved to class scope
+    // -------------------------------------------------------------------------
+
+    private eventAliases: Record<string, string[]> = {
+        TICK: ["OnUpdate", "TICK"],
+        KEY_DOWN: ["OnSignalReceive", "KEY_DOWN"],
+        KEY_UP: ["OnSignalReceive", "KEY_UP"],
+        COLLISION_ENTER: ["OnCollision", "COLLISION_ENTER"],
+        COLLISION_STAY: ["OnCollision", "COLLISION_STAY"],
+        COLLISION_EXIT: ["OnCollision", "COLLISION_EXIT"],
+        ENTITY_DIED: ["OnDestroy", "ENTITY_DIED"],
+    };
+
+    private shouldSkipEntity(ctx: ActionContext, event: GameEvent): boolean {
+        const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
+        const entity = entities?.get(ctx.entityId);
+        const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
+        if (typeof hpValue === "number" && hpValue <= 0) {
+            return true;
+        }
+
+        if (event.targetId && event.targetId !== ctx.entityId) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private matchesEvent(component: LogicComponent, event: GameEvent): boolean {
+        const allowedEvents = this.eventAliases[event.type] ?? [event.type];
+        if (!allowedEvents.includes(component.event)) return false;
+        if (component.eventParams) {
+            for (const [key, value] of Object.entries(component.eventParams)) {
+                if (event.data?.[key] !== value) return false;
+            }
+        }
+        return true;
+    }
+
+    private passesConditions(component: LogicComponent, ctx: ActionContext): boolean {
+        const conditions = component.conditions ?? [];
+        if (conditions.length === 0) return true;
+
+        const logic = component.conditionLogic ?? "AND";
+        if (logic === "OR") {
+            for (const c of conditions) {
+                const { type, ...params } = c;
+                if (ConditionRegistry.check(type, ctx, params)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        for (const c of conditions) {
+            const { type, ...params } = c;
+            if (!ConditionRegistry.check(type, ctx, params)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // [Optimization] Reusable Context Objects to reduce GC
+    private reusableCtx: ActionContext = {
+        entityId: "",
+        eventData: {},
+        globals: {}
+    };
+    private reusableEvent: GameEvent = { type: "TICK", data: {} };
+
+    // 물리 상태는 RuntimePhysics에서 관리됨
 
     update(time: number, delta: number) {
-        // 遺紐??낅뜲?댄듃 ?몄텧
+        // 부모 업데이트 호출
         this.phaserRenderer.onUpdate(time, delta);
 
-        // TICK ?대깽??諛쒗뻾 (?고???紐⑤뱶?먯꽌留?
         if (this.phaserRenderer.isRuntimeMode) {
-            EventBus.emit("TICK", { time, delta, dt: delta / 1000 });
+            // [Optimized Update Loop]
+            // Direct iteration with reused objects instead of EventBus.emit("TICK")
 
-            // 移대찓??異붿쟻: cameraFollowRoles???ы븿????븷 ?뷀떚???곕씪媛湲?
+            // TICK 이벤트는 레거시 호환성을 위해 남겨두되, 주요 로직은 직접 처리
+            // EventBus.emit("TICK", { time, delta, dt: delta / 1000 }); // Disabled for perf
+
+            const dt = delta / 1000;
+            const entities = this.phaserRenderer.core.getEntities();
+
+            // Prepare reused objects
+            this.reusableCtx.globals = {
+                scene: this,
+                renderer: this.phaserRenderer,
+                entities: entities, // Map ref
+                gameCore: this.phaserRenderer.gameCore
+            };
+            this.reusableEvent.data = { time, delta, dt };
+
+            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+            const input = runtimeContext?.getInput();
+
+            // Iterate entities directly
+            entities.forEach((entity) => {
+                // Optimization: inline simple alive check
+                const hpVar = entity.variables?.find(v => v.name === "hp");
+                if (hpVar && (hpVar.value as number) <= 0) return;
+
+                const components = splitLogicItems(entity.logic);
+                // Filter only OnUpdate/TICK logic to avoid checking other types needlessly
+                const updateComponents = components.filter((component): component is LogicComponent =>
+                    component.type === "Logic" && (component.event === "OnUpdate" || component.event === "TICK")
+                );
+
+                if (updateComponents.length === 0) return;
+
+                // Reuse Context
+                this.reusableCtx.entityId = entity.id;
+                this.reusableCtx.input = input;
+                this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
+                this.reusableCtx.eventData = this.reusableEvent.data;
+
+                // Process Logic
+                for (const component of updateComponents) {
+                    // We know the event matches because we filtered by it, but conditions still apply
+                    if (!this.passesConditions(component, this.reusableCtx)) continue;
+
+                    for (const action of component.actions ?? []) {
+                        const { type, ...params } = action;
+                        ActionRegistry.run(type, this.reusableCtx, params);
+                    }
+                }
+            });
+
+            // 移대찓?? 異붿쟻: cameraFollowRoles???ы븿????븷 ?뷀떚???곕씪媛€湲?
             const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
             const playerEntity = Array.from(this.phaserRenderer.core.getEntities().values())
                 .find(e => hasRole(e.role, cameraRoles));
@@ -221,11 +288,11 @@ class PhaserRenderScene extends Phaser.Scene {
             if (playerEntity) {
                 const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
                 if (playerObj && this.cameras?.main) {
-                    // 遺?쒕윭??移대찓??異붿쟻
+                    // 遺€?쒕윭??移대찓??異붿쟻
                     const cam = this.cameras.main;
                     const targetX = playerObj.x - cam.width / 2;
                     const targetY = playerObj.y - cam.height / 2;
-                    const lerp = 0.1; // 遺?쒕윭? ?뺣룄
+                    const lerp = 0.1; // 遺€?쒕윭?€ ?뺣룄
                     cam.scrollX += (targetX - cam.scrollX) * lerp;
                     cam.scrollY += (targetY - cam.scrollY) * lerp;
                 }

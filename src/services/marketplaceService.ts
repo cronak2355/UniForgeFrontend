@@ -25,7 +25,7 @@ export interface AssetVersion {
 }
 
 export interface Game {
-    gameId: number;
+    gameId: string;
     title: string;
     s3RootPath: string;
 }

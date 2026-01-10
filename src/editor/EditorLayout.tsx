@@ -13,7 +13,7 @@ import { CameraMode, DragDropMode } from "./editorMode/editorModes";
 import { useNavigate, useParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
-import { saveScenes } from "./api/sceneApi";
+import { saveScenes, loadScene } from "./api/sceneApi";
 import { createGame } from "../services/gameService";
 import { authService } from "../services/authService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
@@ -150,60 +150,66 @@ function cloneEntityForPaste(source: EditorEntity): EditorEntity {
 
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
-    const { core, assets, modules, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
+    const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
     useEffect(() => {
-        // 1. Initial Load with validation
-        try {
-            const saved = localStorage.getItem("editor_autosave");
-            if (saved) {
-                const json = JSON.parse(saved);
-                console.log("[EditorLayout] Found autosave, loading with validation...");
-
-                // Validate and filter assets
-                if (json.assets && Array.isArray(json.assets)) {
-                    json.assets = json.assets.filter((asset: any) => {
-                        // Filter out S3 URLs (they contain broken references)
-                        // Use 'amazonaws.com' to catch regional S3 URLs like s3.ap-northeast-2.amazonaws.com
-                        const isS3Url = asset.url && asset.url.includes('amazonaws.com');
-                        if (isS3Url) {
-                            console.warn(`[EditorLayout] Filtered out S3 asset: ${asset.name} (${asset.url})`);
-                            return false;
-                        }
-                        return true;
-                    });
-                }
-
-                // Validate and filter entities that reference broken assets
-                if (json.entities && Array.isArray(json.entities)) {
-                    const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
-                    json.entities = json.entities.filter((entity: any) => {
-                        // Check if entity's texture exists in valid assets
-                        if (entity.texture && !validAssetNames.has(entity.texture)) {
-                            console.warn(`[EditorLayout] Filtered out entity with broken texture: ${entity.name} (${entity.texture})`);
-                            return false;
-                        }
-                        return true;
-                    });
-                }
-
-                core.clear(); // Clear default entries
-                SceneSerializer.deserialize(json, core);
-                console.log("[EditorLayout] Autosave loaded successfully with validation");
-            }
-        } catch (err) {
-            console.error("[EditorLayout] Failed to load autosave", err);
-            console.log("[EditorLayout] Starting with default assets");
-        }
-
-        // 2. Setup Auto-save subscription
         let saveTimer: any = null;
+
+        const initEditor = async () => {
+            try {
+                // 1. Try key loading from server first
+                if (gameId) {
+                    const sceneJson = await loadScene(gameId);
+                    if (sceneJson) {
+                        console.log("[EditorLayout] Loaded scene from server");
+                        // Validate assets and entities similarly to autosave
+                        if (sceneJson.assets) {
+                            sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
+                        }
+                        core.clear();
+                        SceneSerializer.deserialize(sceneJson, core);
+                        return; // Successfully loaded from server, skip local autosave
+                    }
+                }
+
+                // 2. Fallback to local autosave
+                const saved = localStorage.getItem("editor_autosave");
+                if (saved) {
+                    const json = JSON.parse(saved);
+                    // ... (existing validation logic for autosave) ...
+                    if (json.assets && Array.isArray(json.assets)) {
+                        json.assets = json.assets.filter((asset: any) => {
+                            const isS3Url = asset.url && asset.url.includes('amazonaws.com');
+                            if (isS3Url) return false;
+                            return true;
+                        });
+                    }
+                    if (json.entities && Array.isArray(json.entities)) {
+                        const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
+                        json.entities = json.entities.filter((entity: any) => {
+                            if (entity.texture && !validAssetNames.has(entity.texture)) return false;
+                            return true;
+                        });
+                    }
+
+                    core.clear();
+                    SceneSerializer.deserialize(json, core);
+                    console.log("[EditorLayout] Loaded from local autosave");
+                }
+            } catch (err) {
+                console.error("[EditorLayout] Failed to load scene", err);
+            }
+        };
+
+        initEditor();
+
+        // 3. Setup Auto-save subscription
         const saveState = () => {
+            // Local auto-save only for crash recovery
             const json = SceneSerializer.serialize(core);
             localStorage.setItem("editor_autosave", JSON.stringify(json));
-            console.log("[AutoSave] Saved state to storage.");
         };
 
         const unsubscribe = core.subscribe(() => {
@@ -223,7 +229,7 @@ function EditorLayoutInner() {
             if (saveTimer) clearTimeout(saveTimer);
             saveState();
         };
-    }, []); // Run once on mount
+    }, [gameId]); // Re-run if gameId changes
 
 
     const [mode, setMode] = useState<Mode>("dev");
@@ -360,6 +366,18 @@ function EditorLayoutInner() {
                 const selected = core.getSelectedEntity();
                 if (selected) {
                     core.removeEntity(selected.id);
+                } else {
+                    // If no entity is selected, try to delete the current scene
+                    // But we should confirm? Unity deletes without confirm usually, but let's be safe or strict?
+                    // User said "Like entity", entities delete instantly.
+                    // However, scene deletion is destructive.
+                    // Let's add a small check: don't delete if it's the last scene.
+                    const currentSceneId = core.getCurrentSceneId();
+                    const scenes = core.getScenes();
+                    // Allow deletion only if more than 1 scene exists
+                    if (scenes.size > 1 && currentSceneId) {
+                        core.removeScene(currentSceneId);
+                    }
                 }
             }
         };
@@ -575,7 +593,7 @@ function EditorLayoutInner() {
                             }} />
                             <MenuItem label="Save Project" onClick={async () => {
                                 try {
-                                    const sceneJson = SceneSerializer.serialize(core, "MyScene");
+                                    const sceneJson = SceneSerializer.serialize(core);
                                     // Use ID as string directly (UUID support)
                                     let id = gameId;
 
@@ -751,30 +769,17 @@ function EditorLayoutInner() {
             }}>
                 {/* LEFT PANEL - Hierarchy */}
                 <div style={{
-                    width: '200px',
+                    width: '280px',
                     background: colors.bgSecondary,
                     borderRight: `2px solid ${colors.borderColor}`,
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 12px',
-                        background: colors.bgTertiary,
-                        borderBottom: `1px solid ${colors.borderColor}`,
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: colors.accentLight,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                    }}>
-                        Hierarchy
-                    </div>
-                    <div style={{ flex: 1, padding: '8px', overflowY: 'auto' }}>
+                    <div style={{ flex: 1, padding: '0', overflowY: 'hidden' }}> {/* padding 0 for panel internal control */}
                         <HierarchyPanel
-                            entities={entities}
+                            core={core}
+                            scenes={scenes}
+                            currentSceneId={currentSceneId}
                             selectedId={selectedEntity?.id ?? null}
                             onSelect={(e) => {
                                 core.setSelectedEntity(e as any);

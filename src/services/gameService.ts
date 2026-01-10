@@ -1,16 +1,16 @@
 export interface GameSummary {
-    gameId: number;
+    gameId: string;
     title: string;
     description?: string;
     thumbnailUrl?: string | null;
     authorId: string;
-    latestVersionId?: number | null;
+    latestVersionId?: string | null;
     createdAt: string;
 }
 
 const API_BASE = "/api";
 
-export async function fetchMyGames(authorId: number | string): Promise<GameSummary[]> {
+export async function fetchMyGames(authorId: string): Promise<GameSummary[]> {
     const token = localStorage.getItem('token');
     const headers: HeadersInit = {};
     if (token) {

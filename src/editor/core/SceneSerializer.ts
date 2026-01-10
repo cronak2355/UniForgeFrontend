@@ -48,35 +48,55 @@ export interface SceneJSON {
   modules?: ModuleGraph[];
 }
 
+// NEW: Game Data Structure
+export interface GameDataJSON {
+  formatVersion: number; // 2
+  activeSceneId: string;
+  scenes: SceneJSON[];
+  assets: Asset[];
+}
+
 export class SceneSerializer {
-  static serialize(state: EditorState, sceneName: string = "Scene 1"): SceneJSON {
-    const entities = Array.from(state.getEntities().values()).map((e) => this.serializeEntity(e));
-    const tiles = Array.from(state.getTiles().values()).map((t) => ({
-      x: t.x,
-      y: t.y,
-      idx: t.tile,
-    }));
+  static serialize(state: EditorState): GameDataJSON {
+    const scenes: SceneJSON[] = [];
+
+    state.getScenes().forEach((sceneData) => {
+      const entities = Array.from(sceneData.entities.values()).map((e) => this.serializeEntity(e));
+      const tiles = Array.from(sceneData.tiles.values()).map((t) => ({
+        x: t.x,
+        y: t.y,
+        idx: t.tile,
+      }));
+
+      scenes.push({
+        sceneId: sceneData.id,
+        name: sceneData.name,
+        entities,
+        tiles,
+        assets: [] // Assets are global now, stored at root
+      });
+    });
 
     return {
-      sceneId: `scene_${Date.now()}`,
-      name: sceneName,
-      entities,
-      tiles,
+      formatVersion: 2,
+      activeSceneId: state.getCurrentSceneId(),
+      scenes,
       assets: state.getAssets(),
       modules: state.getModules(),
     };
   }
 
+  // Helper for single entity serialization
   private static serializeEntity(e: EditorEntity): SceneEntityJSON {
+    // ... (same as before) ...
     const components = splitLogicItems(e.logic);
     const logicComponents = components.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const events: SceneEventJSON[] = [];
 
     logicComponents.forEach((rule, idx) => {
       const triggerType = rule.event;
-      // Debug: Log conditions during serialization
       if (rule.conditions && rule.conditions.length > 0) {
-        console.log(`[Serialize] Entity ${e.id} Rule ${idx} conditions:`, JSON.stringify(rule.conditions));
+        // console.log(`[Serialize] Entity ${e.id} Rule ${idx} conditions:`, JSON.stringify(rule.conditions));
       }
       rule.actions.forEach((action: any, actionIdx: number) => {
         events.push({
@@ -113,14 +133,72 @@ export class SceneSerializer {
     };
   }
 
-  static deserialize(json: SceneJSON, state: EditorState): void {
+  static deserialize(json: any, state: EditorState): void {
+    // 1. Load Assets (Global)
     if (json.assets) {
-      json.assets.forEach((a) => {
+      // Clear existing assets on full load
+      // state.assets = []; // EditorState.clearAll() should have handled this
+
+      json.assets.forEach((a: Asset) => {
         if (!state.getAssets().find((existing) => existing.id === a.id)) {
           state.addAsset(a);
         }
       });
     }
+
+    // 2. Clear default scene if generated
+    if (state.getScenes().size === 1 && state.getCurrentScene()?.entities.size === 0) {
+      // It's clean state, we can overwrite or just add. 
+      // Ideally state.clearAll() should be called before deserialize.
+    }
+
+    // 3. Handle Legacy Format (SceneJSON)
+    if (!json.formatVersion) {
+      console.log("[SceneSerializer] Detected legacy single-scene format.");
+      const legacyScene = json as SceneJSON;
+
+      // Use the existing default scene (or create one)
+      let targetSceneId = state.getCurrentSceneId();
+      const defaultScene = state.getCurrentScene();
+      if (defaultScene) {
+        state.renameScene(targetSceneId, legacyScene.name || "Imported Scene");
+      } else {
+        targetSceneId = state.createScene(legacyScene.name || "Imported Scene");
+      }
+
+      this.deserializeSceneContent(legacyScene, state, targetSceneId);
+      return;
+    }
+
+    // 4. Handle New Format (GameDataJSON)
+    const gameData = json as GameDataJSON;
+    console.log(`[SceneSerializer] Loading V${gameData.formatVersion} project with ${gameData.scenes.length} scenes.`);
+
+    // Remove default scene if empty
+    // (Optimization: EditorState could have a loadProject method)
+
+    // Load Scenes
+    gameData.scenes.forEach(sceneJson => {
+      // checks if scene already exists (for merge) or create new
+      // For full load, we usually assume clean state.
+      const sceneId = state.createScene(sceneJson.name, sceneJson.sceneId);
+      this.deserializeSceneContent(sceneJson, state, sceneId);
+    });
+
+    // Set Active Scene
+    if (gameData.activeSceneId) {
+      state.switchScene(gameData.activeSceneId);
+    }
+  }
+
+  private static deserializeSceneContent(json: SceneJSON, state: EditorState, sceneId: string) {
+    // Switch to target scene temporarily to use addEntity/setTile which act on current scene
+    // OR update EditorState to accept sceneId in addEntity logic. 
+    // Current EditorState.addEntity uses getCurrentScene(), so we should switch or refactor.
+
+    // Let's rely on temporary switch for now to avoid massive refactor of addEntity
+    const prevSceneId = state.getCurrentSceneId();
+    state.switchScene(sceneId);
 
     if (json.modules && state.getModules().length === 0) {
       state.setModules(json.modules);
@@ -133,10 +211,6 @@ export class SceneSerializer {
     json.entities.forEach((e) => {
       const variables = (e.variables ?? []).map((v) => ({ ...v }));
       const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => {
-        // Debug: Log conditions during deserialization
-        if (ev.conditions && ev.conditions.length > 0) {
-          console.log(`[Deserialize] Entity ${e.id} Event ${i} conditions:`, JSON.stringify(ev.conditions));
-        }
         return {
           id: `logic_${i}`,
           type: "Logic",
@@ -176,5 +250,10 @@ export class SceneSerializer {
 
       state.addEntity(entity);
     });
+
+    // Restore previous scene if we are just loading data
+    if (prevSceneId !== sceneId) {
+      state.switchScene(prevSceneId);
+    }
   }
 }
