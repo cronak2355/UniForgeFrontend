@@ -55,6 +55,7 @@ export interface GameDataJSON {
   activeSceneId: string;
   scenes: SceneJSON[];
   assets: Asset[];
+  modules?: ModuleGraph[];
 }
 
 export class SceneSerializer {
@@ -175,6 +176,10 @@ export class SceneSerializer {
     // 4. Handle New Format (GameDataJSON)
     const gameData = json as GameDataJSON;
     console.log(`[SceneSerializer] Loading V${gameData.formatVersion} project with ${gameData.scenes.length} scenes.`);
+
+    if (gameData.modules && gameData.modules.length > 0) {
+      state.setModules(gameData.modules);
+    }
 
     // Remove default scene if empty
     // (Optimization: EditorState could have a loadProject method)
