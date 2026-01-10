@@ -38,7 +38,7 @@ export interface UnityEventJSON {
   trigger: string;
   triggerParams?: Record<string, unknown>;
   conditionLogic?: "AND" | "OR";
-  conditions?: Array<{ type: string; [key: string]: unknown }>;
+  conditions?: Array<{ type: string;[key: string]: unknown }>;
   action: string;
   params?: Record<string, unknown>;
 }
