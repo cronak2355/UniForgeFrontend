@@ -59,6 +59,8 @@ function EditorContent() {
 
         <div className="w-px h-3 bg-white/10" />
 
+        <div className="w-px h-3 bg-white/10" />
+
         <div className="flex items-center gap-2">
           <span className="text-neutral-400 text-xs uppercase tracking-wider">Asset Editor</span>
           <span className="text-blue-400 text-xs font-mono bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">

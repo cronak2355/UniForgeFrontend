@@ -4,11 +4,13 @@ export function VariableSection({
   variables,
   onAdd,
   onUpdate,
+  entityId,
   onRemove,
 }: {
   variables: EditorVariable[];
   onAdd: () => void;
   onUpdate: (v: EditorVariable) => void;
+  entityId?: string; // For drag-drop: identifies which entity owns these variables
   onRemove: (id: string) => void;
 }) {
   const coerceType = (variable: EditorVariable, nextType: EditorVariable["type"]) => {
@@ -66,6 +68,14 @@ export function VariableSection({
           <div
             key={v.id}
             className="variable-item"
+            draggable={!!entityId}
+            onDragStart={(e) => {
+              if (entityId) {
+                e.dataTransfer.setData("text/plain", `${entityId}|${v.name}`);
+                e.dataTransfer.effectAllowed = "link";
+              }
+            }}
+            style={{ cursor: entityId ? 'grab' : 'default' }}
           >
             <select
               className="variable-type"

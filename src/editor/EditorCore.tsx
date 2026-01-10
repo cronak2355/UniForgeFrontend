@@ -1,6 +1,7 @@
 ﻿import { EditorMode, CameraMode } from "./editorMode/editorModes";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
+import type { EditorVariable } from "./types/Variable";
 import type { IGameState } from "./core/IGameState";
 import { ensureEntityLogic, ensureEntityModules, syncLegacyFromLogic } from "./utils/entityLogic";
 import { buildLogicItems } from "./types/Logic";
@@ -38,6 +39,9 @@ export class EditorState implements IGameState {
     private scenes: Map<string, SceneData> = new Map();
     private currentSceneId: string = "default";
 
+    // Global entities (scene-independent)
+    private globalEntities: Map<string, EditorEntity> = new Map();
+
     private selectedAsset: Asset | null = null;
     private draggedAsset: Asset | null = null;
     private selectedEntity: EditorEntity | null = null;
@@ -60,8 +64,114 @@ export class EditorState implements IGameState {
             { id: "4", name: "tree", tag: "Character", url: assetUrl("GreenTree.webp"), idx: -1 },
         ];
 
+        // Initialize default GameState global entity
+        this.createGlobalEntity("GameState", [
+            { id: crypto.randomUUID(), name: "playerHP", type: "float", value: 100 },
+            { id: crypto.randomUUID(), name: "playerMaxHP", type: "float", value: 100 },
+            { id: crypto.randomUUID(), name: "score", type: "int", value: 0 },
+        ]);
+
         // Initialize default scene
         this.createScene("Scene 1", "default");
+        this.loadDemoScene();
+    }
+
+    public loadDemoScene() {
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        // Skip if scene already has entities (e.g., loaded from autosave)
+        if (scene.entities.size > 0) return;
+
+        // 1. Player Entity - has HP and MaxHP variables
+        const playerId = crypto.randomUUID();
+        const playerEntity: EditorEntity = {
+            id: playerId,
+            name: "Player (Demo)",
+            type: "sprite",
+            role: "player",
+            events: [],
+            x: 400,
+            y: 450,
+            z: 0,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            texture: "dragon",
+            variables: [
+                { id: crypto.randomUUID(), name: "HP", type: "float", value: 50 },
+                { id: crypto.randomUUID(), name: "MaxHP", type: "float", value: 100 },
+                { id: crypto.randomUUID(), name: "Score", type: "int", value: 0 },
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(playerId, playerEntity);
+
+        // 2. Health Bar Entity - CLEAN, no pre-linked variables
+        // User should manually select Source Entity and Value Var
+        const barId = crypto.randomUUID();
+        const barEntity: EditorEntity = {
+            id: barId,
+            name: "Health Bar (Demo)",
+            type: "container",
+            role: "none",
+            events: [],
+            x: 400,
+            y: 100,
+            z: 100,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            variables: [
+                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
+                { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
+                { id: crypto.randomUUID(), name: "height", type: "float", value: 30 },
+                { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
+                { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
+                // NO pre-linked variables - user selects manually
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(barId, barEntity);
+
+        // 3. Score Text Entity - CLEAN, no pre-linked variables
+        const textId = crypto.randomUUID();
+        const textEntity: EditorEntity = {
+            id: textId,
+            name: "Score Text (Demo)",
+            type: "sprite",
+            role: "none",
+            events: [],
+            x: 400,
+            y: 50,
+            z: 100,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            variables: [
+                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
+                { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Score: 0" },
+                { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 24 },
+                { id: crypto.randomUUID(), name: "uiAlign", type: "string", value: "center" },
+                // NO pre-linked variables - user selects manually
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(textId, textEntity);
     }
 
     subscribe(listener: () => void) {
@@ -74,6 +184,48 @@ export class EditorState implements IGameState {
     private notify() {
         this.listeners.forEach((l) => l());
     }
+
+    // --- Global Entity Management (Scene-Independent) ---
+    getGlobalEntities(): Map<string, EditorEntity> {
+        return this.globalEntities;
+    }
+
+    getGlobalEntity(id: string): EditorEntity | undefined {
+        return this.globalEntities.get(id);
+    }
+
+    createGlobalEntity(name: string, variables: EditorVariable[]): string {
+        const id = `global-${crypto.randomUUID()}`;
+        const entity: EditorEntity = {
+            id,
+            name,
+            type: "container",
+            role: "none",
+            events: [],
+            x: 0, y: 0, z: 0,
+            rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
+            scaleX: 1, scaleY: 1,
+            variables,
+            components: [],
+            logic: []
+        };
+        this.globalEntities.set(id, entity);
+        this.notify();
+        return id;
+    }
+
+    updateGlobalEntity(entity: EditorEntity) {
+        if (this.globalEntities.has(entity.id)) {
+            this.globalEntities.set(entity.id, entity);
+            this.notify();
+        }
+    }
+
+    removeGlobalEntity(id: string) {
+        this.globalEntities.delete(id);
+        this.notify();
+    }
+
 
     // --- Scene Management ---
     getScenes() { return this.scenes; }
