@@ -246,6 +246,7 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
+    const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
         const activeEntity = localSelectedEntity ?? selectedEntity;
         if (!activeEntity) return;
@@ -313,7 +314,20 @@ function EditorLayoutInner() {
         core.sendContextToEditorModeStateMachine(ctx);
     };
 
-    const changeDraggedAssetHandler = (a: Asset | null) => {
+    const changeDraggedAssetHandler = (a: Asset | null, options?: { defer?: boolean }) => {
+        dragClearTokenRef.current += 1;
+        const token = dragClearTokenRef.current;
+
+        if (a == null && options?.defer) {
+            window.setTimeout(() => {
+                if (dragClearTokenRef.current !== token) return;
+                core.setDraggedAsset(null);
+                const cm = new CameraMode();
+                core.sendContextToEditorModeStateMachine({ currentMode: cm, mouse: "mouseup" });
+            }, 0);
+            return;
+        }
+
         core.setDraggedAsset(a);
         if (a == null) {
             const cm = new CameraMode();
