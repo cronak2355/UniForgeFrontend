@@ -37,6 +37,7 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
         asset.idx = idx;
 
         const img = new Image();
+        img.crossOrigin = "anonymous";
         await new Promise((resolve, reject) => {
             img.onload = resolve;
             img.onerror = (e) => {

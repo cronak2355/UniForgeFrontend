@@ -176,24 +176,6 @@ export class EditorState implements IGameState {
         this.draggedAsset = asset;
         this.notify();
     }
-
-    // --- Entity & Tile Management (Scene Specific) ---
-    getEntities() {
-        return this.getCurrentScene()?.entities || new Map();
-    }
-
-    getEntity(id: string) {
-        return this.getCurrentScene()?.entities.get(id);
-    }
-
-    hasEntity(id: string) {
-        return this.getCurrentScene()?.entities.has(id) || false;
-    }
-
-    getTiles() {
-        return this.getCurrentScene()?.tiles || new Map();
-    }
-
     getSelectedEntity() { return this.selectedEntity; }
     getEditorMode() { return this.editorMode; }
 
