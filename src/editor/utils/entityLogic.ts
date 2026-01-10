@@ -1,5 +1,6 @@
 import type { EditorEntity } from "../types/Entity";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
+import { createDefaultModuleGraph } from "../types/Module";
 
 export function ensureEntityLogic(entity: EditorEntity): EditorEntity {
   if (entity.logic !== undefined) {
@@ -11,6 +12,14 @@ export function ensureEntityLogic(entity: EditorEntity): EditorEntity {
   });
 
   return { ...entity, logic };
+}
+
+export function ensureEntityModules(entity: EditorEntity): EditorEntity {
+  if (entity.modules && entity.modules.length > 0) {
+    return entity;
+  }
+
+  return { ...entity, modules: [createDefaultModuleGraph()] };
 }
 
 export function syncLegacyFromLogic(entity: EditorEntity): EditorEntity {

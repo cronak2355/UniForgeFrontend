@@ -2,6 +2,7 @@ import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
 import type { EditorEntity } from "../types/Entity";
 import { buildLogicItems } from "../types/Logic";
+import { createDefaultModuleGraph } from "../types/Module";
 
 
 //媛???먮뵒??紐⑤뱶??媛??????섎뒗 ??
@@ -257,6 +258,7 @@ export class DragDropMode extends EditorMode {
                 components: [],
             }),
             components: [],
+            modules: [createDefaultModuleGraph()],
         };
 
         // Save entity to EditorCore so it can be exported
