@@ -2,13 +2,7 @@ export type ModuleLiteral = number | string | boolean | null;
 
 export type ModuleFlowType = "Instant" | "Async";
 
-export type ModuleFlowBlockType =
-  | "SetVariable"
-  | "Rotate"
-  | "PlaySound"
-  | "Wait"
-  | "MoveTo"
-  | "PlayAnimation";
+export type ModuleFlowBlockType = string;
 
 export type ModuleConditionType =
   | "IfVariableEquals"
@@ -87,8 +81,16 @@ export interface ModuleGraph {
   id: string;
   name: string;
   entryNodeId: string;
+  variables: ModuleVariable[];
   nodes: ModuleNode[];
   edges: ModuleEdge[];
+}
+
+export interface ModuleVariable {
+  id: string;
+  name: string;
+  type: "int" | "float" | "string" | "bool";
+  value: number | string | boolean;
 }
 
 export function createDefaultModuleGraph(): ModuleGraph {
@@ -98,6 +100,7 @@ export function createDefaultModuleGraph(): ModuleGraph {
     id: crypto.randomUUID(),
     name: "Main",
     entryNodeId: entryId,
+    variables: [],
     nodes: [
       { id: entryId, kind: "Entry", x: 120, y: 120 },
       { id: stopId, kind: "Stop", x: 360, y: 120, result: "Success" },

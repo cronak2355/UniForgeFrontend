@@ -80,7 +80,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
-    const { core, assets, tiles, entities, selectedEntity } = useEditorCoreSnapshot();
+    const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
 
     useEffect(() => {
         selectedEntityIdRef.current = selectedEntity?.id ?? null;
@@ -103,6 +103,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         renderer.onInputState = (input) => {
             gameRuntime.setInputState(input);
         };
+        gameRuntime.setModuleLibrary(modules);
 
         let active = true;
 
@@ -224,6 +225,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             setGameCore(null);
         };
     }, []);
+
+    useEffect(() => {
+        const gameRuntime = gameCoreRef.current;
+        if (!gameRuntime) return;
+        gameRuntime.setModuleLibrary(modules);
+    }, [modules]);
 
     useEffect(() => {
         // ???蹂寃쎌궗??쭔 諛섏쁺 (異붽?/??젣 diff)

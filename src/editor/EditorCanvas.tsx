@@ -82,7 +82,7 @@ function indexTiles(tiles: TilePlacement[]) {
 export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
-    const { tiles, entities } = useEditorCoreSnapshot();
+    const { tiles, entities, modules } = useEditorCoreSnapshot();
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
@@ -457,6 +457,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             }
         }
     }, [entities, isRendererReady]);
+
+    useEffect(() => {
+        const gameCore = gameCoreRef.current;
+        if (!gameCore || !isRendererReady) return;
+        gameCore.setModuleLibrary(modules);
+    }, [modules, isRendererReady]);
 
     // Entry Style Colors
     const colors = {

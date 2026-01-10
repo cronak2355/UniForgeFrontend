@@ -20,6 +20,7 @@ import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
+import type { EditorVariable } from "./types/Variable";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -149,7 +150,7 @@ function cloneEntityForPaste(source: EditorEntity): EditorEntity {
 
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
-    const { core, assets, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
+    const { core, assets, modules, entities, selectedAsset, draggedAsset, selectedEntity } = useEditorCoreSnapshot();
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
@@ -239,6 +240,70 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
+    const moduleActionLabels = modules.reduce<Record<string, string>>((acc, module) => {
+        acc[`Module:${module.id}`] = `Module: ${module.name}`;
+        return acc;
+    }, {});
+
+    const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
+        const activeEntity = localSelectedEntity ?? selectedEntity;
+        if (!activeEntity) return;
+        const variables = activeEntity.variables ?? [];
+        if (variables.some((v) => v.name === name)) return;
+        let nextType: EditorVariable["type"] = type ?? "string";
+        let nextValue: EditorVariable["value"] = "";
+        if (typeof value === "boolean") {
+            nextType = "bool";
+            nextValue = value;
+        } else if (typeof value === "number" && !Number.isNaN(value)) {
+            nextType = nextType === "int" || nextType === "float" ? nextType : (Number.isInteger(value) ? "int" : "float");
+            nextValue = value;
+        } else if (value === undefined || value === null) {
+            nextType = "int";
+            nextValue = 0;
+        } else {
+            nextValue = String(value);
+        }
+        const nextVar: EditorVariable = {
+            id: crypto.randomUUID(),
+            name,
+            type: nextType,
+            value: nextValue,
+        };
+        const nextEntity = { ...activeEntity, variables: [...variables, nextVar] };
+        core.addEntity(nextEntity as any);
+        core.setSelectedEntity(nextEntity as any);
+        setLocalSelectedEntity(nextEntity);
+    };
+
+    const handleUpdateModuleVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
+        const activeEntity = localSelectedEntity ?? selectedEntity;
+        if (!activeEntity) return;
+        const variables = activeEntity.variables ?? [];
+        const target = variables.find((v) => v.name === name);
+        if (!target) return;
+        let nextType: EditorVariable["type"] = type ?? target.type ?? "string";
+        let nextValue: EditorVariable["value"] = target.value ?? "";
+        if (typeof value === "boolean") {
+            nextType = "bool";
+            nextValue = value;
+        } else if (typeof value === "number" && !Number.isNaN(value)) {
+            nextType = nextType === "int" || nextType === "float" ? nextType : (Number.isInteger(value) ? "int" : "float");
+            nextValue = value;
+        } else if (value === undefined || value === null) {
+            nextType = "int";
+            nextValue = 0;
+        } else {
+            nextValue = String(value);
+        }
+        const nextVariables = variables.map((v) =>
+            v.id === target.id ? { ...v, type: nextType, value: nextValue } : v
+        );
+        const nextEntity = { ...activeEntity, variables: nextVariables };
+        core.addEntity(nextEntity as any);
+        core.setSelectedEntity(nextEntity as any);
+        setLocalSelectedEntity(nextEntity);
+    };
 
     const changeSelectedAssetHandler = (a: Asset | null) => {
         core.setSelectedAsset(a);
@@ -805,6 +870,13 @@ function EditorLayoutInner() {
                     assets={assets}
                     changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
                     changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                    modules={modules}
+                    addModule={(module) => core.addModule(module)}
+                    updateModule={(module) => core.updateModule(module)}
+                    selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                    actionLabels={moduleActionLabels}
+                    onCreateVariable={handleCreateActionVariable}
+                    onUpdateVariable={handleUpdateModuleVariable}
                 />
             </div>
 

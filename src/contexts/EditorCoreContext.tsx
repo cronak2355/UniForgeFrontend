@@ -26,6 +26,7 @@ export function useEditorCoreSnapshot() {
     return {
         core,
         assets: Array.from(core.getAssets()),
+        modules: Array.from(core.getModules()),
         entities: Array.from(core.getEntities().values()),
         tiles: Array.from(core.getTiles().values()),
         selectedAsset: core.getSelectedAsset(),

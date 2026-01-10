@@ -113,6 +113,7 @@ export class GameCore {
     private startedComponents: Set<string> = new Set();
     private groundY = 500;
     private moduleRuntime: ModuleRuntime;
+    private moduleLibrary: ModuleGraph[] = [];
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
     private listeners: Set<() => void> = new Set();
@@ -355,10 +356,15 @@ export class GameCore {
         this.moduleRuntime.removeEntity(id);
     }
 
+    setModuleLibrary(modules: ModuleGraph[]): void {
+        this.moduleLibrary = modules;
+    }
+
     startModule(entityId: string, moduleId: string): boolean {
         const entity = this.entities.get(entityId);
-        if (!entity?.modules?.length) return false;
-        const module = entity.modules.find((m) => m.id === moduleId || m.name === moduleId);
+        const module =
+            entity?.modules?.find((m) => m.id === moduleId || m.name === moduleId) ||
+            this.moduleLibrary.find((m) => m.id === moduleId || m.name === moduleId);
         if (!module) return false;
         return Boolean(this.moduleRuntime.startModule(entityId, module));
     }

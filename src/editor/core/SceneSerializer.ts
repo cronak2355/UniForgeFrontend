@@ -45,6 +45,7 @@ export interface SceneJSON {
   entities: SceneEntityJSON[];
   tiles: TileJSON[];
   assets: Asset[];
+  modules?: ModuleGraph[];
 }
 
 export class SceneSerializer {
@@ -62,6 +63,7 @@ export class SceneSerializer {
       entities,
       tiles,
       assets: state.getAssets(),
+      modules: state.getModules(),
     };
   }
 
@@ -120,6 +122,10 @@ export class SceneSerializer {
       });
     }
 
+    if (json.modules && state.getModules().length === 0) {
+      state.setModules(json.modules);
+    }
+
     json.tiles.forEach((t) => {
       state.setTile(t.x, t.y, t.idx);
     });
@@ -157,7 +163,7 @@ export class SceneSerializer {
           e.type === "asset_player"
             ? "player"
             : e.name.toLowerCase().includes("dragon")
-              ? "dragon"
+              ? "tree"
               : "test1",
         variables: variables as any[],
         events: [],

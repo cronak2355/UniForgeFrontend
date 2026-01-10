@@ -37,6 +37,7 @@ type ModuleInstance = {
   error?: { code: string; nodeId: string };
   nodeState: Record<string, Record<string, unknown>>;
   valueSnapshots: Map<string, ModuleLiteral>;
+  moduleVariables: Map<string, ModuleLiteral>;
 };
 
 const MAX_STEPS_PER_TICK = 64;
@@ -68,6 +69,9 @@ export class ModuleRuntime {
         error: { code: "CycleDetected", nodeId: module.entryNodeId },
         nodeState: {},
         valueSnapshots: new Map(),
+        moduleVariables: new Map(
+          (module.variables ?? []).map((v) => [v.name, (v.value as ModuleLiteral) ?? null])
+        ),
       });
       return null;
     }
@@ -81,6 +85,9 @@ export class ModuleRuntime {
       status: "running",
       nodeState: {},
       valueSnapshots: new Map(),
+      moduleVariables: new Map(
+        (module.variables ?? []).map((v) => [v.name, (v.value as ModuleLiteral) ?? null])
+      ),
     };
     this.instances.push(instance);
     return instance;
@@ -197,22 +204,28 @@ export class ModuleRuntime {
         const target = String(node.params.target ?? "").trim();
         if (!target) return false;
         const value = this.resolveValueInput(instance, node.id, "value", node.params.value ?? null);
-        this.hooks.setVar(instance.entityId, target, value);
+        if (instance.moduleVariables.has(target)) {
+          instance.moduleVariables.set(target, value);
+        } else {
+          this.hooks.setVar(instance.entityId, target, value);
+        }
         return true;
       }
-      case "Rotate": {
-        const speed = Number(node.params.speed ?? 0);
-        ActionRegistry.run("Rotate", ctx, { speed });
+      default: {
+        const actionName = String(node.blockType ?? "").trim();
+        if (!actionName) return false;
+        const params = { ...(node.params ?? {}) } as Record<string, ModuleLiteral>;
+        if (actionName === "SetVar") {
+          const name = String(params.name ?? "").trim();
+          params.value = this.resolveValueInput(instance, node.id, "value", params.value ?? null);
+          if (name && instance.moduleVariables.has(name)) {
+            instance.moduleVariables.set(name, params.value ?? null);
+            return true;
+          }
+        }
+        ActionRegistry.run(actionName, ctx, params as Record<string, unknown>);
         return true;
       }
-      case "PlaySound": {
-        const soundId = String(node.params.soundId ?? "").trim();
-        if (!soundId) return false;
-        ActionRegistry.run("PlaySound", ctx, { soundId });
-        return true;
-      }
-      default:
-        return false;
     }
   }
 
@@ -286,6 +299,9 @@ export class ModuleRuntime {
     if (!edge) return fallback;
     const valueNode = instance.graph.nodes.find((n) => n.id === edge.fromNodeId);
     if (!valueNode || valueNode.kind !== "Value") return fallback;
+    if (instance.moduleVariables.has(valueNode.variableName)) {
+      return instance.moduleVariables.get(valueNode.variableName) ?? null;
+    }
     const entity = this.hooks.getEntity(instance.entityId);
     const variable = entity?.variables?.find((v) => v.name === valueNode.variableName);
     return (variable?.value as ModuleLiteral) ?? null;

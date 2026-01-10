@@ -5,17 +5,23 @@ import type {
   ModuleEdge,
   ModuleGraph,
   ModuleNode,
-  ModuleFlowBlockType,
   ModuleFlowNode,
   ModuleConditionNode,
-  ModuleLiteral,
+  ModuleVariable,
   ModuleNodeKind,
 } from "../types/Module";
 import { colors } from "../constants/colors";
+import { ActionRegistry } from "../core/events/ActionRegistry";
+import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
+import { ActionEditor } from "../inspector/ActionEditor";
 
 type Props = {
   module: ModuleGraph;
   variables: EditorVariable[];
+  modules: { id: string; name: string }[];
+  onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
+  onUpdateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
+  actionLabels?: Record<string, string>;
   onChange: (next: ModuleGraph) => void;
 };
 
@@ -25,18 +31,6 @@ type PortMeta = { id: string; label: string; kind: PortKind; dir: PortDir; offse
 
 const NODE_WIDTH = 200;
 
-const FLOW_BLOCKS: Record<
-  ModuleFlowBlockType,
-  { label: string; flowType: "Instant" | "Async"; params: Array<{ key: string; type: "string" | "number" }> }
-> = {
-  SetVariable: { label: "SetVariable", flowType: "Instant", params: [{ key: "target", type: "string" }, { key: "value", type: "number" }] },
-  Rotate: { label: "Rotate", flowType: "Instant", params: [{ key: "speed", type: "number" }] },
-  PlaySound: { label: "PlaySound", flowType: "Instant", params: [{ key: "soundId", type: "string" }] },
-  Wait: { label: "Wait", flowType: "Async", params: [{ key: "seconds", type: "number" }] },
-  MoveTo: { label: "MoveTo", flowType: "Async", params: [{ key: "x", type: "number" }, { key: "y", type: "number" }, { key: "speed", type: "number" }] },
-  PlayAnimation: { label: "PlayAnimation", flowType: "Async", params: [{ key: "seconds", type: "number" }] },
-};
-
 const CONDITION_LABELS: Record<string, string> = {
   IfVariableEquals: "==",
   IfVariableGreaterThan: ">",
@@ -44,8 +38,17 @@ const CONDITION_LABELS: Record<string, string> = {
   IfVariableChanged: "Changed",
 };
 
-export function ModuleGraphEditor({ module, variables, onChange }: Props) {
+export function ModuleGraphEditor({
+  module,
+  variables,
+  modules,
+  onCreateVariable,
+  onUpdateVariable,
+  actionLabels,
+  onChange,
+}: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const { entities: allEntities } = useEditorCoreSnapshot();
   const connectingRef = useRef<{
     nodeId: string;
     portId: string;
@@ -59,6 +62,45 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
     dir: PortDir;
   } | null>(null);
   const [dragging, setDragging] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
+  const [newVarName, setNewVarName] = useState("");
+  const [newVarType, setNewVarType] = useState<EditorVariable["type"]>("int");
+  const [newVarValue, setNewVarValue] = useState("0");
+  const moduleVariables = module.variables ?? [];
+
+  const syncModuleVariable = (name: string, value: unknown, explicitType?: EditorVariable["type"]) => {
+    if (!name) return;
+    let nextType: EditorVariable["type"] = explicitType ?? "string";
+    let nextValue: number | string | boolean = "";
+    if (typeof value === "boolean") {
+      nextType = "bool";
+      nextValue = value;
+    } else if (typeof value === "number" && !Number.isNaN(value)) {
+      nextType = nextType === "int" || nextType === "float" ? nextType : (Number.isInteger(value) ? "int" : "float");
+      nextValue = value;
+    } else if (value === undefined || value === null) {
+      nextType = "int";
+      nextValue = 0;
+    } else {
+      nextValue = String(value);
+    }
+
+    updateModule((graph) => {
+      const currentVars = graph.variables ?? [];
+      const existing = currentVars.find((v) => v.name === name);
+      let nextVars: ModuleVariable[];
+      if (existing) {
+        nextVars = currentVars.map((v) =>
+          v.id === existing.id ? { ...v, type: nextType, value: nextValue } : v
+        );
+      } else {
+        nextVars = [
+          ...currentVars,
+          { id: crypto.randomUUID(), name, type: nextType, value: nextValue },
+        ];
+      }
+      return { ...graph, variables: nextVars };
+    });
+  };
 
   const updateConnecting = (next: typeof connecting) => {
     connectingRef.current = next;
@@ -106,6 +148,16 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
     return map;
   }, [module.nodes]);
 
+  const availableActions = useMemo(() => ActionRegistry.getAvailableActions(), []);
+  const entityOptions = useMemo(
+    () =>
+      Array.from(allEntities.values()).map((e) => ({
+        id: e.id,
+        name: e.name,
+      })),
+    [allEntities]
+  );
+
   const hasValueEdge = (nodeId: string, portId: string) =>
     module.edges.some((edge) => edge.type === "value" && edge.toNodeId === nodeId && edge.toPort === portId);
 
@@ -144,9 +196,9 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
           kind: "Flow",
           x: baseX,
           y: baseY,
-          blockType: "SetVariable",
+          blockType: availableActions[0] ?? "SetVar",
           flowType: "Instant",
-          params: { target: "varName", value: 0 },
+          params: {},
         };
         break;
       case "Condition":
@@ -167,7 +219,7 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
         node = { id, kind: "Stop", x: baseX, y: baseY, result: "Success" };
         break;
       case "Value":
-        node = { id, kind: "Value", x: baseX, y: baseY, variableName: variables[0]?.name ?? "" };
+        node = { id, kind: "Value", x: baseX, y: baseY, variableName: moduleVariables[0]?.name ?? "" };
         break;
       default:
         return;
@@ -243,7 +295,7 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
         return { inputs: [], outputs: [{ id: "out", label: "out", kind: "flow", dir: "out", offsetY: 24 }] };
       case "Flow": {
         const inputs: PortMeta[] = [{ id: "in", label: "in", kind: "flow", dir: "in", offsetY: 24 }];
-        if (node.blockType === "SetVariable") {
+        if (node.blockType === "SetVar" || node.blockType === "SetVariable") {
           inputs.push({ id: "value", label: "value", kind: "value", dir: "in", offsetY: 60 });
         }
         return {
@@ -285,7 +337,7 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
 
   const edges = useMemo(() => module.edges, [module.edges]);
 
-  return (
+    return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
       <div style={{ width: 180, padding: "12px", borderRight: `1px solid ${colors.borderColor}` }}>
         <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>Nodes</div>
@@ -294,6 +346,70 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
         <button style={paletteButton} onClick={() => addNode("Merge")}>+ Merge</button>
         <button style={paletteButton} onClick={() => addNode("Stop")}>+ Stop</button>
         <button style={paletteButton} onClick={() => addNode("Value")}>+ Value</button>
+        {(onCreateVariable || onUpdateVariable) && (
+          <>
+            <div style={{ marginTop: 12, fontSize: 12, color: colors.textSecondary }}>Variables</div>
+            <input
+              placeholder="name"
+              value={newVarName}
+              onChange={(e) => setNewVarName(e.target.value)}
+              style={sidebarInput}
+            />
+            <select
+              value={newVarType}
+              onChange={(e) => setNewVarType(e.target.value as EditorVariable["type"])}
+              style={sidebarInput}
+            >
+              <option value="int">int</option>
+              <option value="float">float</option>
+              <option value="string">string</option>
+              <option value="bool">bool</option>
+            </select>
+            <input
+              placeholder="value"
+              value={newVarValue}
+              onChange={(e) => setNewVarValue(e.target.value)}
+              style={sidebarInput}
+            />
+            <button
+              style={paletteButton}
+              onClick={() => {
+                const name = newVarName.trim();
+                if (!name) return;
+                let value: unknown = newVarValue;
+                if (newVarType === "int" || newVarType === "float") {
+                  const num = Number(newVarValue);
+                  value = Number.isNaN(num) ? 0 : num;
+                } else if (newVarType === "bool") {
+                  value = newVarValue.toLowerCase() === "true" || newVarValue === "1";
+                }
+                syncModuleVariable(name, value, newVarType);
+
+                const exists = variables.some((v) => v.name === name);
+                if (!exists && onCreateVariable) {
+                  onCreateVariable(name, value, newVarType);
+                } else if (exists && onUpdateVariable) {
+                  onUpdateVariable(name, value, newVarType);
+                }
+                setNewVarName("");
+                setNewVarValue("0");
+              }}
+            >
+              + Add Variable
+            </button>
+            <div style={{ marginTop: 8, fontSize: 11, color: colors.textSecondary }}>
+              {moduleVariables.length === 0 ? (
+                <div>No module variables yet.</div>
+              ) : (
+                moduleVariables.map((v) => (
+                  <div key={v.id}>
+                    {v.name} ({v.type}): {String(v.value)}
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
         <div style={{ marginTop: 10, fontSize: 11, color: colors.textMuted }}>
           Edges: {module.edges.length}
         </div>
@@ -410,7 +526,15 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
                 {node.kind === "Flow" && (
                   <FlowNodeEditor
                     node={node}
-                    hasValueEdge={(portId) => hasValueEdge(node.id, portId)}
+                    availableActions={availableActions}
+                    variables={moduleVariables}
+                    entities={entityOptions}
+                    modules={modules}
+                    actionLabels={actionLabels}
+                    onCreateVariable={(name, value, type) => {
+                      syncModuleVariable(name, value, type);
+                      onCreateVariable?.(name, value, type);
+                    }}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                   />
                 )}
@@ -422,7 +546,7 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
                   />
                 )}
                 {node.kind === "Value" && (
-                  <ValueNodeEditor node={node} variables={variables} onUpdate={(patch) => updateNode(node.id, patch)} />
+                  <ValueNodeEditor node={node} variables={moduleVariables} onUpdate={(patch) => updateNode(node.id, patch)} />
                 )}
                 {node.kind === "Stop" && (
                   <StopNodeEditor node={node} onUpdate={(patch) => updateNode(node.id, patch)} />
@@ -476,54 +600,42 @@ export function ModuleGraphEditor({ module, variables, onChange }: Props) {
 
 function FlowNodeEditor({
   node,
-  hasValueEdge,
+  availableActions,
+  variables,
+  entities,
+  modules,
+  actionLabels,
+  onCreateVariable,
   onUpdate,
 }: {
   node: ModuleFlowNode;
-  hasValueEdge: (portId: string) => boolean;
+  availableActions: string[];
+  variables: EditorVariable[];
+  entities: { id: string; name: string }[];
+  modules: { id: string; name: string }[];
+  actionLabels?: Record<string, string>;
+  onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdate: (patch: Partial<ModuleFlowNode>) => void;
 }) {
-  const definition = FLOW_BLOCKS[node.blockType];
+  const selectedAction = node.blockType || availableActions[0] || "";
+  const action = useMemo(() => ({ type: selectedAction, ...(node.params ?? {}) }), [selectedAction, node.params]);
   return (
     <>
-      <label style={labelStyle}>Block</label>
-      <select
-        value={node.blockType}
-        onChange={(e) => {
-          const nextType = e.target.value as ModuleFlowBlockType;
-          const nextDef = FLOW_BLOCKS[nextType];
-          const nextParams: Record<string, ModuleLiteral> = {};
-          nextDef.params.forEach((p) => {
-            nextParams[p.key] = node.params[p.key] ?? (p.type === "number" ? 0 : "");
-          });
-          onUpdate({ blockType: nextType, flowType: nextDef.flowType, params: nextParams });
+      <ActionEditor
+        action={action}
+        availableActions={availableActions}
+        actionLabels={actionLabels}
+        variables={variables}
+        entities={entities}
+        modules={modules}
+        onCreateVariable={onCreateVariable}
+        onUpdate={(next) => {
+          const { type, ...params } = next;
+          onUpdate({ blockType: type, flowType: "Instant", params });
         }}
-        style={selectStyle}
-      >
-        {Object.entries(FLOW_BLOCKS).map(([key, def]) => (
-          <option key={key} value={key}>
-            {def.label}
-          </option>
-        ))}
-      </select>
-      {definition.params.map((param) => {
-        const disabled = param.key === "value" && hasValueEdge("value");
-        return (
-          <label key={param.key} style={labelStyle}>
-            {param.key}
-            <input
-              type={param.type === "number" ? "number" : "text"}
-              value={node.params[param.key] ?? ""}
-              disabled={disabled}
-              onChange={(e) => {
-                const value = param.type === "number" ? Number(e.target.value) : e.target.value;
-                onUpdate({ params: { ...node.params, [param.key]: value } });
-              }}
-              style={{ ...inputStyle, opacity: disabled ? 0.6 : 1 }}
-            />
-          </label>
-        );
-      })}
+        onRemove={() => undefined}
+        showRemove={false}
+      />
     </>
   );
 }
@@ -648,6 +760,17 @@ const paletteButton: CSSProperties = {
   borderRadius: 6,
   fontSize: 12,
   cursor: "pointer",
+};
+
+const sidebarInput: CSSProperties = {
+  width: "100%",
+  background: colors.bgPrimary,
+  border: `1px solid ${colors.borderColor}`,
+  color: colors.textPrimary,
+  padding: "6px 8px",
+  marginBottom: 6,
+  borderRadius: 6,
+  fontSize: 12,
 };
 
 const closeButton: CSSProperties = {
