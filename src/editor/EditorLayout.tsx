@@ -14,7 +14,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes, loadScene } from "./api/sceneApi";
-import { createGame } from "../services/gameService";
+import { createGame, updateGameThumbnail } from "../services/gameService";
 import { authService } from "../services/authService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
@@ -635,6 +635,55 @@ function EditorLayoutInner() {
                                     }
 
                                     await saveScenes(id, sceneJson);
+
+                                    // Capture thumbnail from canvas
+                                    try {
+                                        const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
+                                        if (canvasEl) {
+                                            const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
+                                            // Convert to blob and upload
+                                            const response = await fetch(thumbnailDataUrl);
+                                            const blob = await response.blob();
+                                            const contentType = 'image/png';
+                                            const token = localStorage.getItem('token');
+
+                                            // Use existing presign endpoint for game thumbnail
+                                            const presignParams = new URLSearchParams({
+                                                ownerType: 'GAME',
+                                                ownerId: id,
+                                                imageType: 'thumbnail',
+                                                contentType: contentType
+                                            });
+                                            const presignRes = await fetch(
+                                                `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
+                                                {
+                                                    method: 'POST',
+                                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                                                }
+                                            );
+
+                                            if (presignRes.ok) {
+                                                const presignData = await presignRes.json();
+                                                const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+
+                                                if (uploadUrl) {
+                                                    await fetch(uploadUrl, {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': contentType },
+                                                        body: blob,
+                                                    });
+
+                                                    // Update game with thumbnail URL (use CloudFront or API proxy URL)
+                                                    const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                                                    await updateGameThumbnail(id, thumbnailUrl);
+                                                    console.log('[EditorLayout] Thumbnail uploaded successfully');
+                                                }
+                                            }
+                                        }
+                                    } catch (thumbnailError) {
+                                        console.warn('[EditorLayout] Thumbnail upload failed (non-critical):', thumbnailError);
+                                    }
+
                                     alert("성공적으로 저장되었습니다! (Saved to server)");
                                 } catch (e) {
                                     console.error(e);
