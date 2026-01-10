@@ -12,6 +12,7 @@ export function ActionEditor({
   entities,
   modules,
   onCreateVariable,
+  onUpdateModuleVariable,
   onUpdate,
   onRemove,
   showRemove = true,
@@ -23,6 +24,7 @@ export function ActionEditor({
   entities: { id: string; name: string }[];
   modules: ModuleGraph[];
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
+  onUpdateModuleVariable?: (moduleId: string, name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdate: (a: { type: string; [key: string]: unknown }) => void;
   onRemove: () => void;
   showRemove?: boolean;
@@ -237,10 +239,72 @@ export function ActionEditor({
             ))}
           </select>
           {moduleVariables.length > 0 && (
-            <div style={{ fontSize: 10, color: colors.textSecondary }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: colors.textSecondary,
+                textAlign: "left",
+                alignItems: "flex-start",
+                background: colors.bgTertiary,
+                border: `1px solid ${colors.borderColor}`,
+                borderRadius: 6,
+                padding: "6px",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
               {moduleVariables.map((v) => (
-                <div key={v.id}>
-                  {v.name} ({v.type}): {String(v.value)}
+                <div
+                  key={v.id}
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    width: "100%",
+                    marginBottom: 4,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: "0 0 40%", color: colors.textPrimary }}>
+                    {v.name} ({v.type})
+                  </div>
+                  {v.type === "bool" ? (
+                    <select
+                      value={v.value === true ? "true" : "false"}
+                      onChange={(e) =>
+                        selectedModule &&
+                        onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value === "true", v.type)
+                      }
+                      style={{ ...styles.smallSelect, flex: 1 }}
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : v.type === "int" || v.type === "float" ? (
+                    <input
+                      type="number"
+                      value={typeof v.value === "number" ? v.value : Number(v.value ?? 0)}
+                      onChange={(e) =>
+                        selectedModule &&
+                        onUpdateModuleVariable?.(
+                          selectedModule.id,
+                          v.name,
+                          Number(e.target.value),
+                          v.type
+                        )
+                      }
+                      style={{ ...styles.textInput, flex: 1, width: "100%" }}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={String(v.value ?? "")}
+                      onChange={(e) =>
+                        selectedModule &&
+                        onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value, v.type)
+                      }
+                      style={{ ...styles.textInput, flex: 1, width: "100%" }}
+                    />
+                  )}
                 </div>
               ))}
             </div>

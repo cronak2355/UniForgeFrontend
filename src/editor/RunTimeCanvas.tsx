@@ -6,6 +6,7 @@ import { PhaserRenderer } from "./renderer/PhaserRenderer";
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
+import type { ModuleGraph } from "./types/Module";
 import { defaultGameConfig } from "./core/GameConfig";
 
 const TILE_SIZE = 32;
@@ -76,6 +77,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
     const selectedEntityIdRef = useRef<string | null>(null);
+    const initialModulesRef = useRef<ModuleGraph[] | null>(null);
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
@@ -103,7 +105,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         renderer.onInputState = (input) => {
             gameRuntime.setInputState(input);
         };
-        gameRuntime.setModuleLibrary(modules);
+        if (!initialModulesRef.current) {
+            initialModulesRef.current = core.getModules().map((mod) => JSON.parse(JSON.stringify(mod)));
+        }
+        gameRuntime.setModuleLibrary(modules, (updated) => core.updateModule(updated));
 
         let active = true;
 
@@ -166,6 +171,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 if (!runtimeEntity || !editorEntity) return;
 
                 const nextVars = runtimeEntity.variables.map((v) => ({ ...v }));
+                const nextModules = runtimeEntity.modules ?? editorEntity.modules;
                 const nextEntity = {
                     ...editorEntity,
                     x: runtimeEntity.x ?? editorEntity.x,
@@ -182,6 +188,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
                     scaleZ: runtimeEntity.scaleZ ?? editorEntity.scaleZ,
                     variables: nextVars,
+                    modules: nextModules,
                 };
                 const sameVars =
                     editorEntity.variables.length === nextVars.length &&
@@ -204,7 +211,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     editorEntity.scaleX === nextEntity.scaleX &&
                     editorEntity.scaleY === nextEntity.scaleY &&
                     editorEntity.scaleZ === nextEntity.scaleZ;
-                if (sameVars && sameTransform) return;
+                const sameModules =
+                    JSON.stringify(editorEntity.modules ?? []) ===
+                    JSON.stringify(nextEntity.modules ?? []);
+                if (sameVars && sameTransform && sameModules) return;
 
                 if (onRuntimeEntitySync) {
                     onRuntimeEntitySync(nextEntity as any);
@@ -223,13 +233,17 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             renderer.destroy();
             rendererRef.current = null;
             setGameCore(null);
+            if (initialModulesRef.current) {
+                core.setModules(initialModulesRef.current);
+                initialModulesRef.current = null;
+            }
         };
     }, []);
 
     useEffect(() => {
         const gameRuntime = gameCoreRef.current;
         if (!gameRuntime) return;
-        gameRuntime.setModuleLibrary(modules);
+        gameRuntime.setModuleLibrary(modules, (updated) => core.updateModule(updated));
     }, [modules]);
 
     useEffect(() => {

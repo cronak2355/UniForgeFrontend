@@ -14,6 +14,7 @@ export type ModuleNodeKind =
   | "Entry"
   | "Flow"
   | "Condition"
+  | "Switch"
   | "Merge"
   | "Stop"
   | "Value";
@@ -54,6 +55,17 @@ export interface ModuleConditionNode extends ModuleNodeBase {
   rightLiteral: ModuleLiteral;
 }
 
+export interface ModuleSwitchCase {
+  id: string;
+  value: ModuleLiteral;
+}
+
+export interface ModuleSwitchNode extends ModuleNodeBase {
+  kind: "Switch";
+  cases: ModuleSwitchCase[];
+  variableName?: string;
+}
+
 export interface ModuleMergeNode extends ModuleNodeBase {
   kind: "Merge";
 }
@@ -73,6 +85,7 @@ export type ModuleNode =
   | ModuleEntryNode
   | ModuleFlowNode
   | ModuleConditionNode
+  | ModuleSwitchNode
   | ModuleMergeNode
   | ModuleStopNode
   | ModuleValueNode;

@@ -192,12 +192,18 @@ function normalizeEvent(event: string): string {
 }
 
 export const ComponentSection = memo(function ComponentSection({ entity, onUpdateEntity }: Props) {
-    const { entities: allEntities, modules: libraryModules } = useEditorCoreSnapshot();
+    const { core, entities: allEntities, modules: libraryModules } = useEditorCoreSnapshot();
     const allComponents = splitLogicItems(entity.logic);
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
-    const modules = libraryModules;
+    const modules = [
+        ...libraryModules.map((module) => {
+            const override = entity.modules?.find((m) => m.id === module.id);
+            return override ?? module;
+        }),
+        ...(entity.modules ?? []).filter((module) => !libraryModules.some((m) => m.id === module.id)),
+    ];
 
     const commitLogic = (nextLogicComponents: LogicComponent[]) => {
         const nextComponents = [...otherComponents, ...nextLogicComponents];
@@ -234,10 +240,20 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
         commitLogic([...logicComponents, newComponent]);
     };
 
-    const handleUpdateRule = (index: number, rule: LogicComponent) => {
+    const handleUpdateRule = (index: number, rule: LogicComponent, ensureModuleId?: string) => {
         const nextRules = [...logicComponents];
         nextRules[index] = rule;
-        commitLogic(nextRules);
+        let nextModules = entity.modules ?? [];
+        if (ensureModuleId && !nextModules.some((m) => m.id === ensureModuleId)) {
+            const source = libraryModules.find((m) => m.id === ensureModuleId);
+            if (source) {
+                const cloned = JSON.parse(JSON.stringify(source)) as ModuleGraph;
+                nextModules = [...nextModules, cloned];
+            }
+        }
+        const nextComponents = [...otherComponents, ...nextRules];
+        const nextLogic = buildLogicItems({ components: nextComponents });
+        onUpdateEntity({ ...entity, logic: nextLogic, modules: nextModules });
     };
 
     const handleRemoveRule = (index: number) => {
@@ -277,6 +293,36 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
         onUpdateEntity({ ...entity, variables: [...variables, nextVar] });
     };
 
+    const handleUpdateModuleVariable = (
+        moduleId: string,
+        name: string,
+        value: unknown,
+        explicitType?: EditorVariable["type"]
+    ) => {
+        const entityModules = entity.modules ?? [];
+        let nextModules = [...entityModules];
+        let target = entityModules.find((m) => m.id === moduleId);
+
+        if (!target) {
+            const source = libraryModules.find((m) => m.id === moduleId);
+            if (!source) return;
+            target = JSON.parse(JSON.stringify(source)) as ModuleGraph;
+            nextModules = [...nextModules, target];
+        }
+
+        const nextVars = (target.variables ?? []).map((v) => {
+            if (v.name !== name) return v;
+            return {
+                ...v,
+                type: explicitType ?? v.type,
+                value: value as typeof v.value,
+            };
+        });
+        const updated = { ...target, variables: nextVars };
+        nextModules = nextModules.map((m) => (m.id === updated.id ? updated : m));
+        onUpdateEntity({ ...entity, modules: nextModules });
+    };
+
     return (
         <div style={styles.sectionContainer}>
             <div style={styles.sectionHeader}>
@@ -300,7 +346,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         availableActions={availableActions}
                         actionLabels={actionLabels}
                         onCreateVariable={ensureVariable}
-                        onUpdate={(r) => handleUpdateRule(index, r)}
+                        onUpdateModuleVariable={handleUpdateModuleVariable}
+                        onUpdate={(r, ensureModuleId) => handleUpdateRule(index, r, ensureModuleId)}
                         onRemove={() => handleRemoveRule(index)}
                     />
                 ))}
@@ -323,6 +370,7 @@ const RuleItem = memo(function RuleItem({
     availableActions,
     actionLabels,
     onCreateVariable,
+    onUpdateModuleVariable,
     onUpdate,
     onRemove,
 }: {
@@ -334,7 +382,13 @@ const RuleItem = memo(function RuleItem({
     availableActions: string[];
     actionLabels: Record<string, string>;
     onCreateVariable: (name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;
-    onUpdate: (rule: LogicComponent) => void;
+    onUpdateModuleVariable: (
+        moduleId: string,
+        name: string,
+        value: unknown,
+        explicitType?: EditorVariable["type"]
+    ) => void;
+    onUpdate: (rule: LogicComponent, ensureModuleId?: string) => void;
     onRemove: () => void;
 }) {
     const [expanded, setExpanded] = useState(true);
@@ -444,10 +498,18 @@ const RuleItem = memo(function RuleItem({
                                 entities={entities}
                                 modules={modules}
                                 onCreateVariable={onCreateVariable}
+                                onUpdateModuleVariable={onUpdateModuleVariable}
                                 onUpdate={(a) => {
                                     const newActions = [...rule.actions];
                                     newActions[i] = a;
-                                    onUpdate({ ...rule, actions: newActions });
+                                    const moduleId =
+                                        a.type === "RunModule"
+                                            ? ((a.moduleId as string) ??
+                                              (a.moduleName as string) ??
+                                              (a.name as string) ??
+                                              "")
+                                            : "";
+                                    onUpdate({ ...rule, actions: newActions }, moduleId || undefined);
                                 }}
                                 onRemove={() => {
                                     onUpdate({ ...rule, actions: rule.actions.filter((_, j) => j !== i) });

@@ -196,7 +196,7 @@ export const conditionRow: CSSProperties = {
 export const actionRow: CSSProperties = {
     display: "flex",
     gap: "4px",
-    alignItems: "center",
+    alignItems: "flex-start",
     padding: "4px",
     background: "rgba(100,100,200,0.1)",
     borderRadius: "4px",

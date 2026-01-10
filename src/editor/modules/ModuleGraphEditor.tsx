@@ -9,6 +9,8 @@ import type {
   ModuleConditionNode,
   ModuleVariable,
   ModuleNodeKind,
+  ModuleSwitchNode,
+  ModuleLiteral,
 } from "../types/Module";
 import { colors } from "../constants/colors";
 import { ActionRegistry } from "../core/events/ActionRegistry";
@@ -30,6 +32,10 @@ type PortDir = "in" | "out";
 type PortMeta = { id: string; label: string; kind: PortKind; dir: PortDir; offsetY: number };
 
 const NODE_WIDTH = 200;
+const SWITCH_CASE_START = 106;
+const SWITCH_CASE_ROW_HEIGHT = 30;
+const SWITCH_PORT_SPACING = 37;
+const SWITCH_ADD_ROW_HEIGHT = 30;
 
 const CONDITION_LABELS: Record<string, string> = {
   IfVariableEquals: "==",
@@ -223,14 +229,21 @@ export function ModuleGraphEditor({
           rightLiteral: 0,
         };
         break;
-      case "Merge":
-        node = { id, kind: "Merge", x: baseX, y: baseY };
+      case "Switch":
+        node = {
+          id,
+          kind: "Switch",
+          x: baseX,
+          y: baseY,
+          cases: [
+            { id: crypto.randomUUID(), value: 0 },
+            { id: crypto.randomUUID(), value: 1 },
+          ],
+          variableName: combinedVariables[0]?.name ?? "",
+        };
         break;
       case "Stop":
         node = { id, kind: "Stop", x: baseX, y: baseY, result: "Success" };
-        break;
-      case "Value":
-        node = { id, kind: "Value", x: baseX, y: baseY, variableName: moduleVariables[0]?.name ?? "" };
         break;
       default:
         return;
@@ -243,8 +256,6 @@ export function ModuleGraphEditor({
     updateModule((graph) => {
       const nextEdges = graph.edges.filter((e) => {
         if (e.type !== edge.type) return true;
-        if (e.toNodeId === edge.toNodeId && e.toPort === edge.toPort) return false;
-        if (e.fromNodeId === edge.fromNodeId && e.fromPort === edge.fromPort) return false;
         return true;
       });
       nextEdges.push(edge);
@@ -326,6 +337,26 @@ export function ModuleGraphEditor({
             { id: "false", label: "false", kind: "flow", dir: "out", offsetY: 82 },
           ],
         };
+      case "Switch": {
+        const inputs: PortMeta[] = [
+          { id: "in", label: "in", kind: "flow", dir: "in", offsetY: 24 },
+        ];
+        const outputs: PortMeta[] = node.cases.map((caseItem, idx) => ({
+          id: caseItem.id,
+          label: String(caseItem.value),
+          kind: "flow",
+          dir: "out",
+          offsetY: SWITCH_CASE_START + idx * SWITCH_PORT_SPACING + SWITCH_CASE_ROW_HEIGHT / 2,
+        }));
+        outputs.push({
+          id: "default",
+          label: "default",
+          kind: "flow",
+          dir: "out",
+          offsetY: SWITCH_CASE_START + node.cases.length * SWITCH_PORT_SPACING + SWITCH_CASE_ROW_HEIGHT / 2,
+        });
+        return { inputs, outputs };
+      }
       case "Merge":
         return {
           inputs: [{ id: "in", label: "in", kind: "flow", dir: "in", offsetY: 24 }],
@@ -354,9 +385,8 @@ export function ModuleGraphEditor({
         <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>Nodes</div>
         <button style={paletteButton} onClick={() => addNode("Flow")}>+ Flow</button>
         <button style={paletteButton} onClick={() => addNode("Condition")}>+ Condition</button>
-        <button style={paletteButton} onClick={() => addNode("Merge")}>+ Merge</button>
+        <button style={paletteButton} onClick={() => addNode("Switch")}>+ Switch</button>
         <button style={paletteButton} onClick={() => addNode("Stop")}>+ Stop</button>
-        <button style={paletteButton} onClick={() => addNode("Value")}>+ Value</button>
         {(onCreateVariable || onUpdateVariable) && (
           <>
             <div style={{ marginTop: 12, fontSize: 12, color: colors.textSecondary }}>Variables</div>
@@ -477,11 +507,16 @@ export function ModuleGraphEditor({
 
         {module.nodes.map((node) => {
           const { inputs, outputs } = getPorts(node);
+          const switchHeight =
+            node.kind === "Switch"
+              ? SWITCH_CASE_START + node.cases.length * SWITCH_PORT_SPACING + SWITCH_ADD_ROW_HEIGHT + 40
+              : 0;
           const nodeHeight = Math.max(
             80,
             Math.max(
               ...[...inputs, ...outputs].map((p) => p.offsetY + 16),
-              node.kind === "Condition" ? 120 : 0
+              node.kind === "Condition" ? 120 : 0,
+              switchHeight
             )
           );
 
@@ -554,6 +589,13 @@ export function ModuleGraphEditor({
                   <ConditionNodeEditor
                     node={node}
                     hasValueEdge={(portId) => hasValueEdge(node.id, portId)}
+                    onUpdate={(patch) => updateNode(node.id, patch)}
+                  />
+                )}
+                {node.kind === "Switch" && (
+                  <SwitchNodeEditor
+                    node={node}
+                    variables={combinedVariables}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                   />
                 )}
@@ -703,6 +745,85 @@ function ConditionNodeEditor({
   );
 }
 
+function SwitchNodeEditor({
+  node,
+  variables,
+  onUpdate,
+}: {
+  node: ModuleSwitchNode;
+  variables: EditorVariable[];
+  onUpdate: (patch: Partial<ModuleSwitchNode>) => void;
+}) {
+  const updateCase = (id: string, value: string) => {
+    let parsed: ModuleLiteral = value;
+    if (value === "true" || value === "false") {
+      parsed = value === "true";
+    } else if (value !== "" && !Number.isNaN(Number(value))) {
+      parsed = Number(value);
+    }
+    const nextCases = node.cases.map((c) => (c.id === id ? { ...c, value: parsed } : c));
+    onUpdate({ cases: nextCases });
+  };
+
+  const removeCase = (id: string) => {
+    onUpdate({ cases: node.cases.filter((c) => c.id !== id) });
+  };
+
+  return (
+    <>
+      <label style={labelStyle}>Switch</label>
+      <label style={labelStyle}>
+        variable
+        <select
+          value={node.variableName ?? ""}
+          onChange={(e) => onUpdate({ variableName: e.target.value })}
+          style={selectStyle}
+        >
+          <option value="">(value input)</option>
+          {variables.map((v) => (
+            <option key={v.id} value={v.name}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div style={{ display: "grid", gap: 6 }}>
+        {node.cases.map((caseItem) => (
+          <div
+            key={caseItem.id}
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              height: SWITCH_CASE_ROW_HEIGHT,
+            }}
+          >
+            <input
+              type="text"
+              value={caseItem.value !== undefined ? String(caseItem.value) : ""}
+              onChange={(e) => updateCase(caseItem.id, e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button onClick={() => removeCase(caseItem.id)} style={closeButton}>
+              x
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() =>
+            onUpdate({
+              cases: [...node.cases, { id: crypto.randomUUID(), value: "" }],
+            })
+          }
+          style={{ ...addCaseButton, height: SWITCH_ADD_ROW_HEIGHT }}
+        >
+          + Add Case
+        </button>
+      </div>
+    </>
+  );
+}
+
 function ValueNodeEditor({
   node,
   variables,
@@ -791,6 +912,17 @@ const closeButton: CSSProperties = {
   color: colors.textSecondary,
   cursor: "pointer",
   fontSize: 12,
+};
+
+const addCaseButton: CSSProperties = {
+  width: "100%",
+  background: colors.bgTertiary,
+  border: `1px solid ${colors.borderColor}`,
+  color: colors.textPrimary,
+  padding: "4px 6px",
+  borderRadius: 6,
+  fontSize: 11,
+  cursor: "pointer",
 };
 
 const labelStyle: CSSProperties = {

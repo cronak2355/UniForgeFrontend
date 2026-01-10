@@ -461,7 +461,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     useEffect(() => {
         const gameCore = gameCoreRef.current;
         if (!gameCore || !isRendererReady) return;
-        gameCore.setModuleLibrary(modules);
+        gameCore.setModuleLibrary(modules, (updated) => core.updateModule(updated));
     }, [modules, isRendererReady]);
 
     // Entry Style Colors

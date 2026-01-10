@@ -114,6 +114,7 @@ export class GameCore {
     private groundY = 500;
     private moduleRuntime: ModuleRuntime;
     private moduleLibrary: ModuleGraph[] = [];
+    private onModuleUpdate?: (module: ModuleGraph) => void;
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
     private listeners: Set<() => void> = new Set();
@@ -180,6 +181,8 @@ export class GameCore {
             getEntity: (id) => this.entities.get(id),
             setVar: (entityId, name, value) => this.setEntityVariable(entityId, name, value),
             getActionContext: (entityId, dt) => this.buildActionContext(entityId, dt),
+            onModuleVarChange: (entityId, moduleId, name, value) =>
+                this.handleModuleVarChange(entityId, moduleId, name, value),
         });
     }
 
@@ -356,8 +359,9 @@ export class GameCore {
         this.moduleRuntime.removeEntity(id);
     }
 
-    setModuleLibrary(modules: ModuleGraph[]): void {
+    setModuleLibrary(modules: ModuleGraph[], onModuleUpdate?: (module: ModuleGraph) => void): void {
         this.moduleLibrary = modules;
+        this.onModuleUpdate = onModuleUpdate;
     }
 
     startModule(entityId: string, moduleId: string): boolean {
@@ -367,6 +371,31 @@ export class GameCore {
             this.moduleLibrary.find((m) => m.id === moduleId || m.name === moduleId);
         if (!module) return false;
         return Boolean(this.moduleRuntime.startModule(entityId, module));
+    }
+
+    private handleModuleVarChange(entityId: string, moduleId: string, name: string, value: ModuleLiteral) {
+        const entity = this.entities.get(entityId);
+        if (!entity) return;
+
+        const updateGraph = (graph: ModuleGraph): ModuleGraph => {
+            const nextVars = (graph.variables ?? []).map((v) =>
+                v.name === name ? { ...v, value } : v
+            );
+            return { ...graph, variables: nextVars };
+        };
+
+        const existingModules = entity.modules ?? [];
+        const idx = existingModules.findIndex((m) => m.id === moduleId);
+        if (idx >= 0) {
+            existingModules[idx] = updateGraph(existingModules[idx]);
+            entity.modules = [...existingModules];
+            return;
+        }
+
+        const libraryModule = this.moduleLibrary.find((m) => m.id === moduleId);
+        if (!libraryModule) return;
+        const cloned = updateGraph(JSON.parse(JSON.stringify(libraryModule)) as ModuleGraph);
+        entity.modules = [...existingModules, cloned];
     }
 
     private setEntityVariable(entityId: string, name: string, value: ModuleLiteral): void {

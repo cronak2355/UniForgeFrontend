@@ -2,6 +2,7 @@ import type {
   ModuleGraph,
   ModuleFlowNode,
   ModuleConditionNode,
+  ModuleSwitchNode,
   ModuleLiteral,
   ModuleEdge,
 } from "../../types/Module";
@@ -25,6 +26,7 @@ export type ModuleRuntimeHooks = {
   getEntity: (id: string) => ModuleRuntimeEntity | undefined;
   setVar: (entityId: string, name: string, value: ModuleLiteral) => void;
   getActionContext: (entityId: string, dt: number) => ActionContext;
+  onModuleVarChange?: (entityId: string, moduleId: string, name: string, value: ModuleLiteral) => void;
 };
 
 type ModuleInstance = {
@@ -171,6 +173,13 @@ export class ModuleRuntime {
         continue;
       }
 
+      if (node.kind === "Switch") {
+        const next = this.evaluateSwitch(instance, node);
+        if (!next) return this.fail(instance, "MissingBranch", node.id);
+        instance.cursorNodeId = next;
+        continue;
+      }
+
       if (node.kind === "Flow") {
         const flowResult = this.executeFlow(instance, node, dt);
         if (flowResult === "waiting") {
@@ -209,7 +218,7 @@ export class ModuleRuntime {
         if (hasEntityVar) {
           this.hooks.setVar(instance.entityId, target, value);
         } else if (instance.moduleVariables.has(target)) {
-          instance.moduleVariables.set(target, value);
+          this.setModuleVariable(instance, target, value);
         }
         return true;
       }
@@ -228,7 +237,7 @@ export class ModuleRuntime {
               return true;
             }
             if (instance.moduleVariables.has(name)) {
-              instance.moduleVariables.set(name, params.value ?? null);
+              this.setModuleVariable(instance, name, params.value ?? null);
               return true;
             }
           }
@@ -299,6 +308,48 @@ export class ModuleRuntime {
     }
   }
 
+  private evaluateSwitch(instance: ModuleInstance, node: ModuleSwitchNode): string | null {
+    const name = node.variableName?.trim();
+    if (!name) {
+      return this.getNextNodeId(instance.graph, node.id, "default");
+    }
+    const value = this.resolveNamedValue(instance, name);
+    const matched = node.cases.find((caseItem) => this.caseMatches(value, caseItem.value));
+    const port = matched ? matched.id : "default";
+    return this.getNextNodeId(instance.graph, node.id, port);
+  }
+
+  private resolveNamedValue(instance: ModuleInstance, name: string): ModuleLiteral {
+    const entity = this.hooks.getEntity(instance.entityId);
+    const variable = entity?.variables?.find((v) => v.name === name);
+    if (variable) {
+      return (variable.value as ModuleLiteral) ?? null;
+    }
+    if (instance.moduleVariables.has(name)) {
+      return instance.moduleVariables.get(name) ?? null;
+    }
+    return null;
+  }
+
+  private caseMatches(input: ModuleLiteral, expected: ModuleLiteral): boolean {
+    if (input === null || input === undefined) return false;
+    if (typeof input === "number") {
+      const num = typeof expected === "number" ? expected : Number(expected);
+      return !Number.isNaN(num) && input === num;
+    }
+    if (typeof input === "boolean") {
+      if (typeof expected === "boolean") return input === expected;
+      if (typeof expected === "string") {
+        const lowered = expected.toLowerCase();
+        if (lowered === "true" || lowered === "false") {
+          return input === (lowered === "true");
+        }
+      }
+      return false;
+    }
+    return String(input) === String(expected ?? "");
+  }
+
   private resolveValueInput(
     instance: ModuleInstance,
     nodeId: string,
@@ -318,6 +369,17 @@ export class ModuleRuntime {
       return instance.moduleVariables.get(valueNode.variableName) ?? null;
     }
     return null;
+  }
+
+  private setModuleVariable(instance: ModuleInstance, name: string, value: ModuleLiteral) {
+    instance.moduleVariables.set(name, value);
+    if (instance.graph.variables) {
+      const idx = instance.graph.variables.findIndex((v) => v.name === name);
+      if (idx >= 0) {
+        instance.graph.variables[idx] = { ...instance.graph.variables[idx], value };
+      }
+    }
+    this.hooks.onModuleVarChange?.(instance.entityId, instance.moduleId, name, value);
   }
 
   private findValueEdge(graph: ModuleGraph, nodeId: string, port: string): ModuleEdge | undefined {
