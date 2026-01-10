@@ -137,12 +137,35 @@ export class EditorState implements IGameState {
 
     // --- Asset Management (Global) ---
     getAssets() { return this.assets; }
+    getModules() { return this.modules; }
     getEntities() { return this.entities; }
     getEntity(id: string) { return this.entities.get(id); }
     hasEntity(id: string) { return this.entities.has(id); }
     getTiles() { return this.tiles; }
     getSelectedAsset() { return this.selectedAsset; }
     getDraggedAsset() { return this.draggedAsset; }
+
+    addModule(module: ModuleGraph) {
+        this.modules.push(module);
+        this.notify();
+    }
+
+    updateModule(module: ModuleGraph) {
+        const idx = this.modules.findIndex((m) => m.id === module.id);
+        if (idx === -1) return;
+        this.modules[idx] = module;
+        this.notify();
+    }
+
+    removeModule(moduleId: string) {
+        this.modules = this.modules.filter((m) => m.id !== moduleId);
+        this.notify();
+    }
+
+    setModules(modules: ModuleGraph[]) {
+        this.modules = modules;
+        this.notify();
+    }
 
     setSelectedAsset(asset: Asset | null) {
         this.selectedAsset = asset;
@@ -196,7 +219,7 @@ export class EditorState implements IGameState {
             entity.z = 10;
         }
         const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
-        this.entities.set(entity.id, normalized);
+        scene.entities.set(entity.id, normalized);
         if (this.selectedEntity?.id === entity.id) {
             this.selectedEntity = normalized;
         }
