@@ -3,6 +3,7 @@ import type { EditorEntity } from "../types/Entity";
 import type { Asset } from "../types/Asset";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { LogicComponent } from "../types/Component";
+import type { ModuleGraph } from "../types/Module";
 
 export interface SceneEventJSON {
   id: string;
@@ -29,6 +30,7 @@ export interface SceneEntityJSON {
   y: number;
   variables: SceneVariableJSON[];
   events: SceneEventJSON[];
+  modules?: ModuleGraph[];
 }
 
 export interface TileJSON {
@@ -43,6 +45,7 @@ export interface SceneJSON {
   entities: SceneEntityJSON[];
   tiles: TileJSON[];
   assets: Asset[];
+  modules?: ModuleGraph[];
 }
 
 // NEW: Game Data Structure
@@ -79,6 +82,7 @@ export class SceneSerializer {
       activeSceneId: state.getCurrentSceneId(),
       scenes,
       assets: state.getAssets(),
+      modules: state.getModules(),
     };
   }
 
@@ -125,6 +129,7 @@ export class SceneSerializer {
       y: e.y,
       variables,
       events,
+      modules: e.modules ?? [],
     };
   }
 
@@ -195,6 +200,10 @@ export class SceneSerializer {
     const prevSceneId = state.getCurrentSceneId();
     state.switchScene(sceneId);
 
+    if (json.modules && state.getModules().length === 0) {
+      state.setModules(json.modules);
+    }
+
     json.tiles.forEach((t) => {
       state.setTile(t.x, t.y, t.idx);
     });
@@ -228,7 +237,7 @@ export class SceneSerializer {
           e.type === "asset_player"
             ? "player"
             : e.name.toLowerCase().includes("dragon")
-              ? "dragon"
+              ? "tree"
               : "test1",
         variables: variables as any[],
         events: [],
@@ -236,6 +245,7 @@ export class SceneSerializer {
           components: logicComponents,
         }),
         components: logicComponents,
+        modules: e.modules ?? [],
       };
 
       state.addEntity(entity);

@@ -1,6 +1,7 @@
 import type { Asset } from "../types/Asset";
 import type { EditorEntity } from "../types/Entity";
 import { buildLogicItems } from "../types/Logic";
+import { createDefaultModuleGraph } from "../types/Module";
 
 export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
   return {
@@ -19,5 +20,6 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
     events: [],
     logic: buildLogicItems({ components: [] }),
     components: [],
+    modules: [createDefaultModuleGraph()],
   };
 }

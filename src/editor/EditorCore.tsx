@@ -2,8 +2,9 @@
 import type { Asset } from "./types/Asset";
 import type { EditorEntity } from "./types/Entity";
 import type { IGameState } from "./core/IGameState";
-import { ensureEntityLogic, syncLegacyFromLogic } from "./utils/entityLogic";
+import { ensureEntityLogic, ensureEntityModules, syncLegacyFromLogic } from "./utils/entityLogic";
 import { buildLogicItems } from "./types/Logic";
+import type { ModuleGraph } from "./types/Module";
 
 export interface EditorContext {
     currentMode: EditorMode;
@@ -29,6 +30,9 @@ export interface SceneData {
 
 export class EditorState implements IGameState {
     private assets: Asset[] = [];
+    private modules: ModuleGraph[] = [];
+    private entities: Map<string, EditorEntity> = new Map();
+    private tiles: Map<string, TilePlacement> = new Map();
 
     // Multi-scene support
     private scenes: Map<string, SceneData> = new Map();
@@ -53,7 +57,7 @@ export class EditorState implements IGameState {
             { id: "1", name: "test1", tag: "Tile", url: assetUrl("TestAsset.webp"), idx: -1 },
             { id: "2", name: "test2", tag: "Tile", url: assetUrl("TestAsset2.webp"), idx: -1 },
             { id: "3", name: "test3", tag: "Tile", url: assetUrl("TestAsset3.webp"), idx: -1 },
-            { id: "4", name: "dragon", tag: "Character", url: assetUrl("RedDragon.webp"), idx: -1 },
+            { id: "4", name: "tree", tag: "Character", url: assetUrl("GreenTree.webp"), idx: -1 },
         ];
 
         // Initialize default scene
@@ -133,14 +137,35 @@ export class EditorState implements IGameState {
 
     // --- Asset Management (Global) ---
     getAssets() { return this.assets; }
+    getModules() { return this.modules; }
+    getEntities() { return this.entities; }
+    getEntity(id: string) { return this.entities.get(id); }
+    hasEntity(id: string) { return this.entities.has(id); }
+    getTiles() { return this.tiles; }
+    getSelectedAsset() { return this.selectedAsset; }
+    getDraggedAsset() { return this.draggedAsset; }
 
-    addAsset(asset: Asset) {
-        this.assets.push(asset);
+    addModule(module: ModuleGraph) {
+        this.modules.push(module);
         this.notify();
     }
 
-    getSelectedAsset() { return this.selectedAsset; }
-    getDraggedAsset() { return this.draggedAsset; }
+    updateModule(module: ModuleGraph) {
+        const idx = this.modules.findIndex((m) => m.id === module.id);
+        if (idx === -1) return;
+        this.modules[idx] = module;
+        this.notify();
+    }
+
+    removeModule(moduleId: string) {
+        this.modules = this.modules.filter((m) => m.id !== moduleId);
+        this.notify();
+    }
+
+    setModules(modules: ModuleGraph[]) {
+        this.modules = modules;
+        this.notify();
+    }
 
     setSelectedAsset(asset: Asset | null) {
         this.selectedAsset = asset;
@@ -177,6 +202,11 @@ export class EditorState implements IGameState {
         this.notify();
     }
 
+    addAsset(asset: Asset) {
+        this.assets.push(asset);
+        this.notify();
+    }
+
     addEntity(entity: EditorEntity) {
         const scene = this.getCurrentScene();
         if (!scene) return;
@@ -190,7 +220,6 @@ export class EditorState implements IGameState {
         }
         const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
         scene.entities.set(entity.id, normalized);
-
         if (this.selectedEntity?.id === entity.id) {
             this.selectedEntity = normalized;
         }

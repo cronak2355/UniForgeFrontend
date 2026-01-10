@@ -437,6 +437,14 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     setVar(entity, varName, value);
 });
 
+ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string) => boolean } | undefined;
+    if (!gameCore?.startModule) return;
+    const moduleId = (params.moduleId as string) ?? (params.moduleName as string) ?? (params.name as string);
+    if (!moduleId) return;
+    gameCore.startModule(ctx.entityId, moduleId);
+});
+
 // --- Entity Control Actions ---
 
 ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, unknown>) => {
@@ -548,5 +556,5 @@ ActionRegistry.register("Disable", (ctx: ActionContext) => {
 });
 
 console.log(
-    "[DefaultActions] 14 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, Enable, Disable, ChangeScene, ClearSignal"
+    "[DefaultActions] 15 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal"
 );
