@@ -138,10 +138,18 @@ export class EditorState implements IGameState {
     // --- Asset Management (Global) ---
     getAssets() { return this.assets; }
     getModules() { return this.modules; }
-    getEntities() { return this.entities; }
-    getEntity(id: string) { return this.entities.get(id); }
-    hasEntity(id: string) { return this.entities.has(id); }
-    getTiles() { return this.tiles; }
+    getEntities() {
+        return this.getCurrentScene()?.entities ?? this.entities;
+    }
+    getEntity(id: string) {
+        return this.getCurrentScene()?.entities.get(id) ?? this.entities.get(id);
+    }
+    hasEntity(id: string) {
+        return this.getCurrentScene()?.entities.has(id) ?? this.entities.has(id);
+    }
+    getTiles() {
+        return this.getCurrentScene()?.tiles ?? this.tiles;
+    }
     getSelectedAsset() { return this.selectedAsset; }
     getDraggedAsset() { return this.draggedAsset; }
 

@@ -256,6 +256,8 @@ export function ModuleGraphEditor({
     updateModule((graph) => {
       const nextEdges = graph.edges.filter((e) => {
         if (e.type !== edge.type) return true;
+        if (e.fromNodeId === edge.fromNodeId && e.fromPort === edge.fromPort) return false;
+        if (e.toNodeId === edge.toNodeId && e.toPort === edge.toPort) return false;
         return true;
       });
       nextEdges.push(edge);

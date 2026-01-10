@@ -26,6 +26,7 @@ export interface SceneEntityJSON {
   id: string;
   type: string;
   name: string;
+  texture?: string;
   x: number;
   y: number;
   variables: SceneVariableJSON[];
@@ -125,6 +126,7 @@ export class SceneSerializer {
       id: e.id,
       type: e.type,
       name: e.name,
+      texture: e.texture,
       x: e.x,
       y: e.y,
       variables,
@@ -233,12 +235,7 @@ export class SceneSerializer {
         scaleX: 1,
         scaleY: 1,
         role: "neutral",
-        texture:
-          e.type === "asset_player"
-            ? "player"
-            : e.name.toLowerCase().includes("dragon")
-              ? "tree"
-              : "test1",
+        texture: e.texture ?? e.name,
         variables: variables as any[],
         events: [],
         logic: buildLogicItems({
