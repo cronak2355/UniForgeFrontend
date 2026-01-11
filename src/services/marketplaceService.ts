@@ -14,6 +14,8 @@ export interface Asset {
     rating?: number;
     type?: string;
     genre?: string;
+    tags?: string;
+    assetType?: string;
 }
 
 export interface AssetVersion {
@@ -50,7 +52,15 @@ class MarketplaceService {
         return apiClient.request<Game[]>('/marketplace/games');
     }
 
-    async createAsset(data: { name: string; price: number; description: string | null }): Promise<Asset> {
+    async createAsset(data: {
+        name: string;
+        price: number;
+        description: string | null;
+        isPublic?: boolean;
+        genre?: string;
+        tags?: string;
+        assetType?: string;
+    }): Promise<Asset> {
         return apiClient.request<Asset>('/assets', {
             method: 'POST',
             body: JSON.stringify(data)

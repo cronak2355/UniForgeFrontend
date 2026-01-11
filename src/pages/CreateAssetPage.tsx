@@ -10,8 +10,12 @@ const CreateAssetPage = () => {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        price: 0
+        price: 0,
+        tags: [] as string[],
+        assetType: '오브젝트',
+        isPublic: true
     });
+    const [currentTag, setCurrentTag] = useState('');
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
@@ -66,6 +70,27 @@ const CreateAssetPage = () => {
         }
     };
 
+    const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+            e.preventDefault();
+            const tag = currentTag.trim();
+            if (tag && !formData.tags.includes(tag)) {
+                setFormData(prev => ({
+                    ...prev,
+                    tags: [...prev.tags, tag]
+                }));
+            }
+            setCurrentTag('');
+        }
+    };
+
+    const removeTag = (tagToRemove: string) => {
+        setFormData(prev => ({
+            ...prev,
+            tags: prev.tags.filter(tag => tag !== tagToRemove)
+        }));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -95,7 +120,10 @@ const CreateAssetPage = () => {
             const asset = await marketplaceService.createAsset({
                 name: formData.name,
                 price: formData.price,
-                description: formData.description || null
+                description: formData.description || null,
+                isPublic: formData.isPublic,
+                tags: formData.tags.join(','),
+                assetType: formData.assetType
             });
 
             setUploadProgress(30);
@@ -358,6 +386,135 @@ const CreateAssetPage = () => {
                         <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.5rem' }}>
                             0을 입력하면 무료 에셋으로 등록됩니다.
                         </p>
+                    </div>
+
+                    {/* Asset Type Selection */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            카테고리 (타입)
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {['캐릭터', '배경/타일', '무기/장비', '오브젝트', 'VFX', 'UI', '사운드', '기타'].map(type => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, assetType: type }))}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: formData.assetType === type ? '#3b82f6' : '#222',
+                                        color: formData.assetType === type ? 'white' : '#ccc',
+                                        border: '1px solid',
+                                        borderColor: formData.assetType === type ? '#3b82f6' : '#333',
+                                        borderRadius: '20px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    {type}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Tags Input */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            태그 (장르)
+                        </label>
+                        <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                            padding: '12px',
+                            backgroundColor: '#111',
+                            border: '1px solid #333',
+                            borderRadius: '8px',
+                            minHeight: '50px'
+                        }}>
+                            {formData.tags.map(tag => (
+                                <span key={tag} style={{
+                                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                    color: '#3b82f6',
+                                    padding: '4px 10px',
+                                    borderRadius: '16px',
+                                    fontSize: '0.9rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    #{tag}
+                                    <i
+                                        className="fa-solid fa-xmark"
+                                        style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+                                        onClick={() => removeTag(tag)}
+                                    ></i>
+                                </span>
+                            ))}
+                            <input
+                                type="text"
+                                value={currentTag}
+                                onChange={(e) => setCurrentTag(e.target.value)}
+                                onKeyDown={handleTagKeyDown}
+                                placeholder={formData.tags.length === 0 ? "태그 입력 후 Enter (예: 공포, RPG)" : ""}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontSize: '1rem',
+                                    outline: 'none',
+                                    flex: 1,
+                                    minWidth: '100px'
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Visibility Toggle */}
+                    <div style={{ marginBottom: '2rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            공개 설정
+                        </label>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, isPublic: true }))}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: formData.isPublic ? '#2563eb' : '#111',
+                                    border: '1px solid',
+                                    borderColor: formData.isPublic ? '#2563eb' : '#333',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <i className="fa-solid fa-globe"></i>
+                                공개
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, isPublic: false }))}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: !formData.isPublic ? '#2563eb' : '#111',
+                                    border: '1px solid',
+                                    borderColor: !formData.isPublic ? '#2563eb' : '#333',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <i className="fa-solid fa-lock"></i>
+                                비공개
+                            </button>
+                        </div>
                     </div>
 
                     {/* Error Message */}

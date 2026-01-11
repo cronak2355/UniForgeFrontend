@@ -35,8 +35,9 @@ const MarketplacePage = () => {
                     // Default values for missing UI fields
                     image: asset.image || asset.imageUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
                     rating: asset.rating || 0,
-                    type: asset.type || "3D 에셋",
+                    type: asset.assetType || "오브젝트",
                     genre: asset.genre || "기타",
+                    tags: asset.tags || undefined,
                     author: asset.author || `User ${asset.authorId}`,
                     createdAt: asset.createdAt || new Date().toISOString(),
                     description: asset.description || ""
@@ -89,18 +90,16 @@ const MarketplacePage = () => {
 
     const CATEGORIES = [
         { id: "추천", icon: "fa-solid fa-fire" },
-        { id: "급상승", icon: "fa-solid fa-chart-line" },
         { id: "신규", icon: "fa-solid fa-sparkles" },
         { type: "divider" },
-        { kind: "genre", id: "액션", icon: "fa-solid fa-khanda" },
-        { kind: "genre", id: "RPG", icon: "fa-solid fa-shield-halved" },
-        { kind: "genre", id: "전략", icon: "fa-solid fa-chess" },
-        { kind: "genre", id: "퍼즐", icon: "fa-solid fa-puzzle-piece" },
-        { type: "divider" },
-        { kind: "type", id: "3D 에셋", icon: "fa-solid fa-cube" },
-        { kind: "type", id: "2D 스프라이트", icon: "fa-solid fa-image" },
-        { kind: "type", id: "오디오", icon: "fa-solid fa-music" },
+        { kind: "type", id: "캐릭터", icon: "fa-solid fa-person" },
+        { kind: "type", id: "배경/타일", icon: "fa-solid fa-map" },
+        { kind: "type", id: "무기/장비", icon: "fa-solid fa-khanda" },
+        { kind: "type", id: "오브젝트", icon: "fa-solid fa-cube" },
         { kind: "type", id: "VFX", icon: "fa-solid fa-wand-magic-sparkles" },
+        { kind: "type", id: "UI", icon: "fa-solid fa-desktop" },
+        { kind: "type", id: "사운드", icon: "fa-solid fa-music" },
+        { kind: "type", id: "기타", icon: "fa-solid fa-box-open" },
     ];
 
     // Use loaded assets instead of hardcoded items
