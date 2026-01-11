@@ -11,9 +11,11 @@ const CreateAssetPage = () => {
         name: '',
         description: '',
         price: 0,
-        genre: '3D 에셋',
+        tags: [] as string[],
+        assetType: '오브젝트',
         isPublic: true
     });
+    const [currentTag, setCurrentTag] = useState('');
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
@@ -68,6 +70,27 @@ const CreateAssetPage = () => {
         }
     };
 
+    const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+            e.preventDefault();
+            const tag = currentTag.trim();
+            if (tag && !formData.tags.includes(tag)) {
+                setFormData(prev => ({
+                    ...prev,
+                    tags: [...prev.tags, tag]
+                }));
+            }
+            setCurrentTag('');
+        }
+    };
+
+    const removeTag = (tagToRemove: string) => {
+        setFormData(prev => ({
+            ...prev,
+            tags: prev.tags.filter(tag => tag !== tagToRemove)
+        }));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -98,8 +121,9 @@ const CreateAssetPage = () => {
                 name: formData.name,
                 price: formData.price,
                 description: formData.description || null,
-                genre: formData.genre,
-                isPublic: formData.isPublic
+                isPublic: formData.isPublic,
+                tags: formData.tags.join(','),
+                assetType: formData.assetType
             });
 
             setUploadProgress(30);
@@ -364,35 +388,87 @@ const CreateAssetPage = () => {
                         </p>
                     </div>
 
-                    {/* Genre Selection */}
+                    {/* Asset Type Selection */}
                     <div style={{ marginBottom: '1.5rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-                            장르
+                            카테고리 (타입)
                         </label>
-                        <select
-                            name="genre"
-                            value={formData.genre}
-                            onChange={(e) => setFormData(prev => ({ ...prev, genre: e.target.value }))}
-                            style={{
-                                width: '200px',
-                                padding: '12px 16px',
-                                backgroundColor: '#111',
-                                border: '1px solid #333',
-                                borderRadius: '8px',
-                                color: 'white',
-                                fontSize: '1rem',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <option value="3D 에셋">3D 에셋</option>
-                            <option value="2D 스프라이트">2D 스프라이트</option>
-                            <option value="오디오">오디오</option>
-                            <option value="VFX">VFX</option>
-                            <option value="UI">UI</option>
-                            <option value="기타">기타</option>
-                        </select>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {['캐릭터', '배경/타일', '무기/장비', '오브젝트', 'VFX', 'UI', '사운드', '기타'].map(type => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, assetType: type }))}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: formData.assetType === type ? '#3b82f6' : '#222',
+                                        color: formData.assetType === type ? 'white' : '#ccc',
+                                        border: '1px solid',
+                                        borderColor: formData.assetType === type ? '#3b82f6' : '#333',
+                                        borderRadius: '20px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    {type}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
+                    {/* Tags Input */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            태그 (장르)
+                        </label>
+                        <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                            padding: '12px',
+                            backgroundColor: '#111',
+                            border: '1px solid #333',
+                            borderRadius: '8px',
+                            minHeight: '50px'
+                        }}>
+                            {formData.tags.map(tag => (
+                                <span key={tag} style={{
+                                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                    color: '#3b82f6',
+                                    padding: '4px 10px',
+                                    borderRadius: '16px',
+                                    fontSize: '0.9rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    #{tag}
+                                    <i
+                                        className="fa-solid fa-xmark"
+                                        style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+                                        onClick={() => removeTag(tag)}
+                                    ></i>
+                                </span>
+                            ))}
+                            <input
+                                type="text"
+                                value={currentTag}
+                                onChange={(e) => setCurrentTag(e.target.value)}
+                                onKeyDown={handleTagKeyDown}
+                                placeholder={formData.tags.length === 0 ? "태그 입력 후 Enter (예: 공포, RPG)" : ""}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontSize: '1rem',
+                                    outline: 'none',
+                                    flex: 1,
+                                    minWidth: '100px'
+                                }}
+                            />
+                        </div>
+                    </div>
                     {/* Visibility Toggle */}
                     <div style={{ marginBottom: '2rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
