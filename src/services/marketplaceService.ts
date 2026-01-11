@@ -50,7 +50,7 @@ class MarketplaceService {
         return apiClient.request<Game[]>('/marketplace/games');
     }
 
-    async createAsset(data: { name: string; price: number; description: string | null }): Promise<Asset> {
+    async createAsset(data: { name: string; price: number; description: string | null; genre?: string; isPublic?: boolean }): Promise<Asset> {
         return apiClient.request<Asset>('/assets', {
             method: 'POST',
             body: JSON.stringify(data)

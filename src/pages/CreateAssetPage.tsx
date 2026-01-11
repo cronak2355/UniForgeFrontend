@@ -10,7 +10,9 @@ const CreateAssetPage = () => {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        price: 0
+        price: 0,
+        genre: '3D 에셋',
+        isPublic: true
     });
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
@@ -95,7 +97,9 @@ const CreateAssetPage = () => {
             const asset = await marketplaceService.createAsset({
                 name: formData.name,
                 price: formData.price,
-                description: formData.description || null
+                description: formData.description || null,
+                genre: formData.genre,
+                isPublic: formData.isPublic
             });
 
             setUploadProgress(30);
@@ -357,6 +361,85 @@ const CreateAssetPage = () => {
                         />
                         <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.5rem' }}>
                             0을 입력하면 무료 에셋으로 등록됩니다.
+                        </p>
+                    </div>
+
+                    {/* Genre Selection */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            장르
+                        </label>
+                        <select
+                            name="genre"
+                            value={formData.genre}
+                            onChange={(e) => setFormData(prev => ({ ...prev, genre: e.target.value }))}
+                            style={{
+                                width: '200px',
+                                padding: '12px 16px',
+                                backgroundColor: '#111',
+                                border: '1px solid #333',
+                                borderRadius: '8px',
+                                color: 'white',
+                                fontSize: '1rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <option value="3D 에셋">3D 에셋</option>
+                            <option value="2D 스프라이트">2D 스프라이트</option>
+                            <option value="오디오">오디오</option>
+                            <option value="VFX">VFX</option>
+                            <option value="UI">UI</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+
+                    {/* Visibility Toggle */}
+                    <div style={{ marginBottom: '2rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            공개 설정
+                        </label>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, isPublic: true }))}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: formData.isPublic ? '#2563eb' : '#111',
+                                    border: '1px solid',
+                                    borderColor: formData.isPublic ? '#2563eb' : '#333',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <i className="fa-solid fa-globe"></i>
+                                공개
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, isPublic: false }))}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: !formData.isPublic ? '#2563eb' : '#111',
+                                    border: '1px solid',
+                                    borderColor: !formData.isPublic ? '#2563eb' : '#333',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <i className="fa-solid fa-lock"></i>
+                                비공개
+                            </button>
+                        </div>
+                        <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                            {formData.isPublic ? '마켓플레이스에서 모든 사용자가 볼 수 있습니다.' : '나만 볼 수 있는 비공개 에셋입니다.'}
                         </p>
                     </div>
 
