@@ -37,7 +37,7 @@ const MarketplacePage = () => {
                     rating: asset.rating || 0,
                     type: asset.type || "3D 에셋",
                     genre: asset.genre || "기타",
-                    author: asset.authorName || asset.author || `User ${asset.authorId}`,
+                    author: asset.author || `User ${asset.authorId}`,
                     createdAt: asset.createdAt || new Date().toISOString(),
                     description: asset.description || ""
                 }));
@@ -347,56 +347,6 @@ const MarketplacePage = () => {
                 {/* Main Content */}
                 <main style={{ flex: 1, padding: '2rem' }}>
 
-                    {/* Hero Banner */}
-                    <div style={{
-                        width: '100%',
-                        height: '300px',
-                        borderRadius: '16px',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        marginBottom: '3rem',
-                        border: '1px solid #333'
-                    }}>
-                        <img
-                            src="https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=2000"
-                            alt="Featured"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.6)' }}
-                        />
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            padding: '3rem',
-                            background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
-                            width: '100%'
-                        }}>
-                            <span style={{
-                                backgroundColor: '#2563eb', color: 'white', padding: '4px 12px',
-                                borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '1rem',
-                                display: 'inline-block'
-                            }}>추천</span>
-                            <h2 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', fontWeight: 700 }}>Cyberpunk Streets Vol.2</h2>
-                            <p style={{ color: '#ccc', maxWidth: '600px', marginBottom: '1.5rem' }}>
-                                200개 이상의 고퀄리티 에셋으로 몰입감 넘치는 디스토피아 도시를 만들어보세요. 모듈형 건물, 네온 사인, 다양한 소품이 포함되어 있습니다.
-                            </p>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <button style={{
-                                    backgroundColor: 'white', color: 'black', border: 'none',
-                                    padding: '12px 24px', borderRadius: '6px', fontWeight: 600,
-                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                }}>
-                                    상세 보기
-                                </button>
-                                <button style={{
-                                    backgroundColor: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
-                                    padding: '12px 24px', borderRadius: '6px', fontWeight: 600,
-                                    backdropFilter: 'blur(5px)', cursor: 'pointer'
-                                }}>
-                                    + 찜하기
-                                </button>
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Section Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>

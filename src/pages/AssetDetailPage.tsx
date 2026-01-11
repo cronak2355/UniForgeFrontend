@@ -111,7 +111,7 @@ const AssetDetailPage = () => {
                             border: '1px solid #333'
                         }}>
                             <img
-                                src={asset.image || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800"}
+                                src={asset.imageUrl || asset.image || "/placeholder-asset.png"}
                                 alt={asset.name}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
