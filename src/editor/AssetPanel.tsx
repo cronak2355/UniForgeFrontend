@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Asset } from "./types/Asset";
 import type { ModuleGraph } from "./types/Module";
 import { createDefaultModuleGraph } from "./types/Module";
@@ -34,10 +34,30 @@ export function AssetPanel({
 }: Props) {
   const [currentTag, setCurrentTag] = useState<string>("Tile");
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  const dragStateRef = useRef<{ asset: Asset; startX: number; startY: number; hasDragged: boolean } | null>(null);
+
+  const clearDragListeners = () => {
+    window.removeEventListener("pointermove", onGlobalPointerMove);
+    window.removeEventListener("pointerup", onGlobalPointerUp);
+    dragStateRef.current = null;
+  };
+
+  const onGlobalPointerMove = (e: PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state || state.hasDragged) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (Math.hypot(dx, dy) < 5) return;
+    state.hasDragged = true;
+    changeDraggedAsset(state.asset);
+  };
 
   const onGlobalPointerUp = () => {
-    changeDraggedAsset(null, { defer: true });
-    window.removeEventListener("pointerup", onGlobalPointerUp);
+    const state = dragStateRef.current;
+    if (state?.hasDragged) {
+      changeDraggedAsset(null, { defer: true });
+    }
+    clearDragListeners();
   };
 
   const tabs = ["Tile", "Character", "Modules"];
@@ -133,11 +153,18 @@ export function AssetPanel({
                   if (asset.tag === "Tile") return;
                   e.preventDefault();
                   e.stopPropagation();
+                  dragStateRef.current = { asset, startX: e.clientX, startY: e.clientY, hasDragged: false };
+                  window.addEventListener("pointermove", onGlobalPointerMove);
                   window.addEventListener("pointerup", onGlobalPointerUp);
-                  changeDraggedAsset(asset);
                 }}
                 onPointerUp={() => { }}
-                onPointerCancel={() => changeDraggedAsset(null)}
+                onPointerCancel={() => {
+                  const state = dragStateRef.current;
+                  if (state?.hasDragged) {
+                    changeDraggedAsset(null, { defer: true });
+                  }
+                  clearDragListeners();
+                }}
                 onClick={() => handleTileClick(asset)}
               >
                 <img
