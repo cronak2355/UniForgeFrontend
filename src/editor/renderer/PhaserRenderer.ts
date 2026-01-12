@@ -449,6 +449,32 @@ export class PhaserRenderer implements IRenderer {
         // Usually grid remains.
     }
 
+    private attachEntityInteraction(obj: Phaser.GameObjects.GameObject, id: string, type: string) {
+        if (!this.scene) return;
+        const anyObj = obj as Phaser.GameObjects.GameObject & {
+            setInteractive?: () => void;
+            off?: (event: string) => void;
+            on?: (event: string, callback: (pointer: Phaser.Input.Pointer) => void) => void;
+            setData?: (key: string, value: unknown) => void;
+        };
+
+        anyObj.setData?.("id", id);
+        anyObj.setData?.("type", type);
+        anyObj.setInteractive?.();
+
+        const draggable = !this._isRuntimeMode && !this.isPreviewMode;
+        if (this.scene.input) {
+            this.scene.input.setDraggable(obj, draggable);
+        }
+
+        anyObj.off?.("pointerdown");
+        anyObj.on?.("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            if (!this.onEntityClick || !this.scene) return;
+            const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+            this.onEntityClick(id, world.x, world.y);
+        });
+    }
+
     /** Editor Preview Mode flag - disables dragging if true */
     public isPreviewMode = false;
 
@@ -720,18 +746,7 @@ export class PhaserRenderer implements IRenderer {
             }
         }
 
-        obj.setData('id', id);
-        obj.setData('type', uiType || type);
-
-        // Interactive
-        obj.setInteractive();
-
-        obj.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-            if (this.onEntityClick) {
-                const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
-                this.onEntityClick(id, world.x, world.y);
-            }
-        });
+        this.attachEntityInteraction(obj, id, uiType || type);
 
         // Dragging handled by editor pointer logic to keep offsets stable.
     }
@@ -815,6 +830,7 @@ export class PhaserRenderer implements IRenderer {
         }
 
         this.entities.set(id, sprite);
+        this.attachEntityInteraction(sprite, id, entity?.type ?? "sprite");
     }
 
     // ===== Animation =====
