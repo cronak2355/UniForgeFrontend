@@ -809,16 +809,11 @@ export class PhaserRenderer implements IRenderer {
             const textureKey = sprite.texture.key;
             const prefixedName = `${textureKey}_${name}`;
 
-            console.log(`[PhaserRenderer] playAnim request: id=${id}, name=${name}, texture=${textureKey}, prefixed=${prefixedName}`);
-            const debugTex = this.scene?.textures.get(textureKey);
-            console.log(`[PhaserRenderer] Texture Debug: key=${textureKey}, size=${debugTex?.source[0]?.width}x${debugTex?.source[0]?.height}, frameTotal=${debugTex?.frameTotal}`);
-
             if (this.scene?.anims.exists(prefixedName)) {
-                console.log(`[PhaserRenderer] Playing prefixed: ${prefixedName}`);
-                sprite.play(prefixedName);
+                // Pass true to ignoreIfPlaying to prevent restarting the animation every frame
+                sprite.play(prefixedName, true);
             } else if (this.scene?.anims.exists(name)) {
-                console.log(`[PhaserRenderer] Playing raw: ${name}`);
-                sprite.play(name);
+                sprite.play(name, true);
             } else {
                 // Fallback: If the user asked for "Idle" but we only have "Hero_default", play "Hero_default"
                 // Only if the asset seems to be a single-action asset (common for user-created sprites)
@@ -828,10 +823,14 @@ export class PhaserRenderer implements IRenderer {
 
                 if (available.length > 0) {
                     const fallback = available[0];
-                    console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
-                    sprite.play(fallback);
+                    if (sprite.anims.currentAnim?.key !== fallback || !sprite.anims.isPlaying) {
+                        console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
+                    }
+                    sprite.play(fallback, true);
                 } else {
-                    console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName}). No fallbacks available.`);
+                    if (Math.random() < 0.01) {
+                        console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName}). No fallbacks available.`);
+                    }
                 }
             }
         }
