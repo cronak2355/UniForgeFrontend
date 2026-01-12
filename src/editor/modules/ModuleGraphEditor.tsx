@@ -427,10 +427,7 @@ export function ModuleGraphEditor({
                   value = newVarValue.toLowerCase() === "true" || newVarValue === "1";
                 }
                 const entityVarExists = variables.some((v) => v.name === name);
-                const moduleVarExists = moduleVariables.some((v) => v.name === name);
-                if (!entityVarExists || moduleVarExists) {
-                  syncModuleVariable(name, value, newVarType);
-                }
+                syncModuleVariable(name, value, newVarType);
 
                 if (entityVarExists && onUpdateVariable) {
                   onUpdateVariable(name, value, newVarType);
