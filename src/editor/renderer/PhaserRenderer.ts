@@ -693,7 +693,11 @@ export class PhaserRenderer implements IRenderer {
             } catch (e) {
                 console.warn("[PhaserRenderer] Animation lookup failed", e);
             }
-            // const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
+            // Debug Log
+            if (this.isRuntimeMode) {
+                console.log(`[PhaserRenderer] Auto-play check for ${textureKey}`, allAnimKeys);
+            }
+
             const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
 
             if (relatedAnim && this.isRuntimeMode) {
@@ -839,7 +843,10 @@ export class PhaserRenderer implements IRenderer {
             } else if (this.scene?.anims.exists(name)) {
                 sprite.play(name);
             } else {
-                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`);
+                const available = this.scene?.anims.toJSON()?.anims?.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey)) || [];
+                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`, {
+                    availableForTexture: available
+                });
             }
         }
     }
@@ -1202,7 +1209,11 @@ export class PhaserRenderer implements IRenderer {
                     frameHeight: metadata.frameHeight,
                 });
             } else {
-                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`);
+                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`, {
+                    hasMetadata: !!metadata,
+                    frameWidth: metadata?.frameWidth,
+                    frameHeight: metadata?.frameHeight
+                });
                 this.scene.load.image(key, url);
             }
 
