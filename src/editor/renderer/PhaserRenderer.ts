@@ -646,6 +646,22 @@ export class PhaserRenderer implements IRenderer {
         } else if (options?.texture && this.scene.textures.exists(options.texture)) {
             // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
+
+            // Auto-play default animation if available
+            // Check for `${texture}_default` or any `${texture}_` animation
+            const textureKey = options.texture;
+            // We can't easily check for specific animations without strict naming.
+            // But we know our loadTexture creates `${key}_${animName}`.
+            // Try to find one.
+            const anims = this.scene.anims;
+            // @ts-ignore
+            const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
+            const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
+
+            if (relatedAnim) {
+                sprite.play(relatedAnim);
+            }
+
             obj = sprite;
         } else {
             // Fallback Placeholder
@@ -1127,15 +1143,16 @@ export class PhaserRenderer implements IRenderer {
                 return;
             }
 
-            if (metadata) {
+            console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
+
+            if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
                 // Load as Sprite Sheet
                 this.scene.load.spritesheet(key, url, {
                     frameWidth: metadata.frameWidth,
                     frameHeight: metadata.frameHeight,
-                    // startFrame: 0,
-                    // endFrame: metadata.frameCount - 1
                 });
             } else {
+                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`);
                 this.scene.load.image(key, url);
             }
 
