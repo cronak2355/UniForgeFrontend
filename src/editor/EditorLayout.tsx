@@ -161,43 +161,62 @@ function EditorLayoutInner() {
         const initEditor = async () => {
             try {
                 // 1. Try key loading from server first
+                let loadedFromServer = false;
                 if (gameId) {
-                    const sceneJson = await loadScene(gameId);
-                    if (sceneJson) {
-                        console.log("[EditorLayout] Loaded scene from server");
-                        // Validate assets and entities similarly to autosave
-                        if (sceneJson.assets) {
-                            sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
+                    try {
+                        const sceneJson = await loadScene(gameId);
+                        if (sceneJson) {
+                            console.log("[EditorLayout] Loaded scene from server");
+                            // Validate assets and entities similarly to autosave
+                            // REMOVED: S3 URL filtering that was deleting production assets
+                            // if (sceneJson.assets) {
+                            //     sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
+                            // }
+
+                            core.clear();
+                            SceneSerializer.deserialize(sceneJson, core);
+                            loadedFromServer = true;
                         }
-                        core.clear();
-                        SceneSerializer.deserialize(sceneJson, core);
-                        return; // Successfully loaded from server, skip local autosave
+                    } catch (e) {
+                        console.warn("[EditorLayout] Server load failed, falling back to local autosave:", e);
                     }
                 }
 
-                // 2. Fallback to local autosave
-                const saved = localStorage.getItem("editor_autosave");
-                if (saved) {
-                    const json = JSON.parse(saved);
-                    // ... (existing validation logic for autosave) ...
-                    if (json.assets && Array.isArray(json.assets)) {
-                        json.assets = json.assets.filter((asset: any) => {
-                            const isS3Url = asset.url && asset.url.includes('amazonaws.com');
-                            if (isS3Url) return false;
-                            return true;
-                        });
-                    }
-                    if (json.entities && Array.isArray(json.entities)) {
-                        const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
-                        json.entities = json.entities.filter((entity: any) => {
-                            if (entity.texture && !validAssetNames.has(entity.texture)) return false;
-                            return true;
-                        });
-                    }
+                if (!loadedFromServer) {
+                    // 2. Fallback to local autosave
+                    const saved = localStorage.getItem("editor_autosave");
+                    if (saved) {
+                        try {
+                            const json = JSON.parse(saved);
+                            // ... (existing validation logic for autosave) ...
+                            // REMOVED: S3 URL filtering
+                            /*
+                            if (json.assets && Array.isArray(json.assets)) {
+                                json.assets = json.assets.filter((asset: any) => {
+                                    const isS3Url = asset.url && asset.url.includes('amazonaws.com');
+                                    if (isS3Url) return false;
+                                    return true;
+                                });
+                            }
+                            */
 
-                    core.clear();
-                    SceneSerializer.deserialize(json, core);
-                    console.log("[EditorLayout] Loaded from local autosave");
+                            // Re-enable entity filtering ONLY if needed for consistency, but be careful not to delete valid stuff
+                            if (json.entities && Array.isArray(json.entities)) {
+                                const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
+                                // Filter entities that refer to non-existent assets (optional consistency check)
+                                // json.entities = json.entities.filter((entity: any) => {
+                                //    if (entity.texture && !validAssetNames.has(entity.texture)) return false;
+                                //    return true;
+                                // });
+                            }
+
+                            core.clear();
+                            SceneSerializer.deserialize(json, core);
+                            console.log("[EditorLayout] Loaded from local autosave");
+                        } catch (e) {
+                            console.error("[EditorLayout] Failed to parse local autosave", e);
+                        }
+                    }
                 }
 
                 // 3. If scene is still empty after loading, inject demo entities
@@ -207,7 +226,7 @@ function EditorLayoutInner() {
                     (core as any).loadDemoScene?.();
                 }
             } catch (err) {
-                console.error("[EditorLayout] Failed to load scene", err);
+                console.error("[EditorLayout] Critical error in initEditor", err);
             }
         };
 
