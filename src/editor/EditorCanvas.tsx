@@ -38,20 +38,24 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
 
         const img = new Image();
         img.crossOrigin = "anonymous";
-        await new Promise((resolve, reject) => {
-            img.onload = resolve;
+        const loaded = await new Promise<boolean>((resolve) => {
+            img.onload = () => resolve(true);
             img.onerror = (e) => {
                 console.error(`Failed to load image for tile: ${asset.name}`, e);
                 // Resolve anyway to prevent crashing the whole tileset generation
-                // Just draw a placeholder or skip
-                resolve(null);
+                resolve(false);
             };
             img.src = asset.url;
         });
 
         const x = (idx % TILESET_COLS) * TILE_SIZE;
         const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
-        ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        if (loaded) {
+            ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        } else {
+            ctx.fillStyle = "#ff00ff";
+            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        }
 
         idx++;
     }
@@ -394,6 +398,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         const nextSignature = buildTileSignature(assets);
         const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
+        const assetLookup = new Map<string, Asset>();
+        for (const asset of assets) {
+            assetLookup.set(asset.name, asset);
+            assetLookup.set(asset.id, asset);
+        }
 
         let cancelled = false;
 
@@ -417,12 +426,27 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 applyAllTiles(renderer, tiles);
                 prevTilesRef.current = indexTiles(tiles);
             }
+
+            for (const ent of entities) {
+                const textureKey = ent.texture ?? ent.name;
+                if (!textureKey) continue;
+
+                if (!loadedTexturesRef.current.has(textureKey)) {
+                    const asset = assetLookup.get(textureKey);
+                    if (asset) {
+                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
+                        if (cancelled) return;
+                        loadedTexturesRef.current.add(textureKey);
+                    }
+                }
+                renderer.refreshEntityTexture(ent.id, textureKey);
+            }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [assets, isRendererReady]);
+    }, [assets, entities, isRendererReady]);
 
     useEffect(() => {
         const gameCore = gameCoreRef.current;
