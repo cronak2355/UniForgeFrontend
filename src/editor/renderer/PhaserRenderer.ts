@@ -696,7 +696,7 @@ export class PhaserRenderer implements IRenderer {
             // const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
             const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
 
-            if (relatedAnim) {
+            if (relatedAnim && this.isRuntimeMode) {
                 sprite.play(relatedAnim);
             }
 

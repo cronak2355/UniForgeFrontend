@@ -130,7 +130,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             for (const asset of assets) {
                 // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
                 if (asset.tag === "Tile") continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(assets);
@@ -250,7 +250,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                             : editorEntity.rotation,
                     scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
                     scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
-                    scaleZ: runtimeEntity.scaleZ ?? editorEntity.scaleZ,
+
                     variables: nextVars,
                     modules: nextModules,
                 };
@@ -273,8 +273,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     editorEntity.rotationY === nextEntity.rotationY &&
                     editorEntity.rotationZ === nextEntity.rotationZ &&
                     editorEntity.scaleX === nextEntity.scaleX &&
-                    editorEntity.scaleY === nextEntity.scaleY &&
-                    editorEntity.scaleZ === nextEntity.scaleZ;
+                    editorEntity.scaleY === nextEntity.scaleY;
                 const sameModules =
                     JSON.stringify(editorEntity.modules ?? []) ===
                     JSON.stringify(nextEntity.modules ?? []);
@@ -342,7 +341,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         (async () => {
             for (const asset of nextNonTileAssets) {
                 if (loadedTexturesRef.current.has(asset.name)) continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
                 if (cancelled) return;
                 loadedTexturesRef.current.add(asset.name);
             }
