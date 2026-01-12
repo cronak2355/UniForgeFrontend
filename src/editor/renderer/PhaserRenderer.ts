@@ -830,8 +830,17 @@ export class PhaserRenderer implements IRenderer {
         }
 
         const sprite = obj as Phaser.GameObjects.Sprite;
-        if (sprite.play) {
-            sprite.play(name);
+        if (sprite.play && sprite.texture) {
+            const textureKey = sprite.texture.key;
+            const prefixedName = `${textureKey}_${name}`;
+
+            if (this.scene?.anims.exists(prefixedName)) {
+                sprite.play(prefixedName);
+            } else if (this.scene?.anims.exists(name)) {
+                sprite.play(name);
+            } else {
+                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`);
+            }
         }
     }
 
