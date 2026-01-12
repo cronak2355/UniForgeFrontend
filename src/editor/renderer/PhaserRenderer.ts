@@ -1178,51 +1178,75 @@ export class PhaserRenderer implements IRenderer {
                 reject(new Error("Scene not initialized"));
                 return;
             }
-
             if (this.scene.textures.exists(key)) {
-                resolve();
-                return;
+                // Critical Check: If the existing texture is static (1 frame) but we now have metadata for animations,
+                // we must REMOVE the old texture and reload it as a spritesheet.
+                // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
+                const texture = this.scene.textures.get(key);
+                const needsAnimations = metadata && metadata.animations && Object.keys(metadata.animations).length > 0;
+
+                if (needsAnimations) {
+                    // Check if animations already exist
+                    const hasPrefixAnims = this.scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
+
+                    if (texture.frameTotal <= 1 && !hasPrefixAnims) {
+                        console.warn(`[PhaserRenderer] Texture '${key}' exists but is static. Reloading as spritesheet for animations.`);
+                        this.scene.textures.remove(key);
+                        // Proceed to load below...
+                    } else {
+                        // Texture seems fine (or already animated), but let's ensure specific anims from this metadata exist
+                        // Call only the creation part? 
+                        // For safety, if frames match, we just fall through to creation check.
+                        // But we can't 'load' again without removing. 
+                        // If frames are sufficient, we just skip 'load.spritesheet' and go to anim creation.
+                        this.createAnimationsFromMetadata(key, metadata);
+                        resolve();
+                        return;
+                    }
+                } else {
+                    resolve();
+                    return;
+                }
             }
 
             console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
 
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
-                // Load as Sprite Sheet
                 this.scene.load.spritesheet(key, url, {
                     frameWidth: metadata.frameWidth,
                     frameHeight: metadata.frameHeight,
                 });
             } else {
-                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`, {
-                    hasMetadata: !!metadata,
-                    frameWidth: metadata?.frameWidth,
-                    frameHeight: metadata?.frameHeight
-                });
                 this.scene.load.image(key, url);
             }
 
             this.scene.load.once("complete", () => {
-                // If metadata has animations, create them
-                if (metadata && metadata.animations && this.scene) {
-                    for (const [animName, config] of Object.entries(metadata.animations)) {
-                        const animKey = `${key}_${animName}`; // e.g. "Hero_default"
-                        if (!this.scene.anims.exists(animKey)) {
-                            this.scene.anims.create({
-                                key: animKey,
-                                frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
-                                frameRate: config.fps,
-                                repeat: config.loop ? -1 : 0
-                            });
-                            console.log(`[PhaserRenderer] Created animation: ${animKey}`);
-                        }
-                    }
-                }
+                this.createAnimationsFromMetadata(key, metadata);
                 resolve();
             });
             this.scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
             this.scene.load.start();
         });
     }
+
+    private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
+        if (metadata && metadata.animations && this.scene) {
+            for (const [animName, config] of Object.entries(metadata.animations)) {
+                const animKey = `${key}_${animName}`;
+                if (!this.scene.anims.exists(animKey)) {
+                    this.scene.anims.create({
+                        key: animKey,
+                        frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
+                        frameRate: config.fps,
+                        repeat: config.loop ? -1 : 0
+                    });
+                    console.log(`[PhaserRenderer] Created animation: ${animKey}`);
+                }
+            }
+        }
+    }
+
+
 
     /**
      * 罹붾쾭?ㅻ줈遺€???띿뒪泥??앹꽦 (Phaser ?꾩슜)
