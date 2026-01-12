@@ -673,36 +673,7 @@ export class PhaserRenderer implements IRenderer {
             // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
 
-            // Auto-play default animation if available
-            // Check for `${texture}_default` or any `${texture}_` animation
-            const textureKey = options.texture;
-            // We can't easily check for specific animations without strict naming.
-            // But we know our loadTexture creates `${key}_${animName}`.
-            // Try to find one.
-            let allAnimKeys: string[] = [];
-            try {
-                // Phaser 3.60+ compatibility fix
-                const animsManager = this.scene.anims as any;
-                if (animsManager.anims && animsManager.anims.entries) {
-                    if (animsManager.anims.entries instanceof Map) {
-                        allAnimKeys = Array.from(animsManager.anims.entries.keys());
-                    } else {
-                        allAnimKeys = Object.keys(animsManager.anims.entries);
-                    }
-                }
-            } catch (e) {
-                console.warn("[PhaserRenderer] Animation lookup failed", e);
-            }
-            // Debug Log
-            if (this.isRuntimeMode) {
-                console.log(`[PhaserRenderer] Auto-play check for ${textureKey}`, allAnimKeys);
-            }
 
-            const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
-
-            if (relatedAnim && this.isRuntimeMode) {
-                sprite.play(relatedAnim);
-            }
 
             obj = sprite;
         } else {
