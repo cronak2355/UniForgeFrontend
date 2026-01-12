@@ -810,6 +810,8 @@ export class PhaserRenderer implements IRenderer {
             const prefixedName = `${textureKey}_${name}`;
 
             console.log(`[PhaserRenderer] playAnim request: id=${id}, name=${name}, texture=${textureKey}, prefixed=${prefixedName}`);
+            const debugTex = this.scene?.textures.get(textureKey);
+            console.log(`[PhaserRenderer] Texture Debug: key=${textureKey}, size=${debugTex?.source[0]?.width}x${debugTex?.source[0]?.height}, frameTotal=${debugTex?.frameTotal}`);
 
             if (this.scene?.anims.exists(prefixedName)) {
                 console.log(`[PhaserRenderer] Playing prefixed: ${prefixedName}`);
