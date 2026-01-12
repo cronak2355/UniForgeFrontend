@@ -814,10 +814,7 @@ export class PhaserRenderer implements IRenderer {
             } else if (this.scene?.anims.exists(name)) {
                 sprite.play(name);
             } else {
-                const available = this.scene?.anims.toJSON()?.anims?.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey)) || [];
-                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`, {
-                    availableForTexture: available
-                });
+                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`);
             }
         }
     }
