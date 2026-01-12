@@ -340,6 +340,9 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         let cancelled = false;
 
         (async () => {
+            // 커스텀 파티클 등 기타 에셋 업데이트
+            renderer.updateAssets?.(assets);
+
             for (const asset of nextNonTileAssets) {
                 if (loadedTexturesRef.current.has(asset.name)) continue;
                 await renderer.loadTexture(asset.name, asset.url);

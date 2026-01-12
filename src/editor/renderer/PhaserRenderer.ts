@@ -15,6 +15,9 @@ import type { LogicComponent } from "../types/Component";
 // 寃뚯엫 ?ㅼ젙
 import { type GameConfig, defaultGameConfig, hasRole } from "../core/GameConfig";
 import type { SpriteSheetMetadata } from "../../AssetsEditor/services/SpriteSheetExporter";
+// 파티클 시스템
+import { ParticleManager } from "../core/ParticleManager";
+import { initParticleTextures } from "../../AssetsEditor/services/simpleParticleService";
 
 /**
  * Phaser ???대? ?대옒??
@@ -22,6 +25,7 @@ import type { SpriteSheetMetadata } from "../../AssetsEditor/services/SpriteShee
  */
 class PhaserRenderScene extends Phaser.Scene {
     public phaserRenderer!: PhaserRenderer;
+    public particleManager!: ParticleManager;
 
     get editorCore(): EditorState {
         return this.phaserRenderer.core;
@@ -41,7 +45,18 @@ class PhaserRenderScene extends Phaser.Scene {
     create() {
         console.log("[PhaserRenderScene] create() called");
 
-        // RPG ?대룞?????앹꽦
+        // 파티클 시스템 초기화 (텍스처 먼저 로드해야 함)
+        initParticleTextures(this);
+        this.particleManager = new ParticleManager(this);
+
+        // 커스텀 파티클 에셋 등록 (Particle 태그)
+        const assets = this.phaserRenderer?.core?.getAssets?.() ?? [];
+        const particleAssets = assets.filter((a: { tag: string }) => a.tag === 'Particle');
+        for (const asset of particleAssets) {
+            this.particleManager.registerCustomTexture(asset.id, asset.url);
+        }
+
+        // RPG 이동용 키 생성
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.wasd = {
@@ -50,11 +65,10 @@ class PhaserRenderScene extends Phaser.Scene {
                 S: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
                 D: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
             };
-            // ?ㅽ럹?댁뒪諛?蹂꾨룄 ?앹꽦 (JustDown ?명솚??
+            // 스페이스바 별도 생성 (JustDown 활성화)
             this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
         }
 
-        // EAC ?쒖뒪??珥덇린??(?대깽??湲곕컲 ?≪뀡??
         // EAC 시스템 초기화 (이벤트 기반 액션)
         this._keyboardAdapter = new KeyboardAdapter(this);
 
@@ -281,19 +295,31 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             });
 
-            // 移대찓?? 異붿쟻: cameraFollowRoles???ы븿????븷 ?뷀떚???곕씪媛€湲?
+            // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
             const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
-            const playerEntity = Array.from(this.phaserRenderer.core.getEntities().values())
-                .find(e => hasRole(e.role, cameraRoles));
+            const allEntities = Array.from(this.phaserRenderer.core.getEntities().values());
+
+            // tags 배열에서 찾기 (1순위: tags, 2순위: role, 3순위: 이름)
+            let playerEntity = allEntities.find(e =>
+                e.tags?.some(tag => cameraRoles.includes(tag))
+            );
+            if (!playerEntity) {
+                playerEntity = allEntities.find(e => hasRole(e.role, cameraRoles));
+            }
+            if (!playerEntity) {
+                playerEntity = allEntities.find(e =>
+                    e.name?.toLowerCase().includes('player')
+                );
+            }
 
             if (playerEntity) {
                 const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
                 if (playerObj && this.cameras?.main) {
-                    // 遺€?쒕윭??移대찓??異붿쟻
+                    // 부드러운 카메라 추적
                     const cam = this.cameras.main;
                     const targetX = playerObj.x - cam.width / 2;
                     const targetY = playerObj.y - cam.height / 2;
-                    const lerp = 0.1; // 遺€?쒕윭?€ ?뺣룄
+                    const lerp = 0.1; // 부드러움 정도
                     cam.scrollX += (targetX - cam.scrollX) * lerp;
                     cam.scrollY += (targetY - cam.scrollY) * lerp;
                 }
@@ -527,10 +553,15 @@ export class PhaserRenderer implements IRenderer {
         }
         this.tileset = null;
 
-        // 3. 洹몃━??洹몃옒?쎌뒪 ?뺣━
+        // 3. 그리드 그래픽스 정리
         if (this.gridGraphics) {
             this.gridGraphics.destroy();
             this.gridGraphics = null;
+        }
+
+        // 3.5. 파티클 매니저 정리
+        if (this.scene?.particleManager) {
+            this.scene.particleManager.destroy();
         }
 
         // 4. ??李몄“ ?댁젣
@@ -810,6 +841,62 @@ export class PhaserRenderer implements IRenderer {
         }
     }
 
+    // ===== Particle Effects =====
+
+    /**
+     * 파티클 이펙트 재생
+     * @param presetId 프리셋 ID (예: 'hit_spark', 'explosion', 'rain')
+     * @param x 월드 X 좌표
+     * @param y 월드 Y 좌표
+     * @param scale 크기 배율 (기본값 1)
+     */
+    playParticle(presetId: string, x: number, y: number, scale: number = 1): void {
+        if (!this.scene?.particleManager) {
+            console.warn("[PhaserRenderer] Cannot play particle: particle manager not initialized");
+            return;
+        }
+        this.scene.particleManager.playEffect(presetId, x, y, scale);
+    }
+
+    /**
+     * 커스텀 파티클 텍스처 등록
+     */
+    registerCustomParticle(id: string, url: string): void {
+        if (!this.scene?.particleManager) return;
+        this.scene.particleManager.registerCustomTexture(id, url);
+    }
+
+    /**
+     * 커스텀 파티클 재생
+     */
+    playCustomParticle(textureId: string, x: number, y: number, scale: number = 1): void {
+        if (!this.scene?.particleManager) return;
+        this.scene.particleManager.playCustomEffect(textureId, x, y, scale);
+    }
+
+    /**
+     * 등록된 커스텀 파티클 목록
+     */
+    getCustomParticles(): string[] {
+        return this.scene?.particleManager?.getCustomTextures() ?? [];
+    }
+
+    /**
+     * 지속 파티클 이미터 생성
+     */
+    createParticleEmitter(id: string, presetId: string, x: number, y: number): void {
+        if (!this.scene?.particleManager) return;
+        this.scene.particleManager.createEmitter(id, presetId, x, y);
+    }
+
+    /**
+     * 파티클 이미터 중지
+     */
+    stopParticleEmitter(id: string): void {
+        if (!this.scene?.particleManager) return;
+        this.scene.particleManager.stopEmitter(id);
+    }
+
 
 
     // ===== Camera =====
@@ -896,8 +983,9 @@ export class PhaserRenderer implements IRenderer {
         this.baseLayer.setPosition(offsetX, offsetY);
         this.previewLayer.setPosition(offsetX, offsetY);
 
-        this.baseLayer.setDepth(0);
-        this.previewLayer.setDepth(5);
+        // 타일은 항상 엔티티 아래에 표시 (엔티티는 최소 depth 10)
+        this.baseLayer.setDepth(-100);
+        this.previewLayer.setDepth(-50);
     }
 
     setTile(x: number, y: number, tileIndex: number): void {
@@ -1212,8 +1300,21 @@ export class PhaserRenderer implements IRenderer {
             obj.rotation = rotation;
         }
 
-        if (typeof obj.setScale === "function") {
+        if (obj.setScale) {
             obj.setScale(scaleX, scaleY);
+        }
+    }
+
+    /**
+     * 에셋 목록 업데이트 (런타임 동적 등록용)
+     */
+    updateAssets(assets: any[]): void {
+        if (!this.scene?.particleManager) return;
+
+        const particleAssets = assets.filter((a: any) => a.tag === 'Particle');
+        for (const asset of particleAssets) {
+            // 이미 등록된 건 내부에서 무시함
+            this.scene.particleManager.registerCustomTexture(asset.id, asset.url);
         }
     }
 

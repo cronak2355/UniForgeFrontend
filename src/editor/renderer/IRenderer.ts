@@ -234,4 +234,31 @@ export interface IRenderer {
      * 스크롤 시 호출
      */
     onScroll?: (deltaY: number) => void;
+
+    // ===== Particle System =====
+
+    /**
+     * 파티클 이펙트 재생
+     */
+    playParticle?(presetId: string, x: number, y: number, scale?: number): void;
+
+    /**
+     * 커스텀 파티클 재생
+     */
+    playCustomParticle?(textureId: string, x: number, y: number, scale?: number): void;
+
+    /**
+     * 지속 파티클 이미터 생성
+     */
+    createParticleEmitter?(id: string, presetId: string, x: number, y: number): void;
+
+    /**
+     * 파티클 이미터 중지
+     */
+    stopParticleEmitter?(id: string): void;
+
+    /**
+     * 게임 오브젝트 가져오기 (위치 참조용)
+     */
+    getGameObject?(id: string): { x: number; y: number } | null;
 }
