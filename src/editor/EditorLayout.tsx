@@ -10,7 +10,7 @@ import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes, loadScene } from "./api/sceneApi";
@@ -451,6 +451,52 @@ function EditorLayoutInner() {
         setIsUploadingAsset(false);
         setUploadError("");
     };
+
+    // Auto-Load Asset from URL (when returning from Asset Editor)
+    const [searchParams, setSearchParams] = useSearchParams();
+    const newAssetId = searchParams.get("newAssetId");
+
+    useEffect(() => {
+        if (!newAssetId) return;
+
+        const loadNewAsset = async () => {
+            try {
+                // Determine tag if possible, or default to Character. 
+                // getAsset returns asset data.
+                const asset = await assetService.getAsset(newAssetId);
+
+                // Add to core
+                // Note: asset structure vs core.addAsset expectation
+                // assetService.getAsset returns Asset & { description? }
+                // core.addAsset expects: { id, tag, name, url, idx, metadata?, description? }
+
+                // We need to ensure we have the URL.
+                // assetService.getAsset might return url or imageUrl depending on endpoint.
+                const url = (asset as any).imageUrl || asset.url;
+
+                if (url) {
+                    core.addAsset({
+                        id: asset.id,
+                        tag: asset.tag || 'Character',
+                        name: asset.name,
+                        url: url,
+                        idx: -1,
+                        metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
+                        description: (asset as any).description
+                    });
+                    console.log("Auto-imported asset:", asset.name);
+                }
+            } catch (e) {
+                console.error("Failed to auto-load new asset:", e);
+            } finally {
+                // Clear the param so we don't reload on refresh
+                searchParams.delete("newAssetId");
+                setSearchParams(searchParams, { replace: true });
+            }
+        };
+
+        loadNewAsset();
+    }, [newAssetId, core]);
 
     useEffect(() => {
         if (!dropModalFile) return;

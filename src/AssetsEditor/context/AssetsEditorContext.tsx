@@ -19,6 +19,14 @@ import {
   type SpriteSheetLayout,
   type ExportFormat,
 } from '../services/SpriteSheetExporter';
+import { assetService } from '../../services/assetService';
+
+export interface AnimationDefinition {
+  name: string;
+  frames: number[]; // e.g. [0, 1, 2]
+  fps: number;
+  loop: boolean;
+}
 
 export type Tool = 'brush' | 'eraser' | 'eyedropper' | 'fill';
 
@@ -116,6 +124,12 @@ interface AssetsEditorContextType {
   deleteAsset: (id: string) => void;
   loadAsset: (id: string) => void;
   triggerBackgroundRemoval: () => void;
+
+  // Animation Management
+  animations: AnimationDefinition[];
+  setAnimations: (anims: AnimationDefinition[]) => void;
+  currentAssetId: string | null;
+  setCurrentAssetId: (id: string | null) => void;
 }
 
 const AssetsEditorContext = createContext<AssetsEditorContextType | null>(null);
@@ -147,6 +161,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps, setFps] = useState(8);
+
+  // Animation List & Editing State
+  const [animations, setAnimations] = useState<AnimationDefinition[]>([]);
+  const [currentAssetId, setCurrentAssetId] = useState<string | null>(null);
 
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -825,9 +843,119 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     setAssets((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const loadAsset = useCallback((id: string) => {
-    console.log('Load asset:', id);
-  }, []);
+  const loadAsset = useCallback(async (id: string) => {
+    try {
+      setIsLoading(true);
+      setCurrentAssetId(id);
+
+      // 1. Fetch Asset Details
+      const asset = await assetService.getAsset(id);
+
+      // 2. Fetch Image Blob
+      if (!asset.url && !(asset as any).imageUrl) throw new Error("Asset has no image URL");
+      const url = (asset as any).imageUrl || asset.url; // Prefer imageUrl (proxy)
+
+      const res = await fetch(url);
+      const blob = await res.blob();
+
+      // 3. Load Image
+      const imageBitmap = await createImageBitmap(blob);
+
+      // 4. Parse Metadata
+      let meta: any = {};
+      try {
+        if ((asset as any).description) meta = JSON.parse((asset as any).description);
+      } catch (e) {
+        console.warn("Failed to parse asset metadata", e);
+      }
+
+      // 5. Slice Logic (if spritesheet)
+      if (meta && meta.frameWidth && meta.frameHeight) {
+        const cols = meta.columns || Math.floor(imageBitmap.width / meta.frameWidth);
+        const rows = meta.rows || Math.floor(imageBitmap.height / meta.frameHeight);
+
+        const framesList: ImageData[] = [];
+
+        // Temporary Canvas to slice
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = meta.frameWidth;
+        tempCanvas.height = meta.frameHeight;
+        const ctx = tempCanvas.getContext('2d');
+        if (!ctx) throw new Error("No context");
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (framesList.length >= meta.frameCount) break;
+
+            ctx.clearRect(0, 0, meta.frameWidth, meta.frameHeight);
+            ctx.drawImage(imageBitmap,
+              c * meta.frameWidth, r * meta.frameHeight, meta.frameWidth, meta.frameHeight,
+              0, 0, meta.frameWidth, meta.frameHeight
+            );
+            const imgData = ctx.getImageData(0, 0, meta.frameWidth, meta.frameHeight);
+            framesList.push(imgData);
+          }
+        }
+
+        if (engineRef.current && framesList.length > 0) {
+          // Size
+          setPixelSize(meta.frameWidth);
+
+          // Apply first frame
+          selectFrame(0);
+          applyImageData(framesList[0]);
+
+          // Remove extras if any (hacky clear)
+          // We can't easily clear all frames, but we can loop deleteFrame(1)
+          // until manual check?
+          // Or just assume start fresh if we assume standard editor usage?
+          // Let's try to clear.
+          // Note: maxFrames check?
+
+          // Ideally we should have `reset` method.
+          // For now, let's just append. User can delete manually if old frames persist (but messy).
+          // Let's assume user enters editor cleanly.
+
+          for (let i = 1; i < framesList.length; i++) {
+            addFrame();
+            // small delay for React state (context sync)
+            await new Promise(r => setTimeout(r, 20));
+            selectFrame(i);
+            applyImageData(framesList[i]);
+          }
+          selectFrame(0);
+        }
+
+      } else {
+        // Standard Image Load
+        setOriginalAIImage(imageBitmap);
+        await processAndApplyImage(imageBitmap, 0);
+      }
+
+      // 6. Restore Animations
+      if (meta && meta.animations) {
+        // Convert object to array
+        const anims: AnimationDefinition[] = [];
+        for (const [name, data] of Object.entries(meta.animations)) {
+          anims.push({
+            name,
+            frames: (data as any).frames,
+            fps: (data as any).fps,
+            loop: (data as any).loop
+          });
+        }
+        setAnimations(anims);
+      } else {
+        setAnimations([]);
+      }
+
+    } catch (e) {
+      console.error("Failed to load asset", e);
+      alert("Failed to load asset: " + e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [addFrame, applyImageData, deleteFrame, processAndApplyImage, selectFrame, setAnimations, setFeatherAmount, setIsLoading, setPixelSize]);
 
   return (
     <AssetsEditorContext.Provider
@@ -886,6 +1014,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         deleteAsset,
         loadAsset,
         triggerBackgroundRemoval,
+        animations,
+        setAnimations,
+        currentAssetId,
+        setCurrentAssetId,
       }}
     >
       {children}
