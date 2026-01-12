@@ -19,6 +19,7 @@ interface UILibraryItem {
     collectionId?: string;
     assetType?: string;
     metadata?: any;
+    description?: string;
 }
 
 interface Collection {
@@ -145,7 +146,8 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                 author: detail.author || `User ${detail.authorId}`,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
                                 collectionId: libItem?.collectionId || undefined,
-                                metadata
+                                metadata,
+                                description: detail.description || undefined // Preserve description for serializer recovery
                             };
                         });
 

@@ -998,7 +998,8 @@ function EditorLayoutInner() {
                             name: libItem.title,
                             url: libItem.thumbnail, // Use the image URL
                             idx: 0, // Default index
-                            metadata: libItem.metadata // Pass the parsed metadata!
+                            metadata: libItem.metadata, // Pass the parsed metadata!
+                            description: libItem.description // Pass description for recovery
                         };
                         core.addAsset(newAsset);
                         setIsAssetLibraryOpen(false);
