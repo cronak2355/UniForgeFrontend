@@ -197,10 +197,21 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
+    const mergeModule = (base: ModuleGraph, override?: ModuleGraph): ModuleGraph => {
+        if (!override) return base;
+        const baseVars = base.variables ?? [];
+        const overrideVars = override.variables ?? [];
+        const overrideByName = new Map(overrideVars.map((v) => [v.name, v]));
+        const mergedVars = [
+            ...baseVars.map((v) => overrideByName.get(v.name) ?? v),
+            ...overrideVars.filter((v) => !baseVars.some((b) => b.name === v.name)),
+        ];
+        return { ...override, variables: mergedVars };
+    };
     const modules = [
         ...libraryModules.map((module) => {
             const override = entity.modules?.find((m) => m.id === module.id);
-            return override ?? module;
+            return mergeModule(module, override);
         }),
         ...(entity.modules ?? []).filter((module) => !libraryModules.some((m) => m.id === module.id)),
     ];
