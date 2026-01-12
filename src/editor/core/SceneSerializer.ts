@@ -148,7 +148,7 @@ export class SceneSerializer {
           if (!a.metadata && a.description && a.description.startsWith('{')) {
             try {
               a.metadata = JSON.parse(a.description);
-            } catch (e) { }
+            } catch (e) { /* ignore invalid json */ }
           }
           state.addAsset(a);
         }

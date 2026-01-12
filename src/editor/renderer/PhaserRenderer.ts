@@ -673,34 +673,7 @@ export class PhaserRenderer implements IRenderer {
             // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
 
-            // Auto-play default animation if available
-            // Check for `${texture}_default` or any `${texture}_` animation
-            const textureKey = options.texture;
-            // We can't easily check for specific animations without strict naming.
-            // But we know our loadTexture creates `${key}_${animName}`.
-            // Try to find one.
-            const anims = this.scene.anims;
-            // @ts-ignore
-            let allAnimKeys: string[] = [];
-            try {
-                // Phaser 3.60+ compatibility fix
-                const animsManager = this.scene.anims as any;
-                if (animsManager.anims && animsManager.anims.entries) {
-                    if (animsManager.anims.entries instanceof Map) {
-                        allAnimKeys = Array.from(animsManager.anims.entries.keys());
-                    } else {
-                        allAnimKeys = Object.keys(animsManager.anims.entries);
-                    }
-                }
-            } catch (e) {
-                console.warn("[PhaserRenderer] Animation lookup failed", e);
-            }
-            // const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
-            const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
 
-            if (relatedAnim) {
-                sprite.play(relatedAnim);
-            }
 
             obj = sprite;
         } else {
@@ -832,8 +805,17 @@ export class PhaserRenderer implements IRenderer {
         }
 
         const sprite = obj as Phaser.GameObjects.Sprite;
-        if (sprite.play) {
-            sprite.play(name);
+        if (sprite.play && sprite.texture) {
+            const textureKey = sprite.texture.key;
+            const prefixedName = `${textureKey}_${name}`;
+
+            if (this.scene?.anims.exists(prefixedName)) {
+                sprite.play(prefixedName);
+            } else if (this.scene?.anims.exists(name)) {
+                sprite.play(name);
+            } else {
+                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`);
+            }
         }
     }
 
@@ -1195,7 +1177,11 @@ export class PhaserRenderer implements IRenderer {
                     frameHeight: metadata.frameHeight,
                 });
             } else {
-                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`);
+                console.warn(`[PhaserRenderer] Loading as simple image (no valid metadata): ${key}`, {
+                    hasMetadata: !!metadata,
+                    frameWidth: metadata?.frameWidth,
+                    frameHeight: metadata?.frameHeight
+                });
                 this.scene.load.image(key, url);
             }
 
