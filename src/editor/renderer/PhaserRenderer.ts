@@ -410,7 +410,7 @@ export class PhaserRenderer implements IRenderer {
     private readonly MAP_SIZE = 200;
 
     // ===== Interaction Callbacks =====
-    onEntityClick?: (id: string) => void;
+    onEntityClick?: (id: string, worldX: number, worldY: number) => void;
     onPointerDown?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerMove?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
@@ -724,28 +724,14 @@ export class PhaserRenderer implements IRenderer {
         // Interactive
         obj.setInteractive();
 
-        obj.on('pointerdown', (_pointer: Phaser.Input.Pointer) => {
-            if (this.onEntityClick) this.onEntityClick(id);
+        obj.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            if (this.onEntityClick) {
+                const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+                this.onEntityClick(id, world.x, world.y);
+            }
         });
 
-        // Dragging logic
-        if (!this.isPreviewMode && !this.isRuntimeMode) {
-            this.scene.input.setDraggable(obj);
-
-            obj.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
-                // Double check runtime mode in case it changed during drag start
-                if (this.isRuntimeMode) return;
-
-                const snappedX = Math.round(dragX / this.gridSize) * this.gridSize;
-                const snappedY = Math.round(dragY / this.gridSize) * this.gridSize;
-
-                const gameObj = obj as any;
-                gameObj.x = snappedX;
-                gameObj.y = snappedY;
-
-                if (this.onEntityDrag) this.onEntityDrag(id, snappedX, snappedY);
-            });
-        }
+        // Dragging handled by editor pointer logic to keep offsets stable.
     }
 
     /**
