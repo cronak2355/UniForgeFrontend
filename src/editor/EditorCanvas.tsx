@@ -92,6 +92,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const isPointerDownRef = useRef(false);
     const cameraDragRef = useRef(false);
     const dragEntityIdRef = useRef<string | null>(null);
+    const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
     const ghostIdRef = useRef<string | null>(null);
     // Use state instead of ref to trigger re-renders when ready
     const [isRendererReady, setIsRendererReady] = useState(false);
@@ -200,10 +201,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             setIsRendererReady(true);
         })();
 
-        renderer.onEntityClick = (id) => {
+        renderer.onEntityClick = (id, worldX, worldY) => {
             const ent = core.getEntities().get(id);
             if (ent) {
                 core.setSelectedEntity(ent);
+                dragOffsetRef.current = { x: worldX - ent.x, y: worldY - ent.y };
+            } else {
+                dragOffsetRef.current = { x: 0, y: 0 };
             }
             dragEntityIdRef.current = id;
         };
@@ -284,11 +288,14 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             if (dragEntityIdRef.current && isPointerDownRef.current) {
                 const id = dragEntityIdRef.current;
                 const ent = core.getEntities().get(id);
+                const offset = dragOffsetRef.current;
+                const nextX = worldX - offset.x;
+                const nextY = worldY - offset.y;
                 if (ent) {
-                    const updated: EditorEntity = { ...ent, x: worldX, y: worldY };
+                    const updated: EditorEntity = { ...ent, x: nextX, y: nextY };
                     core.addEntity(updated as EditorEntity & { id: string });
                 }
-                gameCore.moveEntity(id, worldX, worldY);
+                gameCore.moveEntity(id, nextX, nextY);
                 return;
             }
 
@@ -343,6 +350,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             isPointerDownRef.current = false;
             cameraDragRef.current = false;
             dragEntityIdRef.current = null;
+            dragOffsetRef.current = { x: 0, y: 0 };
         };
 
         renderer.onScroll = (deltaY) => {
