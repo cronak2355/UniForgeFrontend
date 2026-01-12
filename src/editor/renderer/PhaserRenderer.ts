@@ -942,7 +942,10 @@ export class PhaserRenderer implements IRenderer {
     screenToWorld(screenX: number, screenY: number): Vector3 {
         if (!this.scene) return { x: screenX, y: screenY, z: 0 };
 
-        const cam = this.scene.cameras.main;
+        const cam = this.scene.cameras?.main;
+        if (!cam || typeof cam.getWorldPoint !== "function") {
+            return { x: screenX, y: screenY, z: 0 };
+        }
         const point = cam.getWorldPoint(screenX, screenY);
 
         return { x: point.x, y: point.y, z: 0 };
@@ -982,7 +985,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     setTile(x: number, y: number, tileIndex: number): void {
-        if (!this.baseLayer || !this.map) return;
+        if (!this.baseLayer || !this.map || !this.tileset || !this.baseLayer.layer) return;
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;
@@ -993,7 +996,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     removeTile(x: number, y: number): void {
-        if (!this.baseLayer || !this.map) return;
+        if (!this.baseLayer || !this.map || !this.tileset || !this.baseLayer.layer) return;
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;
@@ -1004,7 +1007,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     setPreviewTile(x: number, y: number, tileIndex: number): void {
-        if (!this.previewLayer || !this.map) return;
+        if (!this.previewLayer || !this.map || !this.tileset || !this.previewLayer.layer) return;
 
         // 湲곗〈 ?꾨━酉??쒓굅
         this.previewLayer.fill(-1);
