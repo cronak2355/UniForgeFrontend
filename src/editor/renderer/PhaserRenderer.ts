@@ -809,12 +809,17 @@ export class PhaserRenderer implements IRenderer {
             const textureKey = sprite.texture.key;
             const prefixedName = `${textureKey}_${name}`;
 
+            console.log(`[PhaserRenderer] playAnim request: id=${id}, name=${name}, texture=${textureKey}, prefixed=${prefixedName}`);
+
             if (this.scene?.anims.exists(prefixedName)) {
+                console.log(`[PhaserRenderer] Playing prefixed: ${prefixedName}`);
                 sprite.play(prefixedName);
             } else if (this.scene?.anims.exists(name)) {
+                console.log(`[PhaserRenderer] Playing raw: ${name}`);
                 sprite.play(name);
             } else {
-                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`);
+                const available = this.scene?.anims.toJSON()?.anims?.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey)) || [];
+                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`, { available });
             }
         }
     }

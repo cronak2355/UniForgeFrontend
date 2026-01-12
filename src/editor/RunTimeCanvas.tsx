@@ -130,6 +130,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             for (const asset of assets) {
                 // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
                 if (asset.tag === "Tile") continue;
+                console.log(`[RunTimeCanvas] Loading asset: ${asset.name}`, asset.metadata);
                 await renderer.loadTexture(asset.name, asset.url, asset.metadata);
             }
 
