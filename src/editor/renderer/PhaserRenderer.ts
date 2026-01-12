@@ -14,10 +14,11 @@ import type { LogicComponent } from "../types/Component";
 // 紐⑤뱢 ?⑺넗由?
 // 寃뚯엫 ?ㅼ젙
 import { type GameConfig, defaultGameConfig, hasRole } from "../core/GameConfig";
+import type { SpriteSheetMetadata } from "../../AssetsEditor/services/SpriteSheetExporter";
 
 /**
  * Phaser ???대? ?대옒??
- * PhaserRenderer媛 愿由ы븯???ㅼ젣 ??
+ * PhaserRenderer媛€ 愿€由ы븯???ㅼ젣 ??
  */
 class PhaserRenderScene extends Phaser.Scene {
     public phaserRenderer!: PhaserRenderer;
@@ -299,7 +300,7 @@ class PhaserRenderScene extends Phaser.Scene {
             }
         }
 
-        // ?ㅻ낫?쒓? 珥덇린?붾릺吏 ?딆븯?쇰㈃ ?ㅽ궢
+        // ?ㅻ낫?쒓? 珥덇린?붾릺吏€ ?딆븯?쇰㈃ ?ㅽ궢
         if (!this.cursors || !this.wasd) return;
 
         const dt = delta / 1000; // 珥??⑥쐞
@@ -325,7 +326,7 @@ class PhaserRenderScene extends Phaser.Scene {
             return;
         }
 
-        // Kinetic 紐⑤뱢??媛吏?controllableRoles ??븷 ?뷀떚?곕쭔 ?ㅻ낫???낅젰?쇰줈 ?낅뜲?댄듃
+        // Kinetic 紐⑤뱢??媛€吏?controllableRoles ??븷 ?뷀떚?곕쭔 ?ㅻ낫???낅젰?쇰줈 ?낅뜲?댄듃
         const controllableRoles = this.phaserRenderer.gameConfig?.controllableRoles ?? defaultGameConfig.controllableRoles;
         this.phaserRenderer.core.getEntities().forEach((entity) => {
             // controllableRoles???놁쑝硫??ㅻ낫???낅젰 ?ㅽ궢
@@ -361,8 +362,8 @@ class PhaserRenderScene extends Phaser.Scene {
  * Phaser ?뚮뜑??援ы쁽泥?
  * 
  * ?ㅺ퀎 ?먯튃:
- * 1. ID ?숆린?? spawn ???몃? ID瑜?洹몃?濡??ъ슜, 以묐났 寃???꾩닔
- * 2. 醫뚰몴 蹂?? Phaser??醫뚯긽??湲곗? 醫뚰몴怨??ъ슜
+ * 1. ID ?숆린?? spawn ???몃? ID瑜?洹몃?濡??ъ슜, 以묐났 寃€???꾩닔
+ * 2. 醫뚰몴 蹂€?? Phaser??醫뚯긽??湲곗? 醫뚰몴怨??ъ슜
  * 3. Lifecycle: destroy ??紐⑤뱺 由ъ냼???꾨꼍 ?댁젣
  */
 export class PhaserRenderer implements IRenderer {
@@ -386,10 +387,10 @@ export class PhaserRenderer implements IRenderer {
         return active.isContentEditable === true;
     }
 
-    // ===== ?뷀떚??愿由?- ID ?숆린??蹂댁옣 =====
+    // ===== ?뷀떚??愿€由?- ID ?숆린??蹂댁옣 =====
     private entities: Map<string, Phaser.GameObjects.GameObject> = new Map();
 
-    // ===== ??쇰㏊ 愿??=====
+    // ===== ?€?쇰㏊ 愿€??=====
     private map: Phaser.Tilemaps.Tilemap | null = null;
     private tileset: Phaser.Tilemaps.Tileset | null = null;
     private baseLayer: Phaser.Tilemaps.TilemapLayer | null = null;
@@ -460,14 +461,14 @@ export class PhaserRenderer implements IRenderer {
 
         this.game = new Phaser.Game(config);
 
-        // ??以鍮??湲?
+        // ??以€鍮??€湲?
         return new Promise((resolve) => {
             this.initResolve = resolve;
         });
     }
 
     /**
-     * ??以鍮??꾨즺 ???몄텧 (?대???
+     * ??以€鍮??꾨즺 ???몄텧 (?대???
      */
     onSceneReady(): void {
         if (!this.scene) return;
@@ -511,7 +512,7 @@ export class PhaserRenderer implements IRenderer {
         }
         this.entities.clear();
 
-        // 2. ??쇰㏊ ?뺣━
+        // 2. ?€?쇰㏊ ?뺣━
         if (this.baseLayer) {
             this.baseLayer.destroy();
             this.baseLayer = null;
@@ -715,6 +716,40 @@ export class PhaserRenderer implements IRenderer {
         }
     }
 
+    /**
+     * Get available animation names for a given entity based on its texture
+     */
+    getAvailableAnimations(entityId: string): string[] {
+        if (!this.scene) return [];
+        const obj = this.entities.get(entityId);
+        if (!obj) return [];
+
+        // Assume texture key is stored in data or name?
+        // In spawn(), we used options.texture or options.name
+        // Phaser GameObject has texture property if it is a Sprite
+        const sprite = obj as Phaser.GameObjects.Sprite;
+        if (!sprite.texture) return [];
+
+        const textureKey = sprite.texture.key;
+
+        // Filter animations that start with the texture key
+        // Note: We will prefix animations with textureKey + "_" when creating them
+        const anims = this.scene.anims;
+        // Phaser 3.60: anims.create returns false if exists?
+        // We can iterate anims.
+        // Phaser 3 does not easily expose all keys as array in common interface, 
+        // but we can access the cache.
+        // Actually, `this.scene.anims` has `exists(key)`.
+        // It doesn't allow easy iteration of ALL keys unless we check internal `anims.anims.entries`.
+        // Let's use a workaround: check if `{textureKey}_default` exists.
+        // Or if possible, list all.
+        // Accessing internal `entries` Map
+        // @ts-ignore
+        const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
+
+        return allAnimKeys.filter(k => k.startsWith(textureKey + "_") || k === textureKey + "_default");
+    }
+
     remove(id: string): void {
         const obj = this.entities.get(id);
         if (obj) {
@@ -807,7 +842,7 @@ export class PhaserRenderer implements IRenderer {
     // ===== Coordinate Transformation =====
 
     /**
-     * ?붾뱶 醫뚰몴 ???붾㈃ 醫뚰몴 蹂??
+     * ?붾뱶 醫뚰몴 ???붾㈃ 醫뚰몴 蹂€??
      * Phaser: 醫뚯긽??湲곗? 醫뚰몴怨?
      */
     worldToScreen(x: number, y: number, _z: number = 0): ScreenCoord {
@@ -821,7 +856,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     /**
-     * ?붾㈃ 醫뚰몴 ???붾뱶 醫뚰몴 蹂??
+     * ?붾㈃ 醫뚰몴 ???붾뱶 醫뚰몴 蹂€??
      */
     screenToWorld(screenX: number, screenY: number): Vector3 {
         if (!this.scene) return { x: screenX, y: screenY, z: 0 };
@@ -835,7 +870,7 @@ export class PhaserRenderer implements IRenderer {
     // ===== Tile System =====
 
     /**
-     * ??쇰㏊ 珥덇린??(?몃??먯꽌 ?몄텧)
+     * ?€?쇰㏊ 珥덇린??(?몃??먯꽌 ?몄텧)
      */
     initTilemap(tilesetKey: string): void {
         if (!this.scene) return;
@@ -1073,12 +1108,14 @@ export class PhaserRenderer implements IRenderer {
         this.keyboardCaptureEnabled = true;
     }
 
+
+
     // ===== Texture Loading (Phaser-specific helper) =====
 
     /**
      * ?띿뒪泥?濡쒕뱶 (Phaser ?꾩슜)
      */
-    loadTexture(key: string, url: string): Promise<void> {
+    loadTexture(key: string, url: string, metadata?: SpriteSheetMetadata): Promise<void> {
         return new Promise((resolve, reject) => {
             if (!this.scene) {
                 reject(new Error("Scene not initialized"));
@@ -1090,15 +1127,43 @@ export class PhaserRenderer implements IRenderer {
                 return;
             }
 
-            this.scene.load.image(key, url);
-            this.scene.load.once("complete", () => resolve());
+            if (metadata) {
+                // Load as Sprite Sheet
+                this.scene.load.spritesheet(key, url, {
+                    frameWidth: metadata.frameWidth,
+                    frameHeight: metadata.frameHeight,
+                    // startFrame: 0,
+                    // endFrame: metadata.frameCount - 1
+                });
+            } else {
+                this.scene.load.image(key, url);
+            }
+
+            this.scene.load.once("complete", () => {
+                // If metadata has animations, create them
+                if (metadata && metadata.animations && this.scene) {
+                    for (const [animName, config] of Object.entries(metadata.animations)) {
+                        const animKey = `${key}_${animName}`; // e.g. "Hero_default"
+                        if (!this.scene.anims.exists(animKey)) {
+                            this.scene.anims.create({
+                                key: animKey,
+                                frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
+                                frameRate: config.fps,
+                                repeat: config.loop ? -1 : 0
+                            });
+                            console.log(`[PhaserRenderer] Created animation: ${animKey}`);
+                        }
+                    }
+                }
+                resolve();
+            });
             this.scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
             this.scene.load.start();
         });
     }
 
     /**
-     * 罹붾쾭?ㅻ줈遺???띿뒪泥??앹꽦 (Phaser ?꾩슜)
+     * 罹붾쾭?ㅻ줈遺€???띿뒪泥??앹꽦 (Phaser ?꾩슜)
      */
     addCanvasTexture(key: string, canvas: HTMLCanvasElement): void {
         if (!this.scene) return;
@@ -1112,7 +1177,7 @@ export class PhaserRenderer implements IRenderer {
 
     /**
      * ???몄뒪?댁뒪 諛섑솚 (?섏쐞 ?명솚??- ?먯쭊??留덉씠洹몃젅?댁뀡)
-     * @deprecated 吏곸젒 ???묎렐? 沅뚯옣?섏? ?딆쓬
+     * @deprecated 吏곸젒 ???묎렐?€ 沅뚯옣?섏? ?딆쓬
      */
     getScene(): Phaser.Scene | null {
         return this.scene;
@@ -1173,10 +1238,3 @@ export class PhaserRenderer implements IRenderer {
         }
     }
 }
-
-
-
-
-
-
-

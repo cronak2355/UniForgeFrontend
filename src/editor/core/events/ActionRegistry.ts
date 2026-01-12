@@ -26,6 +26,7 @@ export interface ActionGlobals {
         } | null;
         getAllEntityIds?(): string[];
         worldToScreen?(x: number, y: number, z?: number): { x: number; y: number };
+        playAnim?(id: string, name: string): void;
     };
     scene?: unknown;
     entities?: Map<string, EntityLike>;
@@ -91,6 +92,7 @@ class ActionRegistryClass {
 
     constructor() {
         console.log("[ActionRegistry] init");
+        this.registerDefaults();
     }
 
     register(name: string, fn: ActionFn) {
@@ -98,6 +100,16 @@ class ActionRegistryClass {
             console.warn(`[ActionRegistry] Action '${name}' is being overwritten.`);
         }
         this.actions.set(name, fn);
+    }
+
+    private registerDefaults() {
+        this.register("PlayAnimation", (ctx, params) => {
+            const animName = params.animationName as string;
+            if (animName && ctx.globals?.renderer?.playAnim) {
+                ctx.globals.renderer.playAnim(ctx.entityId, animName);
+                console.log(`[ActionRegistry] PlayAnimation: ${ctx.entityId} -> ${animName}`);
+            }
+        });
     }
 
     run(name: string, ctx: ActionContext, params: Record<string, unknown>) {

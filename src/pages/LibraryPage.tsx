@@ -18,6 +18,7 @@ interface UILibraryItem {
     purchaseDate: string;
     collectionId?: string;
     assetType?: string;
+    metadata?: any;
 }
 
 interface Collection {
@@ -42,11 +43,12 @@ const INITIAL_COLLECTIONS: Collection[] = [
 
 interface Props {
     onClose?: () => void;
+    onSelect?: (item: UILibraryItem) => void;
     isModal?: boolean;
     hideGamesTab?: boolean;
 }
 
-export default function LibraryPage({ onClose, isModal = false, hideGamesTab = false }: Props) {
+export default function LibraryPage({ onClose, onSelect, isModal = false, hideGamesTab = false }: Props) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -121,6 +123,16 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                     const mappedAssets: UILibraryItem[] = assetDetails
                         .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
                         .map(detail => {
+                            // Parse metadata from description
+                            let metadata = null;
+                            if (detail.description && detail.description.startsWith('{')) {
+                                try {
+                                    metadata = JSON.parse(detail.description);
+                                } catch (e) {
+                                    console.warn("Failed to parse metadata for asset", detail.id);
+                                }
+                            }
+
                             // Find corresponding library item to get collectionId
                             const libItem = libraryItems.find(li => li.refId === detail.id);
                             return {
@@ -132,7 +144,8 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                                 thumbnail: detail.imageUrl || detail.image || DEFAULT_ASSET_THUMBNAIL,
                                 author: detail.author || `User ${detail.authorId}`,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
-                                collectionId: libItem?.collectionId || undefined
+                                collectionId: libItem?.collectionId || undefined,
+                                metadata
                             };
                         });
 
@@ -597,8 +610,15 @@ export default function LibraryPage({ onClose, isModal = false, hideGamesTab = f
                                                     padding: '10px 20px', borderRadius: '6px', border: 'none',
                                                     backgroundColor: '#2563eb', color: 'white', fontWeight: 600,
                                                     cursor: 'pointer'
-                                                }}>
-                                                    {item.type === 'game' ? <><i className="fa-solid fa-play"></i> 플레이</> : <><i className="fa-solid fa-download"></i> 다운로드</>}
+                                                }}
+                                                    onClick={(e) => {
+                                                        if (isModal && item.type === 'asset' && onSelect) {
+                                                            e.stopPropagation();
+                                                            onSelect(item);
+                                                        }
+                                                    }}
+                                                >
+                                                    {isModal && item.type === 'asset' ? '프로젝트에 추가' : (item.type === 'game' ? <><i className="fa-solid fa-play"></i> 플레이</> : <><i className="fa-solid fa-download"></i> 다운로드</>)}
                                                 </button>
                                                 {item.type === 'asset' &&
                                                     <div style={{ position: 'relative' }} className="move-to-collection-wrapper">

@@ -9,6 +9,8 @@ import { PartRigger } from './PartRigger';
 import { useJob } from '../context/JobContext';
 import { StylePresetService } from '../services/StylePresetService';
 import { generateAsset, fetchAssetAsBlob } from '../services/SagemakerService';
+import { exportSpriteSheet } from '../services/SpriteSheetExporter';
+import { assetService } from '../../services/assetService';
 
 interface ChatMessage {
   id: string;
@@ -340,6 +342,39 @@ export function RightPanel() {
     setShowRigger(true);
   };
 
+  /**
+   * 💾 Save to Project
+   */
+  const handleSaveToProject = async () => {
+    if (frames.length === 0) return;
+
+    setIsLoading(true);
+    try {
+      // 1. Generate Blob
+      const { blob, metadata } = await exportSpriteSheet(
+        frames,
+        pixelSize,
+        'horizontal',
+        'webp'
+      );
+
+      // 2. Upload
+      const token = localStorage.getItem("token");
+      const assetName = exportName.trim() || 'animation_sprite';
+      const tag = assetType === 'character' ? 'Character' : 'Tile';
+
+      await assetService.uploadAsset(blob, assetName, tag, token, metadata);
+
+      alert("Successfully saved to project!");
+      window.location.href = '/editor';
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save: " + String(e));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ==================== Render ====================
 
   return (
@@ -640,6 +675,18 @@ export function RightPanel() {
                       className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 transition-all text-xs font-bold uppercase tracking-widest mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       📦 Export Sprite Sheet ({frames.length} frames)
+                    </button>
+                  )}
+
+                  {frames.length > 0 && (
+                    <button
+                      onClick={handleSaveToProject}
+                      disabled={isLoading}
+                      className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/40 border border-white/20 transition-all text-xs font-bold uppercase tracking-widest mt-4 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+                    >
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        <span>💾 Save to Project</span>
+                      </span>
                     </button>
                   )}
                 </div>

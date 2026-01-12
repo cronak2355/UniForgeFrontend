@@ -5,12 +5,13 @@ export type TriggerType =
   | "OnVariableEqual";
 
 export type ActionType =
-| "ShowText"
-| "SetVariable"
-| "ChangeMap"
-| "MoveEntity"
-| "SpawnEntity"
-| "PlaySound";
+  | "ShowText"
+  | "SetVariable"
+  | "ChangeMap"
+  | "MoveEntity"
+  | "SpawnEntity"
+  | "PlaySound"
+  | "PlayAnimation";
 
 /**
  * Entity에 부착되는 이벤트 데이터 구조

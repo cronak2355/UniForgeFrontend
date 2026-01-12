@@ -174,7 +174,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             for (const asset of currentAssets) {
                 if (asset.tag === "Tile") continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(currentAssets);
@@ -392,7 +392,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         (async () => {
             for (const asset of nextNonTileAssets) {
                 if (loadedTexturesRef.current.has(asset.name)) continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
                 if (cancelled) return;
                 loadedTexturesRef.current.add(asset.name);
             }

@@ -3,9 +3,10 @@ import { colors } from "./constants/colors";
 
 type Props = {
     onClose: () => void;
+    onAssetSelect: (asset: any) => void;
 };
 
-export function AssetLibraryModal({ onClose }: Props) {
+export function AssetLibraryModal({ onClose, onAssetSelect }: Props) {
     return (
         <div
             style={{
@@ -41,6 +42,7 @@ export function AssetLibraryModal({ onClose }: Props) {
                 */}
                 <LibraryPage
                     onClose={onClose}
+                    onSelect={onAssetSelect}
                     isModal
                     hideGamesTab
                 />

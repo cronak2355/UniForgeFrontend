@@ -16,6 +16,7 @@ import { colors } from "./constants/colors";
 import { saveScenes, loadScene } from "./api/sceneApi";
 import { createGame, updateGameThumbnail } from "../services/gameService";
 import { authService } from "../services/authService";
+import { assetService } from "../services/assetService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
 import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
@@ -442,118 +443,24 @@ function EditorLayoutInner() {
         if (!dropModalFile || isUploadingAsset) return;
 
         const name = dropAssetName.trim();
-        const assetId = crypto.randomUUID();
-        const versionId = "1";
-        const contentType = dropModalFile.type || "application/octet-stream";
 
         if (!name) {
             setUploadError("Name is required.");
             return;
         }
 
-        if (import.meta.env.DEV) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const assetUrl = e.target?.result as string;
-                const nextId = assetId;
-
-                core.addAsset({
-                    id: nextId,
-                    tag: dropAssetTag,
-                    name,
-                    url: assetUrl,
-                    idx: -1,
-                });
-
-                resetDropModal();
-            };
-            reader.readAsDataURL(dropModalFile);
-            return;
-        }
         setIsUploadingAsset(true);
         setUploadError("");
 
         try {
-            const imageType = "preview";
-            const params = new URLSearchParams({
-                contentType,
-                imageType,
-            });
-
-            const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
             const token = localStorage.getItem("token");
+            const result = await assetService.uploadAsset(dropModalFile, name, dropAssetTag, token);
 
-            const presignRes = await fetch(requestUrl, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-            });
-
-            if (!presignRes.ok) {
-                const message = await presignRes.text();
-                throw new Error(message || "Failed to get upload URL.");
-            }
-
-            const presignData = await presignRes.json();
-            const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-            if (!uploadUrl) {
-                throw new Error("Upload URL missing in response.");
-            }
-
-            const uploadRes = await fetch(uploadUrl, {
-                method: "PUT",
-                headers: { "Content-Type": contentType },
-                body: dropModalFile,
-            });
-
-            if (!uploadRes.ok) {
-                throw new Error("Upload failed.");
-            }
-
-            const extractS3Key = (url: string) => {
-                try {
-                    const parsed = new URL(url);
-                    const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
-                    return key || null;
-                } catch {
-                    return null;
-                }
-            };
-
-            const s3Key =
-                presignData.s3Key ||
-                presignData.key ||
-                extractS3Key(uploadUrl);
-
-            if (!s3Key) {
-                throw new Error("S3 key missing in response.");
-            }
-
-            const imageRes = await fetch("https://uniforge.kr/api/images", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({
-                    ownerType: "ASSET",
-                    ownerId: assetId,
-                    imageType,
-                    s3Key,
-                    contentType,
-                }),
-            });
-            if (!imageRes.ok) {
-                const message = await imageRes.text();
-                throw new Error(message || "Failed to register image.");
-            }
-            const assetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-            console.log(`asset url : ${assetUrl}`)
             core.addAsset({
-                id: assetId,
-                tag: dropAssetTag,
-                name,
-                url: assetUrl,
+                id: result.id,
+                tag: result.tag,
+                name: result.name,
+                url: result.url,
                 idx: -1,
             });
 
@@ -1054,7 +961,7 @@ function EditorLayoutInner() {
                     addModule={(module) => core.addModule(module)}
                     updateModule={(module) => core.updateModule(module)}
                     selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                    actionLabels={undefined}
+                    actionLabels={{}}
                     onCreateVariable={handleCreateActionVariable}
                     onUpdateVariable={handleUpdateModuleVariable}
                 />
@@ -1062,7 +969,23 @@ function EditorLayoutInner() {
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
-                <AssetLibraryModal onClose={() => setIsAssetLibraryOpen(false)} />
+                <AssetLibraryModal
+                    onClose={() => setIsAssetLibraryOpen(false)}
+                    onAssetSelect={(libItem) => {
+                        // Convert library item to editor asset
+                        const newAsset: Asset = {
+                            id: libItem.id, // Use asset ID from backend
+                            tag: libItem.assetType || "Character",
+                            name: libItem.title,
+                            url: libItem.thumbnail, // Use the image URL
+                            idx: 0, // Default index
+                            metadata: libItem.metadata // Pass the parsed metadata!
+                        };
+                        core.addAsset(newAsset);
+                        setIsAssetLibraryOpen(false);
+                        console.log("Imported asset from library:", newAsset);
+                    }}
+                />
             )}
 
             {dropModalFile && (

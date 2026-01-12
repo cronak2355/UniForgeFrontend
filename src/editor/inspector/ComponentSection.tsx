@@ -1,14 +1,18 @@
 import { memo, useEffect, useState } from "react";
 import type { EditorEntity } from "../types/Entity";
 import type { LogicComponent } from "../types/Component";
+
+
 import { ActionRegistry } from "../core/events/ActionRegistry";
 import { colors } from "../constants/colors";
+
 import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
 import * as styles from "./ComponentSection.styles";
 import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { EditorVariable } from "../types/Variable";
 import { ActionEditor } from "./ActionEditor";
 import type { ModuleGraph } from "../types/Module";
+import type { Asset } from "../types/Asset";
 
 type Props = {
     entity: EditorEntity;
@@ -42,6 +46,7 @@ const ACTION_LABELS: Record<string, string> = {
     EmitEventSignal: "EmitEventSignal",
     ClearSignal: "ClearSignal",
     RunModule: "RunModule",
+    PlayAnimation: "Play Animation",
 };
 
 const CONDITION_TYPES = [
@@ -192,7 +197,7 @@ function normalizeEvent(event: string): string {
 }
 
 export const ComponentSection = memo(function ComponentSection({ entity, onUpdateEntity }: Props) {
-    const { core, entities: allEntities, modules: libraryModules } = useEditorCoreSnapshot();
+    const { core, entities: allEntities, modules: libraryModules, assets } = useEditorCoreSnapshot();
     const allComponents = splitLogicItems(entity.logic);
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
@@ -343,6 +348,8 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         variables={variables}
                         entities={otherEntities}
                         modules={modules}
+                        assets={assets}
+                        currentEntity={entity}
                         availableActions={availableActions}
                         actionLabels={actionLabels}
                         onCreateVariable={ensureVariable}
@@ -367,6 +374,8 @@ const RuleItem = memo(function RuleItem({
     variables,
     entities,
     modules,
+    assets,
+    currentEntity,
     availableActions,
     actionLabels,
     onCreateVariable,
@@ -379,6 +388,8 @@ const RuleItem = memo(function RuleItem({
     variables: EditorVariable[];
     entities: { id: string; name: string }[];
     modules: ModuleGraph[];
+    assets: Asset[];
+    currentEntity: EditorEntity;
     availableActions: string[];
     actionLabels: Record<string, string>;
     onCreateVariable: (name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;
@@ -417,7 +428,7 @@ const RuleItem = memo(function RuleItem({
         <div style={styles.ruleItemContainer}>
             <div style={styles.ruleItemHeader} onClick={() => setExpanded(!expanded)}>
                 <span style={styles.ruleItemTitle}>
-                    {expanded ? "v" : ">"} Component #{index + 1}: {rule.event}
+                    {expanded ? "▼" : "▶"} Component #{index + 1}: {rule.event}
                 </span>
                 <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={styles.removeButton}>
                     Remove
@@ -497,6 +508,8 @@ const RuleItem = memo(function RuleItem({
                                 variables={variables}
                                 entities={entities}
                                 modules={modules}
+                                assets={assets}
+                                currentEntity={currentEntity}
                                 onCreateVariable={onCreateVariable}
                                 onUpdateModuleVariable={onUpdateModuleVariable}
                                 onUpdate={(a) => {
@@ -505,9 +518,9 @@ const RuleItem = memo(function RuleItem({
                                     const moduleId =
                                         a.type === "RunModule"
                                             ? ((a.moduleId as string) ??
-                                              (a.moduleName as string) ??
-                                              (a.name as string) ??
-                                              "")
+                                                (a.moduleName as string) ??
+                                                (a.name as string) ??
+                                                "")
                                             : "";
                                     onUpdate({ ...rule, actions: newActions }, moduleId || undefined);
                                 }}
@@ -529,9 +542,9 @@ function ConditionEditor({
     onUpdate,
     onRemove,
 }: {
-    condition: { type: string; [key: string]: unknown };
+    condition: { type: string;[key: string]: unknown };
     variables: EditorVariable[];
-    onUpdate: (c: { type: string; [key: string]: unknown }) => void;
+    onUpdate: (c: { type: string;[key: string]: unknown }) => void;
     onRemove: () => void;
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));

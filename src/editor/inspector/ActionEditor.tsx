@@ -3,6 +3,8 @@ import type { EditorVariable } from "../types/Variable";
 import type { ModuleGraph } from "../types/Module";
 import { colors } from "../constants/colors";
 import * as styles from "./ComponentSection.styles";
+import type { Asset } from "../types/Asset";
+import type { EditorEntity } from "../types/Entity";
 
 export function ActionEditor({
   action,
@@ -11,21 +13,25 @@ export function ActionEditor({
   variables,
   entities,
   modules,
+  assets,
+  currentEntity,
   onCreateVariable,
   onUpdateModuleVariable,
   onUpdate,
   onRemove,
   showRemove = true,
 }: {
-  action: { type: string; [key: string]: unknown };
+  action: { type: string;[key: string]: unknown };
   availableActions: string[];
   actionLabels?: Record<string, string>;
   variables: EditorVariable[];
   entities: { id: string; name: string }[];
   modules: ModuleGraph[];
+  assets?: Asset[];
+  currentEntity?: EditorEntity;
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdateModuleVariable?: (moduleId: string, name: string, value: unknown, type?: EditorVariable["type"]) => void;
-  onUpdate: (a: { type: string; [key: string]: unknown }) => void;
+  onUpdate: (a: { type: string;[key: string]: unknown }) => void;
   onRemove: () => void;
   showRemove?: boolean;
 }) {
@@ -38,6 +44,16 @@ export function ActionEditor({
     "";
   const selectedModule = modules.find((mod) => mod.id === selectedModuleId) ?? null;
   const moduleVariables = selectedModule?.variables ?? [];
+
+  // Animation Logic
+  const textureName = currentEntity?.texture || currentEntity?.name;
+  const asset = assets?.find(a => a.name === textureName);
+  const availableAnimations: string[] = [];
+  if (asset?.metadata?.animations) {
+    for (const animName of Object.keys(asset.metadata.animations)) {
+      availableAnimations.push(`${asset.name}_${animName}`);
+    }
+  }
 
   return (
     <div style={styles.actionRow}>
@@ -159,6 +175,26 @@ export function ActionEditor({
             />
           )}
         </>
+      )}
+
+      {action.type === "PlayAnimation" && (
+        <select
+          value={(action.animationName as string) || ""}
+          onChange={(e) => onUpdate({ ...action, animationName: e.target.value })}
+          style={styles.selectField}
+        >
+          <option value="">Select Animation</option>
+          {availableAnimations.map((anim) => (
+            <option key={anim} value={anim}>
+              {anim}
+            </option>
+          ))}
+          {availableAnimations.length === 0 && (
+            <option value="" disabled>
+              No animations found
+            </option>
+          )}
+        </select>
       )}
 
       {action.type === "ClearSignal" && (
