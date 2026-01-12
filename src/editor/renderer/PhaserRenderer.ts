@@ -818,8 +818,19 @@ export class PhaserRenderer implements IRenderer {
                 console.log(`[PhaserRenderer] Playing raw: ${name}`);
                 sprite.play(name);
             } else {
-                const available = this.scene?.anims.toJSON()?.anims?.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey)) || [];
-                console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName})`, { available });
+                // Fallback: If the user asked for "Idle" but we only have "Hero_default", play "Hero_default"
+                // Only if the asset seems to be a single-action asset (common for user-created sprites)
+                const available = this.scene?.anims.toJSON()?.anims
+                    ?.map((a: any) => a.key)
+                    .filter((k: string) => k.startsWith(textureKey + "_")) || [];
+
+                if (available.length > 0) {
+                    const fallback = available[0];
+                    console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
+                    sprite.play(fallback);
+                } else {
+                    console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName}). No fallbacks available.`);
+                }
             }
         }
     }
