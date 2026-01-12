@@ -144,6 +144,12 @@ export class SceneSerializer {
 
       json.assets.forEach((a: Asset) => {
         if (!state.getAssets().find((existing) => existing.id === a.id)) {
+          // Retroactive fix: if metadata is missing but description has JSON, parse it
+          if (!a.metadata && a.description && a.description.startsWith('{')) {
+            try {
+              a.metadata = JSON.parse(a.description);
+            } catch (e) { }
+          }
           state.addAsset(a);
         }
       });

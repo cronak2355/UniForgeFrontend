@@ -421,7 +421,33 @@ export class PhaserRenderer implements IRenderer {
     useEditorCoreRuntimePhysics = true;
 
     /** Runtime mode flag - logic components and TICK only run when true */
-    isRuntimeMode = false;
+    private _isRuntimeMode = false;
+
+    get isRuntimeMode(): boolean {
+        return this._isRuntimeMode;
+    }
+
+    set isRuntimeMode(value: boolean) {
+        this._isRuntimeMode = value;
+        this.updateInputState();
+    }
+
+    private updateInputState() {
+        if (!this.scene || !this.scene.input) return;
+
+        const draggable = !this._isRuntimeMode && !this.isPreviewMode;
+
+        for (const entity of this.entities.values()) {
+            if (draggable) {
+                this.scene.input.setDraggable(entity);
+            } else {
+                this.scene.input.setDraggable(entity, false);
+            }
+        }
+
+        // Also toggle grid visibility or interaction?
+        // Usually grid remains.
+    }
 
     /** Editor Preview Mode flag - disables dragging if true */
     public isPreviewMode = false;
@@ -716,10 +742,13 @@ export class PhaserRenderer implements IRenderer {
         });
 
         // Dragging logic
-        if (!this.isPreviewMode) {
+        if (!this.isPreviewMode && !this.isRuntimeMode) {
             this.scene.input.setDraggable(obj);
 
             obj.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
+                // Double check runtime mode in case it changed during drag start
+                if (this.isRuntimeMode) return;
+
                 const snappedX = Math.round(dragX / this.gridSize) * this.gridSize;
                 const snappedY = Math.round(dragY / this.gridSize) * this.gridSize;
 
