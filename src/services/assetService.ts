@@ -65,7 +65,7 @@ export const assetService = {
         const versionId = "1"; // Default version for now
 
         // Step B: Get Upload URL
-        const imageType = "preview"; // Default image type for main asset logic
+        const imageType = "base"; // Use base for the main asset file
         const params = new URLSearchParams({
             contentType,
             imageType,
