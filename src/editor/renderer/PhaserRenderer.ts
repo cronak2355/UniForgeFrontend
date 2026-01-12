@@ -679,8 +679,6 @@ export class PhaserRenderer implements IRenderer {
             // We can't easily check for specific animations without strict naming.
             // But we know our loadTexture creates `${key}_${animName}`.
             // Try to find one.
-            const anims = this.scene.anims;
-            // @ts-ignore
             let allAnimKeys: string[] = [];
             try {
                 // Phaser 3.60+ compatibility fix
