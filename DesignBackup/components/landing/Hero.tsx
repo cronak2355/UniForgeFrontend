@@ -3,10 +3,10 @@ import { memo } from 'react';
 
 const Hero = () => {
     return (
-        <section className="relative w-full min-h-screen flex flex-col items-center pt-16 pb-20 px-6 overflow-hidden bg-[#050505]">
+        <section className="relative w-full min-h-screen flex flex-col items-center pt-32 pb-20 px-6 overflow-hidden bg-[#050505]">
 
             {/* Top Navigation / Logo Area */}
-            <nav className="w-full flex justify-center mb-12 md:mb-16">
+            <nav className="w-full flex justify-center mb-24 md:mb-32">
                 <img
                     src="/logo-brand.png"
                     alt="Uniforge Logo"
@@ -15,7 +15,7 @@ const Hero = () => {
             </nav>
 
             {/* Main Content */}
-            <div className="max-w-5xl mx-auto text-center flex flex-col items-center z-10 mt-8 md:mt-16">
+            <div className="max-w-5xl mx-auto text-center flex flex-col items-center z-10">
 
                 <h1 className="text-5xl md:text-7xl lg:text-8xl font-medium tracking-tighter text-white mb-8 leading-[1.1]">
                     Easy 쉽고 <br className="hidden md:block" />

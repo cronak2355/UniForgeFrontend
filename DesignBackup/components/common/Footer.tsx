@@ -18,5 +18,3 @@ const Footer = () => {
 };
 
 export default memo(Footer);
-
-

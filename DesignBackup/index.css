@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -13,7 +15,7 @@
 }
 
 body {
-  background-color: #050505 !important;
+  background-color: #050505;
   color: #F3F4F6;
   overflow-x: hidden;
 }
