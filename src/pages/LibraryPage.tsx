@@ -300,12 +300,11 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                         <div
-                            style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                             onClick={() => !onClose && navigate('/main')}
                         >
-                            <i className="fa-solid fa-cube" style={{ marginRight: '8px', color: '#3b82f6' }}></i>
-                            <span className="gradient-text">Uniforge</span>
-                            <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>라이브러리</span>
+                            <img src="/logo.png" alt="Uniforge" style={{ height: '28px', marginRight: '10px' }} />
+                            <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 400 }}>라이브러리</span>
                         </div>
 
                         {/* Navigation Tabs */}
