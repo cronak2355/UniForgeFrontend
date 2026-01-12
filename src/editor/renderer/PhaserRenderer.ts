@@ -681,7 +681,21 @@ export class PhaserRenderer implements IRenderer {
             // Try to find one.
             const anims = this.scene.anims;
             // @ts-ignore
-            const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
+            let allAnimKeys: string[] = [];
+            try {
+                // Phaser 3.60+ compatibility fix
+                const animsManager = this.scene.anims as any;
+                if (animsManager.anims && animsManager.anims.entries) {
+                    if (animsManager.anims.entries instanceof Map) {
+                        allAnimKeys = Array.from(animsManager.anims.entries.keys());
+                    } else {
+                        allAnimKeys = Object.keys(animsManager.anims.entries);
+                    }
+                }
+            } catch (e) {
+                console.warn("[PhaserRenderer] Animation lookup failed", e);
+            }
+            // const allAnimKeys: string[] = Array.from(anims.anims.entries.keys());
             const relatedAnim = allAnimKeys.find(k => k.startsWith(textureKey + "_"));
 
             if (relatedAnim) {
