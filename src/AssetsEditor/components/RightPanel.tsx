@@ -427,29 +427,22 @@ export function RightPanel() {
         motionType: assetType === 'effect' ? motionType : undefined
       };
 
-      // Generate Thumbnail Blob (First frame of active animation)
+      // Generate Thumbnail Blob (First frame of the exported sprite sheet - global first frame)
       let thumbnailBlob: Blob | null = null;
-      if (frames.length > 0) {
+      if (masterFrames.length > 0) {
         try {
-          const activeAnim = activeAnimationName ? animationMap[activeAnimationName] : null;
-          // Attempt to get the first frame of the active animation or fallback
-          const firstFrameData = activeAnim?.frames?.[0] || frames[0]?.data;
-
-          if (frames[0] && frames[0].data) {
-            const canvas = document.createElement("canvas");
-            canvas.width = pixelSize;
-            canvas.height = pixelSize;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              // If we have ImageData from somewhere, great. 
-              // frames[0].data is Uint8ClampedArray.
-              const imgData = new ImageData(new Uint8ClampedArray(frames[0].data), pixelSize, pixelSize);
-              ctx.putImageData(imgData, 0, 0);
-              thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-            }
+          const firstFrame = masterFrames[0]; // Global first frame
+          const canvas = document.createElement("canvas");
+          canvas.width = pixelSize;
+          canvas.height = pixelSize;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            const imgData = new ImageData(new Uint8ClampedArray(firstFrame.data), pixelSize, pixelSize);
+            ctx.putImageData(imgData, 0, 0);
+            thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
           }
-        } catch (e) {
-          console.warn("Failed to generate thumbnail blob", e);
+        } catch (err) {
+          console.warn("Failed to generate thumbnail:", err);
         }
       }
 

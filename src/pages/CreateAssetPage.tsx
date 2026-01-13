@@ -260,6 +260,33 @@ const CreateAssetPage = () => {
             }
             setUploadProgress(90);
 
+            // Step 4.5: Register Main Image Resource (CRITICAL FIX)
+            // Extract S3 Key from uploadUrl
+            let mainS3Key: string | null = null;
+            try {
+                const parsed = new URL(uploadUrl);
+                // Remove leading slash
+                mainS3Key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                // Decode if encoded (e.g. %20)
+                mainS3Key = decodeURIComponent(mainS3Key);
+            } catch (e) {
+                console.warn("Failed to extract S3 Key from upload URL", e);
+            }
+
+            if (mainS3Key) {
+                await marketplaceService.registerImageResource({
+                    ownerType: "ASSET",
+                    ownerId: assetId,
+                    imageType: "base",
+                    s3Key: mainS3Key,
+                    isActive: true
+                });
+
+                // Update asset with PROXY URL for base image
+                const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=base`;
+                await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+            }
+
             // Step 5: Publish the version
             await marketplaceService.publishVersion(version.id);
 
