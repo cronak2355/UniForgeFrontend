@@ -906,21 +906,27 @@ export class PhaserRenderer implements IRenderer {
                 sprite.play(name, true);
             } else {
                 // Fallback: If the user asked for "Idle" but we only have "Hero_default", play "Hero_default"
-                // Only if the asset seems to be a single-action asset (common for user-created sprites)
-                const available = this.scene?.anims.toJSON()?.anims
-                    ?.map((a: any) => a.key)
-                    .filter((k: string) => k.startsWith(textureKey + "_")) || [];
+                // Or if metadata failed to load, assume default.
+
+                // Safe check for anims.toJSON() which might be undefined/slow
+                let available: string[] = [];
+                try {
+                    const json = this.scene?.anims.toJSON();
+                    if (json && json.anims) {
+                        available = json.anims.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey + "_"));
+                    }
+                } catch (e) { console.warn("[PhaserRenderer] Failed to list anims", e); }
 
                 if (available.length > 0) {
                     const fallback = available[0];
                     if (sprite.anims.currentAnim?.key !== fallback || !sprite.anims.isPlaying) {
-                        console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
+                        // console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
                     }
                     sprite.play(fallback, true);
                 } else {
-                    if (Math.random() < 0.01) {
-                        console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName}). No fallbacks available.`);
-                    }
+                    // Last resort: just play the texture key itself if it was loaded as a single frame/image
+                    // But sprites play ANIMATIONS. If loaded as image, it just shows texture.
+                    // No-op is safer than crashing.
                 }
             }
         }
@@ -1401,12 +1407,27 @@ export class PhaserRenderer implements IRenderer {
 
     private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
         if (metadata && metadata.animations && this.scene) {
+            const texture = this.scene.textures.get(key);
+            const totalFrames = texture ? texture.frameTotal : 0;
+
             for (const [animName, config] of Object.entries(metadata.animations)) {
                 const animKey = `${key}_${animName}`;
+
+                // Validate Frame Indices
+                const validFrames = config.frames.filter(f => f < totalFrames);
+                if (validFrames.length !== config.frames.length) {
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' has invalid frames. Filtered ${config.frames.length} -> ${validFrames.length}. Total texture frames: ${totalFrames}`);
+                }
+
+                if (validFrames.length === 0) {
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' skipped: No valid frames.`);
+                    continue;
+                }
+
                 if (!this.scene.anims.exists(animKey)) {
                     this.scene.anims.create({
                         key: animKey,
-                        frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
+                        frames: this.scene.anims.generateFrameNumbers(key, { frames: validFrames }),
                         frameRate: config.fps,
                         repeat: config.loop ? -1 : 0
                     });
