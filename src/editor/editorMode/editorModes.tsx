@@ -329,6 +329,8 @@ export class EntityEditMode implements EditorMode {
         if (id && scene.editorCore) {
             const entity = scene.editorCore.getEntities().get(id);
             if (entity) {
+                // Snapshot BEFORE drag starts (for undo)
+                (scene.editorCore as any).snapshot?.();
                 scene.editorCore.setSelectedEntity(entity);
             }
         }
@@ -362,8 +364,8 @@ export class EntityEditMode implements EditorMode {
                 entity.x = transform.x ?? entity.x;
                 entity.y = transform.y ?? entity.y;
 
-                // Commit back to core
-                scene.editorCore.addEntity(entity);
+                // Commit back to core using updateEntity (no snapshot, we already took one on drag start)
+                scene.editorCore.updateEntity(entity);
                 scene.editorCore.setSelectedEntity(entity);
             }
         }

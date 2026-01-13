@@ -103,7 +103,7 @@ export interface ModuleVariable {
   id: string;
   name: string;
   type: "int" | "float" | "string" | "bool";
-  value: number | string | boolean;
+  value: number | string | boolean | null;
 }
 
 export function createDefaultModuleGraph(): ModuleGraph {

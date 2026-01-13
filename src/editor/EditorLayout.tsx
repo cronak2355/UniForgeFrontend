@@ -1049,7 +1049,7 @@ function EditorLayoutInner() {
                             onUpdateVariable={handleUpdateModuleVariable}
                             onDeleteAsset={async (asset) => {
                                 try {
-                                    const token = authService.getLastToken();
+                                    const token = authService.getToken();
                                     await assetService.deleteAsset(asset.id, token);
                                     // Refresh assets
                                     core.setAssets(assets.filter(a => a.id !== asset.id));
