@@ -1369,12 +1369,27 @@ export class PhaserRenderer implements IRenderer {
 
     private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
         if (metadata && metadata.animations && this.scene) {
+            const texture = this.scene.textures.get(key);
+            const totalFrames = texture ? texture.frameTotal : 0;
+
             for (const [animName, config] of Object.entries(metadata.animations)) {
                 const animKey = `${key}_${animName}`;
+
+                // Validate Frame Indices
+                const validFrames = config.frames.filter(f => f < totalFrames);
+                if (validFrames.length !== config.frames.length) {
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' has invalid frames. Filtered ${config.frames.length} -> ${validFrames.length}. Total texture frames: ${totalFrames}`);
+                }
+
+                if (validFrames.length === 0) {
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' skipped: No valid frames.`);
+                    continue;
+                }
+
                 if (!this.scene.anims.exists(animKey)) {
                     this.scene.anims.create({
                         key: animKey,
-                        frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
+                        frames: this.scene.anims.generateFrameNumbers(key, { frames: validFrames }),
                         frameRate: config.fps,
                         repeat: config.loop ? -1 : 0
                     });

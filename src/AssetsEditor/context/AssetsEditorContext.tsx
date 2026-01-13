@@ -986,8 +986,24 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         Object.keys(metadata.animations).forEach((name, idx) => {
           if (idx === 0) firstAnimName = name;
           const animDef = metadata.animations[name];
-          // Extract specific frames
-          const animFrames = animDef.frames.map((fIdx: number) => newFrames[fIdx]);
+
+          // Validation: Filter out frames that don't exist in the sliced newFrames
+          const validFrames: number[] = [];
+          const animFrames: ImageData[] = [];
+
+          animDef.frames.forEach((fIdx: number) => {
+            if (newFrames[fIdx]) {
+              validFrames.push(fIdx);
+              animFrames.push(newFrames[fIdx]);
+            } else {
+              console.warn(`[AssetsEditor] Warning: Animation '${name}' references missing frame index ${fIdx}. Total frames: ${newFrames.length}`);
+            }
+          });
+
+          if (animFrames.length === 0) {
+            console.warn(`[AssetsEditor] Animation '${name}' has no valid frames. Skipping.`);
+            return;
+          }
 
           newMap[name] = {
             frames: animFrames,
