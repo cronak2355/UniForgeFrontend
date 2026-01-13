@@ -181,7 +181,7 @@ export const assetService = {
         file: File | Blob,
         metadata: any,
         token: string | null
-    ): Promise<void> {
+    ): Promise<{ id: string; url: string }> {
         // 1. Get Upload URL for existing asset
         const versionId = Date.now().toString();
         const contentType = file.type || "application/octet-stream";
@@ -265,7 +265,8 @@ export const assetService = {
             body: JSON.stringify(updateBody)
         });
 
-        console.log(`[assetService] Asset Updated: ${assetId} with new version ${versionId}`);
+        console.log(`[assetService] Asset Updated: ${assetId}`);
+        return { id: assetId, url: finalAssetUrl };
     },
 
     async getAsset(assetId: string): Promise<any> {

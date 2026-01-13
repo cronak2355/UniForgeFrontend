@@ -1374,9 +1374,14 @@ export class PhaserRenderer implements IRenderer {
                 // we must REMOVE the old texture and reload it as a spritesheet.
                 // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
                 const texture = scene.textures.get(key);
-                const needsAnimations = metadata && metadata.animations && Object.keys(metadata.animations).length > 0;
+                // Check if this metadata implies a spritesheet (frames or explicit animations)
+                const isSpritesheetMetadata = metadata && (
+                    (metadata.frameWidth && metadata.frameWidth > 0) ||
+                    (metadata.frameCount && metadata.frameCount > 1) ||
+                    (metadata.animations && Object.keys(metadata.animations).length > 0)
+                );
 
-                if (needsAnimations) {
+                if (isSpritesheetMetadata) {
                     // Check if animations already exist
                     const hasPrefixAnims = scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
 
@@ -1411,7 +1416,52 @@ export class PhaserRenderer implements IRenderer {
                 scene.load.image(key, url);
             }
 
-            scene.load.once("complete", () => {
+            this.scene.load.once("complete", () => {
+                const texture = this.scene.textures.get(key);
+                let framesToSlice = 0;
+                let frameWidth = 0;
+                let frameHeight = 0;
+
+                if (texture && texture.frameTotal <= 1) {
+                    const img = texture.getSourceImage();
+                    if (img instanceof ImageBitmap || img instanceof HTMLImageElement || img instanceof HTMLCanvasElement) {
+                        const width = img.width;
+                        const height = img.height;
+
+                        // 1. Metadata based slicing
+                        if (metadata && metadata.frameCount && metadata.frameCount > 1) {
+                            framesToSlice = metadata.frameCount;
+                            frameWidth = Math.floor(width / framesToSlice);
+                            frameHeight = height;
+                        }
+                        // 2. Heuristic slicing: If width is multiple of height (Horizontal Strip)
+                        else if (width > height && width % height === 0) {
+                            framesToSlice = width / height;
+                            frameWidth = height; // Assuming square frames
+                            frameHeight = height;
+                            console.log(`[PhaserRenderer] Heuristic detection: '${key}' seems to be a spritesheet (${framesToSlice} frames). Auto-slicing.`);
+                        }
+
+                        // Execute manual slicing if determined
+                        if (framesToSlice > 1 && frameWidth > 0) {
+                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight}`);
+                            for (let i = 0; i < framesToSlice; i++) {
+                                // Add frame with string key "0", "1", ...
+                                texture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
+                            }
+                        }
+                    }
+                }
+
+                // Pass the heuristic frame count to animation creator
+                if (framesToSlice > 0 && (!metadata || !metadata.frameCount)) {
+                    if (!metadata) metadata = {} as any;
+                    if (metadata) {
+                        metadata.frameCount = framesToSlice;
+                        metadata.frameWidth = frameWidth; // Update metadata for animator
+                    }
+                }
+
                 this.createAnimationsFromMetadata(key, metadata);
                 resolve();
             });
@@ -1425,48 +1475,73 @@ export class PhaserRenderer implements IRenderer {
 
         const texture = this.scene.textures.get(key);
         // frameTotal includes __BASE which is a single frame, so actual frame count is frameTotal - 1
-        const totalFrames = texture ? texture.frameTotal - 1 : 0;
+        const rawTextureFrames = texture ? texture.frameTotal - 1 : 0;
+        // Prioritize metadata.frameCount for validation (manual slicing may not update texture.frameTotal)
+        const effectiveFrameCount = (metadata && metadata.frameCount && metadata.frameCount > 1)
+            ? metadata.frameCount
+            : rawTextureFrames;
 
         // If metadata has explicit animations, create them
         if (metadata && metadata.animations) {
             for (const [animName, config] of Object.entries(metadata.animations)) {
                 const animKey = `${key}_${animName}`;
 
-                // Validate Frame Indices
-                const validFrames = config.frames.filter(f => f < totalFrames);
+                // Validate Frame Indices using effectiveFrameCount
+                const validFrames = config.frames.filter(f => f < effectiveFrameCount);
                 if (validFrames.length !== config.frames.length) {
-                    console.warn(`[PhaserRenderer] Animation '${animKey}' has invalid frames. Filtered ${config.frames.length} -> ${validFrames.length}. Total texture frames: ${totalFrames}`);
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' has invalid frames. Filtered ${config.frames.length} -> ${validFrames.length}. Effective frame count: ${effectiveFrameCount}`);
                 }
 
                 if (validFrames.length === 0) {
-                    console.warn(`[PhaserRenderer] Animation '${animKey}' skipped: No valid frames.`);
+                    console.warn(`[PhaserRenderer] Animation '${animKey}' skipped: No valid frames (effectiveFrameCount: ${effectiveFrameCount}).`);
                     continue;
                 }
 
-                if (!this.scene.anims.exists(animKey)) {
-                    this.scene.anims.create({
-                        key: animKey,
-                        frames: this.scene.anims.generateFrameNumbers(key, { frames: validFrames }),
-                        frameRate: config.fps,
-                        repeat: config.loop ? -1 : 0
-                    });
-                    console.log(`[PhaserRenderer] Created animation: ${animKey}`);
+                // Remove existing animation to ensure clean slate (especially if texture was reloaded/sliced)
+                if (this.scene.anims.exists(animKey)) {
+                    this.scene.anims.remove(animKey);
                 }
+
+                this.scene.anims.create({
+                    key: animKey,
+                    frames: validFrames.map(f => ({ key: key, frame: String(f) })), // Direct mapping safer for manual slices
+                    frameRate: config.fps,
+                    repeat: config.loop ? -1 : 0
+                });
+                console.log(`[PhaserRenderer] Created/Updated animation: ${animKey}`);
             }
         }
         // AUTO-GENERATE: If no explicit animations but spritesheet has multiple frames, create "default" animation
-        else if (totalFrames > 1) {
+        // Use effectiveFrameCount computed earlier
+
+        if (effectiveFrameCount > 1) {
             const defaultAnimKey = `${key}_default`;
-            if (!this.scene.anims.exists(defaultAnimKey)) {
-                const allFrames = Array.from({ length: totalFrames }, (_, i) => i);
-                this.scene.anims.create({
-                    key: defaultAnimKey,
-                    frames: this.scene.anims.generateFrameNumbers(key, { frames: allFrames }),
-                    frameRate: 8, // Default fps for auto-generated animation
-                    repeat: -1 // Loop by default
-                });
-                console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${totalFrames} frames)`);
+
+            if (this.scene.anims.exists(defaultAnimKey)) {
+                this.scene.anims.remove(defaultAnimKey);
             }
+
+            let framesConfig: Phaser.Types.Animations.AnimationFrame[] = [];
+
+            // Use string frame keys for manually sliced textures, numeric otherwise
+            if (texture && texture.has("0")) {
+                framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
+            } else if (metadata && metadata.frameCount && metadata.frameCount > 1) {
+                framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
+            } else {
+                framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
+            }
+
+            // Get FPS from metadata.animations.default.fps or fallback to 8 (matching SpriteSheetExporter default)
+            const defaultFps = (metadata as any)?.animations?.default?.fps ?? 8;
+
+            this.scene.anims.create({
+                key: defaultAnimKey,
+                frames: framesConfig,
+                frameRate: defaultFps,
+                repeat: -1
+            });
+            console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${effectiveFrameCount} frames, ${defaultFps} FPS)`);
         }
     }
 

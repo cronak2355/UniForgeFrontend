@@ -79,17 +79,25 @@ export function ActionEditor({
     }
   }
 
-  // 2. Also show animations from ALL other assets for flexibility
+  // 2. Also show animations from ALL other assets for flexibility (including Particle, Tile, etc.)
   (assets ?? []).forEach(a => {
     if (a.name === currentAsset?.name) return; // Already added above
+
+    // Add explicit animations if defined
     if (a.metadata?.animations) {
       for (const animName of Object.keys(a.metadata.animations)) {
         availableAnimations.push(`${a.name}_${animName}`);
       }
     }
-    // Auto-generate default for multi-frame assets
-    const fc = a.metadata?.frameCount ?? 1;
-    if (fc > 1 && !a.metadata?.animations) {
+
+    // Auto-generate default for:
+    // 1. Multi-frame assets (frameCount > 1)
+    // 2. Assets with spritesheet metadata (frameWidth exists)
+    // 3. ALL Particle and Character assets (even without metadata, assume they're spritesheets)
+    const fc = a.metadata?.frameCount ?? (a.metadata?.frameWidth ? 999 : 1);
+    const isAlwaysShow = a.tag === 'Particle' || a.tag === 'Character'; // Always show these tags
+
+    if ((fc > 1 || isAlwaysShow) && !a.metadata?.animations) {
       availableAnimations.push(`${a.name}_default`);
     }
   });
@@ -399,9 +407,9 @@ export function ActionEditor({
               <select
                 value={spawnAssetId}
                 onChange={(e) => {
-                  const next: Record<string, unknown> = { ...action, sourceAssetId: e.target.value };
+                  const next = { ...action, sourceAssetId: e.target.value };
                   if (spawnSourceType === "prefab") {
-                    next.prefabId = e.target.value;
+                    (next as any).prefabId = e.target.value;
                   }
                   onUpdate(next);
                 }}
