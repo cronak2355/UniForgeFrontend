@@ -358,6 +358,30 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
 
             if (applyDamage(ctx, id, damage, renderer)) {
                 hitSomething = true;
+
+                // 파티클 우선순위 로직:
+                // 1. 액션 파라미터 (무기 특성)
+                // 2. 타겟 엔티티 변수 (재질 특성)
+                // 3. 기본값 없음 (설정 없으면 재생 안 함)
+
+                const actionHitEffect = params.hitEffect as string;
+                const targetHitEffectVar = targetEntity?.variables?.find((v) => v.name === "hitEffect");
+                const targetHitEffect = targetHitEffectVar?.value as string;
+
+                let effectToPlay: string | null = null;
+
+                if (actionHitEffect) {
+                    // 1순위: 액션 설정
+                    effectToPlay = actionHitEffect;
+                } else if (targetHitEffect) {
+                    // 2순위: 타겟 설정
+                    effectToPlay = targetHitEffect;
+                }
+
+                // "none"이면 재생 안 함, 설정 없어도 재생 안 함
+                if (effectToPlay && effectToPlay !== "none" && typeof renderer.playParticle === 'function') {
+                    renderer.playParticle(effectToPlay, targetObj.x, targetObj.y, 1);
+                }
             }
         }
     }

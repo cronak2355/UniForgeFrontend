@@ -64,6 +64,7 @@ export function RightPanel() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [assetType, setAssetType] = useState<'character' | 'object' | 'effect'>('character');
+  const [motionType, setMotionType] = useState('explode');
 
   // Export State
   const [exportName, setExportName] = useState('sprite');
@@ -369,7 +370,7 @@ export function RightPanel() {
       }
 
       // 2. Generate Blob
-      const { blob, metadata } = await exportSpriteSheet(
+      const { blob, metadata: sheetMetadata } = await exportSpriteSheet(
         frames,
         pixelSize,
         'horizontal',
@@ -377,6 +378,11 @@ export function RightPanel() {
         0.9,
         Object.keys(animsMap).length > 0 ? animsMap : undefined
       );
+
+      const metadata = {
+        ...sheetMetadata,
+        motionType: assetType === 'effect' ? motionType : undefined
+      };
 
       // 3. Upload or Update
       const token = localStorage.getItem("token");
@@ -721,10 +727,10 @@ export function RightPanel() {
                           key={t}
                           onClick={() => setAssetType(t)}
                           className={`flex-1 px-2 py-2 text-xs font-bold uppercase tracking-wide transition-all rounded ${assetType === t
-                              ? t === 'effect'
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-blue-600 text-white'
-                              : 'text-white/40 hover:text-white hover:bg-white/10'
+                            ? t === 'effect'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-blue-600 text-white'
+                            : 'text-white/40 hover:text-white hover:bg-white/10'
                             }`}
                         >
                           {t === 'character' ? '👤 Character' : t === 'object' ? '🧱 Tile' : '✨ Particle'}
@@ -737,6 +743,25 @@ export function RightPanel() {
                       {assetType === 'object' && '타일/오브젝트로 저장됩니다.'}
                     </p>
                   </div>
+
+                  {/* Motion Type Selector (Only for Effect) */}
+                  {assetType === 'effect' && (
+                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <label className="text-[10px] text-purple-400 uppercase font-bold tracking-widest">Motion Type</label>
+                      <select
+                        className="w-full bg-[#1a1a1a] text-xs text-white border border-purple-500/30 rounded px-2 py-1.5 outline-none focus:border-purple-500 font-mono appearance-none"
+                        onChange={(e) => setMotionType(e.target.value)}
+                        value={motionType}
+                        id="motion-type-select"
+                      >
+                        <option value="explode">💥 Explode (폭발/타격)</option>
+                        <option value="rise">⬆️ Rise (연기/영혼)</option>
+                        <option value="fall">⬇️ Fall (피/파편)</option>
+                        <option value="spew">🌊 Spew (분출/브레스)</option>
+                        <option value="orbit">🔄 Orbit (오라/회전)</option>
+                      </select>
+                    </div>
+                  )}
 
                   <button
                     onClick={() => downloadWebP(exportName)}

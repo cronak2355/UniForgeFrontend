@@ -126,7 +126,7 @@ export class ParticleManager {
     /**
      * 커스텀 파티클 재생 (Phaser 3.60+ 호환)
      */
-    playCustomEffect(textureId: string, x: number, y: number, scale: number = 1): void {
+    playCustomEffect(textureId: string, x: number, y: number, scale: number = 1, motionType: string = 'explode'): void {
         const textureKey = `particle_custom_${textureId}`;
 
         if (!this.scene.textures.exists(textureKey)) {
@@ -134,14 +134,60 @@ export class ParticleManager {
             return;
         }
 
-        // 커스텀 파티클 기본 설정
-        const emitter = this.scene.add.particles(x, y, textureKey, {
+        // 기본 설정 (Explode / Default)
+        let config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
             speed: { min: 50, max: 150 },
             angle: { min: 0, max: 360 },
             scale: { start: 1 * scale, end: 0 },
             alpha: { start: 1, end: 0 },
-            lifespan: 500,
+            lifespan: 600,
             blendMode: Phaser.BlendModes.NORMAL,
+            gravityY: 0
+        };
+
+        // 모션 타입별 설정 오버라이드
+        switch (motionType) {
+            case 'rise': // 연기, 영혼
+                config = {
+                    ...config,
+                    speed: { min: 20, max: 60 },
+                    angle: { min: 250, max: 290 }, // 위쪽
+                    gravityY: -50, // 위로 상승
+                    lifespan: 1000,
+                    scale: { start: 0.5 * scale, end: 1.5 * scale } // 커지면서 사라짐
+                };
+                break;
+            case 'fall': // 피, 파편
+                config = {
+                    ...config,
+                    speed: { min: 100, max: 200 },
+                    angle: { min: 200, max: 340 }, // 위로 솟았다가
+                    gravityY: 400, // 아래로 떨어짐
+                    lifespan: 800,
+                    scale: { start: 1 * scale, end: 0.5 * scale }
+                };
+                break;
+            case 'spew': // 분출 (화염방사 등) - 오른쪽 기준 (회전은 컨테이너가 처리한다고 가정하지만 여기서는 랜덤성 부여)
+                config = {
+                    ...config,
+                    speed: { min: 200, max: 300 },
+                    angle: { min: -30, max: 30 },
+                    lifespan: 500,
+                    gravityY: 0
+                };
+                break;
+            case 'orbit': // 오라 (제자리 회전 느낌)
+                config = {
+                    ...config,
+                    speed: 20,
+                    lifespan: 1200,
+                    emitZone: { type: 'random', source: new Phaser.Geom.Circle(0, 0, 30 * scale) } as any
+                };
+                break;
+        }
+
+        const emitter = this.scene.add.particles(x, y, textureKey, {
+            ...config,
             emitting: true,
             quantity: 10,
             stopAfter: 10,
