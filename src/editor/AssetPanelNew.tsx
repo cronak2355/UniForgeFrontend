@@ -45,7 +45,6 @@ export function AssetPanelNew({
     selectedEntityVariables,
     actionLabels,
     onCreateVariable,
-    onCreateVariable,
     onUpdateVariable,
     onDeleteAsset,
 }: Props) {
