@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef, useCallback } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
+import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
 
@@ -1116,7 +1117,12 @@ function EditorLayoutInner() {
                     }}>
                         Inspector
                     </div>
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {/* Asset Animation Settings (when asset is selected) */}
+                        {selectedAsset && (
+                            <AssetAnimationSettings asset={selectedAsset} />
+                        )}
+                        {/* Entity Inspector */}
                         {localSelectedEntity && (
                             <InspectorPanel
                                 entity={localSelectedEntity}

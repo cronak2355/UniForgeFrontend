@@ -181,7 +181,7 @@ export const assetService = {
         file: File | Blob,
         metadata: any,
         token: string | null
-    ): Promise<void> {
+    ): Promise<{ id: string; url: string }> {
         // 1. Get Upload URL for existing asset
         const versionId = "1";
         const contentType = file.type || "application/octet-stream";
@@ -229,6 +229,10 @@ export const assetService = {
         }
 
         console.log(`[assetService] Asset Updated: ${assetId}`);
+
+        // Construct final URL for live update usage
+        const finalAssetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        return { id: assetId, url: finalAssetUrl };
     },
 
     async getAsset(assetId: string): Promise<any> {

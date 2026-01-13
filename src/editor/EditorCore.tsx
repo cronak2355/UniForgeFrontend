@@ -502,6 +502,14 @@ export class EditorState implements IGameState {
         this.notify();
     }
 
+    updateAsset(updatedAsset: Asset) {
+        const index = this.assets.findIndex(a => a.id === updatedAsset.id);
+        if (index !== -1) {
+            this.assets[index] = updatedAsset;
+            this.notify();
+        }
+    }
+
     setAssets(assets: Asset[]) {
         this.assets = assets;
         this.notify();

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+
+
 import { useAssetsEditor } from '../context/AssetsEditorContext';
 import {
   generateSimpleAnimation,
@@ -353,11 +355,22 @@ export function RightPanel() {
     setIsLoading(true);
     try {
       // 1. Convert animations array to Record for export
-      const animsMap: Record<string, any> = {};
+      // If no explicit animations, create default animation with current fps setting
+      let animsMap: Record<string, any>;
       if (animations.length > 0) {
+        animsMap = {};
         animations.forEach(a => {
           animsMap[a.name] = { frames: a.frames, fps: a.fps, loop: a.loop };
         });
+      } else {
+        // Create default animation using current fps state (not hardcoded 8)
+        animsMap = {
+          default: {
+            frames: Array.from({ length: frames.length }, (_, i) => i),
+            fps: fps, // Use the user's current fps setting!
+            loop: true
+          }
+        };
       }
 
       // 2. Generate Blob
@@ -367,7 +380,7 @@ export function RightPanel() {
         'horizontal',
         'webp',
         0.9,
-        Object.keys(animsMap).length > 0 ? animsMap : undefined
+        animsMap
       );
 
       const metadata = {
@@ -381,13 +394,18 @@ export function RightPanel() {
       const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
 
       let savedId = currentAssetId;
+      let finalAssetUrl = '';
 
       if (currentAssetId) {
-        await assetService.updateAsset(currentAssetId, blob, metadata, token);
+        const res = await assetService.updateAsset(currentAssetId, blob, metadata, token);
+        if (typeof res !== 'boolean' && res?.url) finalAssetUrl = res.url;
       } else {
         const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
         savedId = result.id;
+        finalAssetUrl = result.url;
       }
+
+
 
       return savedId; // Return ID
     } catch (e) {
