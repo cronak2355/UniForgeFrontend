@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import type { EditorVariable } from "../types/Variable";
 import type { ModuleGraph } from "../types/Module";
 import { colors } from "../constants/colors";
@@ -40,6 +40,7 @@ export function ActionEditor({
 }) {
   const listId = useId();
   const navigate = useNavigate();
+  const { gameId } = useParams<{ gameId?: string }>();
   const selectedVar = variables.find((v) => v.name === (action.name as string));
   const selectedModuleId =
     (action.moduleId as string) ??
@@ -276,7 +277,14 @@ export function ActionEditor({
           </select>
           {asset && (
             <button
-              onClick={() => navigate(`/assets-editor?assetId=${asset.id}`)}
+              onClick={() => {
+                const params = new URLSearchParams();
+                params.set("assetId", asset.id);
+                if (gameId) {
+                  params.set("gameId", gameId);
+                }
+                navigate(`/assets-editor?${params.toString()}`);
+              }}
               style={{
                 padding: "4px 8px",
                 fontSize: 11,
