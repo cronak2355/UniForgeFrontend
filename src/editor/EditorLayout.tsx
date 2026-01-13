@@ -570,22 +570,22 @@ function EditorLayoutInner() {
                 const url = (asset as any).imageUrl || asset.url;
 
                 if (url) {
-                const resolvedTag =
-                    typeof asset.tag === 'string' && asset.tag.length > 0
-                        ? asset.tag
-                        : typeof asset.genre === 'string' && asset.genre.length > 0
-                        ? asset.genre
-                        : 'Character';
+                    const resolvedTag =
+                        typeof asset.tag === 'string' && asset.tag.length > 0
+                            ? asset.tag
+                            : typeof asset.genre === 'string' && asset.genre.length > 0
+                                ? asset.genre
+                                : 'Character';
 
-                core.addAsset({
-                    id: asset.id,
-                    tag: resolvedTag,
-                    name: asset.name,
-                    url: url,
-                    idx: -1,
-                    metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
-                    description: (asset as any).description
-                });
+                    core.addAsset({
+                        id: asset.id,
+                        tag: resolvedTag,
+                        name: asset.name,
+                        url: url,
+                        idx: -1,
+                        metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
+                        description: (asset as any).description
+                    });
                     console.log("Auto-imported asset:", asset.name);
                 }
             } catch (e) {
@@ -1084,17 +1084,10 @@ function EditorLayoutInner() {
                             actionLabels={{}}
                             onCreateVariable={handleCreateActionVariable}
                             onUpdateVariable={handleUpdateModuleVariable}
-                            onDeleteAsset={async (asset) => {
-                                try {
-                                    const token = authService.getToken();
-                                    await assetService.deleteAsset(asset.id, token);
-                                    // Refresh assets (use core.getAssets() to avoid stale closure)
-                                    const currentAssets = Array.from(core.getAssets());
-                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
-                                } catch (e) {
-                                    console.error("Failed to delete asset", e);
-                                    alert("Failed to delete asset");
-                                }
+                            onDeleteAsset={(asset) => {
+                                // Just remove from local editor, do not delete from S3
+                                const currentAssets = Array.from(core.getAssets());
+                                core.setAssets(currentAssets.filter(a => a.id !== asset.id));
                             }}
                         />
                     </div>
