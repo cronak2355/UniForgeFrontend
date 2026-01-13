@@ -50,6 +50,8 @@ export function ActionEditor({
     (action.sceneId as string) ||
     scenes?.find((scene) => scene.name === (action.sceneName as string))?.id ||
     "";
+  const spawnTemplateId = (action.templateId as string) ?? "__self__";
+  const spawnPositionMode = (action.positionMode as string) ?? "relative";
 
   // Animation Logic
   const textureName = currentEntity?.texture || currentEntity?.name;
@@ -252,6 +254,56 @@ export function ActionEditor({
           <ParamInput label="speed" value={action.speed as number} defaultValue={2} onChange={(v) => onUpdate({ ...action, speed: v })} />
           <ParamInput label="min" value={action.minScale as number} defaultValue={0.9} onChange={(v) => onUpdate({ ...action, minScale: v })} />
           <ParamInput label="max" value={action.maxScale as number} defaultValue={1.1} onChange={(v) => onUpdate({ ...action, maxScale: v })} />
+        </>
+      )}
+
+      {action.type === "SpawnEntity" && (
+        <>
+          <select
+            value={spawnTemplateId}
+            onChange={(e) => onUpdate({ ...action, templateId: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="__self__">(self)</option>
+            <option value="">(none)</option>
+            {entities.map((ent) => (
+              <option key={ent.id} value={ent.id}>
+                {ent.name || ent.id}
+              </option>
+            ))}
+          </select>
+          <select
+            value={spawnPositionMode}
+            onChange={(e) => onUpdate({ ...action, positionMode: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="relative">relative</option>
+            <option value="absolute">absolute</option>
+          </select>
+          {spawnPositionMode === "absolute" ? (
+            <>
+              <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
+              <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
+            </>
+          ) : (
+            <>
+              <ParamInput label="dx" value={action.offsetX as number} onChange={(v) => onUpdate({ ...action, offsetX: v })} />
+              <ParamInput label="dy" value={action.offsetY as number} onChange={(v) => onUpdate({ ...action, offsetY: v })} />
+            </>
+          )}
+          <input
+            type="text"
+            placeholder="texture"
+            value={(action.texture as string) || ""}
+            onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
+            list={`${listId}-textures`}
+            style={styles.textInput}
+          />
+          <datalist id={`${listId}-textures`}>
+            {assets?.map((a) => (
+              <option key={a.id} value={a.name} />
+            ))}
+          </datalist>
         </>
       )}
 

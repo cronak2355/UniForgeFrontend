@@ -46,6 +46,7 @@ const ACTION_LABELS: Record<string, string> = {
     EmitEventSignal: "EmitEventSignal",
     ClearSignal: "ClearSignal",
     RunModule: "RunModule",
+    SpawnEntity: "Spawn Entity",
     PlayAnimation: "Play Animation",
 };
 
