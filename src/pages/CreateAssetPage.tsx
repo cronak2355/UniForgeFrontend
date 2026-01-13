@@ -191,13 +191,24 @@ const CreateAssetPage = () => {
 
             // Step 1.5: Upload Thumbnail (if exists)
             // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
+            // Step 1.5: Upload Thumbnail (if exists)
+            // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
             if (thumbnailFile) {
-                const { uploadUrl } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
-                if (uploadUrl) {
+                const { uploadUrl, s3Key } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
+                if (uploadUrl && s3Key) {
                     await fetch(uploadUrl, {
                         method: 'PUT',
                         body: thumbnailFile,
                         headers: { 'Content-Type': thumbnailFile.type }
+                    });
+
+                    // IMPORTANT: Register the image resource in the backend!
+                    await marketplaceService.registerImageResource({
+                        ownerType: "ASSET",
+                        ownerId: asset.id,
+                        imageType: "thumbnail",
+                        s3Key: s3Key,
+                        isActive: true
                     });
 
                     // Update asset with PROXY URL
@@ -238,6 +249,10 @@ const CreateAssetPage = () => {
             // Success!
             setTimeout(() => {
                 const locState = (location.state as any);
+                // If returnToEditor is set, go back. 
+                // If gameId is missing but returnToEditor is true, we might need a fallback or stay in Detail page?
+                // Assuming if they came from editor, gameId is provided, or we might need to rely on localStorage if available.
+                // But generally gameId should be in location.state.
                 if (locState?.returnToEditor && locState?.gameId) {
                     // Navigate back to Editor
                     navigate(`/editor/${locState.gameId}?newAssetId=${asset.id}`);
