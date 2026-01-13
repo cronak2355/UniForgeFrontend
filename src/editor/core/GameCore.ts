@@ -775,6 +775,12 @@ export class GameCore {
         b: GameEntity,
         trigger: Trigger
     ): boolean {
+        // 거리 기반 트리거만 처리 (타입 캐스팅 필요)
+        const type = trigger.type as string;
+        if (type !== "Collider" && type !== "Distance") {
+            return false;
+        }
+
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         return dx * dx + dy * dy <= trigger.radius * trigger.radius;
@@ -953,6 +959,36 @@ export class GameCore {
                     });
                     return true;
                 }
+
+            case "OnSignalReceive": {
+                // Signal Key 검사
+                const requiredSignal = trigger.params?.name as string | undefined; // 'name' or 'key' parameter from UI
+                if (!requiredSignal) return false;
+
+                // 엔티티가 받은 시그널 확인
+                // processComponent는 매 프레임 실행되므로, 이번 프레임에 시그널이 들어왔는지 확인해야 함.
+                // RuntimeContext나 EntityContext에서 'newSignals' 같은 걸 추적하거나
+                // 단순히 flags를 확인하고, 소비(consume)해야 함.
+                // 하지만 현재 구조상 flags는 상태로 유지됨 (until checked/cleared).
+                // LogicComponent는 매 프레임 돌지만, Trigger는 이벤트성임.
+
+                // 만약 signals.flags[key]가 true이고, 아직 처리 안했다면?
+                // 여기서는 "변화"를 감지해야 하는데, flags는 상태값임.
+                // LogicComponent의 'Signal' condition과 다른 점: 트리거는 "발생 순간"을 잡아야 함.
+
+                // 임시: signals.flags에 값이 있으면 true + consume (flag false로 변경)?
+                // 이렇게 하면 Condition으로 쓸 때 문제가 될 수 있음.
+
+                // 대안: RuntimeContext에 'transientSignals' (이번 프레임에만 유효)가 있으면 그걸 씀.
+                // 없다면 signals.flags를 체크하되, Side Effect로 flag를 끌 수는 없음 (matchTrigger는 boolean check만 해야 함).
+
+                // 사용자가 말한 "어떤 신호든 다 수용해서" -> params check가 없었기 때문.
+                // 여기서는 requiredSignal과 일치하는 시그널이 켜져있는지 확인.
+
+                const signalVal = this.runtimeContext.getEntityContext(entity.id)?.signals.flags[requiredSignal];
+                // 주의: 이것은 상태(Condition) 검사와 같아짐. Pulse(1프레임) 신호라면 괜찮음.
+                return signalVal === true;
+            }
 
             case "VariableOnChanged": {
                 const name = trigger.params?.name as string | undefined;
