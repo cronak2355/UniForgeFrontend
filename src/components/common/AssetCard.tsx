@@ -1,93 +1,86 @@
-import { useNavigate } from "react-router-dom";
+import React from 'react';
 
-export interface AssetCardProps {
+interface AssetCardProps {
     id: string;
     title: string;
     author: string;
     image: string;
     type?: string;
-    price?: number;
+    description?: string;
     rating?: number;
     purchaseDate?: string;
-    isGame?: boolean; // If true, show "Play" instead of "Download" etc.
+    isGame?: boolean;
     onClick?: () => void;
-    // Optional overlay actions
     overlayActions?: React.ReactNode;
+    draggable?: boolean;
+    onDragStart?: (e: React.DragEvent) => void;
 }
 
-const AssetCard = ({
+const AssetCard: React.FC<AssetCardProps> = ({
     id,
     title,
     author,
     image,
     type = "Asset",
-    price,
-    rating,
     purchaseDate,
     isGame = false,
     onClick,
-    overlayActions
-}: AssetCardProps) => {
-    const navigate = useNavigate();
-
-    // Handling image error fallback
-    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-        e.currentTarget.src = 'https://placehold.co/400x300/1a1a1a/666?text=No+Image';
-    };
-
+    overlayActions,
+    draggable,
+    onDragStart
+}) => {
     return (
         <div
-            className="group bg-[#0a0a0a] rounded-xl border border-[#222] overflow-hidden cursor-pointer relative hover:-translate-y-1 hover:border-[#444] transition-all duration-200"
             onClick={onClick}
+            draggable={draggable}
+            onDragStart={onDragStart}
+            className={`
+                group relative bg-[#1a1a1a] border border-[#333] rounded-2xl overflow-hidden 
+                hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-900/10 hover:-translate-y-1 
+                transition-all duration-300 cursor-pointer
+                ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}
+            `}
         >
             {/* Thumbnail */}
-            <div className="h-40 relative overflow-hidden">
+            <div className="aspect-video w-full relative overflow-hidden bg-[#111]">
                 <img
                     src={image}
                     alt={title}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    loading="lazy"
                 />
 
-                {/* Type Badge (if not game, or always?) */}
-                {!isGame && (
-                    <span className="absolute top-2.5 right-2.5 bg-black/70 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-semibold">
-                        {type}
-                    </span>
-                )}
+                {/* Overlay Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
 
-                {/* Overlay with Actions */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2.5 transition-opacity duration-200">
-                    {overlayActions}
-                </div>
+                {/* Type Badge */}
+                <span className={`absolute top-3 left-3 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md backdrop-blur-md border border-white/10 ${isGame ? 'bg-purple-600/80 text-white' : 'bg-blue-600/80 text-white'}`}>
+                    {isGame ? 'GAME' : type}
+                </span>
+
+                {/* Overlay Actions (Hover) */}
+                {overlayActions && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-4">
+                        {overlayActions}
+                    </div>
+                )}
             </div>
 
             {/* Content */}
             <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-white text-base font-semibold m-0 truncate pr-2">{title}</h3>
-                </div>
-                <p className="text-[#888] text-[0.85rem] mb-4 truncate">by {author}</p>
+                <h3 className="text-white font-bold text-lg mb-1 truncate">{title}</h3>
 
-                <div className="flex justify-between items-center text-xs">
-                    {/* Left Side: Rating or Type */}
-                    {rating !== undefined ? (
-                        <div className="flex items-center gap-1 text-amber-400">
-                            <i className="fa-solid fa-star"></i>
-                            <span>{rating}</span>
+                <div className="flex items-center justify-between text-sm text-gray-400">
+                    <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 flex items-center justify-center text-[8px] text-white font-bold">
+                            {author.substring(0, 1)}
                         </div>
-                    ) : (
-                        <span className="text-[#555]">{type}</span>
-                    )}
+                        <span className="truncate max-w-[100px]">{author}</span>
+                    </div>
 
-                    {/* Right Side: Price or Date */}
-                    {price !== undefined ? (
-                        <span className={`font-semibold ${price === 0 ? 'text-green-500' : 'text-white'}`}>
-                            {price === 0 ? 'Free' : `₩${price.toLocaleString()}`}
-                        </span>
-                    ) : purchaseDate ? (
-                        <span className="text-[#555]">{purchaseDate}</span>
-                    ) : null}
+                    {purchaseDate && (
+                        <span className="text-xs opacity-60">{purchaseDate}</span>
+                    )}
                 </div>
             </div>
         </div>

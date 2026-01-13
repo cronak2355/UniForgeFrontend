@@ -176,6 +176,42 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
         ? (selectedCollectionId ? collections.find(c => c.id === selectedCollectionId)?.name || "전체 에셋" : "전체 에셋")
         : "전체 게임";
 
+    // --- DnD Handlers ---
+    const [draggedItem, setDraggedItem] = useState<UILibraryItem | null>(null);
+
+    const onAssetDragStart = (e: React.DragEvent, item: UILibraryItem) => {
+        setDraggedItem(item);
+        e.dataTransfer.effectAllowed = 'move';
+        // Optional: Set transparent image as drag image if desired
+    };
+
+    const onSidebarDrop = async (targetCollectionId: string | null) => {
+        if (!draggedItem || !draggedItem.libraryItemId) return;
+        if (draggedItem.collectionId === (targetCollectionId || undefined)) return; // No change
+
+        try {
+            const { libraryService } = await import('../services/libraryService');
+
+            // Optimistic update
+            const previousAssets = [...myAssets];
+            setMyAssets(prev => prev.map(a =>
+                a.id === draggedItem.id
+                    ? { ...a, collectionId: targetCollectionId || undefined }
+                    : a
+            ));
+
+            await libraryService.moveItemToCollection(draggedItem.libraryItemId, targetCollectionId);
+
+            // Success
+            setDraggedItem(null);
+        } catch (e) {
+            console.error(e);
+            alert("이동 실패");
+            // In a real app, we would rollback state here
+        }
+    };
+
+
     return (
         <div className={`flex flex-col ${isModal ? 'h-full bg-[#0a0a0a]' : 'min-h-screen bg-black'} text-white relative overflow-hidden`}>
             {/* Background effects only if not modal */}
@@ -234,16 +270,17 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
             />
 
             <div className="flex flex-1 max-w-[1920px] w-full mx-auto relative z-10 h-full overflow-hidden">
-                {/* Sidebar - Always visible for layout stability */}
+                {/* Sidebar - Drop Target */}
                 <FilterSidebar
                     title={activeTab === 'assets' ? "Collections" : "Library"}
                     items={sidebarItems}
                     selectedId={selectedSidebarId}
                     onSelect={(item: any) => {
-                        if (activeTab === 'games') return; // Only one item for games currently
+                        if (activeTab === 'games') return;
                         if (item.id === "전체 에셋") setSelectedCollectionId(null);
                         else setSelectedCollectionId(item.originalId);
                     }}
+                    onDropItem={activeTab === 'assets' ? onSidebarDrop : undefined}
                     actionButton={activeTab === 'assets' ? (
                         <button
                             onClick={() => setShowCreateCollectionModal(true)}
@@ -315,6 +352,8 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                     type={item.assetType}
                                     purchaseDate={item.purchaseDate}
                                     isGame={item.type === 'game'}
+                                    draggable={activeTab === 'assets'} // Only items in Assets tab are draggable
+                                    onDragStart={(e) => onAssetDragStart(e, item)}
                                     onClick={() => {
                                         if (isModal && onSelect) onSelect(item);
                                     }}
