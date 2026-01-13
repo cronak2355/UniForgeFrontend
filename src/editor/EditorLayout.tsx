@@ -1042,7 +1042,20 @@ function EditorLayoutInner() {
                             selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
                             actionLabels={{}}
                             onCreateVariable={handleCreateActionVariable}
+                            actionLabels={{}}
+                            onCreateVariable={handleCreateActionVariable}
                             onUpdateVariable={handleUpdateModuleVariable}
+                            onDeleteAsset={async (asset) => {
+                                try {
+                                    const token = authService.getLastToken();
+                                    await assetService.deleteAsset(asset.id, token);
+                                    // Refresh assets
+                                    core.setAssets(assets.filter(a => a.id !== asset.id));
+                                } catch (e) {
+                                    console.error("Failed to delete asset", e);
+                                    alert("Failed to delete asset");
+                                }
+                            }}
                         />
                     </div>
                 </div>

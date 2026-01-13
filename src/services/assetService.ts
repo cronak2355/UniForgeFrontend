@@ -256,5 +256,35 @@ export const assetService = {
         const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
         localStorage.removeItem(LOCAL_ASSETS_KEY);
         console.log("[assetService] Local assets cleared");
+    },
+    async deleteAsset(assetId: string, token: string | null): Promise<void> {
+        // 1. DEV MODE: Local Mock
+        if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+            console.log(`[assetService] Mock Deleting asset: ${assetId}`);
+            const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
+            try {
+                const existingAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
+                const filtered = existingAssets.filter((a: any) => a.id !== assetId);
+                localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(filtered));
+                return;
+            } catch (e) {
+                console.warn("Failed to delete local asset", e);
+                return;
+            }
+        }
+
+        // 2. PROD MODE: API Call
+        const res = await fetch(`https://uniforge.kr/api/assets/${assetId}`, {
+            method: "DELETE",
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        });
+
+        if (!res.ok) {
+            const msg = await res.text();
+            throw new Error(msg || "Failed to delete asset");
+        }
+        console.log(`[assetService] Asset Deleted: ${assetId}`);
     }
 };

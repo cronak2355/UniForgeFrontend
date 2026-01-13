@@ -30,6 +30,7 @@ type Props = {
     actionLabels: Record<string, string>;
     onCreateVariable?: (name: string, value: unknown, type?: "int" | "float" | "string" | "bool") => void;
     onUpdateVariable?: (name: string, value: unknown, type?: "int" | "float" | "string" | "bool") => void;
+    onDeleteAsset?: (asset: Asset) => void;
 };
 
 type AssetPanelVars = Array<{ id: string; name: string; type: string; value: number | string | boolean }>;
@@ -44,7 +45,9 @@ export function AssetPanelNew({
     selectedEntityVariables,
     actionLabels,
     onCreateVariable,
+    onCreateVariable,
     onUpdateVariable,
+    onDeleteAsset,
 }: Props) {
     const [currentTag, setCurrentTag] = useState<string>("Character");
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
@@ -485,7 +488,9 @@ export function AssetPanelNew({
                             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             onClick={() => {
-                                alert("Delete feature coming soon");
+                                if (confirm(`Are you sure you want to delete "${contextMenu.asset.name}"?`)) {
+                                    onDeleteAsset?.(contextMenu.asset);
+                                }
                                 setContextMenu(null);
                             }}
                         >
