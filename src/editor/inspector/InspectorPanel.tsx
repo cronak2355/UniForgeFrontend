@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import type { EditorEntity } from "../types/Entity";
+import type { Asset } from "../types/Asset";
 import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
 import { VariableSection } from "./VariableSection";
-import { syncLegacyFromLogic } from "../utils/entityLogic";
+import { ensureEntityLogic, syncLegacyFromLogic } from "../utils/entityLogic";
 import { useEditorCore } from "../../contexts/EditorCoreContext";
 
 interface Props {
@@ -110,6 +111,16 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     marginBottom: '8px'
   };
 
+  const buttonStyle = {
+    padding: '6px 10px',
+    fontSize: '12px',
+    background: colors.bgTertiary,
+    border: `1px solid ${colors.borderColor}`,
+    borderRadius: '6px',
+    color: colors.textPrimary,
+    cursor: 'pointer',
+  };
+
   const transformGridStyle = {
     display: 'flex',
     gap: '12px',
@@ -127,6 +138,48 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     fontSize: '11px',
     fontWeight: 600,
     letterSpacing: '0.3px',
+  };
+
+  const assetUrl = (fileName: string) => {
+    const base = (import.meta as { env?: { BASE_URL?: string } })?.env?.BASE_URL || "/";
+    const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+    return new URL(`${normalizedBase}${fileName}`, window.location.origin).toString();
+  };
+
+  const buildPrefabAsset = (): Asset => {
+    const existingNames = new Set(core.getAssets().map((asset) => asset.name));
+    const baseName = `${localEntity.name} Prefab`;
+    let name = baseName;
+    let suffix = 1;
+    while (existingNames.has(name)) {
+      name = `${baseName} ${suffix}`;
+      suffix += 1;
+    }
+
+    const textureName = localEntity.texture;
+    const textureAsset = textureName
+      ? core.getAssets().find((asset) => asset.name === textureName || asset.id === textureName)
+      : undefined;
+    const url = textureAsset?.url ?? assetUrl("placeholder.png");
+
+    const normalizedEntity = syncLegacyFromLogic(ensureEntityLogic(localEntity));
+    const prefabSnapshot = JSON.parse(
+      JSON.stringify({
+        ...normalizedEntity,
+        components: normalizedEntity.components ?? [],
+        logic: normalizedEntity.logic ?? [],
+        variables: normalizedEntity.variables ?? [],
+      })
+    ) as EditorEntity;
+
+    return {
+      id: crypto.randomUUID(),
+      tag: "Prefab",
+      name,
+      url,
+      idx: -1,
+      metadata: { prefab: prefabSnapshot },
+    };
   };
 
   return (
@@ -333,6 +386,19 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             />
           </div>
         </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={titleStyle}>Prefab</div>
+        <button
+          style={buttonStyle}
+          onClick={() => {
+            const prefabAsset = buildPrefabAsset();
+            core.addAsset(prefabAsset);
+          }}
+        >
+          Register Prefab
+        </button>
       </div>
 
       <div style={sectionStyle}>

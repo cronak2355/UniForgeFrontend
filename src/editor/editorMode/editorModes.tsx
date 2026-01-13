@@ -1,8 +1,6 @@
 import type { Asset } from "../types/Asset";
 import { EditorScene } from "../EditorScene";
-import type { EditorEntity } from "../types/Entity";
-import { buildLogicItems } from "../types/Logic";
-import { createDefaultModuleGraph } from "../types/Module";
+import { assetToEntity } from "../utils/assetToEntity";
 
 
 //媛???먮뵒??紐⑤뱶??媛??????섎뒗 ??
@@ -168,11 +166,11 @@ export class TilingMode extends EditorMode {
 }
 
 export class DragDropMode extends EditorMode {
-    public asset: Asset | null = null; // ???몃??먯꽌 ?꾩옱 ?쒕옒洹??먯뀑 二쇱엯
+    public asset: Asset | null = null; // ????????? ???? ????????????????
 
     private ghost: Phaser.GameObjects.Image | null = null;
 
-    // enter/exit/update???꾩슂?녿떎 ?덉쑝??鍮꾩썙??
+    // enter/exit/update?????????? ????????????
     enter(_scene: Phaser.Scene) { }
     exit(_scene: Phaser.Scene) {
         if (this.ghost) {
@@ -182,31 +180,45 @@ export class DragDropMode extends EditorMode {
     }
     update(_scene: Phaser.Scene, _dt: number) { }
 
+    private resolveTextureKey(scene: Phaser.Scene, asset: Asset): string | null {
+        const prefabTexture = asset.tag === "Prefab"
+            ? (asset.metadata?.prefab as { texture?: string } | undefined)?.texture
+            : undefined;
+        if (prefabTexture && scene.textures.exists(prefabTexture)) {
+            return prefabTexture;
+        }
+        if (scene.textures.exists(asset.name)) {
+            return asset.name;
+        }
+        return null;
+    }
+
     onPointerDown(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
-        // 援녹씠 ?????놁쓬. (?먰븯硫??ш린??ghost瑜?誘몃━ 留뚮뱾 ?섎룄 ?덉쓬)
+        // ?????????????. (???????????ghost???????????????? ????)
     }
 
     onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
         if (!this.asset) return;
 
-        const key = this.asset.name;
-        if (!scene.textures.exists(key)) return;
+        const key = this.resolveTextureKey(scene, this.asset);
+        if (!key) return;
 
         const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
 
-        // ghost ?놁쑝硫??앹꽦
+        // ghost ??????????
         if (!this.ghost) {
             this.ghost = scene.add.image(wp.x, wp.y, key);
             this.ghost.setAlpha(0.6);
             this.ghost.setDepth(9999);
             this.ghost.setOrigin(0.5, 0.5);
         } else {
-            // ?덉쑝硫??꾩튂留?媛깆떊
+            // ?????????????????
             this.ghost.setPosition(wp.x, wp.y);
         }
     }
 
     onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
+        console.log("[DragDrop] onPointerUp triggered", this.asset?.id);
         const es = scene as EditorScene;
         const finalizeDrop = () => {
             if (this.ghost) {
@@ -225,41 +237,32 @@ export class DragDropMode extends EditorMode {
             return;
         }
 
-        const key = this.asset.name;
-        if (!scene.textures.exists(key)) {
+        const key = this.resolveTextureKey(scene, this.asset);
+        if (!key) {
             finalizeDrop();
             return;
         }
 
+        console.log("[DragDrop] asset metadata", this.asset?.metadata);
         const wp = scene.cameras.main.getWorldPoint(p.x, p.y);
+        const entity = assetToEntity(this.asset, wp.x, wp.y);
+        console.log("[DragDrop] spawing entity from asset", entity);
 
-        // ???ㅼ젣 ?앹꽦
+        // ?????? ????
         const created = scene.add.image(wp.x, wp.y, key);
-        created.setDepth(10);
+        const depth = this.asset.tag === "Prefab" ? (entity.z ?? 10) : 10;
+        created.setDepth(depth);
         created.setOrigin(0.5, 0.5);
         created.setInteractive();
-        created.setData("id", crypto.randomUUID());
-        // (?좏깮) EditorScene??entityGroups 媛숈? 而⑦뀒?대꼫媛 ?덉쑝硫?嫄곌린???ｊ린
-        const entity: EditorEntity = {
+        created.setData("id", entity.id);
 
-            id: created.getData("id"),
-            type: this.asset!.tag as any,
-            name: this.asset!.name,
-            x: created.x,
-            y: created.y,
-            z: 0,
-            rotation: 0,
-            scaleX: 1,
-            scaleY: 1,
-            role: "neutral",
-            variables: [],
-            events: [],
-            logic: buildLogicItems({
-                components: [],
-            }),
-            components: [],
-            modules: [createDefaultModuleGraph()],
-        };
+        if (this.asset.tag === "Prefab") {
+            created.setScale(entity.scaleX ?? 1, entity.scaleY ?? 1);
+            if (typeof entity.rotation === "number") {
+                created.setRotation(entity.rotation);
+            }
+            entity.z = depth;
+        }
 
         // Save entity to EditorCore so it can be exported
         es.editorCore?.addEntity(entity);
@@ -288,9 +291,10 @@ export class DragDropMode extends EditorMode {
     }
 
     onScroll(_scene: Phaser.Scene, _deltaY: number) {
-        // ?쒕옒洹??쒕엻留???嫄곕㈃ ?ㅽ겕濡?臾댁떆
+        // ??????????????????????????????
     }
 }
+
 
 export class EntityEditMode implements EditorMode {
     private dragging = false;

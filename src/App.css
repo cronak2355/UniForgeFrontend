@@ -217,16 +217,31 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .variable-input {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 120px;
   background: #000000;
   border: 1px solid #1f2933;
   color: #e5e7eb;
   padding: 2px 4px;
   font-size: 11px;
-  min-width: 0;
 }
 
 .variable-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.variable-value {
+  flex: 1 1 160px;
+  min-width: 120px;
+  background: #000000;
+  border: 1px solid #1f2933;
+  color: #e5e7eb;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.variable-value:focus {
   outline: none;
   border-color: #3b82f6;
 }

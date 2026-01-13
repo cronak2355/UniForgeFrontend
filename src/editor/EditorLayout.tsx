@@ -1,7 +1,9 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
-import { AssetPanel } from "./AssetPanel";
+import { RecentAssetsPanel } from "./RecentAssetsPanel";
+import { AssetPanelNew } from "./AssetPanelNew";
+
 import type { EditorEntity } from "./types/Entity";
 import type { Asset } from "./types/Asset";
 import { EditorCanvas } from "./EditorCanvas";
@@ -124,30 +126,7 @@ function TopBarMenu({
     );
 }
 
-function cloneEntityForPaste(source: EditorEntity): EditorEntity {
-    const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
-    const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
-    const components = baseComponents.map((comp) => ({
-        ...comp,
-        id: crypto.randomUUID(),
-    }));
-    const modules = (cloned.modules && cloned.modules.length > 0)
-        ? cloned.modules
-        : [createDefaultModuleGraph()];
-
-    return {
-        ...cloned,
-        id: crypto.randomUUID(),
-        name: `${source.name} Copy`,
-        x: (source.x ?? 0) + 20,
-        y: (source.y ?? 0) + 20,
-        variables: (cloned.variables ?? []).map((v) => ({ ...v, id: crypto.randomUUID() })),
-        events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
-        components,
-        logic: buildLogicItems({ components }),
-        modules,
-    };
-}
+// function cloneEntityForPaste... Removed (logic moved to EditorCore)
 
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
@@ -265,6 +244,18 @@ function EditorLayoutInner() {
     const [dropModalFiles, setDropModalFiles] = useState<File[]>([]);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+    const [recentAssets, setRecentAssets] = useState<Asset[]>(() => {
+        try {
+            const saved = localStorage.getItem("editor_recent_assets");
+            return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+    }); // Persistent state
+
+    // Persist recent assets
+    useEffect(() => {
+        localStorage.setItem("editor_recent_assets", JSON.stringify(recentAssets));
+    }, [recentAssets]);
+
     // const [isFileMenuOpen, setIsFileMenuOpen] = useState(false); // REMOVED
     const navigate = useNavigate();
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
@@ -343,6 +334,13 @@ function EditorLayoutInner() {
     };
 
     const changeDraggedAssetHandler = (a: Asset | null, options?: { defer?: boolean }) => {
+        if (a) {
+            setRecentAssets(prev => {
+                const filtered = prev.filter(x => x.id !== a.id);
+                return [a, ...filtered].slice(0, 15);
+            });
+        }
+
         dragClearTokenRef.current += 1;
         const token = dragClearTokenRef.current;
 
@@ -382,11 +380,39 @@ function EditorLayoutInner() {
 
             const isMeta = e.ctrlKey || e.metaKey;
 
+            if (isMeta && (e.key === "z" || e.key === "Z")) {
+                if (mode !== "dev") return;
+                e.preventDefault();
+                if (e.shiftKey) {
+                    core.redo();
+                } else {
+                    core.undo();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "y" || e.key === "Y")) {
+                if (mode !== "dev") return;
+                e.preventDefault();
+                core.redo();
+                return;
+            }
+
             if (isMeta && (e.key === "c" || e.key === "C")) {
                 if (mode !== "dev") return;
                 const selected = core.getSelectedEntity();
                 if (selected) {
-                    copyEntityRef.current = JSON.parse(JSON.stringify(selected)) as EditorEntity;
+                    core.copy(selected);
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "x" || e.key === "X")) {
+                if (mode !== "dev") return;
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    core.cut(selected);
                     e.preventDefault();
                 }
                 return;
@@ -394,12 +420,7 @@ function EditorLayoutInner() {
 
             if (isMeta && (e.key === "v" || e.key === "V")) {
                 if (mode !== "dev") return;
-                const source = copyEntityRef.current;
-                if (!source) return;
-                const clone = cloneEntityForPaste(source);
-                core.addEntity(clone as any);
-                core.setSelectedEntity(clone as any);
-                setLocalSelectedEntity(clone);
+                core.paste();
                 e.preventDefault();
                 return;
             }
@@ -877,11 +898,15 @@ function EditorLayoutInner() {
 
                         {/* Edit Menu */}
                         <TopBarMenu label="edit">
-                            <MenuItem label="Undo" onClick={() => { alert("Undo - Coming Soon"); }} />
-                            <MenuItem label="Redo" onClick={() => { alert("Redo - Coming Soon"); }} />
-                            <MenuItem label="Cut" onClick={() => { alert("Cut - Coming Soon"); }} />
-                            <MenuItem label="Copy" onClick={() => { alert("Copy - Coming Soon"); }} />
-                            <MenuItem label="Paste" onClick={() => { alert("Paste - Coming Soon"); }} />
+                            <MenuItem label="Undo (Ctrl+Z)" onClick={() => core.undo()} />
+                            <MenuItem label="Redo (Ctrl+Y)" onClick={() => core.redo()} />
+                            <MenuItem label="Cut (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
+                            <MenuItem label="Copy (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
+                            <MenuItem label="Paste (Ctrl+V)" onClick={() => core.paste()} />
+                            <MenuItem label="Delete (Del)" onClick={() => {
+                                const selected = core.getSelectedEntity();
+                                if (selected) core.removeEntity(selected.id);
+                            }} />
                         </TopBarMenu>
 
                     </div>
@@ -950,7 +975,7 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{ flex: 1, padding: '0', overflowY: 'hidden' }}> {/* padding 0 for panel internal control */}
+                    <div style={{ flex: '0 0 60%', padding: '0', overflowY: 'hidden', borderBottom: `2px solid ${colors.borderColor}` }}>
                         <HierarchyPanel
                             core={core}
                             scenes={scenes}
@@ -963,6 +988,14 @@ function EditorLayoutInner() {
                                 const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
                                 core.sendContextToEditorModeStateMachine(ctx);
                             }}
+                        />
+                    </div>
+                    {/* Recent Assets */}
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <RecentAssetsPanel
+                            assets={recentAssets}
+                            changeDraggedAsset={changeDraggedAssetHandler}
+                            onSelectAsset={changeSelectedAssetHandler}
                         />
                     </div>
                 </div>
@@ -996,6 +1029,37 @@ function EditorLayoutInner() {
                             }}
                         />
                     )}
+
+                    {/* Asset Panel (Center Bottom) */}
+                    <div style={{
+                        height: '280px',
+                        borderTop: `2px solid ${colors.borderAccent}`,
+                        zIndex: 10
+                    }}>
+                        <AssetPanelNew
+                            assets={assets}
+                            changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                            changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                            modules={modules}
+                            addModule={(module) => core.addModule(module)}
+                            updateModule={(module) => core.updateModule(module)}
+                            selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                            actionLabels={{}}
+                            onCreateVariable={handleCreateActionVariable}
+                            onUpdateVariable={handleUpdateModuleVariable}
+                            onDeleteAsset={async (asset) => {
+                                try {
+                                    const token = authService.getLastToken();
+                                    await assetService.deleteAsset(asset.id, token);
+                                    // Refresh assets
+                                    core.setAssets(assets.filter(a => a.id !== asset.id));
+                                } catch (e) {
+                                    console.error("Failed to delete asset", e);
+                                    alert("Failed to delete asset");
+                                }
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* RIGHT PANEL - Inspector */}
@@ -1037,23 +1101,7 @@ function EditorLayoutInner() {
                 </div>
             </div>
 
-            {/* ===== BOTTOM - Asset Panel (ORIGINAL) ===== */}
-            <div style={{
-                borderTop: `2px solid ${colors.borderAccent}`,
-            }}>
-                <AssetPanel
-                    assets={assets}
-                    changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                    changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                    modules={modules}
-                    addModule={(module) => core.addModule(module)}
-                    updateModule={(module) => core.updateModule(module)}
-                    selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                    actionLabels={{}}
-                    onCreateVariable={handleCreateActionVariable}
-                    onUpdateVariable={handleUpdateModuleVariable}
-                />
-            </div>
+
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
