@@ -480,7 +480,9 @@ export function RightPanel() {
           assetBlob: blob,
           thumbnailBlob: thumbnailBlob,
           assetName: activeAnimationName === 'default' ? 'New Asset' : activeAnimationName,
-          metadata: metadata
+          metadata: metadata,
+          returnToEditor: true,
+          gameId: gameId
         }
       });
       return null; // Navigation will handle the next step

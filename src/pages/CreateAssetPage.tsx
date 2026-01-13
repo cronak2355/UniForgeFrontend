@@ -26,10 +26,16 @@ const CreateAssetPage = () => {
     const [error, setError] = useState<string | null>(null);
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
+
+
+
+    // Store technical metadata from Asset Editor
+    const [technicalMetadata, setTechnicalMetadata] = useState<any>(null);
+
     // Handle incoming asset from Asset Editor
     useEffect(() => {
-        if (location.state?.assetBlob) {
-            const { assetBlob, assetName, thumbnailBlob } = location.state;
+        if ((location.state as any)?.assetBlob) {
+            const { assetBlob, assetName, thumbnailBlob, metadata } = (location.state as any);
             const fileName = `${assetName || 'New Asset'}.webp`; // Assuming we exported webp
             const newFile = new File([assetBlob], fileName, { type: 'image/webp' });
 
@@ -38,6 +44,11 @@ const CreateAssetPage = () => {
                 ...prev,
                 name: assetName || ''
             }));
+
+            // Store metadata if provided
+            if (metadata) {
+                setTechnicalMetadata(metadata);
+            }
 
             // Use independent thumbnail blob if available (Single Frame)
             if (thumbnailBlob) {
@@ -152,12 +163,25 @@ const CreateAssetPage = () => {
         setUploadProgress(10);
 
         try {
+            // Prepare Description (Merge User Desc + Technical Metadata)
+            let finalDescription = formData.description;
+            if (technicalMetadata) {
+                // If technical metadata exists, we wrap it.
+                // We assume the system expects the ROOT JSON to contain frame info.
+                // So we spread metadata and add a 'userDescription' field.
+                const merged = {
+                    ...technicalMetadata,
+                    description: formData.description // keep user text in 'description' field within JSON
+                };
+                finalDescription = JSON.stringify(merged);
+            }
+
             // Step 1: Create asset in DB
             setUploadProgress(20);
             const asset = await marketplaceService.createAsset({
                 name: formData.name,
                 price: formData.price,
-                description: formData.description || null,
+                description: finalDescription || null,
                 isPublic: formData.isPublic,
                 tags: formData.tags.join(','),
                 assetType: formData.assetType
@@ -166,6 +190,7 @@ const CreateAssetPage = () => {
             setUploadProgress(30);
 
             // Step 1.5: Upload Thumbnail (if exists)
+            // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
             if (thumbnailFile) {
                 const { uploadUrl } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
                 if (uploadUrl) {
@@ -175,9 +200,10 @@ const CreateAssetPage = () => {
                         headers: { 'Content-Type': thumbnailFile.type }
                     });
 
-                    // Update asset with imageUrl
-                    const cleanUrl = uploadUrl.split('?')[0];
-                    await marketplaceService.updateAsset(asset.id, { imageUrl: cleanUrl });
+                    // Update asset with PROXY URL
+                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
+                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${asset.id}?imageType=thumbnail`;
+                    await marketplaceService.updateAsset(asset.id, { imageUrl: proxyUrl });
                 }
             }
             setUploadProgress(40);
@@ -211,7 +237,14 @@ const CreateAssetPage = () => {
 
             // Success!
             setTimeout(() => {
-                navigate(`/assets/${asset.id}`);
+                const locState = (location.state as any);
+                if (locState?.returnToEditor && locState?.gameId) {
+                    // Navigate back to Editor
+                    navigate(`/editor/${locState.gameId}?newAssetId=${asset.id}`);
+                } else {
+                    // Navigate to Detail Page
+                    navigate(`/assets/${asset.id}`);
+                }
             }, 500);
 
         } catch (err) {
