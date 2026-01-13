@@ -8,6 +8,7 @@ import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
+import { assetToEntity } from "./utils/assetToEntity";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -348,43 +349,23 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         };
 
         renderer.onPointerUp = (worldX, worldY) => {
-            const activeDragged = draggedAssetRef.current;
-            if (activeDragged && activeDragged.tag !== "Tile") {
-                if (ghostIdRef.current) {
-                    renderer.remove(ghostIdRef.current);
-                    ghostIdRef.current = null;
-                }
-
-                const id = crypto.randomUUID();
-                const created: EditorEntity = {
-                    id,
-                    type: activeDragged.tag as "sprite" | "container" | "nineSlice",
-                    name: activeDragged.name,
-                    texture: activeDragged.name,
-                    x: worldX,
-                    y: worldY,
-                    z: 0,
-                    rotation: 0,
-                    scaleX: 1,
-                    scaleY: 1,
-                    role: "neutral",
-                    logic: buildLogicItems({
-                        components: [],
-                    }),
-                    components: [],
-                    variables: [],
-                    events: [],
-                    modules: [createDefaultModuleGraph()],
-                };
-                addEntityRef.current(created);
-                gameCore.createEntity(created.id, created.type, created.x, created.y, {
-                    name: created.name,
-                    texture: created.texture ?? created.name,
-                    variables: created.variables,
-                    components: [],
-                    modules: created.modules,
-                });
+        const activeDragged = draggedAssetRef.current;
+        if (activeDragged && activeDragged.tag !== "Tile") {
+            if (ghostIdRef.current) {
+                renderer.remove(ghostIdRef.current);
+                ghostIdRef.current = null;
             }
+
+            const entity = assetToEntity(activeDragged, worldX, worldY);
+            addEntityRef.current(entity);
+            gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
+                name: entity.name,
+                texture: entity.texture ?? entity.name,
+                variables: entity.variables,
+                components: splitLogicItems(entity.logic),
+                modules: entity.modules,
+            });
+        }
 
             renderer.clearPreviewTile();
             isPointerDownRef.current = false;
