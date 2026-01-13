@@ -126,30 +126,7 @@ function TopBarMenu({
     );
 }
 
-function cloneEntityForPaste(source: EditorEntity): EditorEntity {
-    const cloned = JSON.parse(JSON.stringify(source)) as EditorEntity;
-    const baseComponents = cloned.components ?? splitLogicItems(cloned.logic);
-    const components = baseComponents.map((comp) => ({
-        ...comp,
-        id: crypto.randomUUID(),
-    }));
-    const modules = (cloned.modules && cloned.modules.length > 0)
-        ? cloned.modules
-        : [createDefaultModuleGraph()];
-
-    return {
-        ...cloned,
-        id: crypto.randomUUID(),
-        name: `${source.name} Copy`,
-        x: (source.x ?? 0) + 20,
-        y: (source.y ?? 0) + 20,
-        variables: (cloned.variables ?? []).map((v) => ({ ...v, id: crypto.randomUUID() })),
-        events: (cloned.events ?? []).map((ev) => ({ ...ev, id: crypto.randomUUID() })),
-        components,
-        logic: buildLogicItems({ components }),
-        modules,
-    };
-}
+// function cloneEntityForPaste... Removed (logic moved to EditorCore)
 
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
@@ -403,11 +380,39 @@ function EditorLayoutInner() {
 
             const isMeta = e.ctrlKey || e.metaKey;
 
+            if (isMeta && (e.key === "z" || e.key === "Z")) {
+                if (mode !== "dev") return;
+                e.preventDefault();
+                if (e.shiftKey) {
+                    core.redo();
+                } else {
+                    core.undo();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "y" || e.key === "Y")) {
+                if (mode !== "dev") return;
+                e.preventDefault();
+                core.redo();
+                return;
+            }
+
             if (isMeta && (e.key === "c" || e.key === "C")) {
                 if (mode !== "dev") return;
                 const selected = core.getSelectedEntity();
                 if (selected) {
-                    copyEntityRef.current = JSON.parse(JSON.stringify(selected)) as EditorEntity;
+                    core.copy(selected);
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (isMeta && (e.key === "x" || e.key === "X")) {
+                if (mode !== "dev") return;
+                const selected = core.getSelectedEntity();
+                if (selected) {
+                    core.cut(selected);
                     e.preventDefault();
                 }
                 return;
@@ -415,12 +420,7 @@ function EditorLayoutInner() {
 
             if (isMeta && (e.key === "v" || e.key === "V")) {
                 if (mode !== "dev") return;
-                const source = copyEntityRef.current;
-                if (!source) return;
-                const clone = cloneEntityForPaste(source);
-                core.addEntity(clone as any);
-                core.setSelectedEntity(clone as any);
-                setLocalSelectedEntity(clone);
+                core.paste();
                 e.preventDefault();
                 return;
             }
@@ -898,11 +898,15 @@ function EditorLayoutInner() {
 
                         {/* Edit Menu */}
                         <TopBarMenu label="edit">
-                            <MenuItem label="Undo" onClick={() => { alert("Undo - Coming Soon"); }} />
-                            <MenuItem label="Redo" onClick={() => { alert("Redo - Coming Soon"); }} />
-                            <MenuItem label="Cut" onClick={() => { alert("Cut - Coming Soon"); }} />
-                            <MenuItem label="Copy" onClick={() => { alert("Copy - Coming Soon"); }} />
-                            <MenuItem label="Paste" onClick={() => { alert("Paste - Coming Soon"); }} />
+                            <MenuItem label="Undo (Ctrl+Z)" onClick={() => core.undo()} />
+                            <MenuItem label="Redo (Ctrl+Y)" onClick={() => core.redo()} />
+                            <MenuItem label="Cut (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
+                            <MenuItem label="Copy (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
+                            <MenuItem label="Paste (Ctrl+V)" onClick={() => core.paste()} />
+                            <MenuItem label="Delete (Del)" onClick={() => {
+                                const selected = core.getSelectedEntity();
+                                if (selected) core.removeEntity(selected.id);
+                            }} />
                         </TopBarMenu>
 
                     </div>

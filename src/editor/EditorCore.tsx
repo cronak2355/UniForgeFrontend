@@ -46,6 +46,14 @@ export class EditorState implements IGameState {
     private draggedAsset: Asset | null = null;
     private selectedEntity: EditorEntity | null = null;
 
+    // History System
+    private history: string[] = [];
+    private historyIndex: number = -1;
+    private readonly MAX_HISTORY = 50;
+
+    // Clipboard System
+    private clipboard: EditorEntity | null = null;
+
     private editorMode: EditorMode = new CameraMode();
 
     private listeners: (() => void)[] = [];
@@ -97,367 +105,480 @@ export class EditorState implements IGameState {
         // Initialize default scene
         this.createScene("Scene 1", "default");
         this.loadDemoScene();
+        this.createScene("Scene 1", "default");
+        this.loadDemoScene();
+
+        // Initial snapshot
+        this.snapshot();
     }
 
-    public loadDemoScene() {
+    // --- History System ---
+    private snapshot() {
+        // Serialize current scene data (only entities and tiles for now as they are scene-specific)
         const scene = this.getCurrentScene();
         if (!scene) return;
 
-        // Skip if scene already has entities (e.g., loaded from autosave)
-        if (scene.entities.size > 0) return;
-
-        // 1. Player Entity - has HP and MaxHP variables
-        const playerId = crypto.randomUUID();
-        const playerEntity: EditorEntity = {
-            id: playerId,
-            name: "Player (Demo)",
-            type: "sprite",
-            role: "player",
-            tags: ["player"],
-            events: [],
-            x: 400,
-            y: 450,
-            z: 0,
-            rotation: 0,
-            rotationX: 0,
-            rotationY: 0,
-            rotationZ: 0,
-            scaleX: 1,
-            scaleY: 1,
-            texture: "dragon",
-            variables: [
-                { id: crypto.randomUUID(), name: "HP", type: "float", value: 50 },
-                { id: crypto.randomUUID(), name: "MaxHP", type: "float", value: 100 },
-                { id: crypto.randomUUID(), name: "Score", type: "int", value: 0 },
-            ],
-            components: [],
-            logic: []
-        };
-        scene.entities.set(playerId, playerEntity);
-
-        // 2. Health Bar Entity - CLEAN, no pre-linked variables
-        // User should manually select Source Entity and Value Var
-        const barId = crypto.randomUUID();
-        const barEntity: EditorEntity = {
-            id: barId,
-            name: "Health Bar (Demo)",
-            type: "container",
-            role: "none",
-            events: [],
-            x: 400,
-            y: 100,
-            z: 100,
-            rotation: 0,
-            rotationX: 0,
-            rotationY: 0,
-            rotationZ: 0,
-            scaleX: 1,
-            scaleY: 1,
-            variables: [
-                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
-                { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
-                { id: crypto.randomUUID(), name: "height", type: "float", value: 30 },
-                { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
-                { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
-                // NO pre-linked variables - user selects manually
-            ],
-            components: [],
-            logic: []
-        };
-        scene.entities.set(barId, barEntity);
-
-        // 3. Score Text Entity - CLEAN, no pre-linked variables
-        const textId = crypto.randomUUID();
-        const textEntity: EditorEntity = {
-            id: textId,
-            name: "Score Text (Demo)",
-            type: "sprite",
-            role: "none",
-            events: [],
-            x: 400,
-            y: 50,
-            z: 100,
-            rotation: 0,
-            rotationX: 0,
-            rotationY: 0,
-            rotationZ: 0,
-            scaleX: 1,
-            scaleY: 1,
-            variables: [
-                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
-                { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Score: 0" },
-                { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 24 },
-                { id: crypto.randomUUID(), name: "uiAlign", type: "string", value: "center" },
-                // NO pre-linked variables - user selects manually
-            ],
-            components: [],
-            logic: []
-        };
-        scene.entities.set(textId, textEntity);
-    }
-
-    subscribe(listener: () => void) {
-        this.listeners.push(listener);
-        return () => {
-            this.listeners = this.listeners.filter((l) => l !== listener);
-        };
-    }
-
-    private notify() {
-        this.listeners.forEach((l) => l());
-    }
-
-    // --- Global Entity Management (Scene-Independent) ---
-    getGlobalEntities(): Map<string, EditorEntity> {
-        return this.globalEntities;
-    }
-
-    getGlobalEntity(id: string): EditorEntity | undefined {
-        return this.globalEntities.get(id);
-    }
-
-    createGlobalEntity(name: string, variables: EditorVariable[]): string {
-        const id = `global-${crypto.randomUUID()}`;
-        const entity: EditorEntity = {
-            id,
-            name,
-            type: "container",
-            role: "none",
-            events: [],
-            x: 0, y: 0, z: 0,
-            rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
-            scaleX: 1, scaleY: 1,
-            variables,
-            components: [],
-            logic: []
-        };
-        this.globalEntities.set(id, entity);
-        this.notify();
-        return id;
-    }
-
-    updateGlobalEntity(entity: EditorEntity) {
-        if (this.globalEntities.has(entity.id)) {
-            this.globalEntities.set(entity.id, entity);
-            this.notify();
-        }
-    }
-
-    removeGlobalEntity(id: string) {
-        this.globalEntities.delete(id);
-        this.notify();
-    }
-
-
-    // --- Scene Management ---
-    getScenes() { return this.scenes; }
-    getCurrentSceneId() { return this.currentSceneId; }
-    getCurrentScene() { return this.scenes.get(this.currentSceneId); }
-
-    createScene(name: string, id?: string): string {
-        const newId = id || crypto.randomUUID();
-        this.scenes.set(newId, {
-            id: newId,
-            name,
-            entities: new Map(),
-            tiles: new Map()
+        const state = JSON.stringify({
+            entities: Array.from(scene.entities.entries()),
+            tiles: Array.from(scene.tiles.entries()),
+            globalEntities: Array.from(this.globalEntities.entries())
         });
-        this.currentSceneId = newId; // Auto-switch to new scene
-        this.notify();
-        return newId;
+
+        // If we are not at the end, truncate future history
+        if (this.historyIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.historyIndex + 1);
+        }
+
+        this.history.push(state);
+        if (this.history.length > this.MAX_HISTORY) {
+            this.history.shift();
+        } else {
+            this.historyIndex++;
+        }
+        console.log(`[EditorCore] Snapshot taken. Index: ${this.historyIndex}, Total: ${this.history.length}`);
     }
 
-    switchScene(id: string) {
-        if (this.scenes.has(id)) {
-            this.currentSceneId = id;
-            this.selectedEntity = null; // Deselect on switch
-            this.notify();
+    public undo() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            this.restoreState(this.history[this.historyIndex]);
+            console.log(`[EditorCore] Undo. Index: ${this.historyIndex}`);
         }
     }
 
-    renameScene(id: string, newName: string) {
-        const scene = this.scenes.get(id);
-        if (scene) {
-            scene.name = newName;
-            this.notify();
+    public redo() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            this.restoreState(this.history[this.historyIndex]);
+            console.log(`[EditorCore] Redo. Index: ${this.historyIndex}`);
         }
     }
 
-    removeScene(id: string) {
-        if (this.scenes.size <= 1) {
-            console.warn("Cannot remove the last scene.");
-            return;
-        }
+    private restoreState(jsonState: string) {
+        try {
+            const state = JSON.parse(jsonState);
+            const scene = this.getCurrentScene();
+            if (!scene) return;
 
-        const scene = this.scenes.get(id);
-        if (scene) {
-            // Explicitly clear data (as requested/implied for safety)
-            scene.entities.clear();
-            scene.tiles.clear();
+            // Restore Entities
+            scene.entities = new Map(state.entities);
 
-            if (this.scenes.delete(id)) {
-                if (this.currentSceneId === id) {
-                    // Switch to first available scene
-                    const next = this.scenes.keys().next().value;
-                    if (next) {
-                        this.currentSceneId = next;
-                        this.selectedEntity = null;
-                    }
-                }
-                this.notify();
-            }
-        }
-    }
+            // Restore Tiles
+            scene.tiles = new Map(state.tiles);
 
-    // --- Asset Management (Global) ---
-    getAssets() { return this.assets; }
-    getModules() { return this.modules; }
-    getEntities() {
-        return this.getCurrentScene()?.entities ?? this.entities;
-    }
-    getEntity(id: string) {
-        return this.getCurrentScene()?.entities.get(id) ?? this.entities.get(id);
-    }
-    hasEntity(id: string) {
-        return this.getCurrentScene()?.entities.has(id) ?? this.entities.has(id);
-    }
-    getTiles() {
-        return this.getCurrentScene()?.tiles ?? this.tiles;
-    }
-    getSelectedAsset() { return this.selectedAsset; }
-    getDraggedAsset() { return this.draggedAsset; }
+            // Restore Global
+            this.globalEntities = new Map(state.globalEntities);
 
-    addModule(module: ModuleGraph) {
-        this.modules.push(module);
-        this.notify();
-    }
-
-    updateModule(module: ModuleGraph) {
-        const idx = this.modules.findIndex((m) => m.id === module.id);
-        if (idx === -1) return;
-        this.modules[idx] = module;
-        this.notify();
-    }
-
-    removeModule(moduleId: string) {
-        this.modules = this.modules.filter((m) => m.id !== moduleId);
-        this.notify();
-    }
-
-    setModules(modules: ModuleGraph[]) {
-        this.modules = modules;
-        this.notify();
-    }
-
-    setSelectedAsset(asset: Asset | null) {
-        this.selectedAsset = asset;
-        this.notify();
-    }
-
-    setDraggedAsset(asset: Asset | null) {
-        this.draggedAsset = asset;
-        this.notify();
-    }
-    getSelectedEntity() { return this.selectedEntity; }
-    getEditorMode() { return this.editorMode; }
-
-    setSelectedEntity(entity: EditorEntity | null) {
-        this.selectedEntity = entity;
-        this.notify();
-    }
-
-    addAsset(asset: Asset) {
-        this.assets.push(asset);
-        this.notify();
-    }
-
-    addEntity(entity: EditorEntity) {
-        const scene = this.getCurrentScene();
-        if (!scene) return;
-
-        if (!entity.id) {
-            entity.id = crypto.randomUUID();
-        }
-        // [User Request] Default depth 10 for testing
-        if (entity.z === undefined) {
-            entity.z = 10;
-        }
-        const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
-        scene.entities.set(entity.id, normalized);
-        if (this.selectedEntity?.id === entity.id) {
-            this.selectedEntity = normalized;
-        }
-        this.notify();
-    }
-
-    setTile(x: number, y: number, tile: number) {
-        const scene = this.getCurrentScene();
-        if (!scene) return;
-
-        const key = `${x},${y}`;
-        scene.tiles.set(key, { x, y, tile });
-        this.notify();
-    }
-
-    removeTile(x: number, y: number) {
-        const scene = this.getCurrentScene();
-        if (!scene) return;
-
-        const key = `${x},${y}`;
-        if (scene.tiles.delete(key)) {
-            this.notify();
-        }
-    }
-
-    removeEntity(id: string) {
-        const scene = this.getCurrentScene();
-        if (!scene) return;
-
-        if (scene.entities.delete(id)) {
-            if (this.selectedEntity?.id === id) {
+            // Restore selection if possible (check if ID exists)
+            if (this.selectedEntity && !scene.entities.has(this.selectedEntity.id)) {
                 this.selectedEntity = null;
             }
+
             this.notify();
+        } catch (e) {
+            console.error("Failed to restore state", e);
         }
     }
 
-    clear() {
-        // Only clear current scene
-        const scene = this.getCurrentScene();
-        if (scene) {
-            scene.entities.clear();
-            scene.tiles.clear();
-            this.notify();
-        }
+    // --- Clipboard System ---
+    public copy(entity: EditorEntity | null) {
+        if (!entity) return;
+        this.clipboard = JSON.parse(JSON.stringify(entity));
+        console.log("[EditorCore] Copied:", this.clipboard?.name);
     }
 
-    // Clear ALL scenes (for project load)
-    clearAll() {
-        this.scenes.clear();
-        this.assets = [];
-        this.createScene("Scene 1", "default");
+    public cut(entity: EditorEntity | null) {
+        if (!entity) return;
+        this.copy(entity);
+        this.removeEntity(entity.id);
+    }
+
+    public paste() {
+        if (!this.clipboard) return;
+
+        const source = this.clipboard;
+        // Clone logic adapted from EditorLayout
+        const cloned: EditorEntity = JSON.parse(JSON.stringify(source));
+
+        cloned.id = crypto.randomUUID();
+        cloned.name = `${source.name} Copy`;
+        cloned.x = (source.x ?? 0) + 20;
+        cloned.y = (source.y ?? 0) + 20;
+
+        // Deep clone internal IDs
+        if (cloned.variables) cloned.variables = cloned.variables.map(v => ({ ...v, id: crypto.randomUUID() }));
+        if (cloned.events) cloned.events = cloned.events.map(e => ({ ...e, id: crypto.randomUUID() }));
+        // TODO: Deep clone logic components interaction logic if strictly needed, 
+        // usually UUIDs in logic need re-mapping, but for simple copy it might suffice.
+
+        this.addEntity(cloned);
+        this.setSelectedEntity(cloned);
+    }
+    const scene = this.getCurrentScene();
+    if(!scene) return;
+
+    // Skip if scene already has entities (e.g., loaded from autosave)
+    if(scene.entities.size > 0) return;
+
+// 1. Player Entity - has HP and MaxHP variables
+const playerId = crypto.randomUUID();
+const playerEntity: EditorEntity = {
+    id: playerId,
+    name: "Player (Demo)",
+    type: "sprite",
+    role: "player",
+    tags: ["player"],
+    events: [],
+    x: 400,
+    y: 450,
+    z: 0,
+    rotation: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    scaleX: 1,
+    scaleY: 1,
+    texture: "dragon",
+    variables: [
+        { id: crypto.randomUUID(), name: "HP", type: "float", value: 50 },
+        { id: crypto.randomUUID(), name: "MaxHP", type: "float", value: 100 },
+        { id: crypto.randomUUID(), name: "Score", type: "int", value: 0 },
+    ],
+    components: [],
+    logic: []
+};
+scene.entities.set(playerId, playerEntity);
+
+// 2. Health Bar Entity - CLEAN, no pre-linked variables
+// User should manually select Source Entity and Value Var
+const barId = crypto.randomUUID();
+const barEntity: EditorEntity = {
+    id: barId,
+    name: "Health Bar (Demo)",
+    type: "container",
+    role: "none",
+    events: [],
+    x: 400,
+    y: 100,
+    z: 100,
+    rotation: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    scaleX: 1,
+    scaleY: 1,
+    variables: [
+        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
+        { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
+        { id: crypto.randomUUID(), name: "height", type: "float", value: 30 },
+        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
+        { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
+        // NO pre-linked variables - user selects manually
+    ],
+    components: [],
+    logic: []
+};
+scene.entities.set(barId, barEntity);
+
+// 3. Score Text Entity - CLEAN, no pre-linked variables
+const textId = crypto.randomUUID();
+const textEntity: EditorEntity = {
+    id: textId,
+    name: "Score Text (Demo)",
+    type: "sprite",
+    role: "none",
+    events: [],
+    x: 400,
+    y: 50,
+    z: 100,
+    rotation: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    scaleX: 1,
+    scaleY: 1,
+    variables: [
+        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
+        { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Score: 0" },
+        { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 24 },
+        { id: crypto.randomUUID(), name: "uiAlign", type: "string", value: "center" },
+        // NO pre-linked variables - user selects manually
+    ],
+    components: [],
+    logic: []
+};
+scene.entities.set(textId, textEntity);
+    }
+
+subscribe(listener: () => void) {
+    this.listeners.push(listener);
+    return () => {
+        this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+}
+
+    private notify() {
+    this.listeners.forEach((l) => l());
+}
+
+// --- Global Entity Management (Scene-Independent) ---
+getGlobalEntities(): Map < string, EditorEntity > {
+    return this.globalEntities;
+}
+
+getGlobalEntity(id: string): EditorEntity | undefined {
+    return this.globalEntities.get(id);
+}
+
+createGlobalEntity(name: string, variables: EditorVariable[]): string {
+    this.snapshot();
+    const id = `global-${crypto.randomUUID()}`;
+    const entity: EditorEntity = {
+        id,
+        name,
+        type: "container",
+        role: "none",
+        events: [],
+        x: 0, y: 0, z: 0,
+        rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
+        scaleX: 1, scaleY: 1,
+        variables,
+        components: [],
+        logic: []
+    };
+    this.globalEntities.set(id, entity);
+    this.notify();
+    return id;
+}
+
+updateGlobalEntity(entity: EditorEntity) {
+    if (this.globalEntities.has(entity.id)) {
+        this.globalEntities.set(entity.id, entity);
         this.notify();
     }
+}
 
-    // Completely empty state (for deserialization)
-    reset() {
-        this.scenes.clear();
-        this.assets = [];
-        this.selectedEntity = null;
-        this.draggedAsset = null;
-        this.selectedAsset = null;
-        this.currentSceneId = ""; // No scene active
+removeGlobalEntity(id: string) {
+    this.globalEntities.delete(id);
+    this.notify();
+}
+
+
+// --- Scene Management ---
+getScenes() { return this.scenes; }
+getCurrentSceneId() { return this.currentSceneId; }
+getCurrentScene() { return this.scenes.get(this.currentSceneId); }
+
+createScene(name: string, id ?: string): string {
+    this.snapshot();
+    const newId = id || crypto.randomUUID();
+    this.scenes.set(newId, {
+        id: newId,
+        name,
+        entities: new Map(),
+        tiles: new Map()
+    });
+    this.currentSceneId = newId; // Auto-switch to new scene
+    this.notify();
+    return newId;
+}
+
+switchScene(id: string) {
+    if (this.scenes.has(id)) {
+        this.currentSceneId = id;
+        this.selectedEntity = null; // Deselect on switch
         this.notify();
     }
+}
 
-    sendContextToEditorModeStateMachine(ctx: EditorContext) {
-        if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
-            this.editorMode = ctx.currentMode;
+renameScene(id: string, newName: string) {
+    const scene = this.scenes.get(id);
+    if (scene) {
+        scene.name = newName;
+        this.notify();
+    }
+}
+
+removeScene(id: string) {
+    this.snapshot();
+    if (this.scenes.size <= 1) {
+        console.warn("Cannot remove the last scene.");
+        return;
+    }
+
+    const scene = this.scenes.get(id);
+    if (scene) {
+        // Explicitly clear data (as requested/implied for safety)
+        scene.entities.clear();
+        scene.tiles.clear();
+
+        if (this.scenes.delete(id)) {
+            if (this.currentSceneId === id) {
+                // Switch to first available scene
+                const next = this.scenes.keys().next().value;
+                if (next) {
+                    this.currentSceneId = next;
+                    this.selectedEntity = null;
+                }
+            }
             this.notify();
         }
     }
+}
+
+// --- Asset Management (Global) ---
+getAssets() { return this.assets; }
+getModules() { return this.modules; }
+getEntities() {
+    return this.getCurrentScene()?.entities ?? this.entities;
+}
+getEntity(id: string) {
+    return this.getCurrentScene()?.entities.get(id) ?? this.entities.get(id);
+}
+hasEntity(id: string) {
+    return this.getCurrentScene()?.entities.has(id) ?? this.entities.has(id);
+}
+getTiles() {
+    return this.getCurrentScene()?.tiles ?? this.tiles;
+}
+getSelectedAsset() { return this.selectedAsset; }
+getDraggedAsset() { return this.draggedAsset; }
+
+addModule(module: ModuleGraph) {
+    this.modules.push(module);
+    this.notify();
+}
+
+updateModule(module: ModuleGraph) {
+    const idx = this.modules.findIndex((m) => m.id === module.id);
+    if (idx === -1) return;
+    this.modules[idx] = module;
+    this.notify();
+}
+
+removeModule(moduleId: string) {
+    this.modules = this.modules.filter((m) => m.id !== moduleId);
+    this.notify();
+}
+
+setModules(modules: ModuleGraph[]) {
+    this.modules = modules;
+    this.notify();
+}
+
+setSelectedAsset(asset: Asset | null) {
+    this.selectedAsset = asset;
+    this.notify();
+}
+
+setDraggedAsset(asset: Asset | null) {
+    this.draggedAsset = asset;
+    this.notify();
+}
+getSelectedEntity() { return this.selectedEntity; }
+getEditorMode() { return this.editorMode; }
+
+setSelectedEntity(entity: EditorEntity | null) {
+    this.selectedEntity = entity;
+    this.notify();
+}
+
+addAsset(asset: Asset) {
+    this.assets.push(asset);
+    this.notify();
+}
+
+addEntity(entity: EditorEntity) {
+    this.snapshot();
+    const scene = this.getCurrentScene();
+    if (!scene) return;
+
+    if (!entity.id) {
+        entity.id = crypto.randomUUID();
+    }
+    // [User Request] Default depth 10 for testing
+    if (entity.z === undefined) {
+        entity.z = 10;
+    }
+    const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
+    scene.entities.set(entity.id, normalized);
+    if (this.selectedEntity?.id === entity.id) {
+        this.selectedEntity = normalized;
+    }
+    this.notify();
+}
+
+setTile(x: number, y: number, tile: number) {
+    this.snapshot();
+    const scene = this.getCurrentScene();
+    if (!scene) return;
+
+    const key = `${x},${y}`;
+    scene.tiles.set(key, { x, y, tile });
+    this.notify();
+}
+
+removeTile(x: number, y: number) {
+    this.snapshot();
+    const scene = this.getCurrentScene();
+    if (!scene) return;
+
+    const key = `${x},${y}`;
+    if (scene.tiles.delete(key)) {
+        this.notify();
+    }
+}
+
+removeEntity(id: string) {
+    this.snapshot();
+    const scene = this.getCurrentScene();
+    if (!scene) return;
+
+    if (scene.entities.delete(id)) {
+        if (this.selectedEntity?.id === id) {
+            this.selectedEntity = null;
+        }
+        this.notify();
+    }
+}
+
+clear() {
+    // Only clear current scene
+    const scene = this.getCurrentScene();
+    if (scene) {
+        scene.entities.clear();
+        scene.tiles.clear();
+        this.notify();
+    }
+}
+
+// Clear ALL scenes (for project load)
+clearAll() {
+    this.scenes.clear();
+    this.assets = [];
+    this.createScene("Scene 1", "default");
+    this.notify();
+}
+
+// Completely empty state (for deserialization)
+reset() {
+    this.scenes.clear();
+    this.assets = [];
+    this.selectedEntity = null;
+    this.draggedAsset = null;
+    this.selectedAsset = null;
+    this.currentSceneId = ""; // No scene active
+    this.notify();
+}
+
+sendContextToEditorModeStateMachine(ctx: EditorContext) {
+    if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
+        this.editorMode = ctx.currentMode;
+        this.notify();
+    }
+}
 }
 
 export const editorCore = new EditorState();
