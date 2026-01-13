@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
@@ -449,6 +449,8 @@ function EditorLayoutInner() {
     }, [core, mode]);
 
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
+    const runtimeSyncPendingRef = useRef<EditorEntity | null>(null);
+    const runtimeSyncTimerRef = useRef<number | null>(null);
 
     // keep local selection in sync with core selection
     useEffect(() => {
@@ -465,6 +467,36 @@ function EditorLayoutInner() {
         if (!latest) return;
         setLocalSelectedEntity(latest);
     }, [mode, selectedEntity, core]);
+
+    useEffect(() => {
+        return () => {
+            if (runtimeSyncTimerRef.current !== null) {
+                clearTimeout(runtimeSyncTimerRef.current);
+                runtimeSyncTimerRef.current = null;
+            }
+        };
+    }, []);
+
+    const selectedEntityId = selectedEntity?.id ?? null;
+
+    const handleRuntimeEntitySync = useCallback(
+        (runtimeEntity: EditorEntity) => {
+            if (selectedEntityId && runtimeEntity.id !== selectedEntityId) {
+                return;
+            }
+            runtimeSyncPendingRef.current = runtimeEntity;
+            if (runtimeSyncTimerRef.current !== null) return;
+            runtimeSyncTimerRef.current = window.setTimeout(() => {
+                runtimeSyncTimerRef.current = null;
+                const nextEntity = runtimeSyncPendingRef.current;
+                runtimeSyncPendingRef.current = null;
+                if (nextEntity) {
+                    setLocalSelectedEntity(nextEntity);
+                }
+            }, 0);
+        },
+        [selectedEntityId]
+    );
 
     useEffect(() => {
         const prevMode = prevModeRef.current;
@@ -1018,12 +1050,10 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                        <RunTimeCanvas
-                            key={`run-${runSession}`}
-                            onRuntimeEntitySync={(runtimeEntity) => {
-                                setLocalSelectedEntity(runtimeEntity);
-                            }}
-                        />
+                    <RunTimeCanvas
+                        key={`run-${runSession}`}
+                        onRuntimeEntitySync={handleRuntimeEntitySync}
+                    />
                     )}
 
                     {/* Asset Panel (Center Bottom) */}

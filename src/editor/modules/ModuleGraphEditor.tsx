@@ -672,6 +672,13 @@ function FlowNodeEditor({
 }) {
   const selectedAction = node.blockType || availableActions[0] || "";
   const action = useMemo(() => ({ type: selectedAction, ...(node.params ?? {}) }), [selectedAction, node.params]);
+
+  useEffect(() => {
+    if (node.blockType === "Wait" && node.params?.seconds === undefined) {
+      onUpdate({ blockType: "Wait", flowType: "Async", params: { ...(node.params ?? {}), seconds: 1 } });
+    }
+  }, [node.blockType, node.params?.seconds, onUpdate]);
+
   return (
     <>
       <ActionEditor
@@ -684,7 +691,8 @@ function FlowNodeEditor({
         onCreateVariable={onCreateVariable}
         onUpdate={(next) => {
           const { type, ...params } = next;
-          onUpdate({ blockType: type, flowType: "Instant", params });
+          const nextFlowType = type === "Wait" ? "Async" : "Instant";
+          onUpdate({ blockType: type, flowType: nextFlowType, params });
         }}
         onRemove={() => undefined}
         showRemove={false}

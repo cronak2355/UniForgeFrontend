@@ -89,9 +89,14 @@ interface ComponentRuntime {
     initialScale?: { x: number; y: number };
 }
 
+interface LogicActionState {
+    cursor: number;
+    waitingUntil?: number;
+}
+
 /**
  * GameCore - ?붿쭊 ?낅┰??濡쒖쭅 怨꾩링
- * 
+ *
  * ?ㅺ퀎 ?먯튃:
  * 1. ID ?숆린?? ?몃??먯꽌 ?꾨떖諛쏆? ID瑜??ъ슜?섎ŉ, 以묐났 寃???섑뻾
  * 2. ?쒖닔 ?곗씠?? 紐⑤뱺 ?곹깭???쒖닔 JavaScript 媛앹껜濡?愿由?
@@ -115,6 +120,7 @@ export class GameCore {
     private moduleRuntime: ModuleRuntime;
     private moduleLibrary: ModuleGraph[] = [];
     private onModuleUpdate?: (module: ModuleGraph) => void;
+    private logicActionStates: Map<string, LogicActionState> = new Map();
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
     private listeners: Set<() => void> = new Set();
@@ -464,6 +470,7 @@ export class GameCore {
         collisionSystem.clear();
         this.variableSnapshots.clear();
         this.startedComponents.clear();
+        this.logicActionStates.clear();
         this.moduleRuntime.clear();
         this.runtimeContext.clearEntities();
         this.notify();
@@ -507,6 +514,11 @@ export class GameCore {
         for (const key of this.startedComponents) {
             if (key.startsWith(`${id}:`)) {
                 this.startedComponents.delete(key);
+            }
+        }
+        for (const key of Array.from(this.logicActionStates.keys())) {
+            if (key.startsWith(`${id}:`)) {
+                this.logicActionStates.delete(key);
             }
         }
 
@@ -685,6 +697,7 @@ export class GameCore {
         this.componentRuntimes = this.componentRuntimes.filter(
             r => !(r.entityId === entityId && r.component.id === componentId)
         );
+        this.logicActionStates.delete(`${entityId}:${componentId}`);
 
         this.notify();
     }
@@ -860,17 +873,37 @@ export class GameCore {
 
             case "Logic": {
                 const logic = comp as LogicComponent;
+                const stateKey = `${entity.id}:${comp.id}`;
+                const actions = logic.actions ?? [];
+                let state = this.logicActionStates.get(stateKey);
 
-                // 1. 이벤트(트리거) 체크
                 if (logic.event === "OnStart") {
-                    const key = `${entity.id}:${comp.id}`;
-                    if (this.startedComponents.has(key)) break;
-                    this.startedComponents.add(key);
-                } // OnUpdate는 항상 통과
+                    const hasStarted = this.startedComponents.has(stateKey);
+                    if (hasStarted && !state) break;
+                    if (!hasStarted) {
+                        this.startedComponents.add(stateKey);
+                    }
+                }
 
-                // 2. 조건 배열 평가
-                const conditions = logic.conditions || [];
-                const conditionLogic = logic.conditionLogic ?? "AND";
+                if (state?.waitingUntil !== undefined) {
+                    if (time < state.waitingUntil) {
+                        return;
+                    }
+                    const nextCursor = Math.min((state.cursor ?? 0) + 1, actions.length);
+                    if (nextCursor >= actions.length) {
+                        this.logicActionStates.delete(stateKey);
+                        break;
+                    }
+                    state = { cursor: nextCursor };
+                    this.logicActionStates.set(stateKey, state);
+                } else {
+                    state = { cursor: state?.cursor ?? 0 };
+                }
+
+                if (actions.length === 0) {
+                    this.logicActionStates.delete(stateKey);
+                    break;
+                }
 
                 const ctx: ActionContext = {
                     entityId: entity.id,
@@ -884,25 +917,48 @@ export class GameCore {
                     entityContext: this.runtimeContext.getEntityContext(entity.id),
                 };
 
+                const conditions = logic.conditions || [];
+                const conditionLogic = logic.conditionLogic ?? "AND";
+
                 let conditionsPassed = false;
                 if (conditions.length === 0) {
                     conditionsPassed = true;
                 } else if (conditionLogic === "AND") {
-                    conditionsPassed = conditions.every(c =>
+                    conditionsPassed = conditions.every((c) =>
                         ConditionRegistry.check(c.type, ctx, c as Record<string, unknown>)
                     );
                 } else {
-                    conditionsPassed = conditions.some(c =>
+                    conditionsPassed = conditions.some((c) =>
                         ConditionRegistry.check(c.type, ctx, c as Record<string, unknown>)
                     );
                 }
 
                 if (!conditionsPassed) break;
 
-                // 3. 액션 배열 실행
-                for (const action of logic.actions) {
-                    ActionRegistry.run(action.type, ctx, action as Record<string, unknown>);
+                let cursor = Math.min(state.cursor ?? 0, actions.length);
+                if (cursor >= actions.length) {
+                    this.logicActionStates.delete(stateKey);
+                    break;
                 }
+
+                for (let i = cursor; i < actions.length; i++) {
+                    const action = actions[i];
+                    if (action.type === "Wait") {
+                        const seconds = Number(action.seconds ?? action.duration ?? 0);
+                        if (seconds <= 0) {
+                            state.cursor = i + 1;
+                            continue;
+                        }
+                        state.cursor = i;
+                        state.waitingUntil = time + seconds * 1000;
+                        this.logicActionStates.set(stateKey, state);
+                        return;
+                    }
+                    ActionRegistry.run(action.type, ctx, action as Record<string, unknown>);
+                    state.cursor = i + 1;
+                }
+
+                this.logicActionStates.delete(stateKey);
                 break;
             }
         }
@@ -943,6 +999,7 @@ export class GameCore {
                 if (!componentId) return false;
                 {
                     const key = `${entity.id}:${componentId}`;
+                    if (this.logicActionStates.has(key)) return true;
                     if (this.startedComponents.has(key)) return false;
                     this.startedComponents.add(key);
                     console.log("[OnStart] component triggered", {

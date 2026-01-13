@@ -191,6 +191,10 @@ ActionRegistry.register("Jump", (_ctx: ActionContext, _params: Record<string, un
     console.log("[Action] Jump: handled by runtime physics");
 });
 
+ActionRegistry.register("Wait", (_ctx: ActionContext, _params: Record<string, unknown>) => {
+    // Placeholder action - runtime sequences in GameCore handle the wait timing.
+});
+
 ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string, unknown>) => {
     const renderer = ctx.globals?.renderer as any;
     if (!renderer) return;
