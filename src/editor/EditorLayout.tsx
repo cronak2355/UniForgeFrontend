@@ -262,7 +262,7 @@ function EditorLayoutInner() {
     const [mode, setMode] = useState<Mode>("dev");
     const prevModeRef = useRef<Mode>(mode);
     const [runSession, setRunSession] = useState(0);
-    const [dropModalFile, setDropModalFile] = useState<File | null>(null);
+    const [dropModalFiles, setDropModalFiles] = useState<File[]>([]);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
     // const [isFileMenuOpen, setIsFileMenuOpen] = useState(false); // REMOVED
@@ -487,7 +487,7 @@ function EditorLayoutInner() {
     }, [mode, core]);
 
     const resetDropModal = () => {
-        setDropModalFile(null);
+        setDropModalFiles([]);
         setDropAssetName("");
         setDropAssetTag("Character");
         setIsUploadingAsset(false);
@@ -541,34 +541,50 @@ function EditorLayoutInner() {
     }, [newAssetId, core]);
 
     useEffect(() => {
-        if (!dropModalFile) return;
-        const base = dropModalFile.name.replace(/\.[^/.]+$/, "");
-        setDropAssetName(base);
-    }, [dropModalFile]);
+        if (dropModalFiles.length === 0) return;
+        if (dropModalFiles.length === 1) {
+            const base = dropModalFiles[0].name.replace(/\.[^/.]+$/, "");
+            setDropAssetName(base);
+        } else {
+            setDropAssetName(`${dropModalFiles.length} files`);
+        }
+    }, [dropModalFiles]);
 
     const handleAddAsset = async () => {
-        if (!dropModalFile || isUploadingAsset) return;
-
-        const name = dropAssetName.trim();
-
-        if (!name) {
-            setUploadError("Name is required.");
-            return;
-        }
+        if (dropModalFiles.length === 0 || isUploadingAsset) return;
 
         setIsUploadingAsset(true);
         setUploadError("");
 
         try {
             const token = localStorage.getItem("token");
-            const result = await assetService.uploadAsset(dropModalFile, name, dropAssetTag, token);
 
-            core.addAsset({
-                id: result.id,
-                tag: result.tag,
-                name: result.name,
-                url: result.url,
-                idx: -1,
+            // Prepare uploads
+            // If single file, use the manually input name.
+            // If multiple, use filename as name.
+            const uploads = dropModalFiles.map(file => {
+                const name = dropModalFiles.length === 1 ? dropAssetName.trim() || file.name : file.name.replace(/\.[^/.]+$/, "");
+                return { file, name, tag: dropAssetTag };
+            });
+
+            if (uploads.some(u => !u.name)) {
+                throw new Error("Name is required.");
+            }
+
+            // Parallel Uploads
+            // isPublic = false for editor uploads (Private)
+            const results = await Promise.all(uploads.map(u =>
+                assetService.uploadAsset(u.file, u.name, u.tag, token, undefined, false)
+            ));
+
+            results.forEach(result => {
+                core.addAsset({
+                    id: result.id,
+                    tag: result.tag,
+                    name: result.name,
+                    url: result.url,
+                    idx: -1,
+                });
             });
 
             resetDropModal();
@@ -965,7 +981,7 @@ function EditorLayoutInner() {
                             assets={assets}
                             selected_asset={selectedAsset}
                             draggedAsset={draggedAsset}
-                            onExternalImageDrop={(file) => setDropModalFile(file)}
+                            onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
                             addEntity={(entity) => {
                                 console.log("? [EditorLayout] new entity:", entity);
                                 core.addEntity(entity as any);
@@ -1061,7 +1077,7 @@ function EditorLayoutInner() {
                 />
             )}
 
-            {dropModalFile && (
+            {dropModalFiles.length > 0 && (
                 <div
                     style={{
                         position: "fixed",
@@ -1093,49 +1109,75 @@ function EditorLayoutInner() {
                             color: colors.textPrimary,
                             marginBottom: "12px",
                         }}>
-                            Image drop detected
+                            {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
                         </div>
-                        <div style={{
-                            background: colors.bgTertiary,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: "8px",
-                            padding: "12px",
-                            color: colors.textSecondary,
-                            fontSize: "12px",
-                            lineHeight: 1.6,
-                        }}>
-                            <div>Filename: {dropModalFile.name}</div>
-                            <div>Type: {dropModalFile.type || "unknown"}</div>
-                            <div>Size: {Math.ceil(dropModalFile.size / 1024)} KB</div>
-                        </div>
+                        {/* Content replaced by previous chunks */}
+                        {dropModalFiles.length === 0 && null}
+                        {dropModalFiles.length > 0 && (
+                            <div style={{
+                                background: colors.bgTertiary,
+                                border: `1px solid ${colors.borderColor}`,
+                                borderRadius: "8px",
+                                padding: "12px",
+                                color: colors.textSecondary,
+                                fontSize: "12px",
+                                lineHeight: 1.6,
+                                maxHeight: "150px",
+                                overflowY: "auto"
+                            }}>
+                                {dropModalFiles.length === 1 ? (
+                                    <>
+                                        <div>Filename: {dropModalFiles[0].name}</div>
+                                        <div>Type: {dropModalFiles[0].type || "unknown"}</div>
+                                        <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
+                                    </>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
+                                            {dropModalFiles.length} files selected:
+                                        </div>
+                                        {dropModalFiles.map((f, i) => (
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                                                    {f.name}
+                                                </span>
+                                                <span>{Math.ceil(f.size / 1024)}KB</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <div style={{
                             marginTop: "14px",
                             display: "grid",
                             gap: "10px",
                         }}>
-                            <label style={{
-                                display: "grid",
-                                gap: "6px",
-                                fontSize: "12px",
-                                color: colors.textSecondary,
-                            }}>
-                                Name
-                                <input
-                                    type="text"
-                                    value={dropAssetName}
-                                    onChange={(e) => setDropAssetName(e.target.value)}
-                                    placeholder="Asset name"
-                                    style={{
-                                        background: colors.bgPrimary,
-                                        border: `1px solid ${colors.borderColor}`,
-                                        borderRadius: "6px",
-                                        padding: "8px 10px",
-                                        color: colors.textPrimary,
-                                        fontSize: "12px",
-                                        outline: "none",
-                                    }}
-                                />
-                            </label>
+                            {dropModalFiles.length === 1 && (
+                                <label style={{
+                                    display: "grid",
+                                    gap: "6px",
+                                    fontSize: "12px",
+                                    color: colors.textSecondary,
+                                }}>
+                                    Name
+                                    <input
+                                        type="text"
+                                        value={dropAssetName}
+                                        onChange={(e) => setDropAssetName(e.target.value)}
+                                        placeholder="Asset name"
+                                        style={{
+                                            background: colors.bgPrimary,
+                                            border: `1px solid ${colors.borderColor}`,
+                                            borderRadius: "6px",
+                                            padding: "8px 10px",
+                                            color: colors.textPrimary,
+                                            fontSize: "12px",
+                                            outline: "none",
+                                        }}
+                                    />
+                                </label>
+                            )}
                             <label style={{
                                 display: "grid",
                                 gap: "6px",

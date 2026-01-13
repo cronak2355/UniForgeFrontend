@@ -17,7 +17,7 @@ type Props = {
     selected_asset: Asset | null;
     addEntity: (entity: EditorEntity) => void;
     draggedAsset: Asset | null;
-    onExternalImageDrop?: (file: File) => void;
+    onExternalImageDrop?: (files: FileList) => void;
     onSelectEntity?: (entity: EditorEntity) => void;
 };
 
@@ -654,11 +654,21 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 onDrop={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    const file = e.dataTransfer?.files?.[0];
-                    if (!file) return;
+                    const files = e.dataTransfer?.files;
+                    if (!files || files.length === 0) return;
+
+                    // Simple check: at least one valid image
                     const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-                    if (!allowedTypes.has(file.type)) return;
-                    onExternalImageDrop?.(file);
+                    let hasImage = false;
+                    for (let i = 0; i < files.length; i++) {
+                        if (allowedTypes.has(files[i].type)) {
+                            hasImage = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasImage) return;
+                    onExternalImageDrop?.(files);
                 }}
                 onMouseLeave={() => {
                     rendererRef.current?.clearPreviewTile();

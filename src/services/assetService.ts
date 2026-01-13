@@ -12,7 +12,8 @@ export const assetService = {
         name: string,
         tag: string,
         token: string | null,
-        metadata?: any
+        metadata?: any,
+        isPublic: boolean = true
     ): Promise<UploadedAssetData> {
         const contentType = file.type || "application/octet-stream";
 
@@ -58,7 +59,7 @@ export const assetService = {
                 name: name,
                 description: metadata ? JSON.stringify(metadata) : "Uploaded from Asset Editor",
                 genre: tag, // Map tag to genre
-                isPublic: true,
+                isPublic: isPublic,
                 price: 0
             }),
         });
