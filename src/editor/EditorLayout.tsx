@@ -1042,8 +1042,6 @@ function EditorLayoutInner() {
                             selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
                             actionLabels={{}}
                             onCreateVariable={handleCreateActionVariable}
-                            actionLabels={{}}
-                            onCreateVariable={handleCreateActionVariable}
                             onUpdateVariable={handleUpdateModuleVariable}
                             onDeleteAsset={async (asset) => {
                                 try {
