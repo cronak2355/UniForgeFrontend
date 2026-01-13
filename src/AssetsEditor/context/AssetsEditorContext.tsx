@@ -113,7 +113,7 @@ export interface AssetsEditorContextType {
   // Library
   assets: Asset[];
   deleteAsset: (id: string) => void;
-  loadAsset: (id: string) => void;
+  loadAsset: (id: string) => Promise<void>;
   triggerBackgroundRemoval: () => void;
 
   // Animation Management (Refactored)
@@ -774,366 +774,621 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [pixelSize, syncFrameState]);
 
-  const loadAIImage = useCallback(async (input: Blob | string) => {
-    if (!engineRef.current) return;
-
-    setIsLoading(true);
-    try {
-      let blob: Blob;
-      if (typeof input === 'string') {
-        const res = await fetch(input);
-        blob = await res.blob();
-      } else {
-        blob = input;
-      }
-
-      const imageBitmap = await createImageBitmap(blob);
-      setOriginalAIImage(imageBitmap);
-      setFeatherAmount(0);
-
-      await processAndApplyImage(imageBitmap, 0);
-
-    } catch (e) {
-      console.error("Failed to load/process AI image", e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [processAndApplyImage]);
-
-  const applyImageData = useCallback((imageData: ImageData) => {
-    if (!engineRef.current) return;
-    engineRef.current.applyAIImage(imageData);
-    updateHistoryState();
-    syncFrameState();
-  }, [updateHistoryState, syncFrameState]);
-
-  const getWorkCanvas = useCallback((): HTMLCanvasElement | null => {
-    if (!engineRef.current) return null;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = pixelSize;
-    tempCanvas.height = pixelSize;
-    const ctx = tempCanvas.getContext('2d');
-    if (!ctx || !canvasRef.current) return null;
-
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(canvasRef.current, 0, 0, pixelSize, pixelSize);
-    return tempCanvas;
-  }, [pixelSize]);
-
-  // ==================== Export ====================
-
-  const downloadWebP = useCallback(async (filename: string) => {
-    if (!engineRef.current) return;
-
-    const base64 = await engineRef.current.exportAsBase64();
-    const link = document.createElement('a');
-    link.href = base64;
-    link.download = filename.endsWith('.webp') ? filename : `${filename}.webp`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, []);
-
-  const exportAsSpriteSheet = useCallback(async (options?: {
-    layout?: SpriteSheetLayout;
-    format?: ExportFormat;
-    includeMetadata?: boolean;
-    animationMap?: Record<string, AnimationData>;
-  }) => {
-    if (!engineRef.current) return;
-
-    // Default to current frames if no animationMap provided (legacy flow)
-    // But caller generally provides map.
-    // If Map is provided, we need to flatten it.
-
-    // This function signature in interface expects options.
-    // We should implement flattening here or let caller helper do it.
-    // Actually, let's keep it robust:
-
-    let framesToExport = engineRef.current.getAllFrames();
-
-    // NOTE: If animationMap is provided in options, we should use THAT for export
-    // But exportSpriteSheet expects Frame[] array.
-    // Constructing Frame[] from ImageData[] is hard without Engine.
-    // So usually we rely on caller to set up engine state OR we update exportSpriteSheet service.
-    // For now, assume simple current-state export if options not fully used, 
-    // OR we will refactor RightPanel to handle the unification.
-
-    // We will stick to simple export of *current* state unless RightPanel handles logic.
-
-    if (framesToExport.length === 0) {
-      alert('No frames to export');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const result = await exportSpriteSheet(
-        framesToExport,
-        pixelSize,
-        options?.layout ?? 'horizontal',
-        options?.format ?? 'webp',
-        0.9
-      );
-
-      downloadBlob(result.blob, result.filename);
-
-      if (options?.includeMetadata !== false) {
-        downloadMetadata(result.metadata);
-      }
-
-      console.log('[SpriteSheet Export] Success:', result.metadata);
-    } catch (e) {
-      console.error('[SpriteSheet Export] Error:', e);
-      alert('Failed to export sprite sheet: ' + (e instanceof Error ? e.message : 'Unknown error'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pixelSize]);
-
-  const saveToLibrary = useCallback(
-    async (name: string, type: Asset['type'], stats: Asset['stats']) => {
-      if (!engineRef.current) return;
-
-      const imageData = await engineRef.current.exportAsBase64();
-      const newAsset: Asset = {
-        id: crypto.randomUUID(),
-        name,
-        type,
-        imageData,
-        stats,
-        createdAt: new Date(),
-      };
-      setAssets((prev) => [...prev, newAsset]);
-    },
-    []
-  );
-
-  const deleteAsset = useCallback((id: string) => {
-    setAssets((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  // ==================== Asset Hydration ====================
 
   const loadAsset = useCallback(async (id: string) => {
+    if (!engineRef.current) return;
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      setCurrentAssetId(id);
-
+      // 1. Fetch from backend
       const asset = await assetService.getAsset(id);
-      if (!asset.url && !(asset as any).imageUrl) throw new Error("Asset has no image URL");
-      const url = (asset as any).imageUrl || asset.url;
+      const url = asset.imageUrl || asset.url;
+      if (!url) throw new Error("Asset has no URL");
 
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const imageBitmap = await createImageBitmap(blob);
+      // 2. Load Image
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
 
-      let meta: any = {};
+      // 3. Parse Metadata
+      let metadata: any = {};
       try {
-        if ((asset as any).description) meta = JSON.parse((asset as any).description);
+        if (asset.description) {
+          metadata = JSON.parse(asset.description);
+        }
       } catch (e) {
         console.warn("Failed to parse asset metadata", e);
       }
 
-      if (meta && meta.frameWidth && meta.frameHeight) {
-        const cols = meta.columns || Math.floor(imageBitmap.width / meta.frameWidth);
-        const rows = meta.rows || Math.floor(imageBitmap.height / meta.frameHeight);
+      // Default if metadata missing
+      const frameW = metadata.frameWidth || img.width;
+      const frameH = metadata.frameHeight || img.height;
+      const targetSize = Math.max(frameW, frameH);
 
-        const framesList: ImageData[] = [];
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = meta.frameWidth;
-        tempCanvas.height = meta.frameHeight;
-        const ctx = tempCanvas.getContext('2d');
-        if (!ctx) throw new Error("No context");
+      // 4. Update Editor Settings
+      setPixelSizeState(targetSize);
+      if (engineRef.current) {
+        engineRef.current.changeResolution(targetSize);
+      }
+      setCurrentAssetId(id);
 
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            if (framesList.length >= meta.frameCount) break;
-            ctx.clearRect(0, 0, meta.frameWidth, meta.frameHeight);
-            ctx.drawImage(imageBitmap,
-              c * meta.frameWidth, r * meta.frameHeight, meta.frameWidth, meta.frameHeight,
-              0, 0, meta.frameWidth, meta.frameHeight
-            );
-            const imgData = ctx.getImageData(0, 0, meta.frameWidth, meta.frameHeight);
-            framesList.push(imgData);
+      // 5. Slice Frames
+      const cols = Math.floor(img.width / frameW);
+      const rows = Math.floor(img.height / frameH);
+
+      const newFrames: ImageData[] = [];
+      const canvas = document.createElement("canvas");
+      canvas.width = frameW;
+      canvas.height = frameH;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      if (ctx) {
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            ctx.clearRect(0, 0, frameW, frameH);
+            ctx.drawImage(img, x * frameW, y * frameH, frameW, frameH, 0, 0, frameW, frameH);
+            newFrames.push(ctx.getImageData(0, 0, frameW, frameH));
           }
         }
+      }
 
-        // Initialize Animation Map from Metadata if available
-        if (meta.animations) {
-          const newMap: Record<string, AnimationData> = {};
-          const animKeys = Object.keys(meta.animations);
+      // 6. Reconstruct Animations
+      if (metadata.animations && Object.keys(metadata.animations).length > 0) {
+        setAnimationMap({}); // clear
+        const newMap: Record<string, AnimationData> = {};
+        let firstAnimName = "";
 
-          animKeys.forEach(key => {
-            const animDef = meta.animations[key];
-            // Map indices to actual ImageData
-            const animFrames = animDef.frames.map((idx: number) => framesList[idx]).filter((f: ImageData) => !!f);
-            newMap[key] = {
-              frames: animFrames,
-              fps: animDef.fps || 8,
-              loop: animDef.loop ?? true
-            };
-          });
+        Object.keys(metadata.animations).forEach((name, idx) => {
+          if (idx === 0) firstAnimName = name;
+          const animDef = metadata.animations[name];
+          // Extract specific frames
+          const animFrames = animDef.frames.map((fIdx: number) => newFrames[fIdx]);
 
-          setAnimationMap(newMap);
+          newMap[name] = {
+            frames: animFrames,
+            fps: animDef.fps || 8,
+            loop: animDef.loop ?? true
+          };
+        });
 
-          // Set Active (first or specific)
-          const initialAnim = animKeys[0] || 'default';
-          setActiveAnimationName(initialAnim);
+        setAnimationMap(newMap);
 
-          // Load initial animation into engine immediately
-          if (newMap[initialAnim] && newMap[initialAnim].frames.length > 0) {
-            const targetFrames = newMap[initialAnim].frames;
-            // ... (Logic to load these specific frames into engine is same as legacy loop below but using targetFrames)
-            // ACTUALLY, the existing legacy loop below loads ALL framesList. 
-            // We should CLEAR engine and load ONLY targetFrames.
+        // Set Active
+        if (firstAnimName) {
+          setActiveAnimationName(firstAnimName);
+          const initialAnim = newMap[firstAnimName];
+          engineRef.current.clearAllFrames();
 
-            if (engineRef.current) {
-              engineRef.current.clear(); // Starts with 1 empty frame?
-              // Engine clear usually resets to 1 empty frame.
+          if (initialAnim.frames.length > 0) {
+            const engineFrames = engineRef.current.getAllFrames();
+            if (engineFrames.length > 0) engineFrames[0].data.set(initialAnim.frames[0].data);
 
-              // Reuse 0
-              if (targetFrames.length > 0) {
-                selectFrame(0);
-                applyImageData(targetFrames[0]);
-              }
-
-              for (let i = 1; i < targetFrames.length; i++) {
-                addFrame();
-                await new Promise(r => setTimeout(r, 20));
-                selectFrame(i);
-                applyImageData(targetFrames[i]);
-              }
-              selectFrame(0);
-
-              setFps(newMap[initialAnim].fps);
-              setLoop(newMap[initialAnim].loop);
+            for (let i = 1; i < initialAnim.frames.length; i++) {
+              const f = engineRef.current.addFrame();
+              if (f) f.data.set(initialAnim.frames[i].data);
             }
           }
-
-        } else {
-          // Legacy: No animations metadata, treat all frames as one 'default' animation
-          if (engineRef.current && framesList.length > 0) {
-            setPixelSize(meta.frameWidth);
-            selectFrame(0);
-            applyImageData(framesList[0]);
-
-            for (let i = 1; i < framesList.length; i++) {
-              addFrame();
-              await new Promise(r => setTimeout(r, 20));
-              selectFrame(i);
-              applyImageData(framesList[i]);
-            }
-            selectFrame(0);
-          }
-
-          setAnimationMap({ default: { frames: framesList, fps: 8, loop: true } });
-          setActiveAnimationName("default");
+          setFps(initialAnim.fps);
+          setLoop(initialAnim.loop);
         }
 
       } else {
-        setOriginalAIImage(imageBitmap);
-        await processAndApplyImage(imageBitmap, 0);
-        setAnimationMap({ default: { frames: [], fps: 8, loop: true } });
+        // No animation data - default
+        const defaultAnim: AnimationData = {
+          frames: newFrames,
+          fps: 8,
+          loop: true
+        };
+        setAnimationMap({ "default": defaultAnim });
         setActiveAnimationName("default");
+
+        engineRef.current.clearAllFrames();
+        if (defaultAnim.frames.length > 0) {
+          const engineFrames = engineRef.current.getAllFrames();
+          if (engineFrames.length > 0) engineFrames[0].data.set(defaultAnim.frames[0].data);
+
+          for (let i = 1; i < defaultAnim.frames.length; i++) {
+            const f = engineRef.current.addFrame();
+            if (f) f.data.set(defaultAnim.frames[i].data);
+          }
+        }
       }
+
+      syncFrameState();
 
     } catch (e) {
       console.error("Failed to load asset", e);
-      alert("Failed to load asset: " + e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [addFrame, applyImageData, deleteFrame, selectFrame, setFeatherAmount, setIsLoading, setPixelSize, processAndApplyImage]);
+      alert("Failed to load asset: " + (e instanceof Error ? e.message : "Unknown error"));
+      // ==================== Asset Hydration ====================
 
-  // Auto-load Asset from URL
-  useEffect(() => {
-    const assetId = searchParams.get('assetId');
-    if (assetId && assetId !== currentAssetId) {
-      console.log("[AssetsEditor] Found assetId in URL, loading:", assetId);
-      loadAsset(assetId);
-    }
-  }, [searchParams, currentAssetId, loadAsset]);
+      const loadAsset = useCallback(async (id: string) => {
+        if (!engineRef.current) return;
+        setIsLoading(true);
+        try {
+          // 1. Fetch from backend
+          const asset = await assetService.getAsset(id);
+          const url = asset.imageUrl || asset.url; // Type assumption: Asset from service has these
+          if (!url) throw new Error("Asset has no URL");
 
-  return (
-    <AssetsEditorContext.Provider
-      value={{
-        canvasRef,
-        initEngine,
-        tool: currentTool,
-        setTool: setCurrentTool,
-        currentTool,
-        setCurrentTool,
-        color: currentColor,
-        setColor: setCurrentColor,
-        currentColor,
-        setCurrentColor,
-        pixelSize,
-        setPixelSize,
-        zoom,
-        setZoom,
-        brushSize,
-        setBrushSize,
-        clear: clearCanvas,
-        clearCanvas,
-        handlePointerDown,
-        handlePointerMove,
-        handlePointerUp,
-        undo,
-        redo,
-        canUndo,
-        canRedo,
-        historyState,
-        frames,
-        currentFrameIndex,
-        maxFrames,
-        addFrame,
-        deleteFrame,
-        duplicateFrame,
-        selectFrame,
-        getFrameThumbnail,
-        isPlaying,
-        setIsPlaying,
-        fps,
-        setFps,
-        loop,
-        setLoop,
-        loadAIImage,
-        applyImageData,
-        getWorkCanvas,
-        isLoading,
-        setIsLoading,
-        featherAmount,
-        setFeatherAmount,
+          // 2. Load Image
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = url;
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
 
-        // Export
-        downloadWebP,
-        exportAsSpriteSheet,
-        saveToLibrary,
-        assets,
-        deleteAsset,
-        loadAsset,
-        triggerBackgroundRemoval,
+          // 3. Parse Metadata
+          let metadata: any = {};
+          try {
+            if ((asset as any).description) {
+              metadata = JSON.parse((asset as any).description);
+            }
+          } catch (e) {
+            console.warn("Failed to parse asset metadata", e);
+          }
 
-        // Animation Management
-        animationMap,
-        activeAnimationName,
-        setActiveAnimation,
-        addAnimation,
-        deleteAnimation,
-        renameAnimation,
+          // Default if metadata missing
+          const frameW = metadata.frameWidth || img.width;
+          const frameH = metadata.frameHeight || img.height;
+          const targetSize = Math.max(frameW, frameH);
 
-        currentAssetId,
-        setCurrentAssetId,
-      }}
-    >
-      {children}
-    </AssetsEditorContext.Provider>
-  );
-}
+          // 4. Update Editor Settings
+          // setPixelSizeState expects PixelSize (number alias)
+          setPixelSizeState(targetSize as PixelSize);
+          if (engineRef.current) {
+            engineRef.current.changeResolution(targetSize as PixelSize);
+          }
+          setCurrentAssetId(id);
 
-export function useAssetsEditor() {
-  const context = useContext(AssetsEditorContext);
-  if (!context) {
-    throw new Error('useAssetsEditor must be used within AssetsEditorProvider');
-  }
-  return context;
-}
+          // 5. Slice Frames
+          const cols = Math.floor(img.width / frameW);
+          const rows = Math.floor(img.height / frameH);
+
+          const newFrames: ImageData[] = [];
+          const canvas = document.createElement("canvas");
+          canvas.width = frameW;
+          canvas.height = frameH;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+          if (ctx) {
+            for (let y = 0; y < rows; y++) {
+              for (let x = 0; x < cols; x++) {
+                ctx.clearRect(0, 0, frameW, frameH);
+                ctx.drawImage(img, x * frameW, y * frameH, frameW, frameH, 0, 0, frameW, frameH);
+                newFrames.push(ctx.getImageData(0, 0, frameW, frameH));
+              }
+            }
+          }
+
+          // 6. Reconstruct Animations
+          if (metadata.animations && Object.keys(metadata.animations).length > 0) {
+            setAnimationMap({}); // clear
+            const newMap: Record<string, AnimationData> = {};
+            let firstAnimName = "";
+
+            Object.keys(metadata.animations).forEach((name, idx) => {
+              if (idx === 0) firstAnimName = name;
+              const animDef = metadata.animations[name];
+              // Extract specific frames
+              const animFrames = animDef.frames.map((fIdx: number) => newFrames[fIdx]);
+
+              newMap[name] = {
+                frames: animFrames,
+                fps: animDef.fps || 8,
+                loop: animDef.loop ?? true
+              };
+            });
+
+            setAnimationMap(newMap);
+
+            // Set Active
+            if (firstAnimName) {
+              setActiveAnimationName(firstAnimName);
+              const initialAnim = newMap[firstAnimName];
+              engineRef.current.clearAllFrames();
+
+              if (initialAnim.frames.length > 0) {
+                // Manually load frames into engine
+                // clearAllFrames leaves 1 empty frame, we reuse it
+                const engineFrames = engineRef.current.getAllFrames();
+                if (engineFrames.length > 0) engineFrames[0].data.set(initialAnim.frames[0].data);
+
+                for (let i = 1; i < initialAnim.frames.length; i++) {
+                  const f = engineRef.current.addFrame();
+                  if (f) f.data.set(initialAnim.frames[i].data);
+                }
+              }
+              setFps(initialAnim.fps);
+              setLoop(initialAnim.loop);
+            }
+
+          } else {
+            // No animation data - default
+            const defaultAnim: AnimationData = {
+              frames: newFrames,
+              fps: 8,
+              loop: true
+            };
+            setAnimationMap({ "default": defaultAnim });
+            setActiveAnimationName("default");
+
+            engineRef.current.clearAllFrames();
+            if (defaultAnim.frames.length > 0) {
+              const engineFrames = engineRef.current.getAllFrames();
+              if (engineFrames.length > 0) engineFrames[0].data.set(defaultAnim.frames[0].data);
+
+              for (let i = 1; i < defaultAnim.frames.length; i++) {
+                const f = engineRef.current.addFrame();
+                if (f) f.data.set(defaultAnim.frames[i].data);
+              }
+            }
+          }
+
+          syncFrameState();
+
+        } catch (e) {
+          console.error("Failed to load asset", e);
+          alert("Failed to load asset: " + (e instanceof Error ? e.message : "Unknown error"));
+        } finally {
+          setIsLoading(false);
+        }
+      }, [pixelSize, syncFrameState]);
+
+      const loadAIImage = useCallback(async (input: Blob | string) => {
+        if (!engineRef.current) return;
+
+        setIsLoading(true);
+        try {
+          let blob: Blob;
+          if (typeof input === 'string') {
+            const res = await fetch(input);
+            blob = await res.blob();
+          } else {
+            blob = input;
+          }
+
+          const imageBitmap = await createImageBitmap(blob);
+          setOriginalAIImage(imageBitmap);
+          setFeatherAmount(0);
+
+          await processAndApplyImage(imageBitmap, 0);
+
+        } catch (e) {
+          console.error("Failed to load/process AI image", e);
+        } finally {
+          setIsLoading(false);
+        }
+      }, [processAndApplyImage]);
+
+      const applyImageData = useCallback((imageData: ImageData) => {
+        if (!engineRef.current) return;
+        engineRef.current.applyAIImage(imageData);
+        updateHistoryState();
+        syncFrameState();
+      }, [updateHistoryState, syncFrameState]);
+
+      const getWorkCanvas = useCallback((): HTMLCanvasElement | null => {
+        if (!engineRef.current) return null;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = pixelSize;
+        tempCanvas.height = pixelSize;
+        const ctx = tempCanvas.getContext('2d');
+        if (!ctx || !canvasRef.current) return null;
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(canvasRef.current, 0, 0, pixelSize, pixelSize);
+        return tempCanvas;
+      }, [pixelSize]);
+
+      // ==================== Export ====================
+
+      const downloadWebP = useCallback(async (filename: string) => {
+        if (!engineRef.current) return;
+
+        const base64 = await engineRef.current.exportAsBase64();
+        const link = document.createElement('a');
+        link.href = base64;
+        link.download = filename.endsWith('.webp') ? filename : `${filename}.webp`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, []);
+
+      const exportAsSpriteSheet = useCallback(async (options?: {
+        layout?: SpriteSheetLayout;
+        format?: ExportFormat;
+        includeMetadata?: boolean;
+        animationMap?: Record<string, AnimationData>;
+      }) => {
+        if (!engineRef.current) return;
+
+        // Default to current frames if no animationMap provided (legacy flow)
+        // But caller generally provides map.
+        // If Map is provided, we need to flatten it.
+
+        // This function signature in interface expects options.
+        // We should implement flattening here or let caller helper do it.
+        // Actually, let's keep it robust:
+
+        let framesToExport = engineRef.current.getAllFrames();
+
+        // NOTE: If animationMap is provided in options, we should use THAT for export
+        // But exportSpriteSheet expects Frame[] array.
+        // Constructing Frame[] from ImageData[] is hard without Engine.
+        // So usually we rely on caller to set up engine state OR we update exportSpriteSheet service.
+        // For now, assume simple current-state export if options not fully used, 
+        // OR we will refactor RightPanel to handle the unification.
+
+        // We will stick to simple export of *current* state unless RightPanel handles logic.
+
+        if (framesToExport.length === 0) {
+          alert('No frames to export');
+          return;
+        }
+
+        try {
+          setIsLoading(true);
+          const result = await exportSpriteSheet(
+            framesToExport,
+            pixelSize,
+            options?.layout ?? 'horizontal',
+            options?.format ?? 'webp',
+            0.9
+          );
+
+          downloadBlob(result.blob, result.filename);
+
+          if (options?.includeMetadata !== false) {
+            downloadMetadata(result.metadata);
+          }
+
+          console.log('[SpriteSheet Export] Success:', result.metadata);
+        } catch (e) {
+          console.error('[SpriteSheet Export] Error:', e);
+          alert('Failed to export sprite sheet: ' + (e instanceof Error ? e.message : 'Unknown error'));
+        } finally {
+          setIsLoading(false);
+        }
+      }, [pixelSize]);
+
+      const saveToLibrary = useCallback(
+        async (name: string, type: Asset['type'], stats: Asset['stats']) => {
+          if (!engineRef.current) return;
+
+          const imageData = await engineRef.current.exportAsBase64();
+          const newAsset: Asset = {
+            id: crypto.randomUUID(),
+            name,
+            type,
+            imageData,
+            stats,
+            createdAt: new Date(),
+          };
+          setAssets((prev) => [...prev, newAsset]);
+        },
+        []
+      );
+
+      const deleteAsset = useCallback((id: string) => {
+        setAssets((prev) => prev.filter((a) => a.id !== id));
+      }, []);
+
+      const loadAsset = useCallback(async (id: string) => {
+        try {
+          setIsLoading(true);
+          setCurrentAssetId(id);
+
+          const asset = await assetService.getAsset(id);
+          if (!asset.url && !(asset as any).imageUrl) throw new Error("Asset has no image URL");
+          const url = (asset as any).imageUrl || asset.url;
+
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const imageBitmap = await createImageBitmap(blob);
+
+          let meta: any = {};
+          try {
+            if ((asset as any).description) meta = JSON.parse((asset as any).description);
+          } catch (e) {
+            console.warn("Failed to parse asset metadata", e);
+          }
+
+          if (meta && meta.frameWidth && meta.frameHeight) {
+            const cols = meta.columns || Math.floor(imageBitmap.width / meta.frameWidth);
+            const rows = meta.rows || Math.floor(imageBitmap.height / meta.frameHeight);
+
+            const framesList: ImageData[] = [];
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = meta.frameWidth;
+            tempCanvas.height = meta.frameHeight;
+            const ctx = tempCanvas.getContext('2d');
+            if (!ctx) throw new Error("No context");
+
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                if (framesList.length >= meta.frameCount) break;
+                ctx.clearRect(0, 0, meta.frameWidth, meta.frameHeight);
+                ctx.drawImage(imageBitmap,
+                  c * meta.frameWidth, r * meta.frameHeight, meta.frameWidth, meta.frameHeight,
+                  0, 0, meta.frameWidth, meta.frameHeight
+                );
+                const imgData = ctx.getImageData(0, 0, meta.frameWidth, meta.frameHeight);
+                framesList.push(imgData);
+              }
+            }
+
+            // Initialize Animation Map from Metadata if available
+            if (meta.animations) {
+              const newMap: Record<string, AnimationData> = {};
+              const animKeys = Object.keys(meta.animations);
+
+              animKeys.forEach(key => {
+                const animDef = meta.animations[key];
+                // Map indices to actual ImageData
+                const animFrames = animDef.frames.map((idx: number) => framesList[idx]).filter((f: ImageData) => !!f);
+                newMap[key] = {
+                  frames: animFrames,
+                  fps: animDef.fps || 8,
+                  loop: animDef.loop ?? true
+                };
+              });
+
+              setAnimationMap(newMap);
+
+              // Set Active (first or specific)
+              const initialAnim = animKeys[0] || 'default';
+              setActiveAnimationName(initialAnim);
+
+              // Load initial animation into engine immediately
+              if (newMap[initialAnim] && newMap[initialAnim].frames.length > 0) {
+                const targetFrames = newMap[initialAnim].frames;
+                // ... (Logic to load these specific frames into engine is same as legacy loop below but using targetFrames)
+                // ACTUALLY, the existing legacy loop below loads ALL framesList. 
+                // We should CLEAR engine and load ONLY targetFrames.
+
+                if (engineRef.current) {
+                  engineRef.current.clear(); // Starts with 1 empty frame?
+                  // Engine clear usually resets to 1 empty frame.
+
+                  // Reuse 0
+                  if (targetFrames.length > 0) {
+                    selectFrame(0);
+                    applyImageData(targetFrames[0]);
+                  }
+
+                  for (let i = 1; i < targetFrames.length; i++) {
+                    addFrame();
+                    await new Promise(r => setTimeout(r, 20));
+                    selectFrame(i);
+                    applyImageData(targetFrames[i]);
+                  }
+                  selectFrame(0);
+
+                  setFps(newMap[initialAnim].fps);
+                  setLoop(newMap[initialAnim].loop);
+                }
+              }
+
+            } else {
+              // Legacy: No animations metadata, treat all frames as one 'default' animation
+              if (engineRef.current && framesList.length > 0) {
+                setPixelSize(meta.frameWidth);
+                selectFrame(0);
+                applyImageData(framesList[0]);
+
+                for (let i = 1; i < framesList.length; i++) {
+                  addFrame();
+                  await new Promise(r => setTimeout(r, 20));
+                  selectFrame(i);
+                  applyImageData(framesList[i]);
+                }
+                selectFrame(0);
+              }
+
+              setAnimationMap({ default: { frames: framesList, fps: 8, loop: true } });
+              setActiveAnimationName("default");
+            }
+
+            // Auto-load Asset from URL
+            useEffect(() => {
+              const assetId = searchParams.get('assetId');
+              if (assetId && assetId !== currentAssetId) {
+                console.log("[AssetsEditor] Found assetId in URL, loading:", assetId);
+                loadAsset(assetId);
+              }
+            }, [searchParams, currentAssetId, loadAsset]);
+
+            // Remove legacy function and ensure value object uses new loadAsset
+            // ...
+
+
+            return (
+              <AssetsEditorContext.Provider
+                value={{
+                  canvasRef,
+                  initEngine,
+                  tool: currentTool,
+                  setTool: setCurrentTool,
+                  currentTool,
+                  setCurrentTool,
+                  color: currentColor,
+                  setColor: setCurrentColor,
+                  currentColor,
+                  setCurrentColor,
+                  pixelSize,
+                  setPixelSize,
+                  zoom,
+                  setZoom,
+                  brushSize,
+                  setBrushSize,
+                  clear: clearCanvas,
+                  clearCanvas,
+                  handlePointerDown,
+                  handlePointerMove,
+                  handlePointerUp,
+                  undo,
+                  redo,
+                  canUndo,
+                  canRedo,
+                  historyState,
+                  frames,
+                  currentFrameIndex,
+                  maxFrames,
+                  addFrame,
+                  deleteFrame,
+                  duplicateFrame,
+                  selectFrame,
+                  getFrameThumbnail,
+                  isPlaying,
+                  setIsPlaying,
+                  fps,
+                  setFps,
+                  loop,
+                  setLoop,
+                  loadAIImage,
+                  applyImageData,
+                  getWorkCanvas,
+                  isLoading,
+                  setIsLoading,
+                  featherAmount,
+                  setFeatherAmount,
+
+                  // Export
+                  downloadWebP,
+                  exportAsSpriteSheet,
+                  saveToLibrary,
+                  assets,
+                  deleteAsset,
+                  loadAsset,
+                  triggerBackgroundRemoval,
+
+                  // Animation Management
+                  animationMap,
+                  activeAnimationName,
+                  setActiveAnimation,
+                  addAnimation,
+                  deleteAnimation,
+                  renameAnimation,
+
+                  currentAssetId,
+                  setCurrentAssetId,
+                }}
+              >
+                {children}
+              </AssetsEditorContext.Provider>
+            );
+          }
+
+          export function useAssetsEditor() {
+            const context = useContext(AssetsEditorContext);
+            if (!context) {
+              throw new Error('useAssetsEditor must be used within AssetsEditorProvider');
+            }
+            return context;
+          }
