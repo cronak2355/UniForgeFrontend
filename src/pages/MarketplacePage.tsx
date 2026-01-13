@@ -29,25 +29,38 @@ const MarketplacePage = () => {
             setLoading(true);
             try {
                 const data = await marketplaceService.getAssets(undefined, sortOrder);
-                // Map backend data to UI format if needed
+
+                // Get unique author IDs
+                const authorIds = [...new Set(data.map(asset => asset.authorId))];
+
+                // Fetch user info for all authors
+                const userInfoMap = new Map<string, string>();
+                await Promise.all(
+                    authorIds.map(async (authorId) => {
+                        try {
+                            const { userService } = await import('../services/userService');
+                            const user = await userService.getUserById(authorId);
+                            if (user?.name) {
+                                userInfoMap.set(authorId, user.name);
+                            }
+                        } catch (e) {
+                            console.warn(`Failed to fetch user ${authorId}`);
+                        }
+                    })
+                );
+
+                // Map backend data to UI format with real author names
                 const mappedData = data.map(asset => ({
                     ...asset,
-                    // Default values for missing UI fields
                     image: asset.image || asset.imageUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
                     rating: asset.rating || 0,
                     type: asset.assetType || "오브젝트",
                     genre: asset.genre || "기타",
                     tags: asset.tags || undefined,
-                    author: asset.author || `User ${asset.authorId}`,
+                    author: asset.author || userInfoMap.get(asset.authorId) || "익명",
                     createdAt: asset.createdAt || new Date().toISOString(),
                     description: asset.description || ""
                 }));
-                // Merge games? For now, we overwrite or we should separate asset/game lists.
-                // The current code overwrites assets with games in the first useEffect, then overwrites with assets in the second.
-                // This is a bug in the existing code. I should fix it by likely having separate states or merging.
-                // For now user asked for sorting, I will just setAssets(mappedData) but notice the conflict.
-                // Actually the previous code had two useEffects both setting 'assets'.
-                // I will assume for now we just want to see assets sorting working.
                 setAssets(mappedData);
             } catch (error) {
                 console.error("Failed to fetch assets:", error);
@@ -150,12 +163,11 @@ const MarketplacePage = () => {
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
                     <div
-                        style={{ fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         onClick={() => navigate('/main')}
                     >
-                        <i className="fa-solid fa-cube" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
-                        <span className="gradient-text">Uniforge</span>
-                        <span style={{ fontSize: '0.9rem', color: '#666', marginLeft: '10px', fontWeight: 400 }}>에셋 플레이스</span>
+                        <img src="/logo.png" alt="Uniforge" style={{ height: '28px', marginRight: '10px' }} />
+                        <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 400 }}>에셋 플레이스</span>
                     </div>
 
                     {/* Search Bar */}
