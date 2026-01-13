@@ -107,6 +107,25 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
+            // [System Event] Entity Died - Auto Particle (엔티티의 deathEffect 변수 사용)
+            if (event.type === "ENTITY_DIED") {
+                const data = event.data || {};
+                const entityId = data.entityId as string;
+                const gameObject = this.phaserRenderer?.getGameObject?.(entityId);
+
+                if (gameObject) {
+                    // 기본값 없음, "none"이 아니면 재생
+                    const entities = this.phaserRenderer?.core?.getEntities?.();
+                    const entity = entities?.get(entityId);
+                    const deathEffectVar = entity?.variables?.find((v: { name: string }) => v.name === "deathEffect");
+                    const deathEffect = (deathEffectVar?.value as string);
+
+                    if (deathEffect && deathEffect !== "none") {
+                        this.particleManager?.playEffect(deathEffect, gameObject.x, gameObject.y, 1);
+                    }
+                }
+            }
+
             // [Optimized] TICK event is now ignored here to prevent GC overhead.
             // It is handled directly in the update() loop using reusable objects.
             if (event.type === "TICK") return;
@@ -954,12 +973,31 @@ export class PhaserRenderer implements IRenderer {
      * @param y 월드 Y 좌표
      * @param scale 크기 배율 (기본값 1)
      */
-    playParticle(presetId: string, x: number, y: number, scale: number = 1): void {
-        if (!this.scene?.particleManager) {
+    playParticle(name: string, x: number, y: number, scale: number = 1): void {
+        const pm = this.scene?.particleManager;
+        if (!pm) {
             console.warn("[PhaserRenderer] Cannot play particle: particle manager not initialized");
             return;
         }
-        this.scene.particleManager.playEffect(presetId, x, y, scale);
+
+        if (name.startsWith("custom:")) {
+            const assetName = name.replace(/^custom:/, "");
+            const assets = this.core.getAssets(); // core는 생성자 주입됨
+
+            const asset = assets.find(a =>
+                (a.name === assetName || a.id === assetName) &&
+                (a.tag === 'Particle' || a.tag === 'Effect')
+            );
+
+            if (asset) {
+                const motionType = asset.metadata?.motionType || 'explode';
+                pm.playCustomEffect(asset.id, x, y, scale, motionType);
+            } else {
+                console.warn(`[PhaserRenderer] Custom particle asset not found: ${assetName}`);
+            }
+        } else {
+            pm.playEffect(name, x, y, scale);
+        }
     }
 
     /**
@@ -1421,6 +1459,8 @@ export class PhaserRenderer implements IRenderer {
     getScene(): Phaser.Scene | null {
         return this.scene;
     }
+
+
 
     // ===== IRenderer Implementation =====
 

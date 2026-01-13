@@ -214,371 +214,372 @@ export class EditorState implements IGameState {
         this.addEntity(cloned);
         this.setSelectedEntity(cloned);
     }
-    const scene = this.getCurrentScene();
-    if(!scene) return;
+    public loadDemoScene() {
+        const scene = this.getCurrentScene();
+        if (!scene) return;
 
-    // Skip if scene already has entities (e.g., loaded from autosave)
-    if(scene.entities.size > 0) return;
+        // Skip if scene already has entities (e.g., loaded from autosave)
+        if (scene.entities.size > 0) return;
 
-// 1. Player Entity - has HP and MaxHP variables
-const playerId = crypto.randomUUID();
-const playerEntity: EditorEntity = {
-    id: playerId,
-    name: "Player (Demo)",
-    type: "sprite",
-    role: "player",
-    tags: ["player"],
-    events: [],
-    x: 400,
-    y: 450,
-    z: 0,
-    rotation: 0,
-    rotationX: 0,
-    rotationY: 0,
-    rotationZ: 0,
-    scaleX: 1,
-    scaleY: 1,
-    texture: "dragon",
-    variables: [
-        { id: crypto.randomUUID(), name: "HP", type: "float", value: 50 },
-        { id: crypto.randomUUID(), name: "MaxHP", type: "float", value: 100 },
-        { id: crypto.randomUUID(), name: "Score", type: "int", value: 0 },
-    ],
-    components: [],
-    logic: []
-};
-scene.entities.set(playerId, playerEntity);
+        // 1. Player Entity - has HP and MaxHP variables
+        const playerId = crypto.randomUUID();
+        const playerEntity: EditorEntity = {
+            id: playerId,
+            name: "Player (Demo)",
+            type: "sprite",
+            role: "player",
+            tags: ["player"],
+            events: [],
+            x: 400,
+            y: 450,
+            z: 0,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            texture: "dragon",
+            variables: [
+                { id: crypto.randomUUID(), name: "HP", type: "float", value: 50 },
+                { id: crypto.randomUUID(), name: "MaxHP", type: "float", value: 100 },
+                { id: crypto.randomUUID(), name: "Score", type: "int", value: 0 },
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(playerId, playerEntity);
 
-// 2. Health Bar Entity - CLEAN, no pre-linked variables
-// User should manually select Source Entity and Value Var
-const barId = crypto.randomUUID();
-const barEntity: EditorEntity = {
-    id: barId,
-    name: "Health Bar (Demo)",
-    type: "container",
-    role: "none",
-    events: [],
-    x: 400,
-    y: 100,
-    z: 100,
-    rotation: 0,
-    rotationX: 0,
-    rotationY: 0,
-    rotationZ: 0,
-    scaleX: 1,
-    scaleY: 1,
-    variables: [
-        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
-        { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
-        { id: crypto.randomUUID(), name: "height", type: "float", value: 30 },
-        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
-        { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
-        // NO pre-linked variables - user selects manually
-    ],
-    components: [],
-    logic: []
-};
-scene.entities.set(barId, barEntity);
+        // 2. Health Bar Entity - CLEAN, no pre-linked variables
+        // User should manually select Source Entity and Value Var
+        const barId = crypto.randomUUID();
+        const barEntity: EditorEntity = {
+            id: barId,
+            name: "Health Bar (Demo)",
+            type: "container",
+            role: "none",
+            events: [],
+            x: 400,
+            y: 100,
+            z: 100,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            variables: [
+                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
+                { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
+                { id: crypto.randomUUID(), name: "height", type: "float", value: 30 },
+                { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
+                { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
+                // NO pre-linked variables - user selects manually
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(barId, barEntity);
 
-// 3. Score Text Entity - CLEAN, no pre-linked variables
-const textId = crypto.randomUUID();
-const textEntity: EditorEntity = {
-    id: textId,
-    name: "Score Text (Demo)",
-    type: "sprite",
-    role: "none",
-    events: [],
-    x: 400,
-    y: 50,
-    z: 100,
-    rotation: 0,
-    rotationX: 0,
-    rotationY: 0,
-    rotationZ: 0,
-    scaleX: 1,
-    scaleY: 1,
-    variables: [
-        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
-        { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Score: 0" },
-        { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 24 },
-        { id: crypto.randomUUID(), name: "uiAlign", type: "string", value: "center" },
-        // NO pre-linked variables - user selects manually
-    ],
-    components: [],
-    logic: []
-};
-scene.entities.set(textId, textEntity);
+        // 3. Score Text Entity - CLEAN, no pre-linked variables
+        const textId = crypto.randomUUID();
+        const textEntity: EditorEntity = {
+            id: textId,
+            name: "Score Text (Demo)",
+            type: "sprite",
+            role: "none",
+            events: [],
+            x: 400,
+            y: 50,
+            z: 100,
+            rotation: 0,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            scaleX: 1,
+            scaleY: 1,
+            variables: [
+                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
+                { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Score: 0" },
+                { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 24 },
+                { id: crypto.randomUUID(), name: "uiAlign", type: "string", value: "center" },
+                // NO pre-linked variables - user selects manually
+            ],
+            components: [],
+            logic: []
+        };
+        scene.entities.set(textId, textEntity);
     }
 
-subscribe(listener: () => void) {
-    this.listeners.push(listener);
-    return () => {
-        this.listeners = this.listeners.filter((l) => l !== listener);
-    };
-}
+    subscribe(listener: () => void) {
+        this.listeners.push(listener);
+        return () => {
+            this.listeners = this.listeners.filter((l) => l !== listener);
+        };
+    }
 
     private notify() {
-    this.listeners.forEach((l) => l());
-}
+        this.listeners.forEach((l) => l());
+    }
 
-// --- Global Entity Management (Scene-Independent) ---
-getGlobalEntities(): Map < string, EditorEntity > {
-    return this.globalEntities;
-}
+    // --- Global Entity Management (Scene-Independent) ---
+    getGlobalEntities(): Map<string, EditorEntity> {
+        return this.globalEntities;
+    }
 
-getGlobalEntity(id: string): EditorEntity | undefined {
-    return this.globalEntities.get(id);
-}
+    getGlobalEntity(id: string): EditorEntity | undefined {
+        return this.globalEntities.get(id);
+    }
 
-createGlobalEntity(name: string, variables: EditorVariable[]): string {
-    this.snapshot();
-    const id = `global-${crypto.randomUUID()}`;
-    const entity: EditorEntity = {
-        id,
-        name,
-        type: "container",
-        role: "none",
-        events: [],
-        x: 0, y: 0, z: 0,
-        rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
-        scaleX: 1, scaleY: 1,
-        variables,
-        components: [],
-        logic: []
-    };
-    this.globalEntities.set(id, entity);
-    this.notify();
-    return id;
-}
+    createGlobalEntity(name: string, variables: EditorVariable[]): string {
+        this.snapshot();
+        const id = `global-${crypto.randomUUID()}`;
+        const entity: EditorEntity = {
+            id,
+            name,
+            type: "container",
+            role: "none",
+            events: [],
+            x: 0, y: 0, z: 0,
+            rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
+            scaleX: 1, scaleY: 1,
+            variables,
+            components: [],
+            logic: []
+        };
+        this.globalEntities.set(id, entity);
+        this.notify();
+        return id;
+    }
 
-updateGlobalEntity(entity: EditorEntity) {
-    if (this.globalEntities.has(entity.id)) {
-        this.globalEntities.set(entity.id, entity);
+    updateGlobalEntity(entity: EditorEntity) {
+        if (this.globalEntities.has(entity.id)) {
+            this.globalEntities.set(entity.id, entity);
+            this.notify();
+        }
+    }
+
+    removeGlobalEntity(id: string) {
+        this.globalEntities.delete(id);
         this.notify();
     }
-}
-
-removeGlobalEntity(id: string) {
-    this.globalEntities.delete(id);
-    this.notify();
-}
 
 
-// --- Scene Management ---
-getScenes() { return this.scenes; }
-getCurrentSceneId() { return this.currentSceneId; }
-getCurrentScene() { return this.scenes.get(this.currentSceneId); }
+    // --- Scene Management ---
+    getScenes() { return this.scenes; }
+    getCurrentSceneId() { return this.currentSceneId; }
+    getCurrentScene() { return this.scenes.get(this.currentSceneId); }
 
-createScene(name: string, id ?: string): string {
-    this.snapshot();
-    const newId = id || crypto.randomUUID();
-    this.scenes.set(newId, {
-        id: newId,
-        name,
-        entities: new Map(),
-        tiles: new Map()
-    });
-    this.currentSceneId = newId; // Auto-switch to new scene
-    this.notify();
-    return newId;
-}
-
-switchScene(id: string) {
-    if (this.scenes.has(id)) {
-        this.currentSceneId = id;
-        this.selectedEntity = null; // Deselect on switch
+    createScene(name: string, id?: string): string {
+        this.snapshot();
+        const newId = id || crypto.randomUUID();
+        this.scenes.set(newId, {
+            id: newId,
+            name,
+            entities: new Map(),
+            tiles: new Map()
+        });
+        this.currentSceneId = newId; // Auto-switch to new scene
         this.notify();
-    }
-}
-
-renameScene(id: string, newName: string) {
-    const scene = this.scenes.get(id);
-    if (scene) {
-        scene.name = newName;
-        this.notify();
-    }
-}
-
-removeScene(id: string) {
-    this.snapshot();
-    if (this.scenes.size <= 1) {
-        console.warn("Cannot remove the last scene.");
-        return;
+        return newId;
     }
 
-    const scene = this.scenes.get(id);
-    if (scene) {
-        // Explicitly clear data (as requested/implied for safety)
-        scene.entities.clear();
-        scene.tiles.clear();
+    switchScene(id: string) {
+        if (this.scenes.has(id)) {
+            this.currentSceneId = id;
+            this.selectedEntity = null; // Deselect on switch
+            this.notify();
+        }
+    }
 
-        if (this.scenes.delete(id)) {
-            if (this.currentSceneId === id) {
-                // Switch to first available scene
-                const next = this.scenes.keys().next().value;
-                if (next) {
-                    this.currentSceneId = next;
-                    this.selectedEntity = null;
+    renameScene(id: string, newName: string) {
+        const scene = this.scenes.get(id);
+        if (scene) {
+            scene.name = newName;
+            this.notify();
+        }
+    }
+
+    removeScene(id: string) {
+        this.snapshot();
+        if (this.scenes.size <= 1) {
+            console.warn("Cannot remove the last scene.");
+            return;
+        }
+
+        const scene = this.scenes.get(id);
+        if (scene) {
+            // Explicitly clear data (as requested/implied for safety)
+            scene.entities.clear();
+            scene.tiles.clear();
+
+            if (this.scenes.delete(id)) {
+                if (this.currentSceneId === id) {
+                    // Switch to first available scene
+                    const next = this.scenes.keys().next().value;
+                    if (next) {
+                        this.currentSceneId = next;
+                        this.selectedEntity = null;
+                    }
                 }
+                this.notify();
+            }
+        }
+    }
+
+    // --- Asset Management (Global) ---
+    getAssets() { return this.assets; }
+    getModules() { return this.modules; }
+    getEntities() {
+        return this.getCurrentScene()?.entities ?? this.entities;
+    }
+    getEntity(id: string) {
+        return this.getCurrentScene()?.entities.get(id) ?? this.entities.get(id);
+    }
+    hasEntity(id: string) {
+        return this.getCurrentScene()?.entities.has(id) ?? this.entities.has(id);
+    }
+    getTiles() {
+        return this.getCurrentScene()?.tiles ?? this.tiles;
+    }
+    getSelectedAsset() { return this.selectedAsset; }
+    getDraggedAsset() { return this.draggedAsset; }
+
+    addModule(module: ModuleGraph) {
+        this.modules.push(module);
+        this.notify();
+    }
+
+    updateModule(module: ModuleGraph) {
+        const idx = this.modules.findIndex((m) => m.id === module.id);
+        if (idx === -1) return;
+        this.modules[idx] = module;
+        this.notify();
+    }
+
+    removeModule(moduleId: string) {
+        this.modules = this.modules.filter((m) => m.id !== moduleId);
+        this.notify();
+    }
+
+    setModules(modules: ModuleGraph[]) {
+        this.modules = modules;
+        this.notify();
+    }
+
+    setSelectedAsset(asset: Asset | null) {
+        this.selectedAsset = asset;
+        this.notify();
+    }
+
+    setDraggedAsset(asset: Asset | null) {
+        this.draggedAsset = asset;
+        this.notify();
+    }
+    getSelectedEntity() { return this.selectedEntity; }
+    getEditorMode() { return this.editorMode; }
+
+    setSelectedEntity(entity: EditorEntity | null) {
+        this.selectedEntity = entity;
+        this.notify();
+    }
+
+    addAsset(asset: Asset) {
+        this.assets.push(asset);
+        this.notify();
+    }
+
+    addEntity(entity: EditorEntity) {
+        this.snapshot();
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        if (!entity.id) {
+            entity.id = crypto.randomUUID();
+        }
+        // [User Request] Default depth 10 for testing
+        if (entity.z === undefined) {
+            entity.z = 10;
+        }
+        const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
+        scene.entities.set(entity.id, normalized);
+        if (this.selectedEntity?.id === entity.id) {
+            this.selectedEntity = normalized;
+        }
+        this.notify();
+    }
+
+    setTile(x: number, y: number, tile: number) {
+        this.snapshot();
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        const key = `${x},${y}`;
+        scene.tiles.set(key, { x, y, tile });
+        this.notify();
+    }
+
+    removeTile(x: number, y: number) {
+        this.snapshot();
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        const key = `${x},${y}`;
+        if (scene.tiles.delete(key)) {
+            this.notify();
+        }
+    }
+
+    removeEntity(id: string) {
+        this.snapshot();
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        if (scene.entities.delete(id)) {
+            if (this.selectedEntity?.id === id) {
+                this.selectedEntity = null;
             }
             this.notify();
         }
     }
-}
 
-// --- Asset Management (Global) ---
-getAssets() { return this.assets; }
-getModules() { return this.modules; }
-getEntities() {
-    return this.getCurrentScene()?.entities ?? this.entities;
-}
-getEntity(id: string) {
-    return this.getCurrentScene()?.entities.get(id) ?? this.entities.get(id);
-}
-hasEntity(id: string) {
-    return this.getCurrentScene()?.entities.has(id) ?? this.entities.has(id);
-}
-getTiles() {
-    return this.getCurrentScene()?.tiles ?? this.tiles;
-}
-getSelectedAsset() { return this.selectedAsset; }
-getDraggedAsset() { return this.draggedAsset; }
-
-addModule(module: ModuleGraph) {
-    this.modules.push(module);
-    this.notify();
-}
-
-updateModule(module: ModuleGraph) {
-    const idx = this.modules.findIndex((m) => m.id === module.id);
-    if (idx === -1) return;
-    this.modules[idx] = module;
-    this.notify();
-}
-
-removeModule(moduleId: string) {
-    this.modules = this.modules.filter((m) => m.id !== moduleId);
-    this.notify();
-}
-
-setModules(modules: ModuleGraph[]) {
-    this.modules = modules;
-    this.notify();
-}
-
-setSelectedAsset(asset: Asset | null) {
-    this.selectedAsset = asset;
-    this.notify();
-}
-
-setDraggedAsset(asset: Asset | null) {
-    this.draggedAsset = asset;
-    this.notify();
-}
-getSelectedEntity() { return this.selectedEntity; }
-getEditorMode() { return this.editorMode; }
-
-setSelectedEntity(entity: EditorEntity | null) {
-    this.selectedEntity = entity;
-    this.notify();
-}
-
-addAsset(asset: Asset) {
-    this.assets.push(asset);
-    this.notify();
-}
-
-addEntity(entity: EditorEntity) {
-    this.snapshot();
-    const scene = this.getCurrentScene();
-    if (!scene) return;
-
-    if (!entity.id) {
-        entity.id = crypto.randomUUID();
-    }
-    // [User Request] Default depth 10 for testing
-    if (entity.z === undefined) {
-        entity.z = 10;
-    }
-    const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
-    scene.entities.set(entity.id, normalized);
-    if (this.selectedEntity?.id === entity.id) {
-        this.selectedEntity = normalized;
-    }
-    this.notify();
-}
-
-setTile(x: number, y: number, tile: number) {
-    this.snapshot();
-    const scene = this.getCurrentScene();
-    if (!scene) return;
-
-    const key = `${x},${y}`;
-    scene.tiles.set(key, { x, y, tile });
-    this.notify();
-}
-
-removeTile(x: number, y: number) {
-    this.snapshot();
-    const scene = this.getCurrentScene();
-    if (!scene) return;
-
-    const key = `${x},${y}`;
-    if (scene.tiles.delete(key)) {
-        this.notify();
-    }
-}
-
-removeEntity(id: string) {
-    this.snapshot();
-    const scene = this.getCurrentScene();
-    if (!scene) return;
-
-    if (scene.entities.delete(id)) {
-        if (this.selectedEntity?.id === id) {
-            this.selectedEntity = null;
+    clear() {
+        // Only clear current scene
+        const scene = this.getCurrentScene();
+        if (scene) {
+            scene.entities.clear();
+            scene.tiles.clear();
+            this.notify();
         }
+    }
+
+    // Clear ALL scenes (for project load)
+    clearAll() {
+        this.scenes.clear();
+        this.assets = [];
+        this.createScene("Scene 1", "default");
         this.notify();
     }
-}
 
-clear() {
-    // Only clear current scene
-    const scene = this.getCurrentScene();
-    if (scene) {
-        scene.entities.clear();
-        scene.tiles.clear();
+    // Completely empty state (for deserialization)
+    reset() {
+        this.scenes.clear();
+        this.assets = [];
+        this.selectedEntity = null;
+        this.draggedAsset = null;
+        this.selectedAsset = null;
+        this.currentSceneId = ""; // No scene active
         this.notify();
     }
-}
 
-// Clear ALL scenes (for project load)
-clearAll() {
-    this.scenes.clear();
-    this.assets = [];
-    this.createScene("Scene 1", "default");
-    this.notify();
-}
-
-// Completely empty state (for deserialization)
-reset() {
-    this.scenes.clear();
-    this.assets = [];
-    this.selectedEntity = null;
-    this.draggedAsset = null;
-    this.selectedAsset = null;
-    this.currentSceneId = ""; // No scene active
-    this.notify();
-}
-
-sendContextToEditorModeStateMachine(ctx: EditorContext) {
-    if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
-        this.editorMode = ctx.currentMode;
-        this.notify();
+    sendContextToEditorModeStateMachine(ctx: EditorContext) {
+        if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
+            this.editorMode = ctx.currentMode;
+            this.notify();
+        }
     }
-}
 }
 
 export const editorCore = new EditorState();
