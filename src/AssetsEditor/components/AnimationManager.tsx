@@ -12,7 +12,9 @@ export function AnimationManager() {
         fps,
         setFps,
         isPlaying,
-        setIsPlaying
+        setIsPlaying,
+        loop,
+        setLoop
     } = useAssetsEditor();
 
     const [newAnimName, setNewAnimName] = useState('');
