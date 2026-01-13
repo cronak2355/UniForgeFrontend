@@ -1,7 +1,9 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
-import { AssetPanel } from "./AssetPanel";
+import { RecentAssetsPanel } from "./RecentAssetsPanel";
+import { AssetPanelNew } from "./AssetPanelNew";
+
 import type { EditorEntity } from "./types/Entity";
 import type { Asset } from "./types/Asset";
 import { EditorCanvas } from "./EditorCanvas";
@@ -265,6 +267,18 @@ function EditorLayoutInner() {
     const [dropModalFiles, setDropModalFiles] = useState<File[]>([]);
     const [dropAssetName, setDropAssetName] = useState("");
     const [dropAssetTag, setDropAssetTag] = useState("Character");
+    const [recentAssets, setRecentAssets] = useState<Asset[]>(() => {
+        try {
+            const saved = localStorage.getItem("editor_recent_assets");
+            return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+    }); // Persistent state
+
+    // Persist recent assets
+    useEffect(() => {
+        localStorage.setItem("editor_recent_assets", JSON.stringify(recentAssets));
+    }, [recentAssets]);
+
     // const [isFileMenuOpen, setIsFileMenuOpen] = useState(false); // REMOVED
     const navigate = useNavigate();
     const [isUploadingAsset, setIsUploadingAsset] = useState(false);
@@ -343,6 +357,13 @@ function EditorLayoutInner() {
     };
 
     const changeDraggedAssetHandler = (a: Asset | null, options?: { defer?: boolean }) => {
+        if (a) {
+            setRecentAssets(prev => {
+                const filtered = prev.filter(x => x.id !== a.id);
+                return [a, ...filtered].slice(0, 15);
+            });
+        }
+
         dragClearTokenRef.current += 1;
         const token = dragClearTokenRef.current;
 
@@ -950,7 +971,7 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{ flex: 1, padding: '0', overflowY: 'hidden' }}> {/* padding 0 for panel internal control */}
+                    <div style={{ flex: '0 0 60%', padding: '0', overflowY: 'hidden', borderBottom: `2px solid ${colors.borderColor}` }}>
                         <HierarchyPanel
                             core={core}
                             scenes={scenes}
@@ -963,6 +984,14 @@ function EditorLayoutInner() {
                                 const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
                                 core.sendContextToEditorModeStateMachine(ctx);
                             }}
+                        />
+                    </div>
+                    {/* Recent Assets */}
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <RecentAssetsPanel
+                            assets={recentAssets}
+                            changeDraggedAsset={changeDraggedAssetHandler}
+                            onSelectAsset={changeSelectedAssetHandler}
                         />
                     </div>
                 </div>
@@ -996,6 +1025,26 @@ function EditorLayoutInner() {
                             }}
                         />
                     )}
+
+                    {/* Asset Panel (Center Bottom) */}
+                    <div style={{
+                        height: '280px',
+                        borderTop: `2px solid ${colors.borderAccent}`,
+                        zIndex: 10
+                    }}>
+                        <AssetPanelNew
+                            assets={assets}
+                            changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                            changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                            modules={modules}
+                            addModule={(module) => core.addModule(module)}
+                            updateModule={(module) => core.updateModule(module)}
+                            selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                            actionLabels={{}}
+                            onCreateVariable={handleCreateActionVariable}
+                            onUpdateVariable={handleUpdateModuleVariable}
+                        />
+                    </div>
                 </div>
 
                 {/* RIGHT PANEL - Inspector */}
@@ -1037,23 +1086,7 @@ function EditorLayoutInner() {
                 </div>
             </div>
 
-            {/* ===== BOTTOM - Asset Panel (ORIGINAL) ===== */}
-            <div style={{
-                borderTop: `2px solid ${colors.borderAccent}`,
-            }}>
-                <AssetPanel
-                    assets={assets}
-                    changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                    changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                    modules={modules}
-                    addModule={(module) => core.addModule(module)}
-                    updateModule={(module) => core.updateModule(module)}
-                    selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                    actionLabels={{}}
-                    onCreateVariable={handleCreateActionVariable}
-                    onUpdateVariable={handleUpdateModuleVariable}
-                />
-            </div>
+
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
