@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: 'test@uniforge.com',
                 name: 'Test User',
                 profileImage: null,
+                role: 'ADMIN',
             } as User);
             setIsLoading(false);
             return;

@@ -1,4 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import AdminRoute from './components/auth/AdminRoute';
+
+// ... (in AppRoutes function)
+            <Route path="/library" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
+            <Route path="/admin" element={isAuthenticated ? <AdminRoute><AppLayout><AdminPage /></AppLayout></AdminRoute> : <Navigate to="/auth" replace />} />
+            <Route path="/build" element={isAuthenticated ? <AppLayout><BuildPage /></AppLayout> : <Navigate to="/auth" replace />} />
 import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import OAuthCallback from './pages/OAuthCallback';
@@ -17,6 +22,7 @@ import EditorLayout from "./editor/EditorLayout";
 import BuildPage from "./pages/BuildPage";
 import { AssetsEditorPage } from './AssetsEditor';
 import AppLayout from './components/layout/AppLayout';
+import AdminRoute from './components/auth/AdminRoute';
 
 function AppRoutes() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -40,7 +46,7 @@ function AppRoutes() {
             <Route path="/create-asset" element={isAuthenticated ? <AppLayout><CreateAssetPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/marketplace" element={isAuthenticated ? <AppLayout><MarketplacePage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/library" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
-            <Route path="/admin" element={isAuthenticated ? <AppLayout><AdminPage /></AppLayout> : <Navigate to="/auth" replace />} />
+            <Route path="/admin" element={isAuthenticated ? <AdminRoute><AppLayout><AdminPage /></AppLayout></AdminRoute> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <AppLayout><BuildPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/assets-editor" element={isAuthenticated ? <AppLayout><AssetsEditorPage /></AppLayout> : <Navigate to="/auth" replace />} />
 

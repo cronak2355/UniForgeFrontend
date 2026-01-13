@@ -49,14 +49,14 @@ export function JobNotification() {
                 } else if (Notification.permission === 'granted') {
                     new Notification(lastJob.status === 'completed' ? '✨ UniForge Job Done!' : '⚠️ UniForge Job Failed', {
                         body: lastJob.taskName,
-                        icon: '/vite.svg',
+                        icon: '/logo.svg',
                     });
                 } else if (Notification.permission !== 'denied') {
                     Notification.requestPermission().then(permission => {
                         if (permission === 'granted') {
                             new Notification(lastJob.status === 'completed' ? '✨ UniForge Job Done!' : '⚠️ UniForge Job Failed', {
                                 body: lastJob.taskName,
-                                icon: '/vite.svg',
+                                icon: '/logo.svg',
                             });
                         }
                     });
