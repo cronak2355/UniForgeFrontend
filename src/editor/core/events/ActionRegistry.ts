@@ -46,6 +46,13 @@ export interface ActionGlobals {
             excludeId?: string
         ): { id: string; x: number; y: number; role: string } | undefined;
         startModule?(entityId: string, moduleId: string): boolean;
+        createEntity?(
+            id: string,
+            type: string,
+            x: number,
+            y: number,
+            options?: Record<string, unknown>
+        ): boolean;
     };
 }
 
