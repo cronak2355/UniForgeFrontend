@@ -1131,12 +1131,8 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     setIsLoading,
     featherAmount,
     setFeatherAmount,
-    downloadWebP: async (filename: string) => {
-      // stub
-    },
-    exportAsSpriteSheet: async (options) => {
-      // stub or link to service if needed
-    },
+    downloadWebP,
+    exportAsSpriteSheet,
     saveToLibrary,
     assets,
     deleteAsset,
