@@ -52,6 +52,7 @@ export function ActionEditor({
     "";
   const spawnTemplateId = (action.templateId as string) ?? "__self__";
   const spawnPositionMode = (action.positionMode as string) ?? "relative";
+  const prefabAssets = (assets ?? []).filter((asset) => asset.tag === "Prefab");
 
   // Animation Logic
   const textureName = currentEntity?.texture || currentEntity?.name;
@@ -269,6 +270,18 @@ export function ActionEditor({
             {entities.map((ent) => (
               <option key={ent.id} value={ent.id}>
                 {ent.name || ent.id}
+              </option>
+            ))}
+          </select>
+          <select
+            value={(action.prefabId as string) ?? ""}
+            onChange={(e) => onUpdate({ ...action, prefabId: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="">(prefab)</option>
+            {prefabAssets.map((asset) => (
+              <option key={asset.id} value={asset.id}>
+                {asset.name || asset.id}
               </option>
             ))}
           </select>
