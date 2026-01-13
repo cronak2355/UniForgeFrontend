@@ -1389,42 +1389,21 @@ export class PhaserRenderer implements IRenderer {
 
             console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
 
-            const loadWithUrl = (targetUrl: string, isBlob: boolean = false) => {
-                if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
-                    scene.load.spritesheet(key, targetUrl, {
-                        frameWidth: metadata.frameWidth,
-                        frameHeight: metadata.frameHeight,
-                    });
-                } else {
-                    scene.load.image(key, targetUrl);
-                }
+            if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
+                scene.load.spritesheet(key, url, {
+                    frameWidth: metadata.frameWidth,
+                    frameHeight: metadata.frameHeight,
+                });
+            } else {
+                scene.load.image(key, url);
+            }
 
-                scene.load.once("complete", () => {
-                    if (isBlob) URL.revokeObjectURL(targetUrl);
-                    this.createAnimationsFromMetadata(key, metadata);
-                    resolve();
-                });
-                scene.load.once("loaderror", () => {
-                    if (isBlob) URL.revokeObjectURL(targetUrl);
-                    reject(new Error(`Failed to load texture: ${key}`));
-                });
-                scene.load.start();
-            };
-
-            // Attempt to fetch with cache-busting first
-            fetch(url, { method: 'GET', cache: 'reload' })
-                .then(res => {
-                    if (!res.ok) throw new Error("Fetch failed");
-                    return res.blob();
-                })
-                .then(blob => {
-                    const blobUrl = URL.createObjectURL(blob);
-                    loadWithUrl(blobUrl, true);
-                })
-                .catch(err => {
-                    console.warn(`[PhaserRenderer] Cache-bust fetch failed for ${key}, falling back to direct URL.`, err);
-                    loadWithUrl(url, false);
-                });
+            scene.load.once("complete", () => {
+                this.createAnimationsFromMetadata(key, metadata);
+                resolve();
+            });
+            scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
+            scene.load.start();
         });
     }
 

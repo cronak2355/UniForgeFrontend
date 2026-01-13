@@ -183,7 +183,7 @@ export const assetService = {
         token: string | null
     ): Promise<void> {
         // 1. Get Upload URL for existing asset
-        const versionId = "1";
+        const versionId = Date.now().toString();
         const contentType = file.type || "application/octet-stream";
         const imageType = "base";
         const params = new URLSearchParams({
