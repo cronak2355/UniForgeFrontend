@@ -8,6 +8,8 @@ import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
 import type { ModuleGraph } from "./types/Module";
 import { defaultGameConfig } from "./core/GameConfig";
+import { EventBus } from "./core/events/EventBus";
+import type { GameEvent } from "./core/events/EventBus";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -96,6 +98,25 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const tileSignatureRef = useRef<string>("");
     const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
 
+    const spawnRuntimeEntities = (gameRuntime: GameCore, sourceEntities: EditorEntity[]) => {
+        for (const e of sourceEntities) {
+            gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
+                name: e.name,
+                z: e.z,
+                rotationX: e.rotationX,
+                rotationY: e.rotationY,
+                rotationZ: e.rotationZ ?? e.rotation,
+                scaleX: e.scaleX,
+                scaleY: e.scaleY,
+                texture: e.texture ?? e.name,
+                variables: e.variables,
+                components: e.components,
+                role: e.role,
+                modules: e.modules,
+            });
+        }
+    };
+
     useEffect(() => {
         selectedEntityIdRef.current = selectedEntity?.id ?? null;
     }, [selectedEntity]);
@@ -108,6 +129,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
         const gameRuntime = new GameCore(renderer);
+        gameCoreRef.current = gameRuntime;
         setGameCore(gameRuntime); // State update triggers UI render
         renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
         renderer.gameConfig = defaultGameConfig; // ??븷 湲곕컲 ?ㅼ젙 ?곌껐
@@ -155,19 +177,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             // 理쒖떊 ?몄쭛 ?곗씠?곕줈 ?뷀떚???앹꽦 (Inspector 蹂寃?諛섏쁺)
             const freshEntities = Array.from(core.getEntities().values());
 
-            for (const e of freshEntities) {
-                // ??λ맂 ?뷀떚???앹꽦
-                gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
-                    name: e.name,
-                    texture: e.texture ?? e.name,
-                    variables: e.variables,
-                    components: e.components,
-                    role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜
-                    modules: e.modules,
-                });
-
-                // ?고???紐⑤뱢 ?몄뒪?댁뒪 ?깅줉? GameCore.createEntity ?대??먯꽌 泥섎━??(?숆린??蹂댁옣)
-            }
+            spawnRuntimeEntities(gameRuntime, freshEntities);
 
             if (renderer.isRuntimeMode) {
                 console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
@@ -302,6 +312,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
+            gameCoreRef.current = null;
             setGameCore(null);
             if (initialModulesRef.current) {
                 core.setModules(initialModulesRef.current);
@@ -309,6 +320,39 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             }
         };
     }, []);
+
+    useEffect(() => {
+        const handleSceneChange = (event: GameEvent) => {
+            if (event.type !== "SCENE_CHANGE_REQUEST") return;
+
+            const sceneId = event.data?.sceneId as string | undefined;
+            const sceneName = event.data?.sceneName as string | undefined;
+
+            const scenes = core.getScenes();
+            const target =
+                (sceneId && scenes.get(sceneId)) ||
+                (sceneName
+                    ? Array.from(scenes.values()).find((scene) => scene.name === sceneName)
+                    : undefined);
+
+            if (!target) {
+                console.warn("[RunTimeCanvas] Scene not found:", { sceneId, sceneName });
+                return;
+            }
+
+            if (core.getCurrentSceneId() !== target.id) {
+                core.switchScene(target.id);
+            }
+
+            const gameRuntime = gameCoreRef.current;
+            if (!gameRuntime) return;
+            gameRuntime.resetRuntime();
+            spawnRuntimeEntities(gameRuntime, Array.from(target.entities.values()));
+        };
+
+        EventBus.on(handleSceneChange);
+        return () => EventBus.off(handleSceneChange);
+    }, [core]);
 
     useEffect(() => {
         const gameRuntime = gameCoreRef.current;
@@ -319,7 +363,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     useEffect(() => {
         // ???蹂寃쎌궗??쭔 諛섏쁺 (異붽?/??젣 diff)
         const renderer = rendererRef.current;
-        if (!renderer) return;
+        if (!renderer || !tilemapReadyRef.current) return;
 
         const nextTiles = indexTiles(tiles);
         const prevTiles = prevTilesRef.current;

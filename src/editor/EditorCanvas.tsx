@@ -87,7 +87,7 @@ function indexTiles(tiles: TilePlacement[]) {
 export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
-    const { tiles, entities, modules } = useEditorCoreSnapshot();
+    const { tiles, entities, modules, currentSceneId } = useEditorCoreSnapshot();
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
@@ -143,6 +143,42 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     useEffect(() => {
         entitiesRef.current = entities;
     }, [entities]);
+
+    useEffect(() => {
+        const renderer = rendererRef.current;
+        const gameCore = gameCoreRef.current;
+        if (!renderer || !gameCore || !isRendererReady) return;
+
+        const currentTiles = tilesRef.current;
+        const currentEntities = entitiesRef.current;
+
+        const existingIds = Array.from(gameCore.getAllEntities().keys());
+        for (const id of existingIds) {
+            gameCore.removeEntity(id);
+        }
+
+        for (const prev of prevTilesRef.current.values()) {
+            renderer.removeTile(prev.x, prev.y);
+        }
+        prevTilesRef.current = new Map();
+
+        for (const t of currentTiles) {
+            renderer.setTile(t.x, t.y, t.tile);
+        }
+        prevTilesRef.current = indexTiles(currentTiles);
+
+        for (const ent of currentEntities) {
+            gameCore.createEntity(ent.id, ent.type, ent.x, ent.y, {
+                name: ent.name,
+                texture: ent.texture ?? ent.name,
+                variables: ent.variables,
+                components: splitLogicItems(ent.logic),
+                modules: ent.modules,
+            });
+        }
+
+        prevEntitiesMapRef.current = new Map(currentEntities.map((e) => [e.id, e]));
+    }, [currentSceneId, isRendererReady]);
 
     useEffect(() => {
         if (!ref.current) return;

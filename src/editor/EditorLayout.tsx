@@ -260,6 +260,7 @@ function EditorLayoutInner() {
 
 
     const [mode, setMode] = useState<Mode>("dev");
+    const prevModeRef = useRef<Mode>(mode);
     const [runSession, setRunSession] = useState(0);
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
@@ -443,6 +444,47 @@ function EditorLayoutInner() {
         if (!latest) return;
         setLocalSelectedEntity(latest);
     }, [mode, selectedEntity, core]);
+
+    useEffect(() => {
+        const prevMode = prevModeRef.current;
+        if (prevMode === mode) return;
+
+        if (mode === "run") {
+            const backup = new Map<string, EditorEntity>();
+            core.getEntities().forEach((entity, id) => {
+                backup.set(id, JSON.parse(JSON.stringify(entity)));
+            });
+            entityBackupRef.current = backup;
+            core.setSelectedEntity(null);
+            setLocalSelectedEntity(null);
+
+            const entitiesList = Array.from(core.getEntities().values());
+            const preferred =
+                entitiesList.find((entity) => entity.role === "player") ??
+                entitiesList[0] ??
+                null;
+            if (preferred) {
+                core.setSelectedEntity(preferred as any);
+                setLocalSelectedEntity(preferred as any);
+            }
+            setRunSession((v) => v + 1);
+        } else if (prevMode === "run") {
+            if (entityBackupRef.current) {
+                entityBackupRef.current.forEach((backupEntity, id) => {
+                    const currentEntity = core.getEntities().get(id);
+                    if (currentEntity) {
+                        Object.assign(currentEntity, backupEntity);
+                    }
+                });
+                entityBackupRef.current = null;
+                core.setSelectedEntity(core.getSelectedEntity());
+                const refreshed = core.getSelectedEntity();
+                setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
+            }
+        }
+
+        prevModeRef.current = mode;
+    }, [mode, core]);
 
     const resetDropModal = () => {
         setDropModalFile(null);
@@ -851,42 +893,7 @@ function EditorLayoutInner() {
                     <button
                         title={mode === "dev" ? "Play" : "Stop"}
                         onClick={() => {
-                            setMode((prev) => {
-                                const next = prev === "dev" ? "run" : "dev";
-                                if (next === "run") {
-                                    const backup = new Map<string, EditorEntity>();
-                                    core.getEntities().forEach((entity, id) => {
-                                        backup.set(id, JSON.parse(JSON.stringify(entity)));
-                                    });
-                                    entityBackupRef.current = backup;
-                                    core.setSelectedEntity(null);
-                                    setLocalSelectedEntity(null);
-                                    const entitiesList = Array.from(core.getEntities().values());
-                                    const preferred =
-                                        entitiesList.find((entity) => entity.role === "player") ??
-                                        entitiesList[0] ??
-                                        null;
-                                    if (preferred) {
-                                        core.setSelectedEntity(preferred as any);
-                                        setLocalSelectedEntity(preferred as any);
-                                    }
-                                    setRunSession((v) => v + 1);
-                                } else {
-                                    if (entityBackupRef.current) {
-                                        entityBackupRef.current.forEach((backupEntity, id) => {
-                                            const currentEntity = core.getEntities().get(id);
-                                            if (currentEntity) {
-                                                Object.assign(currentEntity, backupEntity);
-                                            }
-                                        });
-                                        entityBackupRef.current = null;
-                                        core.setSelectedEntity(core.getSelectedEntity());
-                                        const refreshed = core.getSelectedEntity();
-                                        setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
-                                    }
-                                }
-                                return next;
-                            });
+                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
                         }}
 
                         style={{
