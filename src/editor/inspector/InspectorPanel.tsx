@@ -230,6 +230,52 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         </div>
       </div>
 
+      {/* Tags Section */}
+      <div style={sectionStyle}>
+        <div style={titleStyle}>Tags</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={rowStyle}>
+            <span style={{ ...labelStyle, width: 'auto', marginRight: '12px' }}>🏷️</span>
+            <input
+              type="text"
+              placeholder="player, enemy, ui (쉼표 구분)"
+              style={{ ...inputStyle, width: '100%', flex: 1 }}
+              value={(localEntity.tags ?? []).join(', ')}
+              onChange={(e) => {
+                const input = e.target.value;
+                const tags = input
+                  .split(',')
+                  .map(t => t.trim().toLowerCase())
+                  .filter(t => t.length > 0);
+                handleUpdate({ ...localEntity, tags });
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {(localEntity.tags ?? []).map((tag, idx) => (
+              <span
+                key={idx}
+                style={{
+                  background: tag === 'player' ? '#27ae60' : tag === 'enemy' ? '#c0392b' : '#3498db',
+                  color: '#fff',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const newTags = (localEntity.tags ?? []).filter((_, i) => i !== idx);
+                  handleUpdate({ ...localEntity, tags: newTags });
+                }}
+                title="클릭하여 제거"
+              >
+                {tag} ×
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div style={sectionStyle}>
         <VariableSection
           variables={variables}

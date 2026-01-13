@@ -636,13 +636,13 @@ export function RightPanel() {
 
                 <div className="flex items-center gap-2">
                   <div className="flex bg-white/5 p-0.5 border border-white/5">
-                    {(['character', 'object'] as const).map(t => (
+                    {(['character', 'object', 'effect'] as const).map(t => (
                       <button
                         key={t}
                         onClick={() => setAssetType(t)}
                         className={`px-2 py-1 text-[10px] uppercase tracking-wide transition-colors ${assetType === t ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white'}`}
                       >
-                        {t === 'character' ? 'CHAR' : 'OBJ'}
+                        {t === 'character' ? 'CHAR' : t === 'object' ? 'OBJ' : 'FX'}
                       </button>
                     ))}
                   </div>
@@ -718,6 +718,32 @@ export function RightPanel() {
                       onChange={(e) => setExportName(e.target.value)}
                       className="w-full bg-black/20 border border-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500/50 font-mono"
                     />
+                  </div>
+
+                  {/* Asset Type Selector */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-white/40 uppercase">Asset Type</label>
+                    <div className="flex bg-white/5 p-1 border border-white/10 rounded">
+                      {(['character', 'object', 'effect'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setAssetType(t)}
+                          className={`flex-1 px-2 py-2 text-xs font-bold uppercase tracking-wide transition-all rounded ${assetType === t
+                            ? t === 'effect'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-blue-600 text-white'
+                            : 'text-white/40 hover:text-white hover:bg-white/10'
+                            }`}
+                        >
+                          {t === 'character' ? '👤 Character' : t === 'object' ? '🧱 Tile' : '✨ Particle'}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-1">
+                      {assetType === 'effect' && '파티클 효과로 저장됩니다. PlayParticle 액션에서 사용 가능.'}
+                      {assetType === 'character' && '캐릭터/스프라이트로 저장됩니다.'}
+                      {assetType === 'object' && '타일/오브젝트로 저장됩니다.'}
+                    </p>
                   </div>
 
                   <button

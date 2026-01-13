@@ -46,6 +46,7 @@ const ACTION_LABELS: Record<string, string> = {
     EmitEventSignal: "EmitEventSignal",
     ClearSignal: "ClearSignal",
     RunModule: "RunModule",
+    SpawnEntity: "Spawn Entity",
     PlayAnimation: "Play Animation",
 };
 
@@ -197,11 +198,12 @@ function normalizeEvent(event: string): string {
 }
 
 export const ComponentSection = memo(function ComponentSection({ entity, onUpdateEntity }: Props) {
-    const { core, entities: allEntities, modules: libraryModules, assets } = useEditorCoreSnapshot();
+    const { core, entities: allEntities, modules: libraryModules, assets, scenes: sceneMap } = useEditorCoreSnapshot();
     const allComponents = splitLogicItems(entity.logic);
     const logicComponents = allComponents.filter((comp) => comp.type === "Logic") as LogicComponent[];
     const otherComponents = allComponents.filter((comp) => comp.type !== "Logic");
     const variables = entity.variables ?? [];
+    const sceneOptions = Array.from(sceneMap.values()).map((scene) => ({ id: scene.id, name: scene.name }));
     const mergeModule = (base: ModuleGraph, override?: ModuleGraph): ModuleGraph => {
         if (!override) return base;
         const baseVars = base.variables ?? [];
@@ -360,6 +362,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                         entities={otherEntities}
                         modules={modules}
                         assets={assets}
+                        scenes={sceneOptions}
                         currentEntity={entity}
                         availableActions={availableActions}
                         actionLabels={actionLabels}
@@ -386,6 +389,7 @@ const RuleItem = memo(function RuleItem({
     entities,
     modules,
     assets,
+    scenes,
     currentEntity,
     availableActions,
     actionLabels,
@@ -400,6 +404,7 @@ const RuleItem = memo(function RuleItem({
     entities: { id: string; name: string }[];
     modules: ModuleGraph[];
     assets: Asset[];
+    scenes: { id: string; name: string }[];
     currentEntity: EditorEntity;
     availableActions: string[];
     actionLabels: Record<string, string>;
@@ -520,6 +525,7 @@ const RuleItem = memo(function RuleItem({
                                 entities={entities}
                                 modules={modules}
                                 assets={assets}
+                                scenes={scenes}
                                 currentEntity={currentEntity}
                                 onCreateVariable={onCreateVariable}
                                 onUpdateModuleVariable={onUpdateModuleVariable}

@@ -1,6 +1,7 @@
 import { ActionRegistry, type ActionContext } from "../ActionRegistry";
 import { EventBus } from "../EventBus";
 import Phaser from "phaser";
+import { splitLogicItems } from "../../../types/Logic";
 
 type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
 type RuntimeEntity = {
@@ -77,6 +78,10 @@ function setVar(entity: RuntimeEntity | undefined, name: string, value: number |
             value: String(value),
         });
     }
+}
+
+function cloneJson<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function isAlive(ctx: ActionContext): boolean {
@@ -445,6 +450,65 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     gameCore.startModule(ctx.entityId, moduleId);
 });
 
+ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
+    if (!gameCore?.createEntity) return;
+
+    const entities = ctx.globals?.entities as Map<string, any> | undefined;
+    const owner = entities?.get(ctx.entityId);
+    const renderer = ctx.globals?.renderer as { core?: { getEntity?: (id: string) => any } } | undefined;
+
+    const templateIdRaw = ((params.templateId as string) ?? "").trim();
+    const templateId = templateIdRaw || "__self__";
+    const editorTemplateId = templateId === "__self__" ? ctx.entityId : templateId;
+    const template =
+        templateId === "__self__"
+            ? owner
+            : (templateId ? entities?.get(templateId) : undefined);
+    const editorTemplate = renderer?.core?.getEntity?.(editorTemplateId);
+    const source = template ?? editorTemplate;
+    const sourceComponents =
+        template?.components ??
+        editorTemplate?.components ??
+        splitLogicItems(editorTemplate?.logic);
+
+    const positionMode = (params.positionMode as string) ?? "relative";
+    const offsetX = Number(params.offsetX ?? 0);
+    const offsetY = Number(params.offsetY ?? 0);
+    const absoluteX = Number(params.x ?? owner?.x ?? 0);
+    const absoluteY = Number(params.y ?? owner?.y ?? 0);
+
+    const spawnX = positionMode === "absolute" ? absoluteX : (Number(owner?.x ?? 0) + offsetX);
+    const spawnY = positionMode === "absolute" ? absoluteY : (Number(owner?.y ?? 0) + offsetY);
+
+    const id = crypto.randomUUID();
+    const texture =
+        ((params.texture as string) ?? "").trim() ||
+        (typeof editorTemplate?.texture === "string" ? editorTemplate.texture : "") ||
+        (typeof editorTemplate?.name === "string" ? editorTemplate.name : "");
+
+    const options = {
+        name: (params.name as string) ?? (source?.name ? `${source.name}_spawn` : undefined),
+        z: typeof source?.z === "number" ? source.z : (params.z as number | undefined),
+        rotationX: source?.rotationX ?? 0,
+        rotationY: source?.rotationY ?? 0,
+        rotationZ: source?.rotationZ ?? source?.rotation ?? 0,
+        scaleX: source?.scaleX ?? 1,
+        scaleY: source?.scaleY ?? 1,
+        scaleZ: source?.scaleZ ?? 1,
+        variables: source?.variables ? cloneJson(source.variables) : [],
+        components: sourceComponents ? cloneJson(sourceComponents) : [],
+        role: ((params.role as string) ?? source?.role ?? "neutral"),
+        modules: source?.modules ? cloneJson(source.modules) : [],
+        width: source?.width ?? (params.width as number | undefined),
+        height: source?.height ?? (params.height as number | undefined),
+        texture: texture || undefined,
+    };
+
+    const type = (source?.type as string) ?? (params.type as string) ?? "sprite";
+    gameCore.createEntity(id, type, spawnX, spawnY, options);
+});
+
 // --- Entity Control Actions ---
 
 ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, unknown>) => {
@@ -466,12 +530,21 @@ ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, un
 
 ActionRegistry.register("ChangeScene", (ctx: ActionContext, params: Record<string, unknown>) => {
     const scene = ctx.globals?.scene as Phaser.Scene | undefined;
-    if (!scene) return;
-
-    const sceneName = params.sceneName as string;
+    const sceneId = (params.sceneId as string | undefined)?.trim() ?? "";
+    const sceneName = (params.sceneName as string | undefined)?.trim() ?? "";
     const data = params.data as object | undefined;
-    if (!sceneName) return;
+    if (!sceneId && !sceneName) return;
 
+    EventBus.emit("SCENE_CHANGE_REQUEST", {
+        sceneId,
+        sceneName,
+        data,
+        from: scene?.scene?.key,
+    });
+
+    if (!scene || !sceneName) return;
+    const manager = scene.scene?.manager as { keys?: Record<string, Phaser.Scene> } | undefined;
+    if (!manager?.keys || !manager.keys[sceneName]) return;
     EventBus.emit("SCENE_CHANGING", { from: scene.scene.key, to: sceneName });
     scene.scene.start(sceneName, data);
 });
@@ -555,6 +628,74 @@ ActionRegistry.register("Disable", (ctx: ActionContext) => {
     }
 });
 
+// --- Particle Actions ---
+
+// 파티클 쿨다운 관리 (OnUpdate에서 사용해도 일정 간격만 재생)
+const particleCooldowns = new Map<string, number>();
+const PARTICLE_COOLDOWN_MS = 200; // 0.2초 간격
+
+ActionRegistry.register("PlayParticle", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer as any;
+    if (!renderer) return;
+
+    const preset = (params.preset as string) ?? "hit_spark";
+
+    // 쿨타임 체크 (엔티티 + 프리셋별로 개별 쿨다운)
+    const cooldownKey = `${ctx.entityId}_${preset}`;
+    const now = Date.now();
+    const lastPlay = particleCooldowns.get(cooldownKey) ?? 0;
+
+    // 강제 실행 옵션이 없으면 쿨다운 적용
+    const force = params.force === true;
+    if (!force && now - lastPlay < PARTICLE_COOLDOWN_MS) {
+        return; // 쿨다운 중
+    }
+    particleCooldowns.set(cooldownKey, now);
+
+    // 위치: params > gameObject > entity 데이터 순으로 시도
+    const gameObject = renderer.getGameObject?.(ctx.entityId);
+    const entity = getEntity(ctx);
+
+    const x = (params.x as number) ?? gameObject?.x ?? entity?.x ?? 0;
+    const y = (params.y as number) ?? gameObject?.y ?? entity?.y ?? 0;
+    const scale = (params.scale as number) ?? 1;
+
+    // 커스텀 파티클 체크 (custom: 접두어)
+    if (preset.startsWith("custom:")) {
+        const customId = preset.slice(7); // "custom:" 제거
+        renderer.playCustomParticle?.(customId, x, y, scale);
+    } else {
+        if (typeof renderer.playParticle === 'function') {
+            renderer.playParticle(preset, x, y, scale);
+        }
+    }
+});
+
+ActionRegistry.register("StartParticleEmitter", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer?.createParticleEmitter) return;
+
+    const emitterId = (params.emitterId as string) ?? `emitter_${ctx.entityId}`;
+    const preset = (params.preset as string) ?? "fire";
+
+    // 위치: params > gameObject > entity 데이터 순으로 시도
+    const gameObject = renderer.getGameObject?.(ctx.entityId);
+    const entity = getEntity(ctx);
+
+    const x = (params.x as number) ?? gameObject?.x ?? entity?.x ?? 0;
+    const y = (params.y as number) ?? gameObject?.y ?? entity?.y ?? 0;
+
+    renderer.createParticleEmitter(emitterId, preset, x, y);
+});
+
+ActionRegistry.register("StopParticleEmitter", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer?.stopParticleEmitter) return;
+
+    const emitterId = (params.emitterId as string) ?? `emitter_${ctx.entityId}`;
+    renderer.stopParticleEmitter(emitterId);
+});
+
 console.log(
-    "[DefaultActions] 15 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal"
+    "[DefaultActions] 18 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal, Rotate, Pulse, PlayParticle, StartParticleEmitter, StopParticleEmitter"
 );

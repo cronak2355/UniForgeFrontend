@@ -3,8 +3,6 @@ name: "[FIXED] 프론트엔드 배포 (Frontend CI/CD)"
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -107,4 +105,3 @@ jobs:
             --id $INVALIDATION_ID || echo "Warning: Invalidation wait timed out, but it will complete eventually"
           
           echo "=== CloudFront cache invalidation completed ==="
-
