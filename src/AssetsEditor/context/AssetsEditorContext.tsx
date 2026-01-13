@@ -928,14 +928,34 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       const url = asset.imageUrl || asset.url;
       if (!url) throw new Error("Asset has no URL");
 
-      // 2. Load Image
+      // 2. Load Image (Fetch with cache: 'reload' to bypass browser cache)
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.src = `${url}?t=${Date.now()}`;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+
+      try {
+        const response = await fetch(url, { method: 'GET', cache: 'reload' });
+        if (!response.ok) throw new Error("Failed to fetch image");
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        img.src = objectUrl;
+
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl); // Clean up
+            resolve(true);
+          };
+          img.onerror = reject;
+        });
+      } catch (err) {
+        console.error("Failed to load asset image:", err);
+        // Fallback to direct URL if fetch fails
+        img.src = url;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+      }
 
       // 3. Parse Metadata
       let metadata: any = {};
