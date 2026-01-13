@@ -177,24 +177,43 @@ const CreateAssetPage = () => {
             }
 
             // Step 1: Create asset in DB
+            // Step 1: Create or Update asset in DB
             setUploadProgress(20);
-            const asset = await marketplaceService.createAsset({
-                name: formData.name,
-                price: formData.price,
-                description: finalDescription || null,
-                isPublic: formData.isPublic,
-                tags: formData.tags.join(','),
-                assetType: formData.assetType
-            });
+
+            let assetId = (location.state as any)?.assetId;
+            let asset: any = null;
+
+            if (assetId) {
+                // UPDATE Mode
+                console.log("[CreateAssetPage] Updating existing asset:", assetId);
+                asset = await marketplaceService.updateAsset(assetId, {
+                    name: formData.name,
+                    price: formData.price,
+                    description: finalDescription || null,
+                    isPublic: formData.isPublic,
+                    tags: formData.tags.join(','), // Assuming backend handles CSV or array? Check type.
+                    assetType: formData.assetType,
+                } as any);
+            } else {
+                // CREATE Mode
+                console.log("[CreateAssetPage] Creating new asset");
+                asset = await marketplaceService.createAsset({
+                    name: formData.name,
+                    price: formData.price,
+                    description: finalDescription || null,
+                    isPublic: formData.isPublic,
+                    tags: formData.tags.join(','),
+                    assetType: formData.assetType
+                });
+                assetId = asset.id;
+            }
 
             setUploadProgress(30);
 
             // Step 1.5: Upload Thumbnail (if exists)
             // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
-            // Step 1.5: Upload Thumbnail (if exists)
-            // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
             if (thumbnailFile) {
-                const { uploadUrl, s3Key } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
+                const { uploadUrl, s3Key } = await marketplaceService.getPresignedUrlForImage(assetId, thumbnailFile.type);
                 if (uploadUrl && s3Key) {
                     await fetch(uploadUrl, {
                         method: 'PUT',
@@ -205,7 +224,7 @@ const CreateAssetPage = () => {
                     // IMPORTANT: Register the image resource in the backend!
                     await marketplaceService.registerImageResource({
                         ownerType: "ASSET",
-                        ownerId: asset.id,
+                        ownerId: assetId,
                         imageType: "thumbnail",
                         s3Key: s3Key,
                         isActive: true
@@ -213,18 +232,18 @@ const CreateAssetPage = () => {
 
                     // Update asset with PROXY URL
                     // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
-                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${asset.id}?imageType=thumbnail`;
-                    await marketplaceService.updateAsset(asset.id, { imageUrl: proxyUrl });
+                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=thumbnail`;
+                    await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
                 }
             }
             setUploadProgress(40);
 
             // Step 2: Create version to get versionId
-            const version = await marketplaceService.createVersion(asset.id);
+            const version = await marketplaceService.createVersion(assetId);
             setUploadProgress(50);
 
             // Step 3: Get presigned upload URL
-            const { uploadUrl } = await marketplaceService.getUploadUrl(asset.id, version.id, file.name, file.type);
+            const { uploadUrl } = await marketplaceService.getUploadUrl(assetId, version.id, file.name, file.type);
             setUploadProgress(60);
 
             // Step 4: Upload file directly to S3

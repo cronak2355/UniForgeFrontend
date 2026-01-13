@@ -986,6 +986,8 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         const newMap: Record<string, AnimationData> = {};
         let firstAnimName = "";
 
+        let droppedFramesCount = 0;
+
         Object.keys(metadata.animations).forEach((name, idx) => {
           if (idx === 0) firstAnimName = name;
           const animDef = metadata.animations[name];
@@ -1000,11 +1002,13 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
               animFrames.push(newFrames[fIdx]);
             } else {
               console.warn(`[AssetsEditor] Warning: Animation '${name}' references missing frame index ${fIdx}. Total frames: ${newFrames.length}`);
+              droppedFramesCount++;
             }
           });
 
           if (animFrames.length === 0) {
             console.warn(`[AssetsEditor] Animation '${name}' has no valid frames. Skipping.`);
+            droppedFramesCount++; // Count skipped animation as dropped frames
             return;
           }
 
@@ -1014,6 +1018,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
             loop: animDef.loop ?? true
           };
         });
+
+        if (droppedFramesCount > 0) {
+          alert(`Warning: This asset contains references to valid frames that do not exist in the image file.\n\n${droppedFramesCount} broken frame reference(s) were removed to prevent errors.\nSaving this asset will permanently remove these invalid references.`);
+        }
 
         setAnimationMap(newMap);
 
