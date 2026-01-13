@@ -428,6 +428,7 @@ export function RightPanel() {
       const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
       let savedId = currentAssetId;
 
+      console.log("[AssetsEditor] Uploading asset", { assetName, tag, metadata, currentAssetId });
       if (currentAssetId) {
         await assetService.updateAsset(currentAssetId, blob, metadata, token);
       } else {
