@@ -21,6 +21,7 @@ type TabType = 'ai' | 'animate' | 'export';
 export function RightPanel() {
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('gameId');
+  const navigate = useNavigate();
 
   const {
     frames,
@@ -36,17 +37,23 @@ export function RightPanel() {
     loadAIImage,
     pixelSize,
     addFrame,
-    selectFrame,
-    applyImageData,
-    getWorkCanvas,
-    featherAmount,
-    setFeatherAmount,
-    triggerBackgroundRemoval,
-    exportAsSpriteSheet,
-    animations,
-    currentAssetId,
-    setCurrentAssetId,
-  } = useAssetsEditor();
+      selectFrame,
+      applyImageData,
+      getWorkCanvas,
+      featherAmount,
+      setFeatherAmount,
+      triggerBackgroundRemoval,
+      exportAsSpriteSheet,
+      animationMap,
+      currentAssetId,
+      setCurrentAssetId,
+    } = useAssetsEditor();
+  const animations = Object.entries(animationMap).map(([name, data]) => ({
+    name,
+    frames: data.frames,
+    fps: data.fps,
+    loop: data.loop,
+  }));
 
   // ==================== State ====================
   const [activeTab, setActiveTab] = useState<TabType>('ai');
@@ -412,11 +419,8 @@ export function RightPanel() {
   const handleSaveAndExit = async () => {
     const savedId = await performSave();
     if (savedId) {
-      if (gameId) {
-        window.location.href = `/editor/${gameId}?newAssetId=${savedId}`;
-      } else {
-        window.location.href = '/editor';
-      }
+      const targetPath = gameId ? `/editor/${gameId}` : '/editor';
+      navigate(`${targetPath}?newAssetId=${savedId}`);
     }
   };
 
