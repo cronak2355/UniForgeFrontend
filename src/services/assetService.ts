@@ -266,9 +266,6 @@ export const assetService = {
         });
 
         console.log(`[assetService] Asset Updated: ${assetId}`);
-
-        // Construct final URL for live update usage
-        const finalAssetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
         return { id: assetId, url: finalAssetUrl };
     },
 
