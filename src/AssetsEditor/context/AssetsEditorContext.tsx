@@ -987,28 +987,29 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         let firstAnimName = "";
 
         let droppedFramesCount = 0;
-
         Object.keys(metadata.animations).forEach((name, idx) => {
           if (idx === 0) firstAnimName = name;
           const animDef = metadata.animations[name];
 
-          // Validation: Filter out frames that don't exist in the sliced newFrames
-          const validFrames: number[] = [];
+          // Validation: If frame missing, use Blank Frame to preserve animation structure
           const animFrames: ImageData[] = [];
 
           animDef.frames.forEach((fIdx: number) => {
             if (newFrames[fIdx]) {
-              validFrames.push(fIdx);
               animFrames.push(newFrames[fIdx]);
             } else {
-              console.warn(`[AssetsEditor] Warning: Animation '${name}' references missing frame index ${fIdx}. Total frames: ${newFrames.length}`);
-              droppedFramesCount++;
+              // Fallback: Create blank frame
+              const blank = new ImageData(
+                new Uint8ClampedArray(frameW * frameH * 4),
+                frameW,
+                frameH
+              );
+              animFrames.push(blank);
             }
           });
 
           if (animFrames.length === 0) {
-            console.warn(`[AssetsEditor] Animation '${name}' has no valid frames. Skipping.`);
-            droppedFramesCount++; // Count skipped animation as dropped frames
+            // Should not happen if we allow blanks, unless def is empty
             return;
           }
 
@@ -1019,9 +1020,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
           };
         });
 
-        if (droppedFramesCount > 0) {
-          alert(`Warning: This asset contains references to valid frames that do not exist in the image file.\n\n${droppedFramesCount} broken frame reference(s) were removed to prevent errors.\nSaving this asset will permanently remove these invalid references.`);
-        }
+        // Removed strict validation alert to prevent data loss
 
         setAnimationMap(newMap);
 
