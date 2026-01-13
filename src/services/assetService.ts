@@ -214,21 +214,58 @@ export const assetService = {
             body: file,
         });
 
-        // 3. Update Metadata (Description)
-        if (metadata) {
-            await fetch(`https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({
-                    description: JSON.stringify(metadata)
-                })
-            });
+        const extractS3Key = (url: string) => {
+            try {
+                const parsed = new URL(url);
+                const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                return key || null;
+            } catch {
+                return null;
+            }
+        };
+
+        const s3Key = presignData.s3Key || presignData.key || extractS3Key(uploadUrl);
+        if (!s3Key) {
+            throw new Error("S3 key missing in response.");
         }
 
-        console.log(`[assetService] Asset Updated: ${assetId}`);
+        // 3. Register Image in DB
+        await fetch("https://uniforge.kr/api/images", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+                ownerType: "ASSET",
+                ownerId: assetId,
+                imageType,
+                s3Key,
+                contentType,
+            }),
+        });
+
+        // 4. Update Metadata AND Image URL
+        // The backend proxy endpoint
+        const finalAssetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+
+        const updateBody: any = {
+            imageUrl: finalAssetUrl
+        };
+        if (metadata) {
+            updateBody.description = JSON.stringify(metadata);
+        }
+
+        await fetch(`https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(updateBody)
+        });
+
+        console.log(`[assetService] Asset Updated: ${assetId} with new version ${versionId}`);
     },
 
     async getAsset(assetId: string): Promise<any> {
