@@ -68,9 +68,22 @@ class MarketplaceService {
         });
     }
 
-    async getPresignedUrlForImage(ownerId: string, contentType: string): Promise<{ uploadUrl: string }> {
-        return apiClient.request<{ uploadUrl: string }>(`/uploads/presign/image?ownerType=ASSET&ownerId=${ownerId}&imageType=thumbnail&contentType=${encodeURIComponent(contentType)}`, {
+    async getPresignedUrlForImage(ownerId: string, contentType: string): Promise<{ uploadUrl: string; s3Key: string }> {
+        return apiClient.request<{ uploadUrl: string; s3Key: string }>(`/uploads/presign/image?ownerType=ASSET&ownerId=${ownerId}&imageType=thumbnail&contentType=${encodeURIComponent(contentType)}`, {
             method: 'POST'
+        });
+    }
+
+    async registerImageResource(data: {
+        ownerType: string;
+        ownerId: string;
+        imageType: string;
+        s3Key: string;
+        isActive: boolean;
+    }): Promise<any> {
+        return apiClient.request('/images', {
+            method: 'POST',
+            body: JSON.stringify(data)
         });
     }
 

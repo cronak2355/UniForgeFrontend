@@ -177,7 +177,7 @@ export function AssetPanel({
                 onClick={() => handleTileClick(asset)}
               >
                 <img
-                  src={asset.url}
+                  src={asset.imageUrl || asset.url}
                   alt={asset.name}
                   draggable={false}
                   style={{
