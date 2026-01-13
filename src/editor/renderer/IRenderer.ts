@@ -213,7 +213,7 @@ export interface IRenderer {
     /**
      * 엔티티 클릭 시 호출
      */
-    onEntityClick?: (id: string) => void;
+    onEntityClick?: (id: string, worldX: number, worldY: number) => void;
 
     /**
      * 포인터 다운 시 호출 (월드 좌표)

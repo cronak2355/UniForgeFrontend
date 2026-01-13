@@ -299,7 +299,7 @@ export class EntityEditMode implements EditorMode {
     private offsetX = 0;
     private offsetY = 0;
 
-    private snapToGrid = true;
+    private snapToGrid = false;
     enter(_scene: Phaser.Scene): void { }
     exit(_scene: Phaser.Scene): void { }
     update(_scene: Phaser.Scene, _dt: number): void { }

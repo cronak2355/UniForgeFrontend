@@ -73,7 +73,7 @@ export const assetService = {
         const versionId = "1"; // Default version for now
 
         // Step B: Get Upload URL
-        const imageType = "preview"; // Default image type for main asset logic
+        const imageType = "base"; // Use base for the main asset file
         const params = new URLSearchParams({
             contentType,
             imageType,
@@ -173,6 +173,67 @@ export const assetService = {
             tag: tag,
             metadata: metadata
         };
+    },
+
+    async updateAsset(
+        assetId: string,
+        file: File | Blob,
+        metadata: any,
+        token: string | null
+    ): Promise<void> {
+        // 1. Get Upload URL for existing asset
+        const versionId = "1";
+        const contentType = file.type || "application/octet-stream";
+        const imageType = "base";
+        const params = new URLSearchParams({
+            contentType,
+            imageType,
+        });
+
+        const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+
+        const presignRes = await fetch(requestUrl, {
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        });
+
+        if (!presignRes.ok) {
+            const message = await presignRes.text();
+            throw new Error(message || "Failed to get upload URL for update.");
+        }
+
+        const presignData = await presignRes.json();
+        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+
+        // 2. Upload to S3
+        await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": contentType },
+            body: file,
+        });
+
+        // 3. Update Metadata (Description)
+        if (metadata) {
+            await fetch(`https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    description: JSON.stringify(metadata)
+                })
+            });
+        }
+
+        console.log(`[assetService] Asset Updated: ${assetId}`);
+    },
+
+    async getAsset(assetId: string): Promise<any> {
+        const res = await fetch(`https://uniforge.kr/api/assets/${assetId}`);
+        if (!res.ok) throw new Error("Failed to fetch asset details");
+        return await res.json();
     },
 
     /**

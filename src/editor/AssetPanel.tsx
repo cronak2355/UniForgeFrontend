@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import type { Asset } from "./types/Asset";
 import type { ModuleGraph } from "./types/Module";
 import { createDefaultModuleGraph } from "./types/Module";
@@ -35,6 +36,9 @@ export function AssetPanel({
   const [currentTag, setCurrentTag] = useState<string>("Tile");
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const dragStateRef = useRef<{ asset: Asset; startX: number; startY: number; hasDragged: boolean } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; asset: Asset } | null>(null);
+  const navigate = useNavigate();
+  const { gameId } = useParams();
 
   const clearDragListeners = () => {
     window.removeEventListener("pointermove", onGlobalPointerMove);
@@ -164,6 +168,11 @@ export function AssetPanel({
                     changeDraggedAsset(null, { defer: true });
                   }
                   clearDragListeners();
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (asset.tag === "Tile") return; // Only allow editing sprites/characters for now? User said "entity image", usually character.
+                  setContextMenu({ x: e.clientX, y: e.clientY, asset });
                 }}
                 onClick={() => handleTileClick(asset)}
               >
@@ -313,6 +322,48 @@ export function AssetPanel({
                     onChange={(next) => updateModule(next)}
                   />
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+        >
+          <div style={{
+            position: 'absolute',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: colors.bgSecondary,
+            border: `1px solid ${colors.borderColor}`,
+            borderRadius: '6px',
+            padding: '4px',
+            minWidth: '120px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: colors.textPrimary,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '4px',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = colors.bgTertiary}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              onClick={() => {
+                const url = `/asset-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
+                navigate(url);
+              }}
+            >
+              <span>✏️</span> Edit Asset
             </div>
           </div>
         </div>

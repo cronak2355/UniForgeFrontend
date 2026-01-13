@@ -1,7 +1,6 @@
 import Hero from '../components/landing/Hero';
 import WhyUniforge from '../components/landing/WhyUniforge';
 import BentoFeatures from '../components/landing/BentoFeatures';
-import CallToAction from '../components/landing/CallToAction';
 import Footer from '../components/common/Footer';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 
@@ -17,7 +16,6 @@ const LandingPage = () => {
             <Hero />
             <WhyUniforge />
             <BentoFeatures />
-            <CallToAction />
             <Footer />
         </main>
     );

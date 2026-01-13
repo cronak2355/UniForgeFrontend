@@ -466,12 +466,21 @@ ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, un
 
 ActionRegistry.register("ChangeScene", (ctx: ActionContext, params: Record<string, unknown>) => {
     const scene = ctx.globals?.scene as Phaser.Scene | undefined;
-    if (!scene) return;
-
-    const sceneName = params.sceneName as string;
+    const sceneId = (params.sceneId as string | undefined)?.trim() ?? "";
+    const sceneName = (params.sceneName as string | undefined)?.trim() ?? "";
     const data = params.data as object | undefined;
-    if (!sceneName) return;
+    if (!sceneId && !sceneName) return;
 
+    EventBus.emit("SCENE_CHANGE_REQUEST", {
+        sceneId,
+        sceneName,
+        data,
+        from: scene?.scene?.key,
+    });
+
+    if (!scene || !sceneName) return;
+    const manager = scene.scene?.manager as { keys?: Record<string, Phaser.Scene> } | undefined;
+    if (!manager?.keys || !manager.keys[sceneName]) return;
     EventBus.emit("SCENE_CHANGING", { from: scene.scene.key, to: sceneName });
     scene.scene.start(sceneName, data);
 });

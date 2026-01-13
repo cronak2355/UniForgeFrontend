@@ -436,7 +436,7 @@ export class PhaserRenderer implements IRenderer {
     private readonly MAP_SIZE = 200;
 
     // ===== Interaction Callbacks =====
-    onEntityClick?: (id: string) => void;
+    onEntityClick?: (id: string, worldX: number, worldY: number) => void;
     onPointerDown?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerMove?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
@@ -447,7 +447,59 @@ export class PhaserRenderer implements IRenderer {
     useEditorCoreRuntimePhysics = true;
 
     /** Runtime mode flag - logic components and TICK only run when true */
-    isRuntimeMode = false;
+    private _isRuntimeMode = false;
+
+    get isRuntimeMode(): boolean {
+        return this._isRuntimeMode;
+    }
+
+    set isRuntimeMode(value: boolean) {
+        this._isRuntimeMode = value;
+        this.updateInputState();
+    }
+
+    private updateInputState() {
+        if (!this.scene || !this.scene.input) return;
+
+        const draggable = !this._isRuntimeMode && !this.isPreviewMode;
+
+        for (const entity of this.entities.values()) {
+            if (draggable) {
+                this.scene.input.setDraggable(entity);
+            } else {
+                this.scene.input.setDraggable(entity, false);
+            }
+        }
+
+        // Also toggle grid visibility or interaction?
+        // Usually grid remains.
+    }
+
+    private attachEntityInteraction(obj: Phaser.GameObjects.GameObject, id: string, type: string) {
+        if (!this.scene) return;
+        const anyObj = obj as Phaser.GameObjects.GameObject & {
+            setInteractive?: () => void;
+            off?: (event: string) => void;
+            on?: (event: string, callback: (pointer: Phaser.Input.Pointer) => void) => void;
+            setData?: (key: string, value: unknown) => void;
+        };
+
+        anyObj.setData?.("id", id);
+        anyObj.setData?.("type", type);
+        anyObj.setInteractive?.();
+
+        const draggable = !this._isRuntimeMode && !this.isPreviewMode;
+        if (this.scene.input) {
+            this.scene.input.setDraggable(obj, draggable);
+        }
+
+        anyObj.off?.("pointerdown");
+        anyObj.on?.("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            if (!this.onEntityClick || !this.scene) return;
+            const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+            this.onEntityClick(id, world.x, world.y);
+        });
+    }
 
     /** Editor Preview Mode flag - disables dragging if true */
     public isPreviewMode = false;
@@ -498,6 +550,8 @@ export class PhaserRenderer implements IRenderer {
      */
     onSceneReady(): void {
         if (!this.scene) return;
+
+        this.scene.load.setCORS("anonymous");
 
         // 洹몃━??洹몃옒?쎌뒪 珥덇린??
         this.gridGraphics = this.scene.add.graphics();
@@ -677,6 +731,9 @@ export class PhaserRenderer implements IRenderer {
         } else if (options?.texture && this.scene.textures.exists(options.texture)) {
             // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
+
+
+
             obj = sprite;
         } else {
             // Fallback Placeholder
@@ -720,31 +777,9 @@ export class PhaserRenderer implements IRenderer {
             }
         }
 
-        obj.setData('id', id);
-        obj.setData('type', uiType || type);
+        this.attachEntityInteraction(obj, id, uiType || type);
 
-        // Interactive
-        obj.setInteractive();
-
-        obj.on('pointerdown', (_pointer: Phaser.Input.Pointer) => {
-            if (this.onEntityClick) this.onEntityClick(id);
-        });
-
-        // Dragging logic
-        if (!this.isPreviewMode) {
-            this.scene.input.setDraggable(obj);
-
-            obj.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
-                const snappedX = Math.round(dragX / this.gridSize) * this.gridSize;
-                const snappedY = Math.round(dragY / this.gridSize) * this.gridSize;
-
-                const gameObj = obj as any;
-                gameObj.x = snappedX;
-                gameObj.y = snappedY;
-
-                if (this.onEntityDrag) this.onEntityDrag(id, snappedX, snappedY);
-            });
-        }
+        // Dragging handled by editor pointer logic to keep offsets stable.
     }
 
     /**
@@ -792,6 +827,43 @@ export class PhaserRenderer implements IRenderer {
         }
     }
 
+    refreshEntityTexture(id: string, textureKey: string): void {
+        if (!this.scene || !this.scene.textures.exists(textureKey)) return;
+        const obj = this.entities.get(id);
+        if (!obj) return;
+
+        if (obj instanceof Phaser.GameObjects.Sprite) {
+            if (!obj.texture || obj.texture.key !== textureKey) {
+                obj.setTexture(textureKey);
+            }
+            return;
+        }
+
+        if (!(obj instanceof Phaser.GameObjects.Rectangle)) return;
+
+        const x = obj.x;
+        const y = obj.y;
+        const depth = obj.depth ?? 0;
+        const rotation = obj.rotation ?? 0;
+        const scaleX = obj.scaleX ?? 1;
+        const scaleY = obj.scaleY ?? 1;
+
+        obj.destroy();
+
+        const sprite = this.scene.add.sprite(x, y, textureKey);
+        sprite.setDepth(depth);
+        sprite.setRotation(rotation);
+        sprite.setScale(scaleX, scaleY);
+
+        const entity = this.core.getEntity(id);
+        if (entity?.role === "projectile" || entity?.role === "enemy" || entity?.role === "player") {
+            this.scene.physics.add.existing(sprite);
+        }
+
+        this.entities.set(id, sprite);
+        this.attachEntityInteraction(sprite, id, entity?.type ?? "sprite");
+    }
+
     // ===== Animation =====
 
     // ===== Animation =====
@@ -804,8 +876,34 @@ export class PhaserRenderer implements IRenderer {
         }
 
         const sprite = obj as Phaser.GameObjects.Sprite;
-        if (sprite.play) {
-            sprite.play(name);
+        if (sprite.play && sprite.texture) {
+            const textureKey = sprite.texture.key;
+            const prefixedName = `${textureKey}_${name}`;
+
+            if (this.scene?.anims.exists(prefixedName)) {
+                // Pass true to ignoreIfPlaying to prevent restarting the animation every frame
+                sprite.play(prefixedName, true);
+            } else if (this.scene?.anims.exists(name)) {
+                sprite.play(name, true);
+            } else {
+                // Fallback: If the user asked for "Idle" but we only have "Hero_default", play "Hero_default"
+                // Only if the asset seems to be a single-action asset (common for user-created sprites)
+                const available = this.scene?.anims.toJSON()?.anims
+                    ?.map((a: any) => a.key)
+                    .filter((k: string) => k.startsWith(textureKey + "_")) || [];
+
+                if (available.length > 0) {
+                    const fallback = available[0];
+                    if (sprite.anims.currentAnim?.key !== fallback || !sprite.anims.isPlaying) {
+                        console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
+                    }
+                    sprite.play(fallback, true);
+                } else {
+                    if (Math.random() < 0.01) {
+                        console.warn(`[PhaserRenderer] Animation not found: ${name} (tried ${prefixedName}). No fallbacks available.`);
+                    }
+                }
+            }
         }
     }
 
@@ -948,7 +1046,10 @@ export class PhaserRenderer implements IRenderer {
     screenToWorld(screenX: number, screenY: number): Vector3 {
         if (!this.scene) return { x: screenX, y: screenY, z: 0 };
 
-        const cam = this.scene.cameras.main;
+        const cam = this.scene.cameras?.main;
+        if (!cam || typeof cam.getWorldPoint !== "function") {
+            return { x: screenX, y: screenY, z: 0 };
+        }
         const point = cam.getWorldPoint(screenX, screenY);
 
         return { x: point.x, y: point.y, z: 0 };
@@ -989,7 +1090,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     setTile(x: number, y: number, tileIndex: number): void {
-        if (!this.baseLayer || !this.map) return;
+        if (!this.baseLayer || !this.map || !this.tileset || !this.baseLayer.layer) return;
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;
@@ -1000,7 +1101,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     removeTile(x: number, y: number): void {
-        if (!this.baseLayer || !this.map) return;
+        if (!this.baseLayer || !this.map || !this.tileset || !this.baseLayer.layer) return;
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;
@@ -1011,7 +1112,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     setPreviewTile(x: number, y: number, tileIndex: number): void {
-        if (!this.previewLayer || !this.map) return;
+        if (!this.previewLayer || !this.map || !this.tileset || !this.previewLayer.layer) return;
 
         // 湲곗〈 ?꾨━酉??쒓굅
         this.previewLayer.fill(-1);
@@ -1209,46 +1310,75 @@ export class PhaserRenderer implements IRenderer {
                 reject(new Error("Scene not initialized"));
                 return;
             }
-
             if (this.scene.textures.exists(key)) {
-                resolve();
-                return;
+                // Critical Check: If the existing texture is static (1 frame) but we now have metadata for animations,
+                // we must REMOVE the old texture and reload it as a spritesheet.
+                // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
+                const texture = this.scene.textures.get(key);
+                const needsAnimations = metadata && metadata.animations && Object.keys(metadata.animations).length > 0;
+
+                if (needsAnimations) {
+                    // Check if animations already exist
+                    const hasPrefixAnims = this.scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
+
+                    if (texture.frameTotal <= 1 && !hasPrefixAnims) {
+                        console.warn(`[PhaserRenderer] Texture '${key}' exists but is static. Reloading as spritesheet for animations.`);
+                        this.scene.textures.remove(key);
+                        // Proceed to load below...
+                    } else {
+                        // Texture seems fine (or already animated), but let's ensure specific anims from this metadata exist
+                        // Call only the creation part? 
+                        // For safety, if frames match, we just fall through to creation check.
+                        // But we can't 'load' again without removing. 
+                        // If frames are sufficient, we just skip 'load.spritesheet' and go to anim creation.
+                        this.createAnimationsFromMetadata(key, metadata);
+                        resolve();
+                        return;
+                    }
+                } else {
+                    resolve();
+                    return;
+                }
             }
 
-            if (metadata) {
-                // Load as Sprite Sheet
+            console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
+
+            if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
                 this.scene.load.spritesheet(key, url, {
                     frameWidth: metadata.frameWidth,
                     frameHeight: metadata.frameHeight,
-                    // startFrame: 0,
-                    // endFrame: metadata.frameCount - 1
                 });
             } else {
                 this.scene.load.image(key, url);
             }
 
             this.scene.load.once("complete", () => {
-                // If metadata has animations, create them
-                if (metadata && metadata.animations && this.scene) {
-                    for (const [animName, config] of Object.entries(metadata.animations)) {
-                        const animKey = `${key}_${animName}`; // e.g. "Hero_default"
-                        if (!this.scene.anims.exists(animKey)) {
-                            this.scene.anims.create({
-                                key: animKey,
-                                frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
-                                frameRate: config.fps,
-                                repeat: config.loop ? -1 : 0
-                            });
-                            console.log(`[PhaserRenderer] Created animation: ${animKey}`);
-                        }
-                    }
-                }
+                this.createAnimationsFromMetadata(key, metadata);
                 resolve();
             });
             this.scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
             this.scene.load.start();
         });
     }
+
+    private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
+        if (metadata && metadata.animations && this.scene) {
+            for (const [animName, config] of Object.entries(metadata.animations)) {
+                const animKey = `${key}_${animName}`;
+                if (!this.scene.anims.exists(animKey)) {
+                    this.scene.anims.create({
+                        key: animKey,
+                        frames: this.scene.anims.generateFrameNumbers(key, { frames: config.frames }),
+                        frameRate: config.fps,
+                        repeat: config.loop ? -1 : 0
+                    });
+                    console.log(`[PhaserRenderer] Created animation: ${animKey}`);
+                }
+            }
+        }
+    }
+
+
 
     /**
      * 罹붾쾭?ㅻ줈遺€???띿뒪泥??앹꽦 (Phaser ?꾩슜)

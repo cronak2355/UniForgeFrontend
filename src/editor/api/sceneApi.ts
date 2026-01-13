@@ -51,6 +51,12 @@ export async function loadScene(
         throw new Error("Failed to load scene");
     }
 
-    const data = await res.json();
-    return JSON.parse(data.sceneJson);
+    const text = await res.text();
+    try {
+        const data = JSON.parse(text);
+        return JSON.parse(data.sceneJson);
+    } catch (e) {
+        console.error("[sceneApi] Failed to parse response:", text);
+        throw e;
+    }
 }

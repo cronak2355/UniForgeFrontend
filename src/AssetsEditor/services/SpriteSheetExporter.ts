@@ -14,13 +14,11 @@ export interface SpriteSheetMetadata {
     frameCount: number;
     columns: number;
     rows: number;
-    animations: {
-        default: {
-            frames: number[];
-            fps: number;
-            loop: boolean;
-        };
-    };
+    animations: Record<string, {
+        frames: number[];
+        fps: number;
+        loop: boolean;
+    }>;
 }
 
 export interface ExportResult {
@@ -37,7 +35,8 @@ export async function exportSpriteSheet(
     resolution: number,
     layout: SpriteSheetLayout = 'horizontal',
     format: ExportFormat = 'webp',
-    quality: number = 0.9
+    quality: number = 0.9,
+    animations?: Record<string, { frames: number[], fps: number, loop: boolean }>
 ): Promise<ExportResult> {
     if (frames.length === 0) {
         throw new Error('No frames to export');
@@ -97,12 +96,12 @@ export async function exportSpriteSheet(
         frameCount: frames.length,
         columns,
         rows,
-        animations: {
+        animations: animations || {
             default: {
                 frames: Array.from({ length: frames.length }, (_, i) => i),
-                fps: 12,
-                loop: true,
-            },
+                fps: 8,
+                loop: true
+            }
         },
     };
 

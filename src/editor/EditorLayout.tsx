@@ -10,7 +10,7 @@ import "./styles.css";
 import { EditorCoreProvider, useEditorCoreSnapshot } from "../contexts/EditorCoreContext";
 import type { EditorContext } from "./EditorCore";
 import { CameraMode, DragDropMode } from "./editorMode/editorModes";
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SceneSerializer } from "./core/SceneSerializer"; // Import Serializer
 import { colors } from "./constants/colors";
 import { saveScenes, loadScene } from "./api/sceneApi";
@@ -161,43 +161,62 @@ function EditorLayoutInner() {
         const initEditor = async () => {
             try {
                 // 1. Try key loading from server first
+                let loadedFromServer = false;
                 if (gameId) {
-                    const sceneJson = await loadScene(gameId);
-                    if (sceneJson) {
-                        console.log("[EditorLayout] Loaded scene from server");
-                        // Validate assets and entities similarly to autosave
-                        if (sceneJson.assets) {
-                            sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
+                    try {
+                        const sceneJson = await loadScene(gameId);
+                        if (sceneJson) {
+                            console.log("[EditorLayout] Loaded scene from server");
+                            // Validate assets and entities similarly to autosave
+                            // REMOVED: S3 URL filtering that was deleting production assets
+                            // if (sceneJson.assets) {
+                            //     sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
+                            // }
+
+                            core.clear();
+                            SceneSerializer.deserialize(sceneJson, core);
+                            loadedFromServer = true;
                         }
-                        core.clear();
-                        SceneSerializer.deserialize(sceneJson, core);
-                        return; // Successfully loaded from server, skip local autosave
+                    } catch (e) {
+                        console.warn("[EditorLayout] Server load failed, falling back to local autosave:", e);
                     }
                 }
 
-                // 2. Fallback to local autosave
-                const saved = localStorage.getItem("editor_autosave");
-                if (saved) {
-                    const json = JSON.parse(saved);
-                    // ... (existing validation logic for autosave) ...
-                    if (json.assets && Array.isArray(json.assets)) {
-                        json.assets = json.assets.filter((asset: any) => {
-                            const isS3Url = asset.url && asset.url.includes('amazonaws.com');
-                            if (isS3Url) return false;
-                            return true;
-                        });
-                    }
-                    if (json.entities && Array.isArray(json.entities)) {
-                        const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
-                        json.entities = json.entities.filter((entity: any) => {
-                            if (entity.texture && !validAssetNames.has(entity.texture)) return false;
-                            return true;
-                        });
-                    }
+                if (!loadedFromServer) {
+                    // 2. Fallback to local autosave
+                    const saved = localStorage.getItem("editor_autosave");
+                    if (saved) {
+                        try {
+                            const json = JSON.parse(saved);
+                            // ... (existing validation logic for autosave) ...
+                            // REMOVED: S3 URL filtering
+                            /*
+                            if (json.assets && Array.isArray(json.assets)) {
+                                json.assets = json.assets.filter((asset: any) => {
+                                    const isS3Url = asset.url && asset.url.includes('amazonaws.com');
+                                    if (isS3Url) return false;
+                                    return true;
+                                });
+                            }
+                            */
 
-                    core.clear();
-                    SceneSerializer.deserialize(json, core);
-                    console.log("[EditorLayout] Loaded from local autosave");
+                            // Re-enable entity filtering ONLY if needed for consistency, but be careful not to delete valid stuff
+                            if (json.entities && Array.isArray(json.entities)) {
+                                const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
+                                // Filter entities that refer to non-existent assets (optional consistency check)
+                                // json.entities = json.entities.filter((entity: any) => {
+                                //    if (entity.texture && !validAssetNames.has(entity.texture)) return false;
+                                //    return true;
+                                // });
+                            }
+
+                            core.clear();
+                            SceneSerializer.deserialize(json, core);
+                            console.log("[EditorLayout] Loaded from local autosave");
+                        } catch (e) {
+                            console.error("[EditorLayout] Failed to parse local autosave", e);
+                        }
+                    }
                 }
 
                 // 3. If scene is still empty after loading, inject demo entities
@@ -207,7 +226,7 @@ function EditorLayoutInner() {
                     (core as any).loadDemoScene?.();
                 }
             } catch (err) {
-                console.error("[EditorLayout] Failed to load scene", err);
+                console.error("[EditorLayout] Critical error in initEditor", err);
             }
         };
 
@@ -241,6 +260,7 @@ function EditorLayoutInner() {
 
 
     const [mode, setMode] = useState<Mode>("dev");
+    const prevModeRef = useRef<Mode>(mode);
     const [runSession, setRunSession] = useState(0);
     const [dropModalFile, setDropModalFile] = useState<File | null>(null);
     const [dropAssetName, setDropAssetName] = useState("");
@@ -425,6 +445,47 @@ function EditorLayoutInner() {
         setLocalSelectedEntity(latest);
     }, [mode, selectedEntity, core]);
 
+    useEffect(() => {
+        const prevMode = prevModeRef.current;
+        if (prevMode === mode) return;
+
+        if (mode === "run") {
+            const backup = new Map<string, EditorEntity>();
+            core.getEntities().forEach((entity, id) => {
+                backup.set(id, JSON.parse(JSON.stringify(entity)));
+            });
+            entityBackupRef.current = backup;
+            core.setSelectedEntity(null);
+            setLocalSelectedEntity(null);
+
+            const entitiesList = Array.from(core.getEntities().values());
+            const preferred =
+                entitiesList.find((entity) => entity.role === "player") ??
+                entitiesList[0] ??
+                null;
+            if (preferred) {
+                core.setSelectedEntity(preferred as any);
+                setLocalSelectedEntity(preferred as any);
+            }
+            setRunSession((v) => v + 1);
+        } else if (prevMode === "run") {
+            if (entityBackupRef.current) {
+                entityBackupRef.current.forEach((backupEntity, id) => {
+                    const currentEntity = core.getEntities().get(id);
+                    if (currentEntity) {
+                        Object.assign(currentEntity, backupEntity);
+                    }
+                });
+                entityBackupRef.current = null;
+                core.setSelectedEntity(core.getSelectedEntity());
+                const refreshed = core.getSelectedEntity();
+                setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
+            }
+        }
+
+        prevModeRef.current = mode;
+    }, [mode, core]);
+
     const resetDropModal = () => {
         setDropModalFile(null);
         setDropAssetName("");
@@ -432,6 +493,52 @@ function EditorLayoutInner() {
         setIsUploadingAsset(false);
         setUploadError("");
     };
+
+    // Auto-Load Asset from URL (when returning from Asset Editor)
+    const [searchParams, setSearchParams] = useSearchParams();
+    const newAssetId = searchParams.get("newAssetId");
+
+    useEffect(() => {
+        if (!newAssetId) return;
+
+        const loadNewAsset = async () => {
+            try {
+                // Determine tag if possible, or default to Character. 
+                // getAsset returns asset data.
+                const asset = await assetService.getAsset(newAssetId);
+
+                // Add to core
+                // Note: asset structure vs core.addAsset expectation
+                // assetService.getAsset returns Asset & { description? }
+                // core.addAsset expects: { id, tag, name, url, idx, metadata?, description? }
+
+                // We need to ensure we have the URL.
+                // assetService.getAsset might return url or imageUrl depending on endpoint.
+                const url = (asset as any).imageUrl || asset.url;
+
+                if (url) {
+                    core.addAsset({
+                        id: asset.id,
+                        tag: asset.tag || 'Character',
+                        name: asset.name,
+                        url: url,
+                        idx: -1,
+                        metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
+                        description: (asset as any).description
+                    });
+                    console.log("Auto-imported asset:", asset.name);
+                }
+            } catch (e) {
+                console.error("Failed to auto-load new asset:", e);
+            } finally {
+                // Clear the param so we don't reload on refresh
+                searchParams.delete("newAssetId");
+                setSearchParams(searchParams, { replace: true });
+            }
+        };
+
+        loadNewAsset();
+    }, [newAssetId, core]);
 
     useEffect(() => {
         if (!dropModalFile) return;
@@ -786,42 +893,7 @@ function EditorLayoutInner() {
                     <button
                         title={mode === "dev" ? "Play" : "Stop"}
                         onClick={() => {
-                            setMode((prev) => {
-                                const next = prev === "dev" ? "run" : "dev";
-                                if (next === "run") {
-                                    const backup = new Map<string, EditorEntity>();
-                                    core.getEntities().forEach((entity, id) => {
-                                        backup.set(id, JSON.parse(JSON.stringify(entity)));
-                                    });
-                                    entityBackupRef.current = backup;
-                                    core.setSelectedEntity(null);
-                                    setLocalSelectedEntity(null);
-                                    const entitiesList = Array.from(core.getEntities().values());
-                                    const preferred =
-                                        entitiesList.find((entity) => entity.role === "player") ??
-                                        entitiesList[0] ??
-                                        null;
-                                    if (preferred) {
-                                        core.setSelectedEntity(preferred as any);
-                                        setLocalSelectedEntity(preferred as any);
-                                    }
-                                    setRunSession((v) => v + 1);
-                                } else {
-                                    if (entityBackupRef.current) {
-                                        entityBackupRef.current.forEach((backupEntity, id) => {
-                                            const currentEntity = core.getEntities().get(id);
-                                            if (currentEntity) {
-                                                Object.assign(currentEntity, backupEntity);
-                                            }
-                                        });
-                                        entityBackupRef.current = null;
-                                        core.setSelectedEntity(core.getSelectedEntity());
-                                        const refreshed = core.getSelectedEntity();
-                                        setLocalSelectedEntity(refreshed ? { ...refreshed } : null);
-                                    }
-                                }
-                                return next;
-                            });
+                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
                         }}
 
                         style={{
@@ -979,7 +1051,8 @@ function EditorLayoutInner() {
                             name: libItem.title,
                             url: libItem.thumbnail, // Use the image URL
                             idx: 0, // Default index
-                            metadata: libItem.metadata // Pass the parsed metadata!
+                            metadata: libItem.metadata, // Pass the parsed metadata!
+                            description: libItem.description // Pass description for recovery
                         };
                         core.addAsset(newAsset);
                         setIsAssetLibraryOpen(false);

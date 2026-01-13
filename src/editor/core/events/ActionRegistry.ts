@@ -112,9 +112,17 @@ class ActionRegistryClass {
     private registerDefaults() {
         this.register("PlayAnimation", (ctx, params) => {
             const animName = params.animationName as string;
+            console.log(`[ActionRegistry] PlayAnimation request:`, { entityId: ctx.entityId, animName, params, hasRenderer: !!ctx.globals?.renderer, hasPlayAnim: !!ctx.globals?.renderer?.playAnim });
+
             if (animName && ctx.globals?.renderer?.playAnim) {
                 ctx.globals.renderer.playAnim(ctx.entityId, animName);
-                console.log(`[ActionRegistry] PlayAnimation: ${ctx.entityId} -> ${animName}`);
+                console.log(`[ActionRegistry] PlayAnimation executed: ${ctx.entityId} -> ${animName}`);
+            } else {
+                console.warn(`[ActionRegistry] PlayAnimation failed: missing name or renderer method`, {
+                    animName,
+                    hasRenderer: !!ctx.globals?.renderer,
+                    hasPlayAnim: !!ctx.globals?.renderer?.playAnim
+                });
             }
         });
     }

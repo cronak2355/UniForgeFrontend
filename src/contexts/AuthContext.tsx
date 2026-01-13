@@ -19,17 +19,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (import.meta.env.DEV) { // 지우셈 임시계정임                                                                                                                                                                                                                                     
+        // DEV MODE: 테스트 계정 자동 로그인
+        if (import.meta.env.DEV) {
             setUser({
-                id: 'dev-user',
-                email: 'dev@uniforge.com',
-                name: 'Dev Tester',
+                id: 'test-user-001',
+                email: 'test@uniforge.com',
+                name: 'Test User',
                 profileImage: null,
-            } as unknown as User);
-
+            } as User);
             setIsLoading(false);
             return;
         }
+
         // 앱 시작 시 현재 사용자 정보 로드
         const loadUser = async () => {
             try {

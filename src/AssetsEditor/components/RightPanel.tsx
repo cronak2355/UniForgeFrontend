@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAssetsEditor } from '../context/AssetsEditorContext';
 import {
   generateSimpleAnimation,
   SIMPLE_PRESETS,
   type SimpleAnimationType
 } from '../services/simpleAnimationService';
+import { AnimationManager } from './AnimationManager';
 import { PartRigger } from './PartRigger';
 import { useJob } from '../context/JobContext';
 import { StylePresetService } from '../services/StylePresetService';
@@ -22,6 +24,9 @@ interface ChatMessage {
 type TabType = 'ai' | 'animate' | 'export';
 
 export function RightPanel() {
+  const [searchParams] = useSearchParams();
+  const gameId = searchParams.get('gameId');
+
   const {
     frames,
     currentFrameIndex,
@@ -43,6 +48,9 @@ export function RightPanel() {
     setFeatherAmount,
     triggerBackgroundRemoval,
     exportAsSpriteSheet,
+    animations,
+    currentAssetId,
+    setCurrentAssetId,
   } = useAssetsEditor();
 
   // ==================== State ====================
@@ -345,33 +353,73 @@ export function RightPanel() {
   /**
    * 💾 Save to Project
    */
-  const handleSaveToProject = async () => {
-    if (frames.length === 0) return;
-
+  /**
+   * 💾 Save Logic (Shared)
+   */
+  const performSave = async (): Promise<string | null> => {
+    if (frames.length === 0) return null;
     setIsLoading(true);
     try {
-      // 1. Generate Blob
+      // 1. Convert animations array to Record for export
+      const animsMap: Record<string, any> = {};
+      if (animations.length > 0) {
+        animations.forEach(a => {
+          animsMap[a.name] = { frames: a.frames, fps: a.fps, loop: a.loop };
+        });
+      }
+
+      // 2. Generate Blob
       const { blob, metadata } = await exportSpriteSheet(
         frames,
         pixelSize,
         'horizontal',
-        'webp'
+        'webp',
+        0.9,
+        Object.keys(animsMap).length > 0 ? animsMap : undefined
       );
 
-      // 2. Upload
+      // 3. Upload or Update
       const token = localStorage.getItem("token");
       const assetName = exportName.trim() || 'animation_sprite';
       const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
 
-      await assetService.uploadAsset(blob, assetName, tag, token, metadata);
+      let savedId = currentAssetId;
 
-      alert("Successfully saved to project!");
-      window.location.href = '/editor';
+      if (currentAssetId) {
+        await assetService.updateAsset(currentAssetId, blob, metadata, token);
+      } else {
+        const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
+        savedId = result.id;
+      }
+
+      return savedId; // Return ID
     } catch (e) {
       console.error(e);
       alert("Failed to save: " + String(e));
+      return null; // Fail
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveOnly = async () => {
+    const savedId = await performSave();
+    if (savedId) {
+      if (!currentAssetId) {
+        setCurrentAssetId(savedId);
+      }
+      alert("Saved successfully!");
+    }
+  };
+
+  const handleSaveAndExit = async () => {
+    const savedId = await performSave();
+    if (savedId) {
+      if (gameId) {
+        window.location.href = `/editor/${gameId}?newAssetId=${savedId}`;
+      } else {
+        window.location.href = '/editor';
+      }
     }
   };
 
@@ -614,7 +662,10 @@ export function RightPanel() {
           {/* --- Animation Studio --- */}
           {activeTab === 'animate' && (
             <div className="p-4 space-y-4 overflow-y-auto">
-              <div>
+              {/* Animation Manager */}
+              <AnimationManager />
+
+              <div className="border-t border-white/10 pt-4">
                 <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">Simple Animation</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {SIMPLE_PRESETS.map((p) => (
@@ -705,15 +756,25 @@ export function RightPanel() {
                   )}
 
                   {frames.length > 0 && (
-                    <button
-                      onClick={handleSaveToProject}
-                      disabled={isLoading}
-                      className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/40 border border-white/20 transition-all text-xs font-bold uppercase tracking-widest mt-4 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-                    >
-                      <span className="relative z-10 flex items-center justify-center gap-2">
-                        <span>💾 Save to Project</span>
-                      </span>
-                    </button>
+                    <div className="flex gap-2 mt-4">
+                      {/* Save Only (Stay) */}
+                      <button
+                        onClick={handleSaveOnly}
+                        disabled={isLoading}
+                        className="flex-1 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+
+                      {/* Save to Project (Redirect) */}
+                      <button
+                        onClick={handleSaveAndExit}
+                        disabled={isLoading}
+                        className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/40 border border-white/20 transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50 group"
+                      >
+                        Save to Project
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

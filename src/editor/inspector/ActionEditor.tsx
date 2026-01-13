@@ -13,6 +13,7 @@ export function ActionEditor({
   variables,
   entities,
   modules,
+  scenes,
   assets,
   currentEntity,
   onCreateVariable,
@@ -27,6 +28,7 @@ export function ActionEditor({
   variables: EditorVariable[];
   entities: { id: string; name: string }[];
   modules: ModuleGraph[];
+  scenes?: { id: string; name: string }[];
   assets?: Asset[];
   currentEntity?: EditorEntity;
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
@@ -44,6 +46,10 @@ export function ActionEditor({
     "";
   const selectedModule = modules.find((mod) => mod.id === selectedModuleId) ?? null;
   const moduleVariables = selectedModule?.variables ?? [];
+  const selectedSceneId =
+    (action.sceneId as string) ||
+    scenes?.find((scene) => scene.name === (action.sceneName as string))?.id ||
+    "";
 
   // Animation Logic
   const textureName = currentEntity?.texture || currentEntity?.name;
@@ -258,6 +264,35 @@ export function ActionEditor({
           <option value="true">enable</option>
           <option value="false">disable</option>
         </select>
+      )}
+
+      {action.type === "ChangeScene" && (
+        (scenes && scenes.length > 0) ? (
+          <select
+            value={selectedSceneId}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              const nextName = scenes.find((s) => s.id === nextId)?.name ?? "";
+              onUpdate({ ...action, sceneId: nextId, sceneName: nextName });
+            }}
+            style={styles.smallSelect}
+          >
+            <option value="">(scene)</option>
+            {scenes.map((scene) => (
+              <option key={scene.id} value={scene.id}>
+                {scene.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            placeholder="sceneName"
+            value={(action.sceneName as string) || ""}
+            onChange={(e) => onUpdate({ ...action, sceneName: e.target.value })}
+            style={styles.textInput}
+          />
+        )
       )}
 
       {action.type === "PlayParticle" && (

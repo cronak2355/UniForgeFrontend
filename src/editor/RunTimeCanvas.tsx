@@ -8,6 +8,8 @@ import type { EditorEntity } from "./types/Entity";
 import type { TilePlacement } from "./EditorCore";
 import type { ModuleGraph } from "./types/Module";
 import { defaultGameConfig } from "./core/GameConfig";
+import { EventBus } from "./core/events/EventBus";
+import type { GameEvent } from "./core/events/EventBus";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -32,18 +34,23 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
 
         const img = new Image();
         img.crossOrigin = "anonymous";
-        await new Promise((resolve) => {
-            img.onload = resolve;
+        const loaded = await new Promise<boolean>((resolve) => {
+            img.onload = () => resolve(true);
             img.onerror = (e) => {
                 console.error(`Failed to load image for tile: ${asset.name}`, e);
-                resolve(null);
+                resolve(false);
             };
             img.src = asset.url;
         });
 
         const x = (idx % TILESET_COLS) * TILE_SIZE;
         const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
-        ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        if (loaded) {
+            ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        } else {
+            ctx.fillStyle = "#ff00ff";
+            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        }
 
         idx++;
     }
@@ -91,6 +98,25 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const tileSignatureRef = useRef<string>("");
     const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
 
+    const spawnRuntimeEntities = (gameRuntime: GameCore, sourceEntities: EditorEntity[]) => {
+        for (const e of sourceEntities) {
+            gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
+                name: e.name,
+                z: e.z,
+                rotationX: e.rotationX,
+                rotationY: e.rotationY,
+                rotationZ: e.rotationZ ?? e.rotation,
+                scaleX: e.scaleX,
+                scaleY: e.scaleY,
+                texture: e.texture ?? e.name,
+                variables: e.variables,
+                components: e.components,
+                role: e.role,
+                modules: e.modules,
+            });
+        }
+    };
+
     useEffect(() => {
         selectedEntityIdRef.current = selectedEntity?.id ?? null;
     }, [selectedEntity]);
@@ -103,6 +129,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
         const gameRuntime = new GameCore(renderer);
+        gameCoreRef.current = gameRuntime;
         setGameCore(gameRuntime); // State update triggers UI render
         renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
         renderer.gameConfig = defaultGameConfig; // ??븷 湲곕컲 ?ㅼ젙 ?곌껐
@@ -123,6 +150,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             // ?뚮뜑??珥덇린?????띿뒪泥???쇱뀑/珥덇린 ?곹깭瑜?濡쒕뱶?쒕떎.
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
+            rendererReadyRef.current = true;
 
             // Enable runtime mode for Rules and TICK events
             renderer.isRuntimeMode = true;
@@ -130,7 +158,8 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             for (const asset of assets) {
                 // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
                 if (asset.tag === "Tile") continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                console.log(`[RunTimeCanvas] Loading asset: ${asset.name}`, asset.metadata);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
             }
 
             const tilesetCanvas = await buildTilesetCanvas(assets);
@@ -148,19 +177,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             // 理쒖떊 ?몄쭛 ?곗씠?곕줈 ?뷀떚???앹꽦 (Inspector 蹂寃?諛섏쁺)
             const freshEntities = Array.from(core.getEntities().values());
 
-            for (const e of freshEntities) {
-                // ??λ맂 ?뷀떚???앹꽦
-                gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
-                    name: e.name,
-                    texture: e.texture ?? e.name,
-                    variables: e.variables,
-                    components: e.components,
-                    role: e.role, // ?먮뵒?곗뿉???ㅼ젙????븷 ?곸슜
-                    modules: e.modules,
-                });
-
-                // ?고???紐⑤뱢 ?몄뒪?댁뒪 ?깅줉? GameCore.createEntity ?대??먯꽌 泥섎━??(?숆린??蹂댁옣)
-            }
+            spawnRuntimeEntities(gameRuntime, freshEntities);
 
             if (renderer.isRuntimeMode) {
                 console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
@@ -250,7 +267,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                             : editorEntity.rotation,
                     scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
                     scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
-                    scaleZ: runtimeEntity.scaleZ ?? editorEntity.scaleZ,
+
                     variables: nextVars,
                     modules: nextModules,
                 };
@@ -273,8 +290,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     editorEntity.rotationY === nextEntity.rotationY &&
                     editorEntity.rotationZ === nextEntity.rotationZ &&
                     editorEntity.scaleX === nextEntity.scaleX &&
-                    editorEntity.scaleY === nextEntity.scaleY &&
-                    editorEntity.scaleZ === nextEntity.scaleZ;
+                    editorEntity.scaleY === nextEntity.scaleY;
                 const sameModules =
                     JSON.stringify(editorEntity.modules ?? []) ===
                     JSON.stringify(nextEntity.modules ?? []);
@@ -296,6 +312,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             renderer.onInputState = undefined;
             renderer.destroy();
             rendererRef.current = null;
+            gameCoreRef.current = null;
             setGameCore(null);
             if (initialModulesRef.current) {
                 core.setModules(initialModulesRef.current);
@@ -303,6 +320,39 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             }
         };
     }, []);
+
+    useEffect(() => {
+        const handleSceneChange = (event: GameEvent) => {
+            if (event.type !== "SCENE_CHANGE_REQUEST") return;
+
+            const sceneId = event.data?.sceneId as string | undefined;
+            const sceneName = event.data?.sceneName as string | undefined;
+
+            const scenes = core.getScenes();
+            const target =
+                (sceneId && scenes.get(sceneId)) ||
+                (sceneName
+                    ? Array.from(scenes.values()).find((scene) => scene.name === sceneName)
+                    : undefined);
+
+            if (!target) {
+                console.warn("[RunTimeCanvas] Scene not found:", { sceneId, sceneName });
+                return;
+            }
+
+            if (core.getCurrentSceneId() !== target.id) {
+                core.switchScene(target.id);
+            }
+
+            const gameRuntime = gameCoreRef.current;
+            if (!gameRuntime) return;
+            gameRuntime.resetRuntime();
+            spawnRuntimeEntities(gameRuntime, Array.from(target.entities.values()));
+        };
+
+        EventBus.on(handleSceneChange);
+        return () => EventBus.off(handleSceneChange);
+    }, [core]);
 
     useEffect(() => {
         const gameRuntime = gameCoreRef.current;
@@ -313,7 +363,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     useEffect(() => {
         // ???蹂寃쎌궗??쭔 諛섏쁺 (異붽?/??젣 diff)
         const renderer = rendererRef.current;
-        if (!renderer) return;
+        if (!renderer || !tilemapReadyRef.current) return;
 
         const nextTiles = indexTiles(tiles);
         const prevTiles = prevTilesRef.current;
@@ -337,6 +387,11 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
 
         const nextSignature = buildTileSignature(assets);
         const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
+        const assetLookup = new Map<string, Asset>();
+        for (const asset of assets) {
+            assetLookup.set(asset.name, asset);
+            assetLookup.set(asset.id, asset);
+        }
         let cancelled = false;
 
         (async () => {
@@ -345,7 +400,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
 
             for (const asset of nextNonTileAssets) {
                 if (loadedTexturesRef.current.has(asset.name)) continue;
-                await renderer.loadTexture(asset.name, asset.url);
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
                 if (cancelled) return;
                 loadedTexturesRef.current.add(asset.name);
             }
@@ -360,12 +415,27 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 applyAllTiles(renderer, tiles);
                 prevTilesRef.current = indexTiles(tiles);
             }
+
+            for (const ent of entities) {
+                const textureKey = ent.texture ?? ent.name;
+                if (!textureKey) continue;
+
+                if (!loadedTexturesRef.current.has(textureKey)) {
+                    const asset = assetLookup.get(textureKey);
+                    if (asset) {
+                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
+                        if (cancelled) return;
+                        loadedTexturesRef.current.add(textureKey);
+                    }
+                }
+                renderer.refreshEntityTexture(ent.id, textureKey);
+            }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [assets]);
+    }, [assets, entities]);
 
     // Entry Style Colors
     const colors = {
