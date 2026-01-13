@@ -1054,10 +1054,10 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                    <RunTimeCanvas
-                        key={`run-${runSession}`}
-                        onRuntimeEntitySync={handleRuntimeEntitySync}
-                    />
+                        <RunTimeCanvas
+                            key={`run-${runSession}`}
+                            onRuntimeEntitySync={handleRuntimeEntitySync}
+                        />
                     )}
 
                     {/* Asset Panel (Center Bottom) */}
@@ -1081,8 +1081,9 @@ function EditorLayoutInner() {
                                 try {
                                     const token = authService.getToken();
                                     await assetService.deleteAsset(asset.id, token);
-                                    // Refresh assets
-                                    core.setAssets(assets.filter(a => a.id !== asset.id));
+                                    // Refresh assets (use core.getAssets() to avoid stale closure)
+                                    const currentAssets = Array.from(core.getAssets());
+                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
                                 } catch (e) {
                                     console.error("Failed to delete asset", e);
                                     alert("Failed to delete asset");
