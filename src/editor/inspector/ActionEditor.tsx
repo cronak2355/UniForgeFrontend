@@ -399,7 +399,7 @@ export function ActionEditor({
               <select
                 value={spawnAssetId}
                 onChange={(e) => {
-                  const next = { ...action, sourceAssetId: e.target.value };
+                  const next: Record<string, unknown> = { ...action, sourceAssetId: e.target.value };
                   if (spawnSourceType === "prefab") {
                     next.prefabId = e.target.value;
                   }

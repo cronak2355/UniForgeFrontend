@@ -23,7 +23,6 @@ export function RightPanel() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('gameId');
-  const navigate = useNavigate();
 
   const {
     frames,
@@ -46,11 +45,13 @@ export function RightPanel() {
       featherAmount,
       setFeatherAmount,
       triggerBackgroundRemoval,
-      exportAsSpriteSheet,
+    exportAsSpriteSheet,
       animationMap,
-      currentAssetId,
-      setCurrentAssetId,
-    } = useAssetsEditor();
+      activeAnimationName,
+    currentAssetId,
+    currentAssetMetadata,
+    setCurrentAssetId,
+  } = useAssetsEditor();
   const animations = Object.entries(animationMap).map(([name, data]) => ({
     name,
     frames: data.frames,
