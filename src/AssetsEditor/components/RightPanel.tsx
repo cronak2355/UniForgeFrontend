@@ -54,6 +54,8 @@ export function RightPanel() {
     activeAnimationName,
     currentAssetId,
     setCurrentAssetId,
+    loop,
+    currentAssetMetadata,
   } = useAssetsEditor();
 
   // ==================== State ====================
@@ -373,7 +375,7 @@ export function RightPanel() {
       finalMap[activeAnimationName] = {
         frames: activeImages,
         fps: fps,
-        loop: animationMap[activeAnimationName]?.loop ?? true // Retrieve loop from map or default
+        loop: loop
       };
     }
 
@@ -481,7 +483,14 @@ export function RightPanel() {
         state: {
           assetBlob: blob,
           thumbnailBlob: thumbnailBlob,
-          assetName: 'New Asset',
+          assetName: exportName || currentAssetMetadata?.name || 'New Asset',
+          description: currentAssetMetadata?.description, // Pass original description (or handle inside CreateAssetPage)
+          initialData: currentAssetMetadata ? {
+            name: currentAssetMetadata.name,
+            description: currentAssetMetadata.description,
+            tag: currentAssetMetadata.genre, // Map genre to tag
+            isPublic: currentAssetMetadata.isPublic
+          } : undefined,
           metadata: metadata,
           returnToEditor: true,
           gameId: gameId

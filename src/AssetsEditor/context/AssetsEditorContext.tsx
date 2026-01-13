@@ -96,6 +96,7 @@ export interface AssetsEditorContextType {
   getWorkCanvas: () => HTMLCanvasElement | null;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  currentAssetMetadata: any;
 
   featherAmount: number;
   setFeatherAmount: (amount: number) => void;
@@ -178,6 +179,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const [activeAnimationName, setActiveAnimationName] = useState("default");
 
   const [currentAssetId, setCurrentAssetId] = useState<string | null>(null);
+  const [currentAssetMetadata, setCurrentAssetMetadata] = useState<any>(null);
 
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -956,6 +958,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         engineRef.current.changeResolution(targetSize as PixelSize);
       }
       setCurrentAssetId(id);
+      setCurrentAssetMetadata(asset);
 
       // 5. Slice Frames
       const cols = Math.floor(img.width / frameW);
@@ -1147,6 +1150,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     renameAnimation,
     currentAssetId,
     setCurrentAssetId,
+    currentAssetMetadata,
   };
 
   return (
@@ -1155,6 +1159,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     </AssetsEditorContext.Provider>
   );
 }
+
 
 export function useAssetsEditor() {
   const context = useContext(AssetsEditorContext);
