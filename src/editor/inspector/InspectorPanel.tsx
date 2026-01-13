@@ -276,6 +276,65 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         </div>
       </div>
 
+      {/* Effects Section - 피격/사망 이펙트 설정 */}
+      <div style={sectionStyle}>
+        <div style={titleStyle}>⚔️ Effects</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+          <datalist id="particle-presets">
+            <option value="none">❌ 없음 (기본)</option>
+            <option value="hit_spark">⚡ hit_spark</option>
+            <option value="blood">🩸 blood</option>
+            <option value="explosion">💥 explosion</option>
+            <option value="magic">🔮 magic</option>
+            <option value="death">💀 death</option>
+            <option value="confetti">🎊 confetti</option>
+            <option value="smoke">🌫️ smoke</option>
+            <option value="sparkle">✨ sparkle</option>
+            <option value="dust">💨 dust</option>
+            {/* Custom Particles */}
+            {core.getAssets()?.filter((a: any) => a.tag === 'Particle' || a.tag === 'Effect').map((a: any) => (
+              <option key={a.id} value={`custom:${a.name}`}>{a.name}</option>
+            ))}
+          </datalist>
+
+          <div style={rowStyle}>
+            <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>맞을 때</span>
+            <input
+              list="particle-presets"
+              style={{ ...inputStyle, width: '120px' }}
+              placeholder="none"
+              value={String(localEntity.variables?.find(v => v.name === "hitEffect")?.value ?? "")}
+              onChange={(e) => {
+                const val = e.target.value;
+                let nextVars = (localEntity.variables ?? []).filter(v => v.name !== "hitEffect");
+                if (val && val !== "none") {
+                  nextVars.push({ id: crypto.randomUUID(), name: "hitEffect", type: "string", value: val });
+                }
+                handleUpdate({ ...localEntity, variables: nextVars });
+              }}
+            />
+          </div>
+          <div style={rowStyle}>
+            <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>죽을 때</span>
+            <input
+              list="particle-presets"
+              style={{ ...inputStyle, width: '120px' }}
+              placeholder="none"
+              value={String(localEntity.variables?.find(v => v.name === "deathEffect")?.value ?? "")}
+              onChange={(e) => {
+                const val = e.target.value;
+                let nextVars = (localEntity.variables ?? []).filter(v => v.name !== "deathEffect");
+                if (val && val !== "none") {
+                  nextVars.push({ id: crypto.randomUUID(), name: "deathEffect", type: "string", value: val });
+                }
+                handleUpdate({ ...localEntity, variables: nextVars });
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       <div style={sectionStyle}>
         <VariableSection
           variables={variables}

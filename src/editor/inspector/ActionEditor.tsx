@@ -185,6 +185,53 @@ export function ActionEditor({
         </>
       )}
 
+      {action.type === "Attack" && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ color: '#aaa', fontSize: '11px', marginRight: '8px', width: '40px' }}>DMG</span>
+            <input
+              type="number"
+              placeholder="10"
+              value={(action.damage as number) ?? ""}
+              onChange={(e) => onUpdate({ ...action, damage: parseFloat(e.target.value) })}
+              style={{ ...styles.textInput, flex: 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ color: '#aaa', fontSize: '11px', marginRight: '8px', width: '40px' }}>Range</span>
+            <input
+              type="number"
+              placeholder="100"
+              value={(action.range as number) ?? ""}
+              onChange={(e) => onUpdate({ ...action, range: parseFloat(e.target.value) })}
+              style={{ ...styles.textInput, flex: 1 }}
+            />
+          </div>
+          <datalist id="action-particle-presets">
+            <option value="none">❌ 이펙트 없음</option>
+            <option value="hit_spark">⚡ hit_spark</option>
+            <option value="blood">🩸 blood (피)</option>
+            <option value="explosion">💥 explosion (폭발)</option>
+            <option value="magic">🔮 magic (마법)</option>
+            {/* Custom Particles */}
+            {assets?.filter((a: Asset) => a.tag === 'Particle' || a.tag === 'Effect').map((a: Asset) => (
+              <option key={a.id} value={`custom:${a.name}`}>{a.name}</option>
+            ))}
+          </datalist>
+
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ color: '#aaa', fontSize: '11px', marginRight: '8px', width: '40px' }}>Effect</span>
+            <input
+              list="action-particle-presets"
+              style={{ ...styles.textInput, flex: 1 }}
+              placeholder="(재질 따름)"
+              value={(action.hitEffect as string) || ""}
+              onChange={(e) => onUpdate({ ...action, hitEffect: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
+
       {action.type === "PlayAnimation" && (
         <select
           value={(action.animationName as string) || ""}
