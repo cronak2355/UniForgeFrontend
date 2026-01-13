@@ -1387,13 +1387,16 @@ export class PhaserRenderer implements IRenderer {
 
             console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
 
+            // Cache Busting: Append timestamp to force reload
+            const bustUrl = url + (url.includes('?') ? '&' : '?') + `t=${Date.now()}`;
+
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
-                this.scene.load.spritesheet(key, url, {
+                this.scene.load.spritesheet(key, bustUrl, {
                     frameWidth: metadata.frameWidth,
                     frameHeight: metadata.frameHeight,
                 });
             } else {
-                this.scene.load.image(key, url);
+                this.scene.load.image(key, bustUrl);
             }
 
             this.scene.load.once("complete", () => {

@@ -931,7 +931,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       // 2. Load Image
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.src = url;
+      img.src = `${url}?t=${Date.now()}`;
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
