@@ -413,6 +413,8 @@ export function RightPanel() {
 
     setIsLoading(true);
     try {
+      console.log("[RightPanel] Generating SpriteSheet for animations:", Object.keys(finalMap));
+
       // 2. Generate Blob
       const { blob, metadata } = await exportSpriteSheet(
         masterFrames,
@@ -479,7 +481,7 @@ export function RightPanel() {
         state: {
           assetBlob: blob,
           thumbnailBlob: thumbnailBlob,
-          assetName: activeAnimationName === 'default' ? 'New Asset' : activeAnimationName,
+          assetName: 'New Asset',
           metadata: metadata,
           returnToEditor: true,
           gameId: gameId

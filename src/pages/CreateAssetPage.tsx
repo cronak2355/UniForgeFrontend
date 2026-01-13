@@ -247,15 +247,14 @@ const CreateAssetPage = () => {
             setUploadProgress(100);
 
             // Success!
+            // Success!
             setTimeout(() => {
                 const locState = (location.state as any);
-                // If returnToEditor is set, go back. 
-                // If gameId is missing but returnToEditor is true, we might need a fallback or stay in Detail page?
-                // Assuming if they came from editor, gameId is provided, or we might need to rely on localStorage if available.
-                // But generally gameId should be in location.state.
-                if (locState?.returnToEditor && locState?.gameId) {
+                if (locState?.returnToEditor) {
                     // Navigate back to Editor
-                    navigate(`/editor/${locState.gameId}?newAssetId=${asset.id}`);
+                    // If gameId is present, go to specific game. If not, go to /editor (loads autosave)
+                    const targetPath = locState.gameId ? `/editor/${locState.gameId}` : '/editor';
+                    navigate(`${targetPath}?newAssetId=${asset.id}`);
                 } else {
                     // Navigate to Detail Page
                     navigate(`/assets/${asset.id}`);
