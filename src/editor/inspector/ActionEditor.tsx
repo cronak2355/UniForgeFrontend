@@ -13,6 +13,7 @@ export function ActionEditor({
   variables,
   entities,
   modules,
+  scenes,
   assets,
   currentEntity,
   onCreateVariable,
@@ -27,6 +28,7 @@ export function ActionEditor({
   variables: EditorVariable[];
   entities: { id: string; name: string }[];
   modules: ModuleGraph[];
+  scenes?: { id: string; name: string }[];
   assets?: Asset[];
   currentEntity?: EditorEntity;
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
@@ -44,6 +46,12 @@ export function ActionEditor({
     "";
   const selectedModule = modules.find((mod) => mod.id === selectedModuleId) ?? null;
   const moduleVariables = selectedModule?.variables ?? [];
+  const selectedSceneId =
+    (action.sceneId as string) ||
+    scenes?.find((scene) => scene.name === (action.sceneName as string))?.id ||
+    "";
+  const spawnTemplateId = (action.templateId as string) ?? "__self__";
+  const spawnPositionMode = (action.positionMode as string) ?? "relative";
 
   // Animation Logic
   const textureName = currentEntity?.texture || currentEntity?.name;
@@ -249,6 +257,56 @@ export function ActionEditor({
         </>
       )}
 
+      {action.type === "SpawnEntity" && (
+        <>
+          <select
+            value={spawnTemplateId}
+            onChange={(e) => onUpdate({ ...action, templateId: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="__self__">(self)</option>
+            <option value="">(none)</option>
+            {entities.map((ent) => (
+              <option key={ent.id} value={ent.id}>
+                {ent.name || ent.id}
+              </option>
+            ))}
+          </select>
+          <select
+            value={spawnPositionMode}
+            onChange={(e) => onUpdate({ ...action, positionMode: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="relative">relative</option>
+            <option value="absolute">absolute</option>
+          </select>
+          {spawnPositionMode === "absolute" ? (
+            <>
+              <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
+              <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
+            </>
+          ) : (
+            <>
+              <ParamInput label="dx" value={action.offsetX as number} onChange={(v) => onUpdate({ ...action, offsetX: v })} />
+              <ParamInput label="dy" value={action.offsetY as number} onChange={(v) => onUpdate({ ...action, offsetY: v })} />
+            </>
+          )}
+          <input
+            type="text"
+            placeholder="texture"
+            value={(action.texture as string) || ""}
+            onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
+            list={`${listId}-textures`}
+            style={styles.textInput}
+          />
+          <datalist id={`${listId}-textures`}>
+            {assets?.map((a) => (
+              <option key={a.id} value={a.name} />
+            ))}
+          </datalist>
+        </>
+      )}
+
       {action.type === "Enable" && (
         <select
           value={action.enabled === false ? "false" : "true"}
@@ -258,6 +316,122 @@ export function ActionEditor({
           <option value="true">enable</option>
           <option value="false">disable</option>
         </select>
+      )}
+
+      {action.type === "ChangeScene" && (
+        (scenes && scenes.length > 0) ? (
+          <select
+            value={selectedSceneId}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              const nextName = scenes.find((s) => s.id === nextId)?.name ?? "";
+              onUpdate({ ...action, sceneId: nextId, sceneName: nextName });
+            }}
+            style={styles.smallSelect}
+          >
+            <option value="">(scene)</option>
+            {scenes.map((scene) => (
+              <option key={scene.id} value={scene.id}>
+                {scene.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            placeholder="sceneName"
+            value={(action.sceneName as string) || ""}
+            onChange={(e) => onUpdate({ ...action, sceneName: e.target.value })}
+            style={styles.textInput}
+          />
+        )
+      )}
+
+      {action.type === "PlayParticle" && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <select
+            value={(action.preset as string) || "hit_spark"}
+            onChange={(e) => onUpdate({ ...action, preset: e.target.value })}
+            style={styles.selectField}
+          >
+            <optgroup label="전투">
+              <option value="hit_spark">⚡ hit_spark (피격 효과)</option>
+              <option value="explosion">💥 explosion (폭발)</option>
+              <option value="blood">🩸 blood (피 튀기기)</option>
+              <option value="heal">💚 heal (힐링)</option>
+              <option value="magic">🔮 magic (마법)</option>
+            </optgroup>
+            <optgroup label="환경">
+              <option value="rain">🌧️ rain (비)</option>
+              <option value="dust">💨 dust (먼지)</option>
+              <option value="fire">🔥 fire (불꽃)</option>
+              <option value="smoke">🌫️ smoke (연기)</option>
+              <option value="snow">❄️ snow (눈)</option>
+            </optgroup>
+            <optgroup label="UI">
+              <option value="sparkle">✨ sparkle (반짝임)</option>
+              <option value="level_up">⭐ level_up (레벨업)</option>
+              <option value="coin">🪙 coin (코인)</option>
+              <option value="confetti">🎊 confetti (축하)</option>
+            </optgroup>
+            {/* 커스텀 파티클 (Particle 태그 에셋) */}
+            {(assets ?? []).filter(a => a.tag === 'Particle').length > 0 && (
+              <optgroup label="🎨 커스텀">
+                {(assets ?? []).filter(a => a.tag === 'Particle').map(a => (
+                  <option key={a.id} value={`custom:${a.id}`}>🖼️ {a.name}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#aaa', fontSize: '11px', minWidth: '35px' }}>크기</span>
+            <input
+              type="range"
+              min="0.5"
+              max="5"
+              step="0.5"
+              value={(action.scale as number) ?? 1}
+              onChange={(e) => onUpdate({ ...action, scale: parseFloat(e.target.value) })}
+              style={{ flex: 1 }}
+            />
+            <span style={{ color: '#fff', fontSize: '11px', minWidth: '25px' }}>
+              {(action.scale as number) ?? 1}x
+            </span>
+          </div>
+        </div>
+      )}
+
+      {action.type === "StartParticleEmitter" && (
+        <>
+          <input
+            type="text"
+            placeholder="emitterId"
+            value={(action.emitterId as string) || ""}
+            onChange={(e) => onUpdate({ ...action, emitterId: e.target.value })}
+            style={{ ...styles.textInput, width: 80 }}
+          />
+          <select
+            value={(action.preset as string) || "fire"}
+            onChange={(e) => onUpdate({ ...action, preset: e.target.value })}
+            style={styles.smallSelect}
+          >
+            <option value="fire">🔥 fire</option>
+            <option value="smoke">🌫️ smoke</option>
+            <option value="rain">🌧️ rain</option>
+            <option value="snow">❄️ snow</option>
+            <option value="sparkle">✨ sparkle</option>
+          </select>
+        </>
+      )}
+
+      {action.type === "StopParticleEmitter" && (
+        <input
+          type="text"
+          placeholder="emitterId"
+          value={(action.emitterId as string) || ""}
+          onChange={(e) => onUpdate({ ...action, emitterId: e.target.value })}
+          style={styles.textInput}
+        />
       )}
 
       {action.type === "RunModule" && (

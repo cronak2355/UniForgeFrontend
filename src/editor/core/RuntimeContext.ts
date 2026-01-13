@@ -72,6 +72,10 @@ export class RuntimeContext {
         return created;
     }
 
+    clearEntities(): void {
+        this.entities.clear();
+    }
+
     recordCollisionEnter(entityId: string, contact: CollisionContact): void {
         const ctx = this.getEntityContext(entityId);
         this.upsertContact(ctx.collisions.current, contact);

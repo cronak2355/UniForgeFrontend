@@ -453,6 +453,22 @@ export class GameCore {
         };
     }
 
+    resetRuntime(): void {
+        for (const id of this.entities.keys()) {
+            this.renderer.remove(id);
+        }
+
+        this.entities.clear();
+        this.componentRuntimes = [];
+        this.triggerRuntimes = [];
+        collisionSystem.clear();
+        this.variableSnapshots.clear();
+        this.startedComponents.clear();
+        this.moduleRuntime.clear();
+        this.runtimeContext.clearEntities();
+        this.notify();
+    }
+
     /**
      * ?뷀떚???뚯쟾
      */
