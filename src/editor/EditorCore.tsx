@@ -491,6 +491,24 @@ export class EditorState implements IGameState {
         this.notify();
     }
 
+    setAssets(assets: Asset[]) {
+        this.assets = assets;
+        this.notify();
+    }
+
+    // Update entity without triggering snapshot (for continuous updates like dragging)
+    updateEntity(entity: EditorEntity) {
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
+        scene.entities.set(entity.id, normalized);
+        if (this.selectedEntity?.id === entity.id) {
+            this.selectedEntity = normalized;
+        }
+        this.notify();
+    }
+
     addEntity(entity: EditorEntity) {
         this.snapshot();
         const scene = this.getCurrentScene();

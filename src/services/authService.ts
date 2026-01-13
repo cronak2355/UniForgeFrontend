@@ -73,6 +73,10 @@ class AuthService {
         return localStorage.getItem('token') !== null;
     }
 
+    getToken(): string | null {
+        return localStorage.getItem('token');
+    }
+
     handleOAuthCallback(token: string): void {
         this.setToken(token);
     }
