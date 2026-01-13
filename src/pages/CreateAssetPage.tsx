@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { marketplaceService } from '../services/marketplaceService';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState({
@@ -24,6 +25,53 @@ const CreateAssetPage = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+
+
+
+    // Store technical metadata from Asset Editor
+    const [technicalMetadata, setTechnicalMetadata] = useState<any>(null);
+
+    // Handle incoming asset from Asset Editor
+    useEffect(() => {
+        if ((location.state as any)?.assetBlob) {
+            const { assetBlob, assetName, thumbnailBlob, metadata } = (location.state as any);
+            const fileName = `${assetName || 'New Asset'}.webp`; // Assuming we exported webp
+            const newFile = new File([assetBlob], fileName, { type: 'image/webp' });
+
+            setFile(newFile);
+            setFormData(prev => ({
+                ...prev,
+                name: assetName || ''
+            }));
+
+            // Store metadata if provided
+            if (metadata) {
+                setTechnicalMetadata(metadata);
+            }
+
+            // Use independent thumbnail blob if available (Single Frame)
+            if (thumbnailBlob) {
+                const thumbFile = new File([thumbnailBlob], "thumbnail.png", { type: 'image/png' });
+                setThumbnailFile(thumbFile);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    setThumbnailPreview(e.target?.result as string);
+                };
+                reader.readAsDataURL(thumbFile);
+            } else {
+                // Fallback: Use entire sprite sheet as thumbnail
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setThumbnailPreview(result);
+                    setThumbnailFile(newFile);
+                };
+                reader.readAsDataURL(newFile);
+            }
+        }
+    }, [location.state]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -115,12 +163,25 @@ const CreateAssetPage = () => {
         setUploadProgress(10);
 
         try {
+            // Prepare Description (Merge User Desc + Technical Metadata)
+            let finalDescription = formData.description;
+            if (technicalMetadata) {
+                // If technical metadata exists, we wrap it.
+                // We assume the system expects the ROOT JSON to contain frame info.
+                // So we spread metadata and add a 'userDescription' field.
+                const merged = {
+                    ...technicalMetadata,
+                    description: formData.description // keep user text in 'description' field within JSON
+                };
+                finalDescription = JSON.stringify(merged);
+            }
+
             // Step 1: Create asset in DB
             setUploadProgress(20);
             const asset = await marketplaceService.createAsset({
                 name: formData.name,
                 price: formData.price,
-                description: formData.description || null,
+                description: finalDescription || null,
                 isPublic: formData.isPublic,
                 tags: formData.tags.join(','),
                 assetType: formData.assetType
@@ -129,18 +190,31 @@ const CreateAssetPage = () => {
             setUploadProgress(30);
 
             // Step 1.5: Upload Thumbnail (if exists)
+            // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
+            // Step 1.5: Upload Thumbnail (if exists)
+            // NOTE: We must use the PROXY URL for the imageUrl to ensure it works across private buckets/CORS.
             if (thumbnailFile) {
-                const { uploadUrl } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
-                if (uploadUrl) {
+                const { uploadUrl, s3Key } = await marketplaceService.getPresignedUrlForImage(asset.id, thumbnailFile.type);
+                if (uploadUrl && s3Key) {
                     await fetch(uploadUrl, {
                         method: 'PUT',
                         body: thumbnailFile,
                         headers: { 'Content-Type': thumbnailFile.type }
                     });
 
-                    // Update asset with imageUrl
-                    const cleanUrl = uploadUrl.split('?')[0];
-                    await marketplaceService.updateAsset(asset.id, { imageUrl: cleanUrl });
+                    // IMPORTANT: Register the image resource in the backend!
+                    await marketplaceService.registerImageResource({
+                        ownerType: "ASSET",
+                        ownerId: asset.id,
+                        imageType: "thumbnail",
+                        s3Key: s3Key,
+                        isActive: true
+                    });
+
+                    // Update asset with PROXY URL
+                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
+                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${asset.id}?imageType=thumbnail`;
+                    await marketplaceService.updateAsset(asset.id, { imageUrl: proxyUrl });
                 }
             }
             setUploadProgress(40);
@@ -173,8 +247,18 @@ const CreateAssetPage = () => {
             setUploadProgress(100);
 
             // Success!
+            // Success!
             setTimeout(() => {
-                navigate(`/assets/${asset.id}`);
+                const locState = (location.state as any);
+                if (locState?.returnToEditor) {
+                    // Navigate back to Editor
+                    // If gameId is present, go to specific game. If not, go to /editor (loads autosave)
+                    const targetPath = locState.gameId ? `/editor/${locState.gameId}` : '/editor';
+                    navigate(`${targetPath}?newAssetId=${asset.id}`);
+                } else {
+                    // Navigate to Detail Page
+                    navigate(`/assets/${asset.id}`);
+                }
             }, 500);
 
         } catch (err) {

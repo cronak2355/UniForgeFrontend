@@ -378,6 +378,16 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                                     >
                                                         <i className="fa-solid fa-folder"></i>
                                                     </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/assets-editor?assetId=${item.id}`);
+                                                        }}
+                                                        className="w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-black/90 backdrop-blur-sm rounded-full text-white transition-colors border border-white/10"
+                                                        title="에셋 편집"
+                                                    >
+                                                        <i className="fa-solid fa-pen"></i>
+                                                    </button>
                                                 </div>
                                             )}
                                         </>

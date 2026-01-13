@@ -52,11 +52,19 @@ export async function loadScene(
     }
 
     const text = await res.text();
+
+    // Check if response is HTML (e.g. 404 page from frontend server)
+    if (text.trim().startsWith("<")) {
+        console.warn("[sceneApi] Received HTML instead of JSON. Treating as empty/404.");
+        return null;
+    }
+
     try {
         const data = JSON.parse(text);
         return JSON.parse(data.sceneJson);
     } catch (e) {
         console.error("[sceneApi] Failed to parse response:", text);
-        throw e;
+        // If it's not JSON, it might be an unhandled error page
+        return null;
     }
 }
