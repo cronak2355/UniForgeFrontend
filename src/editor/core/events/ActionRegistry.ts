@@ -27,6 +27,13 @@ export interface ActionGlobals {
         getAllEntityIds?(): string[];
         worldToScreen?(x: number, y: number, z?: number): { x: number; y: number };
         playAnim?(id: string, name: string): void;
+        // 파티클 시스템
+        playParticle?(presetId: string, x: number, y: number, scale?: number): void;
+        playCustomParticle?(textureId: string, x: number, y: number, scale?: number): void;
+        registerCustomParticle?(id: string, url: string): void;
+        getCustomParticles?(): string[];
+        createParticleEmitter?(id: string, presetId: string, x: number, y: number): void;
+        stopParticleEmitter?(id: string): void;
     };
     scene?: unknown;
     entities?: Map<string, EntityLike>;
