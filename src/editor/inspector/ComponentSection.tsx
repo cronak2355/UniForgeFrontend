@@ -30,6 +30,7 @@ const EVENT_TYPES = [
 const ACTION_LABELS: Record<string, string> = {
     Move: "Move",
     Jump: "Jump",
+    Wait: "Wait",
     MoveToward: "MoveToward",
     ChaseTarget: "ChaseTarget",
     Attack: "Attack",

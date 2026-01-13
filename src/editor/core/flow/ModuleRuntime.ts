@@ -22,6 +22,11 @@ export type ModuleRuntimeEntity = {
   variables?: Array<{ name: string; value: unknown }>;
 };
 
+type WaitNodeState = {
+  timerId?: ReturnType<typeof setTimeout>;
+  resolved?: boolean;
+};
+
 export type ModuleRuntimeHooks = {
   getEntity: (id: string) => ModuleRuntimeEntity | undefined;
   setVar: (entityId: string, name: string, value: ModuleLiteral) => void;
@@ -199,12 +204,13 @@ export class ModuleRuntime {
     return null;
   }
 
-  private executeFlow(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
-    if (node.flowType === "Instant") {
-      return this.executeInstant(instance, node, dt) ? "done" : "failed";
+    private executeFlow(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
+      const flowType = node.blockType === "Wait" ? "Async" : node.flowType;
+      if (flowType === "Instant") {
+        return this.executeInstant(instance, node, dt) ? "done" : "failed";
+      }
+      return this.executeAsync(instance, node, dt);
     }
-    return this.executeAsync(instance, node, dt);
-  }
 
   private executeInstant(instance: ModuleInstance, node: ModuleFlowNode, dt: number): boolean {
     const ctx = this.hooks.getActionContext(instance.entityId, dt);
@@ -255,11 +261,33 @@ export class ModuleRuntime {
     switch (node.blockType) {
       case "Wait": {
         const seconds = Number(node.params.seconds ?? 0);
-        if (!state.startedAt) {
-          state.startedAt = performance.now();
+        if (seconds <= 0) {
+          return "done";
         }
-        const elapsed = (performance.now() - (state.startedAt as number)) / 1000;
-        return elapsed >= seconds ? "done" : "waiting";
+        const waitState = state as WaitNodeState;
+        if (waitState.resolved) {
+          waitState.resolved = false;
+          console.log("[ModuleRuntime] Wait node resolved", {
+            nodeId: node.id,
+            seconds,
+          });
+          return "done";
+        }
+        if (waitState.timerId === undefined) {
+          console.log("[ModuleRuntime] Waiting", {
+            nodeId: node.id,
+            seconds,
+          });
+          waitState.timerId = setTimeout(() => {
+            waitState.resolved = true;
+            waitState.timerId = undefined;
+            console.log("[ModuleRuntime] Wait timeout fired", {
+              nodeId: node.id,
+              seconds,
+            });
+          }, seconds * 1000);
+        }
+        return "waiting";
       }
       case "MoveTo": {
         const targetX = Number(node.params.x ?? 0);

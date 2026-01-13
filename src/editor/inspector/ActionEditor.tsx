@@ -98,13 +98,22 @@ export function ActionEditor({
       </div>
 
       <div style={styles.actionParams}>
-        {action.type === "Move" && (
-          <>
-            <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
-            <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
-            <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
-          </>
-        )}
+      {action.type === "Move" && (
+        <>
+          <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
+          <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
+          <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
+        </>
+      )}
+
+      {action.type === "Wait" && (
+        <ParamInput
+          label="seconds"
+          value={action.seconds as number}
+          defaultValue={1}
+          onChange={(v) => onUpdate({ ...action, seconds: v })}
+        />
+      )}
 
       {action.type === "ChaseTarget" && (
         <>
