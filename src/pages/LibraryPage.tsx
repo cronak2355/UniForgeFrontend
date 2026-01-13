@@ -622,7 +622,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                                     {isModal && item.type === 'asset' ? '프로젝트에 추가' : (item.type === 'game' ? <><i className="fa-solid fa-play"></i> 플레이</> : <><i className="fa-solid fa-download"></i> 다운로드</>)}
                                                 </button>
                                                 {item.type === 'asset' &&
-                                                    <div style={{ position: 'relative' }} className="move-to-collection-wrapper">
+                                                    <div style={{ position: 'relative', display: 'flex', gap: '8px' }} className="asset-actions-wrapper">
                                                         <button style={{
                                                             width: '40px', height: '37px', borderRadius: '6px', border: '1px solid #ccc',
                                                             backgroundColor: 'transparent', color: 'white', fontWeight: 600,
@@ -630,24 +630,23 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                                         }} title="컬렉션 이동"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // Toggle a local state or simplified: using prompt/modal might be easier, 
-                                                                // but let's try a small popup.
-                                                                // Since we track 'selectedItem'? No.
-                                                                // We can use a browser native select or a custom overlay if time permits.
-                                                                // For MVP, lets use a simple approach: show a list of collections to click?
-                                                                // Or native select hidden?
-
-                                                                // Let's go with a simple prompt-like interaction or a small absolute Menu if we can track which item is open.
-                                                                // To simple: Use `prompt` to ask for Collection Name? No that's bad.
-
-                                                                // Better: A shared "Move Modal" or just a small dropdown.
-                                                                // I will implement a "MoveItemModal" or similar if I had time.
-                                                                // For now, let's just use a window.confirm/prompt hack OR 
-                                                                // actually, let's add a state `movingItem` to show a modal for selection.
                                                                 setMovingItem(item);
                                                             }}
                                                         >
                                                             <i className="fa-solid fa-folder"></i>
+                                                        </button>
+                                                        <button style={{
+                                                            width: '40px', height: '37px', borderRadius: '6px', border: '1px solid #ccc',
+                                                            backgroundColor: 'transparent', color: 'white', fontWeight: 600,
+                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                        }} title="에셋 편집"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // If modal, maybe open in new tab? For now navigate is standard.
+                                                                navigate(`/assets-editor?assetId=${item.id}`);
+                                                            }}
+                                                        >
+                                                            <i className="fa-solid fa-pen"></i>
                                                         </button>
                                                     </div>
                                                 }

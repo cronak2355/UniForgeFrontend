@@ -27,6 +27,7 @@ type TabType = 'ai' | 'animate' | 'export';
 export function RightPanel() {
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('gameId');
+  const navigate = useNavigate();
 
   const {
     frames, // Currently active frames
@@ -423,24 +424,70 @@ export function RightPanel() {
         animMetadata
       );
 
-      // 3. Upload or Update
-      const token = localStorage.getItem("token");
-      const assetName = exportName.trim() || 'animation_sprite';
-      const tag = assetType === 'character' ? 'Character' : 'Tile';
+      console.log("[RightPanel] Generated SpriteSheet Blob:", blob.size, metadata);
 
-      let savedId = currentAssetId;
+      // Generate Thumbnail Blob (First frame of active animation)
+      let thumbnailBlob: Blob | null = null;
+      if (frames.length > 0) {
+        try {
+          // Find the active frame (or first of the set)
+          // Ideally we want the first frame of the *active animation* to be the thumbnail.
+          // 'frames' state variable currently holds the active animation's frames (synced via Context)
+          const firstFrame = frames[0];
+          // Access ImageData. frames is Frame[]? No, Context 'frames' is Frame[].
+          // Wait, 'frames' in RightPanel comes from context?
+          // "frames" from context are Frame[] (which has id, etc). 
+          // We need ImageData. 'engineRef' has it, or we use 'getFrameThumbnail'?
+          // 'frames' in context is actually Frame wrapper. 
+          // The exportSpriteSheet uses 'masterFrames' which is ImageData[].
 
-      if (currentAssetId) {
-        await assetService.updateAsset(currentAssetId, blob, metadata, token);
-      } else {
-        const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
-        savedId = result.id;
+          // Let's use the first frame of 'masterFrames' if available, OR reuse the logic I used for masterFrames.
+          // But 'masterFrames' is ALL animations flattened.
+          // Use 'frames' from scope? In `performSave`, we iterate `animationMap`.
+          // The active animation is `activeAnimationName`.
+          // We can get its frames from `animationMap[activeAnimationName].frames`.
+
+          // But `animationMap` contains ImageData directly? 
+          // Checking context definition... yes, AnimationData is { frames: ImageData[], ... }.
+          // Wait, performSave constructs masterFrames from animationMap.
+
+          const activeAnim = animationMap[activeAnimationName];
+          const firstImageData = activeAnim?.frames?.[0] || frames[0]?.data; // Fallback? frames is Frame[]?
+          // Actually, in AssetsEditorContext, "frames" is Frame[], which likely contains ImageData in '.data'?
+          // Let's check Frame interface. 
+          // Assuming we can get ImageData from somewhere.
+          // Safest: Use `animationMap[activeAnimationName].frames[0]`.
+
+          if (activeAnim && activeAnim.frames.length > 0) {
+            const imgData = activeAnim.frames[0];
+            const canvas = document.createElement("canvas");
+            canvas.width = imgData.width;
+            canvas.height = imgData.height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.putImageData(imgData, 0, 0);
+              thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to generate thumbnail blob", e);
+        }
       }
 
-      return savedId; // Return ID
+      // Redirect to Create Asset Page for Metadata Input
+      navigate('/create-asset', {
+        state: {
+          assetBlob: blob,
+          thumbnailBlob: thumbnailBlob,
+          assetName: activeAnimationName === 'default' ? 'New Asset' : activeAnimationName,
+          metadata: metadata
+        }
+      });
+      return null; // Navigation will handle the next step
+
     } catch (e) {
-      console.error(e);
-      alert("Failed to save: " + String(e));
+      console.error('Failed to generate sprite sheet:', e);
+      alert('Failed to generate sprite sheet');
       return null;
     } finally {
       setIsLoading(false);

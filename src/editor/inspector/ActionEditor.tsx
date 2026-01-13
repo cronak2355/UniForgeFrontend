@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useNavigate } from "react-router-dom";
 import type { EditorVariable } from "../types/Variable";
 import type { ModuleGraph } from "../types/Module";
 import { colors } from "../constants/colors";
@@ -36,6 +37,7 @@ export function ActionEditor({
   showRemove?: boolean;
 }) {
   const listId = useId();
+  const navigate = useNavigate();
   const selectedVar = variables.find((v) => v.name === (action.name as string));
   const selectedModuleId =
     (action.moduleId as string) ??
@@ -178,23 +180,43 @@ export function ActionEditor({
       )}
 
       {action.type === "PlayAnimation" && (
-        <select
-          value={(action.animationName as string) || ""}
-          onChange={(e) => onUpdate({ ...action, animationName: e.target.value })}
-          style={styles.selectField}
-        >
-          <option value="">Select Animation</option>
-          {availableAnimations.map((anim) => (
-            <option key={anim} value={anim}>
-              {anim}
-            </option>
-          ))}
-          {availableAnimations.length === 0 && (
-            <option value="" disabled>
-              No animations found
-            </option>
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+          <select
+            value={(action.animationName as string) || ""}
+            onChange={(e) => onUpdate({ ...action, animationName: e.target.value })}
+            style={{ ...styles.selectField, flex: 1 }}
+          >
+            <option value="">Select Animation</option>
+            {availableAnimations.map((anim) => (
+              <option key={anim} value={anim}>
+                {anim}
+              </option>
+            ))}
+            {availableAnimations.length === 0 && (
+              <option value="" disabled>
+                No animations found
+              </option>
+            )}
+          </select>
+          {asset && (
+            <button
+              onClick={() => navigate(`/assets-editor?assetId=${asset.id}`)}
+              style={{
+                padding: "4px 8px",
+                fontSize: 11,
+                backgroundColor: colors.bgTertiary,
+                color: colors.textPrimary,
+                border: `1px solid ${colors.borderColor}`,
+                borderRadius: 4,
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+              title="Edit original asset animations"
+            >
+              Edit Anim
+            </button>
           )}
-        </select>
+        </div>
       )}
 
       {action.type === "ClearSignal" && (

@@ -20,6 +20,7 @@ import {
   type ExportFormat,
 } from '../services/SpriteSheetExporter';
 import { assetService } from '../../services/assetService';
+import { useSearchParams } from 'react-router-dom';
 
 // Revised Interface for Frame-Set Model
 export interface AnimationData {
@@ -143,6 +144,7 @@ const AssetsEditorContext = createContext<AssetsEditorContextType | null>(null);
 export function AssetsEditorProvider({ children }: { children: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<PixelEngine | null>(null);
+  const [searchParams] = useSearchParams();
 
   const [currentTool, setCurrentTool] = useState<Tool>('brush');
   const [currentColor, setCurrentColor] = useState<RGBA>({ r: 255, g: 255, b: 255, a: 255 });
@@ -1041,6 +1043,15 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, [addFrame, applyImageData, deleteFrame, selectFrame, setFeatherAmount, setIsLoading, setPixelSize, processAndApplyImage]);
+
+  // Auto-load Asset from URL
+  useEffect(() => {
+    const assetId = searchParams.get('assetId');
+    if (assetId && assetId !== currentAssetId) {
+      console.log("[AssetsEditor] Found assetId in URL, loading:", assetId);
+      loadAsset(assetId);
+    }
+  }, [searchParams, currentAssetId, loadAsset]);
 
   return (
     <AssetsEditorContext.Provider

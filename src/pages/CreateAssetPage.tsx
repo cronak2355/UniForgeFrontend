@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { marketplaceService } from '../services/marketplaceService';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState({
@@ -24,6 +25,42 @@ const CreateAssetPage = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+    // Handle incoming asset from Asset Editor
+    useEffect(() => {
+        if (location.state?.assetBlob) {
+            const { assetBlob, assetName, thumbnailBlob } = location.state;
+            const fileName = `${assetName || 'New Asset'}.webp`; // Assuming we exported webp
+            const newFile = new File([assetBlob], fileName, { type: 'image/webp' });
+
+            setFile(newFile);
+            setFormData(prev => ({
+                ...prev,
+                name: assetName || ''
+            }));
+
+            // Use independent thumbnail blob if available (Single Frame)
+            if (thumbnailBlob) {
+                const thumbFile = new File([thumbnailBlob], "thumbnail.png", { type: 'image/png' });
+                setThumbnailFile(thumbFile);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    setThumbnailPreview(e.target?.result as string);
+                };
+                reader.readAsDataURL(thumbFile);
+            } else {
+                // Fallback: Use entire sprite sheet as thumbnail
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setThumbnailPreview(result);
+                    setThumbnailFile(newFile);
+                };
+                reader.readAsDataURL(newFile);
+            }
+        }
+    }, [location.state]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
