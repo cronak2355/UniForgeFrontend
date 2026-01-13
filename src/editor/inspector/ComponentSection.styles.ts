@@ -137,49 +137,49 @@ export const selectField: CSSProperties = {
 };
 
 export const smallSelect: CSSProperties = {
-    flex: 1,
+    flex: "1 1 90px",
     background: colors.bgTertiary,
     color: colors.textPrimary,
     border: `1px solid ${colors.borderColor}`,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px 4px",
-    minWidth: 0
+    minWidth: 70
 };
 
 export const textInput: CSSProperties = {
-    width: "60px",
+    flex: "1 1 120px",
     background: colors.bgPrimary,
     border: `1px solid ${colors.borderColor}`,
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px 4px",
-    minWidth: 0,
-    flexShrink: 1
+    minWidth: 90,
+    width: "auto"
 };
 
 export const numberInput: CSSProperties = {
-    width: "40px",
+    flex: "1 1 70px",
     background: colors.bgPrimary,
     border: `1px solid ${colors.borderColor}`,
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px 4px",
-    minWidth: 0,
-    flexShrink: 1
+    minWidth: 60,
+    width: "auto"
 };
 
 export const smallNumberInput: CSSProperties = {
-    width: "35px",
+    flex: "1 1 60px",
     background: colors.bgPrimary,
     border: `1px solid ${colors.borderColor}`,
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px",
-    minWidth: 0
+    minWidth: 50
 };
 
 // ===== Condition/Action 에디터 =====
@@ -195,13 +195,24 @@ export const conditionRow: CSSProperties = {
 
 export const actionRow: CSSProperties = {
     display: "flex",
-    gap: "4px",
-    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: "6px",
     padding: "4px",
     background: "rgba(100,100,200,0.1)",
     borderRadius: "4px",
     marginBottom: "4px",
-    flexWrap: "wrap"
+};
+
+export const actionHeader: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+};
+
+export const actionParams: CSSProperties = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "4px",
 };
 
 export const paramLabel: CSSProperties = {
