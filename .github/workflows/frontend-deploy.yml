@@ -44,7 +44,7 @@ jobs:
   deploy:
     name: S3/CloudFront 배포
     needs: build-and-lint
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

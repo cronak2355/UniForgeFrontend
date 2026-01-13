@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 
 import { useAssetsEditor } from '../context/AssetsEditorContext';
+import type { Frame } from '../engine/FrameManager';
 import {
   generateSimpleAnimation,
   SIMPLE_PRESETS,
@@ -21,6 +22,7 @@ import { assetService } from '../../services/assetService';
 type TabType = 'ai' | 'animate' | 'export';
 
 export function RightPanel() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('gameId');
 
@@ -32,23 +34,32 @@ export function RightPanel() {
     setIsPlaying,
     fps,
     setFps,
+    loop,
     downloadWebP,
     isLoading,
     setIsLoading,
     loadAIImage,
     pixelSize,
     addFrame,
-    selectFrame,
-    applyImageData,
-    getWorkCanvas,
-    featherAmount,
-    setFeatherAmount,
-    triggerBackgroundRemoval,
+      selectFrame,
+      applyImageData,
+      getWorkCanvas,
+      featherAmount,
+      setFeatherAmount,
+      triggerBackgroundRemoval,
     exportAsSpriteSheet,
-    animations,
+      animationMap,
+      activeAnimationName,
     currentAssetId,
+    currentAssetMetadata,
     setCurrentAssetId,
   } = useAssetsEditor();
+  const animations = Object.entries(animationMap).map(([name, data]) => ({
+    name,
+    frames: data.frames,
+    fps: data.fps,
+    loop: data.loop,
+  }));
 
   // ==================== State ====================
   const [activeTab, setActiveTab] = useState<TabType>('ai');
@@ -351,36 +362,63 @@ export function RightPanel() {
    * 💾 Save Logic (Shared)
    */
   const performSave = async (): Promise<string | null> => {
-    if (frames.length === 0) return null;
+    // If we have frames, we proceed. Even if only 1 frame.
+    if (frames.length === 0 && Object.keys(animationMap).length === 0) return null;
+
     setIsLoading(true);
     try {
-      // 1. Convert animations array to Record for export
-      // If no explicit animations, create default animation with current fps setting
-      let animsMap: Record<string, any>;
-      if (animations.length > 0) {
-        animsMap = {};
-        animations.forEach(a => {
-          animsMap[a.name] = { frames: a.frames, fps: a.fps, loop: a.loop };
-        });
-      } else {
-        // Create default animation using current fps state (not hardcoded 8)
-        animsMap = {
-          default: {
-            frames: Array.from({ length: frames.length }, (_, i) => i),
-            fps: fps, // Use the user's current fps setting!
-            loop: true
-          }
+      // 1. Flatten all animations into Master Frames & Metadata
+      const masterFrames: Frame[] = [];
+      const animMetadata: Record<string, any> = {};
+
+      // Clone map
+      const finalMap = { ...animationMap };
+
+      // Sync current active frames (from editor state) into the map
+      // 'frames' are Frame[] (wrappers). We need ImageData.
+      if (activeAnimationName && frames.length > 0) {
+        const currentImages = frames.map(f => new ImageData(new Uint8ClampedArray(f.data), pixelSize, pixelSize));
+        finalMap[activeAnimationName] = {
+          frames: currentImages,
+          fps: fps,
+          loop: loop
         };
       }
 
+      // Fallback: If map empty but frames exist (e.g. single frame, no name)
+      if (Object.keys(finalMap).length === 0 && frames.length > 0) {
+        const currentImages = frames.map(f => new ImageData(new Uint8ClampedArray(f.data), pixelSize, pixelSize));
+        // Treat as default animation
+        finalMap['default'] = { frames: currentImages, fps: fps, loop: loop };
+      }
+
+      let currentIndex = 0;
+      Object.keys(finalMap).sort().forEach(name => {
+        const data = finalMap[name];
+        const range: number[] = [];
+        data.frames.forEach((img, idx) => {
+          masterFrames.push({
+            id: crypto.randomUUID(),
+            name: `${name}_${idx}`,
+            data: img.data
+          });
+          range.push(currentIndex);
+          currentIndex++;
+        });
+        animMetadata[name] = { frames: range, fps: data.fps, loop: data.loop };
+      });
+
+      if (masterFrames.length === 0) return null;
+
       // 2. Generate Blob
       const { blob, metadata: sheetMetadata } = await exportSpriteSheet(
-        frames,
+        masterFrames,
         pixelSize,
         'horizontal',
         'webp',
         0.9,
-        animsMap
+        // Pass the constructed metadata map
+        animMetadata
       );
 
       const metadata = {
@@ -388,26 +426,46 @@ export function RightPanel() {
         motionType: assetType === 'effect' ? motionType : undefined
       };
 
-      // 3. Upload or Update
-      const token = localStorage.getItem("token");
-      const assetName = exportName.trim() || 'animation_sprite';
-      const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
-
-      let savedId = currentAssetId;
-      let finalAssetUrl = '';
-
-      if (currentAssetId) {
-        const res = await assetService.updateAsset(currentAssetId, blob, metadata, token);
-        if (typeof res !== 'boolean' && res?.url) finalAssetUrl = res.url;
-      } else {
-        const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
-        savedId = result.id;
-        finalAssetUrl = result.url;
+      // Generate Thumbnail Blob (First frame of the exported sprite sheet - global first frame)
+      let thumbnailBlob: Blob | null = null;
+      if (masterFrames.length > 0) {
+        try {
+          const firstFrame = masterFrames[0]; // Global first frame
+          const canvas = document.createElement("canvas");
+          canvas.width = pixelSize;
+          canvas.height = pixelSize;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            const imgData = new ImageData(new Uint8ClampedArray(firstFrame.data), pixelSize, pixelSize);
+            ctx.putImageData(imgData, 0, 0);
+            thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          }
+        } catch (err) {
+          console.warn("Failed to generate thumbnail:", err);
+        }
       }
 
+      // Redirect to Create Asset Page for Metadata Input
+      navigate('/create-asset', {
+        state: {
+          assetBlob: blob,
+          thumbnailBlob: thumbnailBlob,
+          assetName: exportName || currentAssetMetadata?.name || 'New Asset',
+          description: currentAssetMetadata?.description, // Pass original description (or handle inside CreateAssetPage)
+          initialData: currentAssetMetadata ? {
+            name: currentAssetMetadata.name,
+            description: currentAssetMetadata.description,
+            tag: currentAssetMetadata.genre, // Map genre to tag
+            isPublic: currentAssetMetadata.isPublic
+          } : undefined,
+          metadata: metadata,
+          returnToEditor: true,
+          gameId: gameId,
+          assetId: currentAssetId
+        }
+      });
+      return null; // Navigation will handle the next step
 
-
-      return savedId; // Return ID
     } catch (e) {
       console.error(e);
       alert("Failed to save: " + String(e));
@@ -430,11 +488,8 @@ export function RightPanel() {
   const handleSaveAndExit = async () => {
     const savedId = await performSave();
     if (savedId) {
-      if (gameId) {
-        window.location.href = `/editor/${gameId}?newAssetId=${savedId}`;
-      } else {
-        window.location.href = '/editor';
-      }
+      const targetPath = gameId ? `/editor/${gameId}` : '/editor';
+      navigate(`${targetPath}?newAssetId=${savedId}`);
     }
   };
 
