@@ -46,10 +46,9 @@ export function RightPanel() {
       setFeatherAmount,
       triggerBackgroundRemoval,
     exportAsSpriteSheet,
-      animationMap,
-      activeAnimationName,
+    animationMap,
+    activeAnimationName,
     currentAssetId,
-    currentAssetMetadata,
     setCurrentAssetId,
   } = useAssetsEditor();
   const animations = Object.entries(animationMap).map(([name, data]) => ({
@@ -424,46 +423,19 @@ export function RightPanel() {
         motionType: assetType === 'effect' ? motionType : undefined
       };
 
-      // Generate Thumbnail Blob (First frame of the exported sprite sheet - global first frame)
-      let thumbnailBlob: Blob | null = null;
-      if (masterFrames.length > 0) {
-        try {
-          const firstFrame = masterFrames[0]; // Global first frame
-          const canvas = document.createElement("canvas");
-          canvas.width = pixelSize;
-          canvas.height = pixelSize;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            const imgData = new ImageData(new Uint8ClampedArray(firstFrame.data), pixelSize, pixelSize);
-            ctx.putImageData(imgData, 0, 0);
-            thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-          }
-        } catch (err) {
-          console.warn("Failed to generate thumbnail:", err);
-        }
+      const token = localStorage.getItem("token");
+      const assetName = exportName.trim() || 'animation_sprite';
+      const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
+      let savedId = currentAssetId;
+
+      if (currentAssetId) {
+        await assetService.updateAsset(currentAssetId, blob, metadata, token);
+      } else {
+        const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
+        savedId = result.id;
       }
 
-      // Redirect to Create Asset Page for Metadata Input
-      navigate('/create-asset', {
-        state: {
-          assetBlob: blob,
-          thumbnailBlob: thumbnailBlob,
-          assetName: exportName || currentAssetMetadata?.name || 'New Asset',
-          description: currentAssetMetadata?.description, // Pass original description (or handle inside CreateAssetPage)
-          initialData: currentAssetMetadata ? {
-            name: currentAssetMetadata.name,
-            description: currentAssetMetadata.description,
-            tag: currentAssetMetadata.genre, // Map genre to tag
-            isPublic: currentAssetMetadata.isPublic
-          } : undefined,
-          metadata: metadata,
-          returnToEditor: true,
-          gameId: gameId,
-          assetId: currentAssetId
-        }
-      });
-      return null; // Navigation will handle the next step
-
+      return savedId;
     } catch (e) {
       console.error(e);
       alert("Failed to save: " + String(e));
