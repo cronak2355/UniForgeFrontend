@@ -895,38 +895,51 @@ export class PhaserRenderer implements IRenderer {
         }
 
         const sprite = obj as Phaser.GameObjects.Sprite;
-        if (sprite.play && sprite.texture) {
-            const textureKey = sprite.texture.key;
-            const prefixedName = `${textureKey}_${name}`;
+        if (!sprite.play || !sprite.texture) return;
 
+        // Parse animation name: format is "AssetName_AnimName" (e.g., "Zombie_walk" or "Zombie_default")
+        // If name contains underscore, first part might be asset/texture key
+        const underscoreIdx = name.lastIndexOf('_');
+        let targetTexture = sprite.texture.key;
+        let targetAnimKey = name;
+
+        if (underscoreIdx > 0) {
+            const potentialTexture = name.substring(0, underscoreIdx);
+            // Check if this texture exists
+            if (this.scene?.textures.exists(potentialTexture)) {
+                targetTexture = potentialTexture;
+                targetAnimKey = name; // Keep full name as anim key
+            }
+        }
+
+        // If target texture is different from current, switch the sprite's texture
+        if (targetTexture !== sprite.texture.key && this.scene?.textures.exists(targetTexture)) {
+            console.log(`[PhaserRenderer] Switching texture: ${sprite.texture.key} -> ${targetTexture}`);
+            sprite.setTexture(targetTexture, 0);
+        }
+
+        // Now try to play the animation
+        if (this.scene?.anims.exists(targetAnimKey)) {
+            sprite.play(targetAnimKey, true);
+        } else {
+            // Try with current texture prefix
+            const prefixedName = `${targetTexture}_${name.split('_').pop()}`;
             if (this.scene?.anims.exists(prefixedName)) {
-                // Pass true to ignoreIfPlaying to prevent restarting the animation every frame
                 sprite.play(prefixedName, true);
-            } else if (this.scene?.anims.exists(name)) {
-                sprite.play(name, true);
             } else {
-                // Fallback: If the user asked for "Idle" but we only have "Hero_default", play "Hero_default"
-                // Or if metadata failed to load, assume default.
-
-                // Safe check for anims.toJSON() which might be undefined/slow
+                // Fallback: find any animation for this texture
                 let available: string[] = [];
                 try {
                     const json = this.scene?.anims.toJSON();
                     if (json && json.anims) {
-                        available = json.anims.map((a: any) => a.key).filter((k: string) => k.startsWith(textureKey + "_"));
+                        available = json.anims.map((a: any) => a.key).filter((k: string) => k.startsWith(targetTexture + "_"));
                     }
                 } catch (e) { console.warn("[PhaserRenderer] Failed to list anims", e); }
 
                 if (available.length > 0) {
                     const fallback = available[0];
-                    if (sprite.anims.currentAnim?.key !== fallback || !sprite.anims.isPlaying) {
-                        // console.warn(`[PhaserRenderer] Animation '${name}' not found. Falling back to '${fallback}'`);
-                    }
                     sprite.play(fallback, true);
-                } else {
-                    // Last resort: just play the texture key itself if it was loaded as a single frame/image
-                    // But sprites play ANIMATIONS. If loaded as image, it just shows texture.
-                    // No-op is safer than crashing.
+                    console.log(`[PhaserRenderer] Using fallback animation: ${fallback}`);
                 }
             }
         }
@@ -1406,10 +1419,14 @@ export class PhaserRenderer implements IRenderer {
     }
 
     private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
-        if (metadata && metadata.animations && this.scene) {
-            const texture = this.scene.textures.get(key);
-            const totalFrames = texture ? texture.frameTotal : 0;
+        if (!this.scene) return;
 
+        const texture = this.scene.textures.get(key);
+        // frameTotal includes __BASE which is a single frame, so actual frame count is frameTotal - 1
+        const totalFrames = texture ? texture.frameTotal - 1 : 0;
+
+        // If metadata has explicit animations, create them
+        if (metadata && metadata.animations) {
             for (const [animName, config] of Object.entries(metadata.animations)) {
                 const animKey = `${key}_${animName}`;
 
@@ -1433,6 +1450,20 @@ export class PhaserRenderer implements IRenderer {
                     });
                     console.log(`[PhaserRenderer] Created animation: ${animKey}`);
                 }
+            }
+        }
+        // AUTO-GENERATE: If no explicit animations but spritesheet has multiple frames, create "default" animation
+        else if (totalFrames > 1) {
+            const defaultAnimKey = `${key}_default`;
+            if (!this.scene.anims.exists(defaultAnimKey)) {
+                const allFrames = Array.from({ length: totalFrames }, (_, i) => i);
+                this.scene.anims.create({
+                    key: defaultAnimKey,
+                    frames: this.scene.anims.generateFrameNumbers(key, { frames: allFrames }),
+                    frameRate: 8, // Default fps for auto-generated animation
+                    repeat: -1 // Loop by default
+                });
+                console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${totalFrames} frames)`);
             }
         }
     }
