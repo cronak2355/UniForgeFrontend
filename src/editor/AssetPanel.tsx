@@ -64,7 +64,7 @@ export function AssetPanel({
     clearDragListeners();
   };
 
-  const tabs = ["Tile", "Character", "Particle", "Modules"];
+  const tabs = ["Tile", "Character", "Particle", "Prefab", "Modules"];
 
   const handleTileClick = (asset: Asset) => {
     changeSelectedAsset(asset);

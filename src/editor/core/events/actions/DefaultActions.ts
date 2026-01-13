@@ -2,6 +2,9 @@ import { ActionRegistry, type ActionContext } from "../ActionRegistry";
 import { EventBus } from "../EventBus";
 import Phaser from "phaser";
 import { splitLogicItems } from "../../../types/Logic";
+import { assetToEntity } from "../../../utils/assetToEntity";
+import type { Asset } from "../../../types/Asset";
+import type { EditorEntity } from "../../../types/Entity";
 
 type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
 type RuntimeEntity = {
@@ -89,6 +92,34 @@ function isAlive(ctx: ActionContext): boolean {
     const hp = getNumberVar(entity, "hp");
     if (hp === undefined) return true;
     return hp > 0;
+}
+
+type RendererCoreWithAssets = {
+    getEntity?: (id: string) => EditorEntity | undefined;
+    getAssets?: () => Asset[];
+};
+
+type SpawnRenderer = {
+    core?: RendererCoreWithAssets;
+    getGameObject?: (id: string) => Phaser.GameObjects.GameObject | undefined;
+    getAllEntityIds?: () => string[];
+};
+
+function resolvePrefabEntity(
+    params: Record<string, unknown>,
+    renderer: SpawnRenderer | undefined,
+    x: number,
+    y: number
+): EditorEntity | undefined {
+    const prefabId = ((params.prefabId as string) ?? "").trim();
+    const sourceAssetId = ((params.sourceAssetId as string) ?? "").trim();
+    const matchId = prefabId || sourceAssetId;
+    if (!matchId) return undefined;
+    const assets = renderer?.core?.getAssets?.();
+    if (!assets) return undefined;
+    const match = assets.find((asset) => asset.id === matchId || asset.name === matchId);
+    if (!match || match.tag !== "Prefab") return undefined;
+    return assetToEntity(match, x, y);
 }
 
 function applyDamage(
@@ -456,7 +487,7 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
 
     const entities = ctx.globals?.entities as Map<string, any> | undefined;
     const owner = entities?.get(ctx.entityId);
-    const renderer = ctx.globals?.renderer as { core?: { getEntity?: (id: string) => any } } | undefined;
+    const renderer = ctx.globals?.renderer as SpawnRenderer | undefined;
 
     const templateIdRaw = ((params.templateId as string) ?? "").trim();
     const templateId = templateIdRaw || "__self__";
@@ -466,11 +497,6 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
             ? owner
             : (templateId ? entities?.get(templateId) : undefined);
     const editorTemplate = renderer?.core?.getEntity?.(editorTemplateId);
-    const source = template ?? editorTemplate;
-    const sourceComponents =
-        template?.components ??
-        editorTemplate?.components ??
-        splitLogicItems(editorTemplate?.logic);
 
     const positionMode = (params.positionMode as string) ?? "relative";
     const offsetX = Number(params.offsetX ?? 0);
@@ -481,11 +507,30 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     const spawnX = positionMode === "absolute" ? absoluteX : (Number(owner?.x ?? 0) + offsetX);
     const spawnY = positionMode === "absolute" ? absoluteY : (Number(owner?.y ?? 0) + offsetY);
 
+    const sourceType = (params.sourceType as string) ?? "texture";
+    const prefabEntity =
+        sourceType === "prefab"
+            ? resolvePrefabEntity(params, renderer, spawnX, spawnY)
+            : undefined;
+    const source = prefabEntity ?? template ?? editorTemplate;
+    const sourceComponents =
+        prefabEntity?.components ??
+        template?.components ??
+        editorTemplate?.components ??
+        splitLogicItems(prefabEntity?.logic ?? editorTemplate?.logic);
+
     const id = crypto.randomUUID();
+    const textureAssetId = sourceType === "texture" ? ((params.sourceAssetId as string) ?? "").trim() : "";
+    const textureAsset = textureAssetId
+        ? renderer?.core?.getAssets?.()?.find((asset) => asset.id === textureAssetId || asset.name === textureAssetId)
+        : undefined;
     const texture =
-        ((params.texture as string) ?? "").trim() ||
+        (textureAsset && textureAsset.tag !== "Prefab" ? textureAsset.name : ((params.texture as string) ?? "").trim()) ||
+        (typeof prefabEntity?.texture === "string" ? prefabEntity.texture : "") ||
+        (typeof source?.texture === "string" ? source.texture : "") ||
         (typeof editorTemplate?.texture === "string" ? editorTemplate.texture : "") ||
-        (typeof editorTemplate?.name === "string" ? editorTemplate.name : "");
+        (typeof editorTemplate?.name === "string" ? editorTemplate.name : "") ||
+        (typeof source?.name === "string" ? source.name : "");
 
     const options = {
         name: (params.name as string) ?? (source?.name ? `${source.name}_spawn` : undefined),
