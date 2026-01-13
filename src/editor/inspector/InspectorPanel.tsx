@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { EditorEntity } from "../types/Entity";
 import type { Asset } from "../types/Asset";
 import { colors } from "../constants/colors";
@@ -14,6 +14,8 @@ interface Props {
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const core = useEditorCore();
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
+  const [tagInputValue, setTagInputValue] = useState("");
+  const tagInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (entity) {
@@ -22,6 +24,22 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       setLocalEntity(null);
     }
   }, [entity]);
+
+  useEffect(() => {
+    if (!localEntity) {
+      setTagInputValue("");
+      return;
+    }
+    const nextValue = (localEntity.tags ?? []).join(", ");
+    if (
+      typeof document !== "undefined" &&
+      tagInputRef.current &&
+      document.activeElement === tagInputRef.current
+    ) {
+      return;
+    }
+    setTagInputValue(nextValue);
+  }, [localEntity?.id, (localEntity?.tags ?? []).join(",")]);
 
   if (!localEntity) {
     return (
@@ -43,6 +61,17 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
     onUpdateEntity(withVariables);
   };
   const variables = localEntity.variables ?? [];
+
+  const commitTagInput = () => {
+    if (!localEntity) return;
+    const tags = tagInputValue
+      .split(',')
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length > 0);
+    const joined = tags.join(", ");
+    setTagInputValue(joined);
+    handleUpdate({ ...localEntity, tags });
+  };
 
 
   const handleAddVariable = () => {
@@ -290,17 +319,20 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
           <div style={rowStyle}>
             <span style={{ ...labelStyle, width: 'auto', marginRight: '12px' }}>🏷️</span>
             <input
+              ref={tagInputRef}
               type="text"
               placeholder="player, enemy, ui (쉼표 구분)"
               style={{ ...inputStyle, width: '100%', flex: 1 }}
-              value={(localEntity.tags ?? []).join(', ')}
+              value={tagInputValue}
               onChange={(e) => {
-                const input = e.target.value;
-                const tags = input
-                  .split(',')
-                  .map(t => t.trim().toLowerCase())
-                  .filter(t => t.length > 0);
-                handleUpdate({ ...localEntity, tags });
+                setTagInputValue(e.target.value);
+              }}
+              onBlur={commitTagInput}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitTagInput();
+                }
               }}
             />
           </div>
