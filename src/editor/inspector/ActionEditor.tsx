@@ -52,7 +52,10 @@ export function ActionEditor({
     "";
   const spawnTemplateId = (action.templateId as string) ?? "__self__";
   const spawnPositionMode = (action.positionMode as string) ?? "relative";
+  const spawnSourceType = (action.sourceType as string) ?? "texture";
+  const spawnAssetId = (action.sourceAssetId as string) ?? "";
   const prefabAssets = (assets ?? []).filter((asset) => asset.tag === "Prefab");
+  const textureAssets = (assets ?? []).filter((asset) => asset.tag !== "Prefab");
 
   // Animation Logic
   const textureName = currentEntity?.texture || currentEntity?.name;
@@ -66,32 +69,40 @@ export function ActionEditor({
 
   return (
     <div style={styles.actionRow}>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-        <select
-          value={action.type}
-          onChange={(e) => onUpdate({ type: e.target.value })}
-          style={styles.selectField}
-        >
-          {!availableActions.includes(action.type) && (
-            <option key="__current" value={action.type}>
-              {action.type}
-            </option>
-          )}
-          {availableActions.map((a) => (
-            <option key={a} value={a}>
-              {actionLabels?.[a] ?? a} ({a})
-            </option>
-          ))}
-        </select>
+      <div style={styles.actionHeader}>
+        <div style={{ flex: 1 }}>
+          <select
+            value={action.type}
+            onChange={(e) => onUpdate({ type: e.target.value })}
+            style={styles.selectField}
+          >
+            {!availableActions.includes(action.type) && (
+              <option key="__current" value={action.type}>
+                {action.type}
+              </option>
+            )}
+            {availableActions.map((a) => (
+              <option key={a} value={a}>
+                {actionLabels?.[a] ?? a} ({a})
+              </option>
+            ))}
+          </select>
+        </div>
+        {showRemove && (
+          <button onClick={onRemove} style={styles.removeButton}>
+            ×
+          </button>
+        )}
       </div>
 
-      {action.type === "Move" && (
-        <>
-          <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
-          <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
-          <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
-        </>
-      )}
+      <div style={styles.actionParams}>
+        {action.type === "Move" && (
+          <>
+            <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
+            <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
+            <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
+          </>
+        )}
 
       {action.type === "ChaseTarget" && (
         <>
@@ -273,18 +284,34 @@ export function ActionEditor({
               </option>
             ))}
           </select>
-          <select
-            value={(action.prefabId as string) ?? ""}
-            onChange={(e) => onUpdate({ ...action, prefabId: e.target.value })}
-            style={styles.smallSelect}
-          >
-            <option value="">(prefab)</option>
-            {prefabAssets.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name || asset.id}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            <select
+              value={spawnSourceType}
+              onChange={(e) => onUpdate({ ...action, sourceType: e.target.value, sourceAssetId: "" })}
+              style={styles.smallSelect}
+            >
+              <option value="texture">texture</option>
+              <option value="prefab">prefab</option>
+            </select>
+            <select
+              value={spawnAssetId}
+              onChange={(e) => {
+                const next = { ...action, sourceAssetId: e.target.value };
+                if (spawnSourceType === "prefab") {
+                  next.prefabId = e.target.value;
+                }
+                onUpdate(next);
+              }}
+              style={styles.smallSelect}
+            >
+              <option value="">(asset)</option>
+              {(spawnSourceType === "prefab" ? prefabAssets : textureAssets).map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name || asset.id}
+                </option>
+              ))}
+            </select>
+          </div>
           <select
             value={spawnPositionMode}
             onChange={(e) => onUpdate({ ...action, positionMode: e.target.value })}
@@ -304,19 +331,23 @@ export function ActionEditor({
               <ParamInput label="dy" value={action.offsetY as number} onChange={(v) => onUpdate({ ...action, offsetY: v })} />
             </>
           )}
-          <input
-            type="text"
-            placeholder="texture"
-            value={(action.texture as string) || ""}
-            onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
-            list={`${listId}-textures`}
-            style={styles.textInput}
-          />
-          <datalist id={`${listId}-textures`}>
-            {assets?.map((a) => (
-              <option key={a.id} value={a.name} />
-            ))}
-          </datalist>
+          {spawnSourceType === "texture" && (
+            <>
+              <input
+                type="text"
+                placeholder="texture"
+                value={(action.texture as string) || ""}
+                onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
+                list={`${listId}-textures`}
+                style={styles.textInput}
+              />
+              <datalist id={`${listId}-textures`}>
+                {assets?.map((a) => (
+                  <option key={a.id} value={a.name} />
+                ))}
+              </datalist>
+            </>
+          )}
         </>
       )}
 
@@ -448,7 +479,7 @@ export function ActionEditor({
       )}
 
       {action.type === "RunModule" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ flex: "1 1 100%", display: "flex", flexDirection: "column", gap: 4 }}>
           <select
             value={selectedModuleId}
             onChange={(e) => onUpdate({ ...action, moduleId: e.target.value })}
@@ -471,23 +502,26 @@ export function ActionEditor({
                 background: colors.bgTertiary,
                 border: `1px solid ${colors.borderColor}`,
                 borderRadius: 6,
-                padding: "6px",
+                padding: "4px",
                 width: "100%",
                 boxSizing: "border-box",
+                gap: 4,
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               {moduleVariables.map((v) => (
                 <div
                   key={v.id}
                   style={{
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "40% 1fr",
                     gap: 6,
                     alignItems: "center",
                     width: "100%",
-                    marginBottom: 4,
                   }}
                 >
-                  <div style={{ minWidth: 0, flex: "0 0 40%", color: colors.textPrimary }}>
+                  <div style={{ minWidth: 0, color: colors.textPrimary, fontSize: 11 }}>
                     {v.name} ({v.type})
                   </div>
                   {v.type === "bool" ? (
@@ -497,7 +531,7 @@ export function ActionEditor({
                         selectedModule &&
                         onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value === "true", v.type)
                       }
-                      style={{ ...styles.smallSelect, flex: 1 }}
+                      style={{ ...styles.smallSelect, flex: "1 1 auto", minWidth: 0 }}
                     >
                       <option value="true">true</option>
                       <option value="false">false</option>
@@ -515,7 +549,7 @@ export function ActionEditor({
                           v.type
                         )
                       }
-                      style={{ ...styles.textInput, flex: 1, width: "100%" }}
+                      style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
                     />
                   ) : (
                     <input
@@ -525,7 +559,7 @@ export function ActionEditor({
                         selectedModule &&
                         onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value, v.type)
                       }
-                      style={{ ...styles.textInput, flex: 1, width: "100%" }}
+                      style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
                     />
                   )}
                 </div>
@@ -534,10 +568,7 @@ export function ActionEditor({
           )}
         </div>
       )}
-
-      {showRemove && (
-        <button onClick={onRemove} style={styles.removeButton}>×</button>
-      )}
+      </div>
     </div>
   );
 }

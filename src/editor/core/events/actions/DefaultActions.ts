@@ -112,10 +112,12 @@ function resolvePrefabEntity(
     y: number
 ): EditorEntity | undefined {
     const prefabId = ((params.prefabId as string) ?? "").trim();
-    if (!prefabId) return undefined;
+    const sourceAssetId = ((params.sourceAssetId as string) ?? "").trim();
+    const matchId = prefabId || sourceAssetId;
+    if (!matchId) return undefined;
     const assets = renderer?.core?.getAssets?.();
     if (!assets) return undefined;
-    const match = assets.find((asset) => asset.id === prefabId || asset.name === prefabId);
+    const match = assets.find((asset) => asset.id === matchId || asset.name === matchId);
     if (!match || match.tag !== "Prefab") return undefined;
     return assetToEntity(match, x, y);
 }
@@ -505,7 +507,11 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     const spawnX = positionMode === "absolute" ? absoluteX : (Number(owner?.x ?? 0) + offsetX);
     const spawnY = positionMode === "absolute" ? absoluteY : (Number(owner?.y ?? 0) + offsetY);
 
-    const prefabEntity = resolvePrefabEntity(params, renderer, spawnX, spawnY);
+    const sourceType = (params.sourceType as string) ?? "texture";
+    const prefabEntity =
+        sourceType === "prefab"
+            ? resolvePrefabEntity(params, renderer, spawnX, spawnY)
+            : undefined;
     const source = prefabEntity ?? template ?? editorTemplate;
     const sourceComponents =
         prefabEntity?.components ??
@@ -514,8 +520,12 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         splitLogicItems(prefabEntity?.logic ?? editorTemplate?.logic);
 
     const id = crypto.randomUUID();
+    const textureAssetId = sourceType === "texture" ? ((params.sourceAssetId as string) ?? "").trim() : "";
+    const textureAsset = textureAssetId
+        ? renderer?.core?.getAssets?.()?.find((asset) => asset.id === textureAssetId || asset.name === textureAssetId)
+        : undefined;
     const texture =
-        ((params.texture as string) ?? "").trim() ||
+        (textureAsset && textureAsset.tag !== "Prefab" ? textureAsset.name : ((params.texture as string) ?? "").trim()) ||
         (typeof prefabEntity?.texture === "string" ? prefabEntity.texture : "") ||
         (typeof source?.texture === "string" ? source.texture : "") ||
         (typeof editorTemplate?.texture === "string" ? editorTemplate.texture : "") ||
