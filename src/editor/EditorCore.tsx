@@ -456,6 +456,17 @@ export class EditorState implements IGameState {
         const idx = this.modules.findIndex((m) => m.id === module.id);
         if (idx === -1) return;
         this.modules[idx] = module;
+
+        // Update module references for all entities so runtime sees latest graph
+        for (const scene of this.scenes.values()) {
+            scene.entities.forEach((entity) => {
+                if (!entity.modules) return;
+                const hasModule = entity.modules.some((m) => m.id === module.id);
+                if (!hasModule) return;
+                entity.modules = entity.modules.map((m) => (m.id === module.id ? module : m));
+            });
+        }
+
         this.notify();
     }
 
