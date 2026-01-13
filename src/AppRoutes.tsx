@@ -21,7 +21,7 @@ import AdminRoute from './components/auth/AdminRoute';
 
 function AppRoutes() {
     const { isAuthenticated, isLoading } = useAuth();
-
+    console.log("deploy test")
     if (isLoading) {
         return <Loading />;
     }
