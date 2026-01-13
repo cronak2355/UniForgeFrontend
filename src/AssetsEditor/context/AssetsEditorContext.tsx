@@ -989,25 +989,30 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         const newMap: Record<string, AnimationData> = {};
         let firstAnimName = "";
 
+        let droppedFramesCount = 0;
         Object.keys(metadata.animations).forEach((name, idx) => {
           if (idx === 0) firstAnimName = name;
           const animDef = metadata.animations[name];
 
-          // Validation: Filter out frames that don't exist in the sliced newFrames
-          const validFrames: number[] = [];
+          // Validation: If frame missing, use Blank Frame to preserve animation structure
           const animFrames: ImageData[] = [];
 
           animDef.frames.forEach((fIdx: number) => {
             if (newFrames[fIdx]) {
-              validFrames.push(fIdx);
               animFrames.push(newFrames[fIdx]);
             } else {
-              console.warn(`[AssetsEditor] Warning: Animation '${name}' references missing frame index ${fIdx}. Total frames: ${newFrames.length}`);
+              // Fallback: Create blank frame
+              const blank = new ImageData(
+                new Uint8ClampedArray(frameW * frameH * 4),
+                frameW,
+                frameH
+              );
+              animFrames.push(blank);
             }
           });
 
           if (animFrames.length === 0) {
-            console.warn(`[AssetsEditor] Animation '${name}' has no valid frames. Skipping.`);
+            // Should not happen if we allow blanks, unless def is empty
             return;
           }
 
@@ -1017,6 +1022,8 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
             loop: animDef.loop ?? true
           };
         });
+
+        // Removed strict validation alert to prevent data loss
 
         setAnimationMap(newMap);
 

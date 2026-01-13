@@ -1367,20 +1367,22 @@ export class PhaserRenderer implements IRenderer {
                 reject(new Error("Scene not initialized"));
                 return;
             }
-            if (this.scene.textures.exists(key)) {
+            const scene = this.scene;
+
+            if (scene.textures.exists(key)) {
                 // Critical Check: If the existing texture is static (1 frame) but we now have metadata for animations,
                 // we must REMOVE the old texture and reload it as a spritesheet.
                 // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
-                const texture = this.scene.textures.get(key);
+                const texture = scene.textures.get(key);
                 const needsAnimations = metadata && metadata.animations && Object.keys(metadata.animations).length > 0;
 
                 if (needsAnimations) {
                     // Check if animations already exist
-                    const hasPrefixAnims = this.scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
+                    const hasPrefixAnims = scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
 
                     if (texture.frameTotal <= 1 && !hasPrefixAnims) {
                         console.warn(`[PhaserRenderer] Texture '${key}' exists but is static. Reloading as spritesheet for animations.`);
-                        this.scene.textures.remove(key);
+                        scene.textures.remove(key);
                         // Proceed to load below...
                     } else {
                         // Texture seems fine (or already animated), but let's ensure specific anims from this metadata exist
@@ -1401,20 +1403,20 @@ export class PhaserRenderer implements IRenderer {
             console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
 
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
-                this.scene.load.spritesheet(key, url, {
+                scene.load.spritesheet(key, url, {
                     frameWidth: metadata.frameWidth,
                     frameHeight: metadata.frameHeight,
                 });
             } else {
-                this.scene.load.image(key, url);
+                scene.load.image(key, url);
             }
 
-            this.scene.load.once("complete", () => {
+            scene.load.once("complete", () => {
                 this.createAnimationsFromMetadata(key, metadata);
                 resolve();
             });
-            this.scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
-            this.scene.load.start();
+            scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
+            scene.load.start();
         });
     }
 
