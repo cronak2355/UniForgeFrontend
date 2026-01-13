@@ -302,7 +302,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     const targetAnim = animationMap[name];
 
     // Clear engine and load new frames
-    engineRef.current.clear(); // Resets to 1 empty frame
+    engineRef.current.clearAllFrames(); // Resets to 1 empty frame
 
     if (targetAnim.frames.length > 0) {
       // Reuse first frame
