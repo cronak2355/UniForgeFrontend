@@ -98,7 +98,7 @@ export function VariableSection({
 
             {v.type === "bool" ? (
               <select
-                className="bg-black border border-white px-1 text-xs"
+                className="variable-value"
                 value={v.value === true ? "true" : "false"}
                 onChange={e => onUpdate({ ...v, value: e.target.value === "true" })}
               >
@@ -107,7 +107,7 @@ export function VariableSection({
               </select>
             ) : (
               <input
-                className="bg-black border border-white px-1 text-xs"
+                className="variable-value"
                 value={String(v.value)}
                 onChange={e =>
                   onUpdate({ ...v, value: coerceValue(v, e.target.value) })
