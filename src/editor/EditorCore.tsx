@@ -456,6 +456,17 @@ export class EditorState implements IGameState {
         const idx = this.modules.findIndex((m) => m.id === module.id);
         if (idx === -1) return;
         this.modules[idx] = module;
+
+        // Update module references for all entities so runtime sees latest graph
+        for (const scene of this.scenes.values()) {
+            scene.entities.forEach((entity) => {
+                if (!entity.modules) return;
+                const hasModule = entity.modules.some((m) => m.id === module.id);
+                if (!hasModule) return;
+                entity.modules = entity.modules.map((m) => (m.id === module.id ? module : m));
+            });
+        }
+
         this.notify();
     }
 
@@ -526,6 +537,23 @@ export class EditorState implements IGameState {
         if (this.selectedEntity?.id === entity.id) {
             this.selectedEntity = normalized;
         }
+        this.notify();
+    }
+
+    updateEntityPosition(id: string, x: number, y: number) {
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        const existing = scene.entities.get(id);
+        if (!existing) return;
+
+        const updated = { ...existing, x, y };
+        scene.entities.set(id, updated);
+
+        if (this.selectedEntity?.id === id) {
+            this.selectedEntity = updated;
+        }
+
         this.notify();
     }
 
