@@ -1,16 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchMyGames } from '../services/gameService';
-
-// --- Constants ---
-const DEFAULT_GAME_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/3b82f6?text=Game';
-const DEFAULT_ASSET_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/a855f7?text=Asset';
+import TopBar from '../components/common/TopBar';
+import AssetCard from '../components/common/AssetCard';
+import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
 
 // --- Types ---
 interface UILibraryItem {
     id: string;
-    libraryItemId?: string; // ID from LibraryItem entity, used for operations like move
+    libraryItemId?: string;
     title: string;
     type: 'game' | 'asset';
     thumbnail: string;
@@ -28,15 +27,6 @@ interface Collection {
     icon?: string;
 }
 
-// --- Mock Data ---
-const MOCK_ASSETS: UILibraryItem[] = [
-    { id: 'a1', title: 'Sci-Fi Weapon Pack', type: 'asset', assetType: '3D Model', thumbnail: 'https://images.unsplash.com/photo-1612404730960-5c71579fca2c?w=400&q=80', author: 'AssetMaster', purchaseDate: '2023.11.20', collectionId: 'c1' },
-    { id: 'a2', title: 'Horror Sound Effects', type: 'asset', assetType: 'Sound', thumbnail: 'https://images.unsplash.com/photo-1516280440614-6697288d5d38?w=400&q=80', author: 'AudioLab', purchaseDate: '2023.12.05', collectionId: 'c2' },
-    { id: 'a3', title: 'Urban Texture Set', type: 'asset', assetType: 'Texture', thumbnail: 'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?w=400&q=80', author: 'TexturePro', purchaseDate: '2024.01.02' },
-    { id: 'a4', title: 'Cyberpunk Character', type: 'asset', assetType: '3D Model', thumbnail: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?w=400&q=80', author: 'NeonArt', purchaseDate: '2024.01.15', collectionId: 'c1' },
-    { id: 'a5', title: 'Dark Ambient Music', type: 'asset', assetType: 'Sound', thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80', author: 'GhostTrax', purchaseDate: '2024.01.20', collectionId: 'c2' },
-];
-
 const INITIAL_COLLECTIONS: Collection[] = [
     { id: 'c1', name: 'SF / 미래', icon: 'fa-rocket' },
     { id: 'c2', name: '공포 / 호러', icon: 'fa-ghost' },
@@ -49,46 +39,42 @@ interface Props {
     hideGamesTab?: boolean;
 }
 
+const DEFAULT_ASSET_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/a855f7?text=Asset';
+const DEFAULT_GAME_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/3b82f6?text=Game';
+
 export default function LibraryPage({ onClose, onSelect, isModal = false, hideGamesTab = false }: Props) {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
 
-    // UI State
-    const [showDropdown, setShowDropdown] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
     // Data State
-    // If hideGamesTab is true, force initial tab to 'assets'
     const [activeTab, setActiveTab] = useState<'games' | 'assets'>(hideGamesTab ? 'assets' : 'games');
     const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Items State
     const [myGames, setMyGames] = useState<UILibraryItem[]>([]);
     const [myAssets, setMyAssets] = useState<UILibraryItem[]>([]);
-    const [loadingGames, setLoadingGames] = useState(true);
-    const [loadingAssets, setLoadingAssets] = useState(true);
+    const [loading, setLoading] = useState(true);
+
+    // Modal State
     const [movingItem, setMovingItem] = useState<UILibraryItem | null>(null);
     const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
     const [newCollectionName, setNewCollectionName] = useState('');
-    const [newCollectionIcon, setNewCollectionIcon] = useState('fa-folder');
 
     // --- Effects ---
-    // Fetch Data
     useEffect(() => {
         if (!user) return;
 
         const loadData = async () => {
-            setLoadingGames(true);
-            setLoadingAssets(true);
+            setLoading(true);
             try {
-                // 0. Import services (dynamic import to avoid circular dependency issues if any, or just standard import)
+                // Dynamic imports
                 const { libraryService } = await import('../services/libraryService');
                 const { marketplaceService } = await import('../services/marketplaceService');
 
                 // 1. Fetch Collections
                 const fetchedCollections = await libraryService.getCollections();
-                // Map to UI Collection type if needed, or ensuring backend returns matches
-                // Backend: id, name. Frontend expects: id, name, icon?
                 setCollections(fetchedCollections.map((c: any) => ({
                     id: c.id,
                     name: c.name,
@@ -97,22 +83,16 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
 
                 // 2. Fetch Games
                 const games = await fetchMyGames(user.id);
-                const mappedGames: UILibraryItem[] = games.map(game => ({
+                setMyGames(games.map(game => ({
                     id: game.gameId,
                     title: game.title,
                     type: 'game',
                     thumbnail: game.thumbnailUrl ?? DEFAULT_GAME_THUMBNAIL,
                     author: `User ${game.authorId}`,
                     purchaseDate: game.createdAt.split('T')[0],
-                }));
-                setMyGames(mappedGames);
-                setLoadingGames(false);
+                })));
 
-                // 3. Fetch Assets via Library Service
-                // Note: current libraryService returns { refId, itemType, ... }
-                // We need to fetch details for each asset. Ideally backend should return "expanded" or we prefer "lazy loading".
-                // For MVP, we will fetch library items, then fetch asset details for items where type='ASSET'.
-
+                // 3. Fetch Assets
                 const libraryItems = await libraryService.getLibrary();
                 const assetItems = libraryItems.filter(item => item.itemType === 'ASSET');
 
@@ -121,93 +101,53 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                         assetItems.map(item => marketplaceService.getAssetById(item.refId).catch(() => null))
                     );
 
-                    const mappedAssets: UILibraryItem[] = assetDetails
+                    const mappedAssets = assetDetails
                         .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
                         .map(detail => {
-                            // Parse metadata from description
-                            let metadata = null;
-                            if (detail.description && detail.description.startsWith('{')) {
-                                try {
-                                    metadata = JSON.parse(detail.description);
-                                } catch (e) {
-                                    console.warn("Failed to parse metadata for asset", detail.id);
-                                }
-                            }
-
-                            // Find corresponding library item to get collectionId
                             const libItem = libraryItems.find(li => li.refId === detail.id);
                             return {
                                 id: detail.id,
                                 libraryItemId: libItem?.id,
                                 title: detail.name,
-                                type: 'asset',
+                                type: 'asset' as const,
                                 assetType: detail.genre || 'Unknown',
                                 thumbnail: detail.imageUrl || detail.image || DEFAULT_ASSET_THUMBNAIL,
                                 author: detail.author || `User ${detail.authorId}`,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
-                                collectionId: libItem?.collectionId || undefined,
-                                metadata,
-                                description: detail.description || undefined // Preserve description for serializer recovery
+                                collectionId: libItem?.collectionId || undefined
                             };
                         });
-
                     setMyAssets(mappedAssets);
                 } else {
                     setMyAssets([]);
                 }
-
             } catch (e) {
                 console.error(e);
             } finally {
-                setLoadingGames(false);
-                setLoadingAssets(false);
+                setLoading(false);
             }
         };
 
         loadData();
     }, [user]);
 
-    // Added state for assets
-
-
-    // --- Actions ---
-    const handleLogout = () => {
-        logout();
-        navigate('/');
-    };
-
-    const handleCreateCollection = () => {
-        setNewCollectionName('');
-        setNewCollectionIcon('fa-folder');
-        setShowCreateCollectionModal(true);
-    };
-
-    const handleConfirmCreateCollection = async () => {
+    // --- Helpers ---
+    const handleCreateCollection = async () => {
         if (!newCollectionName.trim()) return;
         try {
             const { libraryService } = await import('../services/libraryService');
             const newCol = await libraryService.createCollection(newCollectionName.trim());
-            setCollections([...collections, { id: newCol.id, name: newCol.name, icon: newCollectionIcon }]);
+            setCollections([...collections, { id: newCol.id, name: newCol.name, icon: 'fa-folder' }]);
             setShowCreateCollectionModal(false);
             setNewCollectionName('');
         } catch (error) {
-            alert('컬렉션 생성 실패');
             console.error(error);
+            alert('컬렉션 생성 실패');
         }
     };
 
-    // --- Filter Logic ---
     const getFilteredItems = () => {
-        // If games tab is hidden, we only care about assets
-        if (hideGamesTab && activeTab === 'games') {
-            // Should not happen if state init is correct, but safety
-            return [];
-        }
-
-        let items =
-            activeTab === 'games'
-                ? myGames
-                : myAssets; // Use real assets
+        let items = activeTab === 'games' ? myGames : myAssets;
 
         if (searchTerm) {
             items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -222,509 +162,262 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
 
     const filteredItems = getFilteredItems();
 
+    // Prepare Sidebar Items based on Active Tab
+    const sidebarItems: CategoryItem[] = activeTab === 'assets'
+        ? [
+            { id: "전체 에셋", kind: 'special', icon: 'fa-solid fa-layer-group' },
+            ...collections.map(c => ({ id: c.name, icon: c.icon || 'fa-folder', kind: 'special', originalId: c.id } as any))
+        ]
+        : [
+            { id: "전체 게임", kind: 'special', icon: 'fa-solid fa-gamepad' },
+        ];
+
+    const selectedSidebarId = activeTab === 'assets'
+        ? (selectedCollectionId ? collections.find(c => c.id === selectedCollectionId)?.name || "전체 에셋" : "전체 에셋")
+        : "전체 게임";
 
     return (
-        <div style={{
-            backgroundColor: '#000000', // Fallback
-            minHeight: isModal ? '100%' : '100vh', // Adjust height for modal
-            height: isModal ? '100%' : 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            color: 'white',
-            overflowX: 'hidden',
-            position: 'relative', // For absolute pos children
-            borderRadius: isModal ? '10px' : '0', // Optional border radius if container needs it
-        }}>
-            {/* --- Geometric Background Elements --- */}
-            {/* If isModal, use absolute to contain within parent. If page, use fixed to cover screen. */}
-            <div style={{ position: isModal ? 'absolute' : 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none', borderRadius: isModal ? '10px' : '0' }}>
-                {/* 1. Deep Gradient Base */}
-                <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'radial-gradient(circle at 50% -20%, #111827 0%, #000000 100%)'
-                }}></div>
+        <div className={`flex flex-col ${isModal ? 'h-full bg-[#0a0a0a]' : 'min-h-screen bg-black'} text-white relative overflow-hidden`}>
+            {/* Background effects only if not modal */}
+            {!isModal && (
+                <div className="fixed inset-0 z-0 pointer-events-none">
+                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/10 blur-[120px] rounded-full" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 blur-[120px] rounded-full" />
+                </div>
+            )}
 
-                {/* 2. Grid Pattern */}
-                <div style={{
-                    position: 'absolute', inset: 0,
-                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
-                    backgroundSize: '40px 40px',
-                    opacity: 0.5
-                }}></div>
-
-                {/* 3. Glowing Andbs (Abstract Shapes) */}
-                <div style={{
-                    position: 'absolute', top: '10%', left: '20%',
-                    width: '500px', height: '500px',
-                    background: 'radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%)',
-                    filter: 'blur(60px)',
-                    animation: 'float 20s infinite ease-in-out'
-                }}></div>
-                <div style={{
-                    position: 'absolute', bottom: '10%', right: '10%',
-                    width: '600px', height: '600px',
-                    background: 'radial-gradient(circle, rgba(168, 85, 247, 0.06) 0%, transparent 70%)',
-                    filter: 'blur(80px)',
-                    animation: 'float 25s infinite ease-in-out reverse'
-                }}></div>
-
-                {/* 4. Tech Lines (Decorative) */}
-                <div style={{
-                    position: 'absolute', top: '150px', right: '0',
-                    width: '300px', height: '1px',
-                    background: 'linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.3), transparent)'
-                }}></div>
-                <div style={{
-                    position: 'absolute', top: '0', left: '15%',
-                    width: '1px', height: '400px',
-                    background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.1), transparent)'
-                }}></div>
-            </div>
-
-            {/* --- Content Wrapper --- */}
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, height: '100%' }}>
-                {/* --- Header (Consistent Style) --- */}
-                <header style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '1rem 2rem',
-                    borderBottom: '1px solid #1a1a1a',
-                    backgroundColor: 'rgba(10, 10, 10, 0.95)',
-                    backdropFilter: 'blur(10px)',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 100,
-                    borderTopLeftRadius: isModal ? '10px' : '0',
-                    borderTopRightRadius: isModal ? '10px' : '0',
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
-                        <div
-                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            onClick={() => !onClose && navigate('/main')}
-                        >
-                            <img src="/logo.png" alt="Uniforge" style={{ height: '28px', marginRight: '10px' }} />
-                            <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 400 }}>라이브러리</span>
-                        </div>
-
-                        {/* Navigation Tabs */}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                            {!hideGamesTab && (
-                                <button
-                                    onClick={() => { setActiveTab('games'); setSelectedCollectionId(null); }}
-                                    style={{
-                                        padding: '8px 16px',
-                                        background: activeTab === 'games' ? '#1a1a1a' : 'transparent',
-                                        border: '1px solid',
-                                        borderColor: activeTab === 'games' ? '#333' : 'transparent',
-                                        borderRadius: '8px',
-                                        color: activeTab === 'games' ? 'white' : '#888',
-                                        fontSize: '0.95rem',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <i className="fa-solid fa-gamepad" style={{ marginRight: '8px' }}></i>
-                                    나의 게임
-                                </button>
-                            )}
-
-                            {/* Always show "My Assets" or just "Assets" text if it's the only one? Keeping it consistent for now */}
+            {/* Top Bar */}
+            <TopBar
+                title={isModal ? "라이브러리" : "내 라이브러리"}
+                showLogo={!isModal && !onClose}
+                onSearch={setSearchTerm}
+                searchValue={searchTerm}
+                showTabs={
+                    <div className="flex items-center gap-1 bg-[#1a1a1a]/50 p-1 rounded-xl border border-white/5 ml-6">
+                        {!hideGamesTab && (
                             <button
-                                onClick={() => { setActiveTab('assets'); setSelectedCollectionId(null); }}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: activeTab === 'assets' ? '#1a1a1a' : 'transparent',
-                                    border: '1px solid',
-                                    borderColor: activeTab === 'assets' ? '#333' : 'transparent',
-                                    borderRadius: '8px',
-                                    color: activeTab === 'assets' ? 'white' : '#888',
-                                    fontSize: '0.95rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
+                                onClick={() => { setActiveTab('games'); setSelectedCollectionId(null); }}
+                                className={`
+                                    px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
+                                    ${activeTab === 'games'
+                                        ? 'bg-[#2a2a2a] text-white shadow-sm ring-1 ring-white/10'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
+                                `}
                             >
-                                <i className="fa-solid fa-cube" style={{ marginRight: '8px' }}></i>
-                                나의 에셋
+                                <i className={`fa-solid fa-gamepad ${activeTab === 'games' ? 'text-purple-400' : ''}`}></i>
+                                나의 게임
                             </button>
-                        </div>
+                        )}
+                        <button
+                            onClick={() => { setActiveTab('assets'); setSelectedCollectionId(null); }}
+                            className={`
+                                px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
+                                ${activeTab === 'assets'
+                                    ? 'bg-[#2a2a2a] text-white shadow-sm ring-1 ring-white/10'
+                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
+                            `}
+                        >
+                            <i className={`fa-solid fa-cube ${activeTab === 'assets' ? 'text-blue-400' : ''}`}></i>
+                            나의 에셋
+                        </button>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        {onClose ? (
-                            <button onClick={onClose} style={{
-                                background: 'transparent', border: '1px solid #333', color: '#fff', cursor: 'pointer',
-                                padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem',
-                                display: 'flex', alignItems: 'center', gap: '8px'
-                            }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1a1a1a'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                                <i className="fa-solid fa-times"></i>
+                }
+                actionButtons={
+                    <div className="flex gap-2">
+                        {onClose && (
+                            <button onClick={onClose} className="px-4 py-2 border border-[#333] rounded-lg hover:bg-[#222] transition-colors">
                                 닫기
                             </button>
-                        ) : (
-                            <button onClick={() => navigate('/main')} style={{
-                                background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
-                                padding: '8px 16px', borderRadius: '6px', fontSize: '0.95rem'
-                            }}
-                                onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                                onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                        )}
+                    </div>
+                }
+            />
+
+            <div className="flex flex-1 max-w-[1920px] w-full mx-auto relative z-10 h-full overflow-hidden">
+                {/* Sidebar - Always visible for layout stability */}
+                <FilterSidebar
+                    title={activeTab === 'assets' ? "Collections" : "Library"}
+                    items={sidebarItems}
+                    selectedId={selectedSidebarId}
+                    onSelect={(item: any) => {
+                        if (activeTab === 'games') return; // Only one item for games currently
+                        if (item.id === "전체 에셋") setSelectedCollectionId(null);
+                        else setSelectedCollectionId(item.originalId);
+                    }}
+                    actionButton={activeTab === 'assets' ? (
+                        <button
+                            onClick={() => setShowCreateCollectionModal(true)}
+                            className="mt-4 flex items-center justify-center gap-2 w-full py-3 border border-dashed border-[#333] rounded-xl text-gray-500 hover:text-white hover:border-gray-500 hover:bg-white/5 transition-all group"
+                        >
+                            <i className="fa-solid fa-plus group-hover:rotate-90 transition-transform duration-200"></i>
+                            <span>새 컬렉션</span>
+                        </button>
+                    ) : undefined}
+                />
+
+                {/* Main Content */}
+                <main className="flex-1 p-8 overflow-y-auto">
+                    {/* Toolbar */}
+                    <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold mb-2">
+                                {activeTab === 'games' ? 'My Games' : (selectedSidebarId === "전체 에셋" ? "All Assets" : selectedSidebarId)}
+                            </h2>
+                            <p className="text-gray-500 text-sm">
+                                총 <span className="text-white font-medium">{filteredItems.length}</span>개의 항목
+                            </p>
+                        </div>
+
+                        {activeTab === 'assets' && !isModal && (
+                            <button
+                                onClick={() => navigate('/create-asset')}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium shadow-lg hover:shadow-blue-900/30"
                             >
-                                홈으로
+                                <i className="fa-solid fa-cloud-arrow-up"></i>
+                                에셋 업로드
                             </button>
                         )}
+                    </div>
 
-                        {/* User Profile Dropdown */}
-                        <div style={{ position: 'relative' }} ref={dropdownRef}>
-                            <button
-                                onClick={() => setShowDropdown(!showDropdown)}
-                                style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    borderRadius: '50%',
-                                    border: '1px solid #333',
-                                    backgroundColor: '#1a1a1a',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    overflow: 'hidden'
-                                }}
-                            >
-                                {user?.profileImage ? (
-                                    <img src={user.profileImage} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
-                                        <i className="fa-solid fa-user"></i>
-                                    </div>
-                                )}
-                            </button>
-
-                            {showDropdown && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '45px',
-                                    right: 0,
-                                    backgroundColor: '#1a1a1a',
-                                    border: '1px solid #333',
-                                    borderRadius: '8px',
-                                    minWidth: '200px',
-                                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                                    zIndex: 1000,
-                                    overflow: 'hidden'
-                                }}>
-                                    <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
-                                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{user?.name || 'User'}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{user?.email || 'guest@uniforge.com'}</div>
-                                    </div>
-                                    <button onClick={handleLogout} style={{ width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ef4444', textAlign: 'left', cursor: 'pointer' }}>로그아웃</button>
-                                </div>
+                    {/* Grid */}
+                    {loading ? (
+                        <div className="py-40 text-center text-gray-500 flex flex-col items-center">
+                            <i className="fa-solid fa-circle-notch fa-spin text-4xl mb-6 text-blue-500"></i>
+                            <p className="animate-pulse">라이브러리 불러오는 중...</p>
+                        </div>
+                    ) : filteredItems.length === 0 ? (
+                        <div className="py-40 text-center text-gray-600 flex flex-col items-center justify-center border border-dashed border-[#222] rounded-3xl bg-white/5 mx-auto max-w-2xl">
+                            <div className="w-20 h-20 bg-[#1a1a1a] rounded-full flex items-center justify-center mb-6 text-3xl">
+                                <i className="fa-solid fa-ghost opacity-40"></i>
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-300 mb-2">항목이 없습니다</h3>
+                            <p className="text-gray-500 max-w-sm mx-auto mb-8">
+                                {searchTerm ? '검색 결과가 없습니다.' : (activeTab === 'games' ? '아직 만든 게임이 없습니다. 새로운 프로젝트를 시작해보세요!' : '라이브러리에 에셋이 없습니다. 마켓플레이스를 둘러보세요!')}
+                            </p>
+                            {!searchTerm && (
+                                <button
+                                    onClick={() => navigate(activeTab === 'games' ? '/' : '/explore')}
+                                    className="px-6 py-3 bg-[#222] hover:bg-[#333] text-white rounded-xl transition-colors font-medium"
+                                >
+                                    {activeTab === 'games' ? '새 프로젝트 만들기' : '마켓플레이스로 이동'}
+                                </button>
                             )}
                         </div>
-                    </div>
-                </header>
-
-                {/* --- Main Content Area --- */}
-                <div style={{ display: 'flex', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto', overflowY: isModal ? 'auto' : 'visible' }}>
-
-                    {/* --- Sidebar (Only for Assets) --- */}
-                    {/* Ensure sidebar sticks correctly in modal */}
-                    {activeTab === 'assets' && (
-                        <aside style={{
-                            width: '240px',
-                            padding: '2rem 1rem',
-                            borderRight: '1px solid #1a1a1a',
-                            position: 'sticky',
-                            top: '0', // In modal, header scrolls or stays? If header sticky, top should be 0 relative to content area if we manage scroll
-                            // But here header is sticky top 0 of root.
-                            // If root is 100% height and overflow hidden? No, root is flex column.
-                            // If isModal, we probably want the content area to scroll, not the window.
-                            // Let's rely on standard sticky behavior for now, but in modal container height is constrained.
-                            height: 'auto',
-                            minHeight: '100%'
-                        }}>
-                            <div style={{ padding: '0 8px 16px', color: '#666', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                Collections
-                            </div>
-                            <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <button
-                                    onClick={() => setSelectedCollectionId(null)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px',
-                                        backgroundColor: selectedCollectionId === null ? '#1a1a1a' : 'transparent',
-                                        border: '1px solid', borderColor: selectedCollectionId === null ? '#333' : 'transparent',
-                                        borderRadius: '8px', color: selectedCollectionId === null ? 'white' : '#888',
-                                        fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.2s'
+                    ) : (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6 pb-20">
+                            {filteredItems.map(item => (
+                                <AssetCard
+                                    key={item.id}
+                                    id={item.id}
+                                    title={item.title}
+                                    author={item.author}
+                                    image={item.thumbnail}
+                                    type={item.assetType}
+                                    purchaseDate={item.purchaseDate}
+                                    isGame={item.type === 'game'}
+                                    onClick={() => {
+                                        if (isModal && onSelect) onSelect(item);
                                     }}
-                                >
-                                    <i className="fa-solid fa-layer-group" style={{ width: '20px', textAlign: 'center' }}></i>
-                                    <span>전체 에셋</span>
-                                </button>
-                                {collections.map(col => (
-                                    <button
-                                        key={col.id}
-                                        onClick={() => setSelectedCollectionId(col.id)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px',
-                                            backgroundColor: selectedCollectionId === col.id ? '#1a1a1a' : 'transparent',
-                                            border: '1px solid', borderColor: selectedCollectionId === col.id ? '#333' : 'transparent',
-                                            borderRadius: '8px', color: selectedCollectionId === col.id ? 'white' : '#888',
-                                            fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <i className={`fa-solid ${col.icon || 'fa-folder'}`} style={{ width: '20px', textAlign: 'center' }}></i>
-                                        <span>{col.name}</span>
-                                    </button>
-                                ))}
+                                    overlayActions={
+                                        <>
+                                            <button
+                                                className="bg-white text-black px-6 py-2 rounded-full font-bold hover:bg-gray-200 transition-colors shadow-xl"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (isModal && onSelect) onSelect(item);
+                                                }}
+                                            >
+                                                {isModal ? 'Select' : (item.type === 'game' ? 'Play' : 'Download')}
+                                            </button>
 
-                                <div style={{ height: '1px', backgroundColor: '#222', margin: '10px 0' }}></div>
-
-                                <button
-                                    onClick={handleCreateCollection}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px',
-                                        backgroundColor: 'transparent',
-                                        border: '1px dashed #444',
-                                        borderRadius: '8px', color: '#666',
-                                        fontSize: '0.9rem', cursor: 'pointer', textAlign: 'center', width: '100%', justifyContent: 'center',
-                                        marginTop: '8px'
-                                    }}
-                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; e.currentTarget.style.color = '#ccc'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = '#666'; }}
-                                >
-                                    <i className="fa-solid fa-plus"></i>
-                                    <span>새 컬렉션</span>
-                                </button>
-                            </nav>
-                        </aside>
+                                            {item.type === 'asset' && !isModal && (
+                                                <div className="flex gap-2 mt-3">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setMovingItem(item); }}
+                                                        className="w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-black/90 backdrop-blur-sm rounded-full text-white transition-colors border border-white/10"
+                                                        title="컬렉션 이동"
+                                                    >
+                                                        <i className="fa-solid fa-folder"></i>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    }
+                                />
+                            ))}
+                        </div>
                     )}
+                </main>
+            </div>
 
-                    {/* --- Grid Content --- */}
-                    <main style={{ flex: 1, padding: '2rem' }}>
-                        {/* Toolbar */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{ position: 'relative', width: '400px' }}>
-                                    <i className="fa-solid fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}></i>
-                                    <input
-                                        type="text"
-                                        placeholder={activeTab === 'games' ? "내 게임 검색..." : "내 에셋 검색..."}
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        style={{
-                                            width: '100%', backgroundColor: '#111', border: '1px solid #333',
-                                            borderRadius: '8px', padding: '10px 10px 10px 40px', color: 'white',
-                                            fontSize: '0.95rem', outline: 'none'
-                                        }}
-                                        onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                                        onBlur={(e) => e.target.style.borderColor = '#333'}
-                                    />
-                                </div>
-                                {activeTab === 'assets' && !isModal && (
-                                    <button
-                                        onClick={() => navigate('/create-asset')}
-                                        style={{
-                                            padding: '10px 20px',
-                                            backgroundColor: '#2563eb',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            color: 'white',
-                                            fontSize: '0.95rem',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            fontWeight: 500,
-                                            transition: 'background-color 0.2s'
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
-                                    >
-                                        <i className="fa-solid fa-plus"></i>
-                                        새 에셋 업로드
-                                    </button>
-                                )}
+            {/* Create Collection Modal */}
+            {showCreateCollectionModal && (
+                <div className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowCreateCollectionModal(false)}>
+                    <div className="bg-[#151515] border border-[#333] p-8 rounded-2xl w-[420px] shadow-2xl scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center text-blue-500">
+                                <i className="fa-solid fa-folder-plus"></i>
                             </div>
-                            <div style={{ color: '#666' }}>
-                                총 {filteredItems.length}개 항목
+                            새 컬렉션 만들기
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2 ml-1">컬렉션 이름</label>
+                                <input
+                                    type="text"
+                                    value={newCollectionName}
+                                    onChange={e => setNewCollectionName(e.target.value)}
+                                    placeholder="예: SF 배경 모음"
+                                    className="w-full bg-[#0a0a0a] border border-[#333] rounded-xl px-4 py-3.5 text-white focus:border-blue-500 outline-none transition-colors"
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && handleCreateCollection()}
+                                />
                             </div>
                         </div>
-
-                        {/* Grid */}
-                        {((activeTab === 'games' && loadingGames) || (activeTab === 'assets' && loadingAssets)) ? (
-                            <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4rem',
-                                color: '#666',
-                                height: '50vh'
-                            }}>
-                                <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#3b82f6' }}></i>
-                                <p style={{ fontSize: '1rem' }}>
-                                    {activeTab === 'games' ? '게임을 불러오는 중...' : '에셋을 불러오는 중...'}
-                                </p>
-                            </div>
-                        ) : (
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                                gap: '24px'
-                            }}>
-                                {filteredItems.map(item => (
-                                    <div
-                                        key={item.id}
-                                        style={{
-                                            backgroundColor: '#0a0a0a',
-                                            borderRadius: '12px',
-                                            border: '1px solid #222',
-                                            overflow: 'hidden',
-                                            transition: 'transform 0.2s, border-color 0.2s',
-                                            cursor: 'pointer',
-                                            position: 'relative'
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = '#444'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = '#222'; }}
-                                    >
-                                        {/* Thumbnail */}
-                                        <div style={{ height: '180px', overflow: 'hidden', position: 'relative' }}>
-                                            <img
-                                                src={item.thumbnail}
-                                                alt={item.title}
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/1a1a1a/666?text=No+Image';
-                                                }}
-                                            />
-                                            {/* Action Overlay */}
-                                            <div style={{
-                                                position: 'absolute', inset: 0,
-                                                background: 'rgba(0,0,0,0.5)', opacity: 0,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                                                transition: 'opacity 0.2s'
-                                            }}
-                                                className="card-overlay"
-                                                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                onMouseLeave={e => e.currentTarget.style.opacity = '0'}
-                                            >
-                                                <button style={{
-                                                    padding: '10px 20px', borderRadius: '6px', border: 'none',
-                                                    backgroundColor: '#2563eb', color: 'white', fontWeight: 600,
-                                                    cursor: 'pointer'
-                                                }}
-                                                    onClick={(e) => {
-                                                        if (isModal && item.type === 'asset' && onSelect) {
-                                                            e.stopPropagation();
-                                                            onSelect(item);
-                                                        }
-                                                    }}
-                                                >
-                                                    {isModal && item.type === 'asset' ? '프로젝트에 추가' : (item.type === 'game' ? <><i className="fa-solid fa-play"></i> 플레이</> : <><i className="fa-solid fa-download"></i> 다운로드</>)}
-                                                </button>
-                                                {item.type === 'asset' &&
-                                                    <div style={{ position: 'relative' }} className="move-to-collection-wrapper">
-                                                        <button style={{
-                                                            width: '40px', height: '37px', borderRadius: '6px', border: '1px solid #ccc',
-                                                            backgroundColor: 'transparent', color: 'white', fontWeight: 600,
-                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                        }} title="컬렉션 이동"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Toggle a local state or simplified: using prompt/modal might be easier, 
-                                                                // but let's try a small popup.
-                                                                // Since we track 'selectedItem'? No.
-                                                                // We can use a browser native select or a custom overlay if time permits.
-                                                                // For MVP, lets use a simple approach: show a list of collections to click?
-                                                                // Or native select hidden?
-
-                                                                // Let's go with a simple prompt-like interaction or a small absolute Menu if we can track which item is open.
-                                                                // To simple: Use `prompt` to ask for Collection Name? No that's bad.
-
-                                                                // Better: A shared "Move Modal" or just a small dropdown.
-                                                                // I will implement a "MoveItemModal" or similar if I had time.
-                                                                // For now, let's just use a window.confirm/prompt hack OR 
-                                                                // actually, let's add a state `movingItem` to show a modal for selection.
-                                                                setMovingItem(item);
-                                                            }}
-                                                        >
-                                                            <i className="fa-solid fa-folder"></i>
-                                                        </button>
-                                                    </div>
-                                                }
-                                            </div>
-                                        </div>
-
-                                        {/* Info */}
-                                        <div style={{ padding: '16px' }}>
-                                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'white', margin: '0 0 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {item.title}
-                                            </h3>
-                                            <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '12px' }}>
-                                                {item.author}
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#555' }}>
-                                                <span>{item.assetType || 'Game'}</span>
-                                                <span>{item.purchaseDate}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {!((activeTab === 'games' && loadingGames) || (activeTab === 'assets' && loadingAssets)) && filteredItems.length === 0 && (
-                            <div style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '4rem', color: '#444', height: '50vh'
-                            }}>
-                                <i className="fa-solid fa-ghost" style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.5 }}></i>
-                                <p style={{ fontSize: '1.2rem', fontWeight: 500 }}>항목을 찾을 수 없습니다</p>
-                                <p style={{ fontSize: '0.9rem' }}>검색어를 변경하거나 새로운 에셋을 찾아보세요.</p>
-                            </div>
-                        )}
-                    </main>
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button onClick={() => setShowCreateCollectionModal(false)} className="px-5 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors font-medium">취소</button>
+                            <button onClick={handleCreateCollection} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-900/20">생성하기</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Move Item Modal */}
             {movingItem && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1000,
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }} onClick={() => setMovingItem(null)}>
-                    <div style={{
-                        backgroundColor: '#1a1a1a', padding: '24px', borderRadius: '12px',
-                        width: '400px', maxWidth: '90%', border: '1px solid #333'
-                    }} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'white' }}>컬렉션으로 이동</h3>
-                        <p style={{ color: '#aaa', marginBottom: '20px' }}>
-                            '{movingItem.title}' 에셋을 어디로 이동할까요?
-                        </p>
+                <div className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setMovingItem(null)}>
+                    <div className="bg-[#151515] border border-[#333] p-6 rounded-2xl w-[420px] shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="mb-6">
+                            <h3 className="text-xl font-bold mb-1">컬렉션으로 이동</h3>
+                            <p className="text-gray-500 text-sm truncate">
+                                <span className="text-white font-medium">{movingItem.title}</span>을(를) 선택하세요
+                            </p>
+                        </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                        <div className="flex flex-col gap-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
                             <button
                                 onClick={async () => {
                                     try {
                                         const { libraryService } = await import('../services/libraryService');
                                         if (movingItem.libraryItemId) {
                                             await libraryService.moveItemToCollection(movingItem.libraryItemId, null);
-                                            // Update Local State
                                             setMyAssets(prev => prev.map(a => a.id === movingItem.id ? { ...a, collectionId: undefined } : a));
                                             setMovingItem(null);
-                                        } else {
-                                            alert("Library Item ID not found");
                                         }
-                                    } catch (e) { console.error(e); alert("이동 실패"); }
+                                    } catch (e) { alert("이동 실패"); }
                                 }}
-                                style={{
-                                    padding: '12px', textAlign: 'left', backgroundColor: movingItem.collectionId ? 'transparent' : '#2563eb',
-                                    border: '1px solid #333', borderRadius: '8px', color: 'white', cursor: 'pointer'
-                                }}
+                                className={`text-left px-4 py-4 rounded-xl border transition-all flex items-center group
+                                    ${!movingItem.collectionId
+                                        ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                        : 'border-[#222] hover:bg-[#222] hover:border-[#333] text-gray-300'}`}
                             >
-                                <i className="fa-solid fa-layer-group" style={{ marginRight: '10px' }}></i>
-                                [기본] 전체 에셋 (컬렉션 해제)
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 
+                                    ${!movingItem.collectionId ? 'bg-blue-500 text-white' : 'bg-[#333] text-gray-500 group-hover:bg-[#444] group-hover:text-white'}`}>
+                                    <i className="fa-solid fa-layer-group"></i>
+                                </div>
+                                <span className="font-medium">[기본] 전체 에셋</span>
+                                {!movingItem.collectionId && <i className="fa-solid fa-check ml-auto"></i>}
                             </button>
+
                             {collections.map(col => (
                                 <button
                                     key={col.id}
@@ -733,151 +426,27 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                             const { libraryService } = await import('../services/libraryService');
                                             if (movingItem.libraryItemId) {
                                                 await libraryService.moveItemToCollection(movingItem.libraryItemId, col.id);
-                                                // Update Local State
                                                 setMyAssets(prev => prev.map(a => a.id === movingItem.id ? { ...a, collectionId: col.id } : a));
                                                 setMovingItem(null);
-                                            } else {
-                                                alert("Library Item ID not found");
                                             }
-                                        } catch (e) { console.error(e); alert("이동 실패"); }
+                                        } catch (e) { alert("이동 실패"); }
                                     }}
-                                    style={{
-                                        padding: '12px', textAlign: 'left',
-                                        backgroundColor: movingItem.collectionId === col.id ? '#2563eb' : 'transparent',
-                                        border: '1px solid #333', borderRadius: '8px', color: 'white', cursor: 'pointer'
-                                    }}
+                                    className={`text-left px-4 py-4 rounded-xl border transition-all flex items-center group
+                                        ${movingItem.collectionId === col.id
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'border-[#222] hover:bg-[#222] hover:border-[#333] text-gray-300'}`}
                                 >
-                                    <i className="fa-solid fa-folder" style={{ marginRight: '10px' }}></i>
-                                    {col.name}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 
+                                        ${movingItem.collectionId === col.id ? 'bg-blue-500 text-white' : 'bg-[#333] text-gray-500 group-hover:bg-[#444] group-hover:text-white'}`}>
+                                        <i className={`fa-solid ${col.icon}`}></i>
+                                    </div>
+                                    <span className="font-medium">{col.name}</span>
+                                    {movingItem.collectionId === col.id && <i className="fa-solid fa-check ml-auto"></i>}
                                 </button>
                             ))}
                         </div>
-
-                        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => setMovingItem(null)}
-                                style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #555', color: '#ccc', borderRadius: '6px', cursor: 'pointer' }}
-                            >
-                                취소
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Create Collection Modal */}
-            {showCreateCollectionModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1000,
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }} onClick={() => setShowCreateCollectionModal(false)}>
-                    <div style={{
-                        backgroundColor: '#1a1a1a', padding: '24px', borderRadius: '12px',
-                        width: '450px', maxWidth: '90%', border: '1px solid #333'
-                    }} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: 'white', fontSize: '1.3rem' }}>
-                            <i className="fa-solid fa-folder-plus" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
-                            새 컬렉션 만들기
-                        </h3>
-
-                        {/* Collection Name Input */}
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', marginBottom: '8px', color: '#aaa', fontSize: '0.9rem' }}>
-                                컬렉션 이름
-                            </label>
-                            <input
-                                type="text"
-                                value={newCollectionName}
-                                onChange={(e) => setNewCollectionName(e.target.value)}
-                                placeholder="예: SF / 미래"
-                                autoFocus
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    backgroundColor: '#111',
-                                    border: '1px solid #333',
-                                    borderRadius: '8px',
-                                    color: 'white',
-                                    fontSize: '1rem',
-                                    outline: 'none'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = '#333'}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleConfirmCreateCollection();
-                                }}
-                            />
-                        </div>
-
-                        {/* Icon Selection */}
-                        <div style={{ marginBottom: '24px' }}>
-                            <label style={{ display: 'block', marginBottom: '12px', color: '#aaa', fontSize: '0.9rem' }}>
-                                아이콘 선택
-                            </label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {[
-                                    'fa-folder', 'fa-rocket', 'fa-ghost', 'fa-dragon', 'fa-car',
-                                    'fa-tree', 'fa-house', 'fa-music', 'fa-palette', 'fa-gamepad',
-                                    'fa-gun', 'fa-heart', 'fa-star', 'fa-bolt', 'fa-gem'
-                                ].map(icon => (
-                                    <button
-                                        key={icon}
-                                        onClick={() => setNewCollectionIcon(icon)}
-                                        style={{
-                                            width: '44px',
-                                            height: '44px',
-                                            borderRadius: '8px',
-                                            border: newCollectionIcon === icon ? '2px solid #3b82f6' : '1px solid #333',
-                                            backgroundColor: newCollectionIcon === icon ? 'rgba(59, 130, 246, 0.2)' : '#111',
-                                            color: newCollectionIcon === icon ? '#3b82f6' : '#888',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '1.1rem',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <i className={`fa-solid ${icon}`}></i>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                            <button
-                                onClick={() => setShowCreateCollectionModal(false)}
-                                style={{
-                                    padding: '10px 20px',
-                                    background: 'transparent',
-                                    border: '1px solid #555',
-                                    color: '#ccc',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.95rem'
-                                }}
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={handleConfirmCreateCollection}
-                                disabled={!newCollectionName.trim()}
-                                style={{
-                                    padding: '10px 24px',
-                                    background: newCollectionName.trim() ? '#2563eb' : '#333',
-                                    border: 'none',
-                                    color: 'white',
-                                    borderRadius: '8px',
-                                    cursor: newCollectionName.trim() ? 'pointer' : 'not-allowed',
-                                    fontSize: '0.95rem',
-                                    fontWeight: 500
-                                }}
-                            >
-                                <i className="fa-solid fa-check" style={{ marginRight: '8px' }}></i>
-                                만들기
-                            </button>
+                        <div className="flex justify-end pt-6 mt-2 border-t border-[#222]">
+                            <button onClick={() => setMovingItem(null)} className="px-5 py-2.5 text-gray-400 hover:text-white transition-colors">닫기</button>
                         </div>
                     </div>
                 </div>

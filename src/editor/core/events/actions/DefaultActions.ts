@@ -1,6 +1,7 @@
 import { ActionRegistry, type ActionContext } from "../ActionRegistry";
 import { EventBus } from "../EventBus";
 import Phaser from "phaser";
+import { splitLogicItems } from "../../../types/Logic";
 
 type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
 type RuntimeEntity = {
@@ -77,6 +78,10 @@ function setVar(entity: RuntimeEntity | undefined, name: string, value: number |
             value: String(value),
         });
     }
+}
+
+function cloneJson<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function isAlive(ctx: ActionContext): boolean {
@@ -443,6 +448,65 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     const moduleId = (params.moduleId as string) ?? (params.moduleName as string) ?? (params.name as string);
     if (!moduleId) return;
     gameCore.startModule(ctx.entityId, moduleId);
+});
+
+ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
+    if (!gameCore?.createEntity) return;
+
+    const entities = ctx.globals?.entities as Map<string, any> | undefined;
+    const owner = entities?.get(ctx.entityId);
+    const renderer = ctx.globals?.renderer as { core?: { getEntity?: (id: string) => any } } | undefined;
+
+    const templateIdRaw = ((params.templateId as string) ?? "").trim();
+    const templateId = templateIdRaw || "__self__";
+    const editorTemplateId = templateId === "__self__" ? ctx.entityId : templateId;
+    const template =
+        templateId === "__self__"
+            ? owner
+            : (templateId ? entities?.get(templateId) : undefined);
+    const editorTemplate = renderer?.core?.getEntity?.(editorTemplateId);
+    const source = template ?? editorTemplate;
+    const sourceComponents =
+        template?.components ??
+        editorTemplate?.components ??
+        splitLogicItems(editorTemplate?.logic);
+
+    const positionMode = (params.positionMode as string) ?? "relative";
+    const offsetX = Number(params.offsetX ?? 0);
+    const offsetY = Number(params.offsetY ?? 0);
+    const absoluteX = Number(params.x ?? owner?.x ?? 0);
+    const absoluteY = Number(params.y ?? owner?.y ?? 0);
+
+    const spawnX = positionMode === "absolute" ? absoluteX : (Number(owner?.x ?? 0) + offsetX);
+    const spawnY = positionMode === "absolute" ? absoluteY : (Number(owner?.y ?? 0) + offsetY);
+
+    const id = crypto.randomUUID();
+    const texture =
+        ((params.texture as string) ?? "").trim() ||
+        (typeof editorTemplate?.texture === "string" ? editorTemplate.texture : "") ||
+        (typeof editorTemplate?.name === "string" ? editorTemplate.name : "");
+
+    const options = {
+        name: (params.name as string) ?? (source?.name ? `${source.name}_spawn` : undefined),
+        z: typeof source?.z === "number" ? source.z : (params.z as number | undefined),
+        rotationX: source?.rotationX ?? 0,
+        rotationY: source?.rotationY ?? 0,
+        rotationZ: source?.rotationZ ?? source?.rotation ?? 0,
+        scaleX: source?.scaleX ?? 1,
+        scaleY: source?.scaleY ?? 1,
+        scaleZ: source?.scaleZ ?? 1,
+        variables: source?.variables ? cloneJson(source.variables) : [],
+        components: sourceComponents ? cloneJson(sourceComponents) : [],
+        role: ((params.role as string) ?? source?.role ?? "neutral"),
+        modules: source?.modules ? cloneJson(source.modules) : [],
+        width: source?.width ?? (params.width as number | undefined),
+        height: source?.height ?? (params.height as number | undefined),
+        texture: texture || undefined,
+    };
+
+    const type = (source?.type as string) ?? (params.type as string) ?? "sprite";
+    gameCore.createEntity(id, type, spawnX, spawnY, options);
 });
 
 // --- Entity Control Actions ---
