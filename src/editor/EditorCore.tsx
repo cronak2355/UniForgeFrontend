@@ -64,6 +64,29 @@ export class EditorState implements IGameState {
             { id: "4", name: "tree", tag: "Character", url: assetUrl("GreenTree.webp"), idx: -1 },
         ];
 
+        // DEV: localStorage에서 로컬 에셋 불러오기
+        if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+            try {
+                const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
+                const localAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
+                for (const asset of localAssets) {
+                    this.assets.push({
+                        id: asset.id,
+                        name: asset.name,
+                        tag: asset.tag,
+                        url: asset.url,
+                        idx: -1,
+                        metadata: asset.metadata
+                    });
+                }
+                if (localAssets.length > 0) {
+                    console.log(`[EditorCore] Loaded ${localAssets.length} local assets from localStorage`);
+                }
+            } catch (e) {
+                console.warn("[EditorCore] Failed to load local assets:", e);
+            }
+        }
+
         // Initialize default GameState global entity
         this.createGlobalEntity("GameState", [
             { id: crypto.randomUUID(), name: "playerHP", type: "float", value: 100 },
@@ -90,6 +113,7 @@ export class EditorState implements IGameState {
             name: "Player (Demo)",
             type: "sprite",
             role: "player",
+            tags: ["player"],
             events: [],
             x: 400,
             y: 450,
