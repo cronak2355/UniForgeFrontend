@@ -455,11 +455,15 @@ export function RightPanel() {
     }
   };
 
-  const handleSaveAndExit = async () => {
+const handleSaveAndExit = async () => {
+    console.log("[AssetsEditor] Saving asset", { assetType, exportName });
     const savedId = await performSave();
     if (savedId) {
       const targetPath = gameId ? `/editor/${gameId}` : '/editor';
+      console.log("[AssetsEditor] Navigating to editor with new asset", { savedId, targetPath });
       navigate(`${targetPath}?newAssetId=${savedId}`);
+    } else {
+      console.warn("[AssetsEditor] Save returned no asset ID");
     }
   };
 
