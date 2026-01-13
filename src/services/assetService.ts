@@ -16,21 +16,29 @@ export const assetService = {
     ): Promise<UploadedAssetData> {
         const contentType = file.type || "application/octet-stream";
 
-        // 1. DEV MODE: Local Mock
+        // 1. DEV MODE: Local Mock (localStorage 저장)
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-            console.log("[assetService] Running in DEV mode (Mock Upload)");
-            console.log("[assetService] Mock: Create Asset -> Get ID -> Upload -> Register");
+            console.log("[assetService] Running in DEV mode (Mock Upload with localStorage)");
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const assetUrl = e.target?.result as string;
-                    resolve({
-                        id: crypto.randomUUID(), // Mock ID
+                    const newAsset: UploadedAssetData = {
+                        id: crypto.randomUUID(),
                         url: assetUrl,
                         name,
                         tag,
                         metadata
-                    });
+                    };
+
+                    // localStorage에 저장
+                    const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
+                    const existingAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
+                    existingAssets.push(newAsset);
+                    localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(existingAssets));
+                    console.log(`[assetService] Saved to localStorage: ${newAsset.name} (${newAsset.tag})`);
+
+                    resolve(newAsset);
                 };
                 reader.onerror = (err) => reject(err);
                 reader.readAsDataURL(file);
@@ -226,5 +234,26 @@ export const assetService = {
         const res = await fetch(`https://uniforge.kr/api/assets/${assetId}`);
         if (!res.ok) throw new Error("Failed to fetch asset details");
         return await res.json();
+    },
+
+    /**
+     * localStorage에서 로컬 에셋 목록 가져오기 (DEV 모드용)
+     */
+    getLocalAssets(): UploadedAssetData[] {
+        const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
+        try {
+            return JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
+        } catch {
+            return [];
+        }
+    },
+
+    /**
+     * localStorage의 로컬 에셋 삭제 (DEV 모드용)
+     */
+    clearLocalAssets(): void {
+        const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
+        localStorage.removeItem(LOCAL_ASSETS_KEY);
+        console.log("[assetService] Local assets cleared");
     }
 };

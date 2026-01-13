@@ -18,6 +18,8 @@ export interface EditorEntity {
   scaleX: number;
   scaleY: number;
   role: string;
+  /** 엔티티 태그 (예: "player", "enemy", "ui") - 카메라 추적, 필터링에 사용 */
+  tags?: string[];
   texture?: string;
   variables: EditorVariable[];
   events: EditorEvent[];
