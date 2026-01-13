@@ -1,0 +1,18 @@
+config:
+  target: "https://uniforge.kr"
+  phases:
+    - duration: 30
+      arrivalRate: 1
+      name: "Single user load test"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Asset list query"
+    flow:
+      - get:
+          url: "/api/assets?sort=latest"
+          capture:
+            - json: "$"
+              as: "assets"
