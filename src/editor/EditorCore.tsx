@@ -392,6 +392,23 @@ export class EditorState implements IGameState {
         this.notify();
     }
 
+    updateEntityPosition(id: string, x: number, y: number) {
+        const scene = this.getCurrentScene();
+        if (!scene) return;
+
+        const existing = scene.entities.get(id);
+        if (!existing) return;
+
+        const updated = { ...existing, x, y };
+        scene.entities.set(id, updated);
+
+        if (this.selectedEntity?.id === id) {
+            this.selectedEntity = updated;
+        }
+
+        this.notify();
+    }
+
     setTile(x: number, y: number, tile: number) {
         const scene = this.getCurrentScene();
         if (!scene) return;

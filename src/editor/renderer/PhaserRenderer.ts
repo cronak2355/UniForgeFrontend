@@ -1415,7 +1415,7 @@ export class PhaserRenderer implements IRenderer {
         return this.entities.has(id);
     }
 
-    update(id: string, x: number, y: number, z?: number, rotation?: number, scaleX: number = 1, scaleY: number = 1, _scaleZ?: number): void {
+    update(id: string, x: number, y: number, z?: number, rotation?: number): void {
         const obj = this.entities.get(id) as any;
         if (!obj) return;
 
@@ -1430,9 +1430,6 @@ export class PhaserRenderer implements IRenderer {
             obj.rotation = rotation;
         }
 
-        if (obj.setScale) {
-            obj.setScale(scaleX, scaleY);
-        }
     }
 
     /**

@@ -328,14 +328,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             if (dragEntityIdRef.current && isPointerDownRef.current) {
                 const id = dragEntityIdRef.current;
-                const ent = core.getEntities().get(id);
                 const offset = dragOffsetRef.current;
                 const nextX = worldX - offset.x;
                 const nextY = worldY - offset.y;
-                if (ent) {
-                    const updated: EditorEntity = { ...ent, x: nextX, y: nextY };
-                    core.addEntity(updated as EditorEntity & { id: string });
-                }
+                core.updateEntityPosition(id, nextX, nextY);
                 gameCore.moveEntity(id, nextX, nextY);
                 return;
             }
