@@ -84,6 +84,7 @@ export function AssetPanelNew({
         { id: "Character", label: "Characters", icon: "fa-person" },
         { id: "Tile", label: "Tiles", icon: "fa-cubes" },
         { id: "Particle", label: "FX", icon: "fa-wand-magic-sparkles" },
+        { id: "Prefab", label: "Prefabs", icon: "fa-cube" },
         { id: "Modules", label: "Logic Modules", icon: "fa-network-wired" }
     ];
 
