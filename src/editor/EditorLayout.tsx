@@ -570,15 +570,22 @@ function EditorLayoutInner() {
                 const url = (asset as any).imageUrl || asset.url;
 
                 if (url) {
-                    core.addAsset({
-                        id: asset.id,
-                        tag: asset.tag || 'Character',
-                        name: asset.name,
-                        url: url,
-                        idx: -1,
-                        metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
-                        description: (asset as any).description
-                    });
+                const resolvedTag =
+                    typeof asset.tag === 'string' && asset.tag.length > 0
+                        ? asset.tag
+                        : typeof asset.genre === 'string' && asset.genre.length > 0
+                        ? asset.genre
+                        : 'Character';
+
+                core.addAsset({
+                    id: asset.id,
+                    tag: resolvedTag,
+                    name: asset.name,
+                    url: url,
+                    idx: -1,
+                    metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
+                    description: (asset as any).description
+                });
                     console.log("Auto-imported asset:", asset.name);
                 }
             } catch (e) {
