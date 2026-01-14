@@ -8,12 +8,47 @@ import { Canvas } from './Canvas';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 
+// Imports needed for AI
+import { useState } from 'react';
+import { AiWizardModal } from './AiWizardModal';
+import { generateSingleImage } from '../services/AnimationService';
+import { assetService } from '../../services/assetService';
+import { EditorEntity } from '../../editor/types/Entity'; // Type import
+
 // Floating Glass Layout
 function EditorContent() {
-  const { pixelSize, loadAIImage } = useAssetsEditor();
+  const { pixelSize, loadAIImage } = useAssetsEditor(); // loadAIImage is all we need to load into canvas
   const { registerApplyHandler, unregisterApplyHandler } = useJob();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // AI State
+  const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
+    setIsGeneratingAi(true);
+    console.log("Generating AI Asset:", prompt);
+    try {
+      const base64Image = await generateSingleImage(prompt, 512, category.toLowerCase());
+      const res = await fetch(`data:image/png;base64,${base64Image}`);
+      const blob = await res.blob();
+
+      // Load directly into Editor Canvas
+      loadAIImage(blob);
+
+      // Optional: Upload asset or just let user save it?
+      // For consistency with EditorLayout, we might want to upload it too, 
+      // BUT in Pixel Editor, we usually work on a canvas then save. 
+      // Let's just load it to canvas for now as 'loadAIImage' does.
+
+    } catch (e) {
+      console.error("AI Generation Failed:", e);
+      alert("AI Generation Failed: " + (e instanceof Error ? e.message : 'Unknown'));
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   // 글로벌 Apply Handler 등록 (이 컴포넌트가 마운트 되어 있을 때만 동작)
   useEffect(() => {
@@ -44,17 +79,19 @@ function EditorContent() {
       {/* Background Glow (Subtle) */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-900/5 to-blue-900/10 pointer-events-none" />
 
+      {/* AI Wizard Modal */}
+      <AiWizardModal
+        isOpen={isAiWizardOpen}
+        onClose={() => setIsAiWizardOpen(false)}
+        onGenerate={handleAiGenerate}
+      />
+
       {/* Header (Top Floating) */}
       <header className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-full flex items-center gap-6 z-50">
         {/* Logo */}
+        {/* Logo */}
         <div className="flex items-center gap-2">
-          {/* SVG Logo - Same as before but no bg */}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#3b82f6" />
-            <path d="M2 17L12 22L22 17" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="text-white font-bold tracking-tight text-sm">UniForge</span>
+          <img src="/logo.png" alt="UniForge Logo" height="28" className="h-7 w-auto object-contain" />
         </div>
 
         <div className="w-px h-3 bg-white/10" />
@@ -76,7 +113,7 @@ function EditorContent() {
 
       {/* Floating Left Panel */}
       <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40">
-        <LeftPanel />
+        <LeftPanel onOpenAiWizard={() => setIsAiWizardOpen(true)} />
       </div>
 
       {/* Floating Right Panel */}

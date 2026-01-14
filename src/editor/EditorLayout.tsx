@@ -25,8 +25,10 @@ import { AssetLibraryModal } from "./AssetLibraryModal";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import type { EditorVariable } from "./types/Variable";
-import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal"; // Import SaveGameModal
-import { saveGameVersion, updateGameInfo } from "../services/gameService"; // Import new service methods
+import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal";
+import { saveGameVersion, updateGameInfo } from "../services/gameService";
+import { AiWizardModal } from "../AssetsEditor/components/AiWizardModal";
+import { generateSingleImage } from "../AssetsEditor/services/AnimationService";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -301,7 +303,93 @@ function EditorLayoutInner() {
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [isSavingProject, setIsSavingProject] = useState(false);
 
+    // AI Wizard State
+    const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
+    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+    const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
+        setIsGeneratingAi(true);
+        console.log("Generating AI Asset:", prompt);
+        try {
+            // 1. Call AI Service
+            // Default size 512 for now
+            const base64Image = await generateSingleImage(prompt, 512, category.toLowerCase());
+
+            // 2. Upload/Process as Asset (Convert Base64 to Blob)
+            const res = await fetch(`data:image/png;base64,${base64Image}`);
+            const blob = await res.blob();
+            const file = new File([blob], `ai_gen_${Date.now()}.png`, { type: 'image/png' });
+
+            // 3. Upload using AssetService
+            const token = localStorage.getItem("token");
+            const assetName = metadata.userPrompt.slice(0, 20) || "AI Asset"; // Use prompt snippet as name
+            const result = await assetService.uploadAsset(file, assetName, category, token, metadata, false);
+
+            // 4. Add to Editor Core
+            const newAssetId = result.id;
+            // IMPORTANT: We need the full URL. uploadAsset returns it.
+            core.addAsset({
+                id: result.id,
+                tag: result.tag, // or category
+                name: result.name,
+                url: result.url,
+                idx: -1,
+                metadata: metadata
+            });
+
+            // 5. Auto-Place Entity in Center of Screen (or Camera View)
+            const camera = core.getEntities().get('Main Camera'); // brittle lookup, better to get active camera
+            // Default to 0,0 if no camera found
+            const x = 0;
+            const y = 0;
+
+            const newEntity: EditorEntity = {
+                id: crypto.randomUUID(),
+                name: assetName,
+                type: "sprite",
+                x: x,
+                y: y,
+                z: 0,
+                rotation: 0,
+                scaleX: 1,
+                scaleY: 1,
+                role: "neutral", // Default role
+                logic: buildLogicItems({ components: [] }),
+                components: [],
+                variables: [],
+                events: [],
+                texture: result.name, // Sprite uses name or id? Usually name in this engine
+                // But wait, core.addAsset(a) -> a.name is used as key? 
+                // Let's check EditorCanvas logic. usually uses name or unique ID. 
+                // In EditorCore, assets are stored map: id -> Asset. 
+                // Phaser uses texture key. We should verify what key is used.
+                // Assuming Name is Unique enough or ID is used. 
+                // ACTUALLY: Let's use ID if the engine supports it, or Name if simpler.
+                // For safety, let's look at dropped assets logic.
+                // Dropped assets use result.name. So we stick to result.name.
+            };
+
+            // Ensure texture key logic matches. 
+            // Ideally we shouldn't rely on Name being unique. 
+            // If duplicate name, Phaser might conflict. 
+            // UploadService should maybe append ID to name if we use name as key.
+
+            core.addEntity(newEntity);
+            core.setSelectedEntity(newEntity);
+            setLocalSelectedEntity(newEntity); // Update UI
+
+            console.log("AI Asset Placed:", newEntity);
+
+        } catch (e) {
+            console.error("AI Generation Failed:", e);
+            alert("AI Generation Failed: " + (e instanceof Error ? e.message : 'Unknown'));
+        } finally {
+            setIsGeneratingAi(false);
+        }
+    };
+
     const handleSaveProject = async (title: string, description: string) => {
+
         setIsSavingProject(true);
         try {
             const sceneJson = SceneSerializer.serialize(core);
@@ -702,7 +790,7 @@ function EditorLayoutInner() {
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
                         description: (asset as any).description
                     });
-                    console.log("Auto-imported asset:", asset.name);
+                    console.log("Auto-imported asset:", (asset as any).name);
                 }
             } catch (e) {
                 console.error("Failed to auto-load new asset:", e);
@@ -1043,6 +1131,7 @@ function EditorLayoutInner() {
                 overflow: 'hidden',
             }}>
                 {/* LEFT PANEL - Hierarchy */}
+                {/* LEFT PANEL REMOVED AS PER REQUEST
                 <div style={{
                     width: '280px',
                     background: colors.bgSecondary,
@@ -1050,30 +1139,9 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{ flex: '0 0 60%', padding: '0', overflowY: 'hidden', borderBottom: `2px solid ${colors.borderColor}` }}>
-                        <HierarchyPanel
-                            core={core}
-                            scenes={scenes}
-                            currentSceneId={currentSceneId}
-                            selectedId={selectedEntity?.id ?? null}
-                            onSelect={(e) => {
-                                core.setSelectedEntity(e as any);
-                                setLocalSelectedEntity(e as any);
-                                const cm = new CameraMode();
-                                const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
-                                core.sendContextToEditorModeStateMachine(ctx);
-                            }}
-                        />
-                    </div>
-                    {/* Recent Assets */}
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <RecentAssetsPanel
-                            assets={recentAssets}
-                            changeDraggedAsset={changeDraggedAssetHandler}
-                            onSelectAsset={changeSelectedAssetHandler}
-                        />
-                    </div>
+                   ...
                 </div>
+                */}
 
                 {/* CENTER - Phaser Canvas */}
                 <div style={{
@@ -1174,6 +1242,48 @@ function EditorLayoutInner() {
             </div>
 
 
+
+
+            {/* AI Wizard FAB */}
+            <div style={{
+                position: 'fixed',
+                bottom: '30px',
+                right: '300px', // Left of inspector
+                zIndex: 100,
+            }}>
+                <button
+                    onClick={() => setIsAiWizardOpen(true)}
+                    style={{
+                        width: '56px', height: '56px', borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                        color: 'white', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '24px', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Generate AI Asset"
+                >
+                    ✨
+                </button>
+            </div>
+
+            {/* AI Wizard Modal */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
+
+            {/* Save Game Modal */}
+            <SaveGameModal
+                isOpen={isSaveModalOpen}
+                onClose={() => setIsSaveModalOpen(false)}
+                onSave={handleSaveProject}
+                isSaving={isSavingProject}
+                initialTitle={gameId && gameId !== 'undefined' ? "Project" : "New Project"}
+            />
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
@@ -1374,6 +1484,64 @@ function EditorLayoutInner() {
                         </div>
                     </div>
                 </div>
+            )}
+            {/* AI Wizard Modal & FAB */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
+
+            {!isAiWizardOpen && (
+                <button
+                    onClick={() => setIsAiWizardOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: '24px',
+                        right: '360px', // Moved left to avoid RightPanel (320px) overlap
+                        padding: '12px 24px',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                        color: 'white',
+                        borderRadius: '9999px',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        cursor: 'pointer',
+                        zIndex: 2000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                    <span style={{ fontSize: '18px' }}>✨</span>
+                    <span>AI Generate</span>
+                </button>
+            )}
+
+            {/* Asset Library Modal */}
+            {isAssetLibraryOpen && (
+                <AssetLibraryModal
+                    onClose={() => setIsAssetLibraryOpen(false)}
+                    onAssetSelect={(asset) => {
+                        core.setDraggedAsset(asset);
+                        setIsAssetLibraryOpen(false);
+                    }}
+                />
+            )}
+
+            {/* Save Game Modal */}
+            {isSaveModalOpen && (
+                <SaveGameModal
+                    isOpen={isSaveModalOpen}
+                    onClose={() => setIsSaveModalOpen(false)}
+                    onSave={handleSaveProject}
+                    initialTitle=""
+                    initialDescription=""
+                    isSaving={isSavingProject}
+                />
             )}
         </div>
     );
