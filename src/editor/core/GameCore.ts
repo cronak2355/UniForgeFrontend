@@ -351,9 +351,37 @@ export class GameCore {
         entity.variables = variables; // Reference update or deep copy? Reference is fine for editor sync
 
         // Update Components
+        // BACKUP: Preserve logic execution state (prevents animation restart on selection/update)
+        const logicBackup = new Map<string, LogicActionState>();
+        const startedBackup = new Set<string>();
+
+        // Find all state keys related to this entity
+        const prefix = `${id}:`;
+        for (const [key, state] of this.logicActionStates.entries()) {
+            if (key.startsWith(prefix)) {
+                logicBackup.set(key, state);
+            }
+        }
+        for (const key of this.startedComponents) {
+            if (key.startsWith(prefix)) {
+                startedBackup.add(key);
+            }
+        }
+
         this.unregisterComponentRuntimes(id);
         entity.components = components;
         this.registerComponentRuntimes(entity);
+
+        // RESTORE: Apply backed up states if component IDs match (assuming stable IDs)
+        for (const [key, state] of logicBackup.entries()) {
+            // Only restore if the component still exists (or we blindly restore, 
+            // but checking existence is safer if we could, but 'register' just added them. 
+            // If the ID persisted, it's valid.)
+            this.logicActionStates.set(key, state);
+        }
+        for (const key of startedBackup) {
+            this.startedComponents.add(key);
+        }
 
         this.notify();
     }

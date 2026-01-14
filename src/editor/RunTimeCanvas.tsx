@@ -96,7 +96,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
-    const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
+    const { core, assets, tiles, entities, selectedEntity, modules, aspectRatio } = useEditorCoreSnapshot();
 
     const spawnRuntimeEntities = (gameRuntime: GameCore, sourceEntities: EditorEntity[]) => {
         for (const e of sourceEntities) {
@@ -147,13 +147,25 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         let active = true;
 
         (async () => {
-            // ?뚮뜑??珥덇린?????띿뒪泥???쇱뀑/珥덇린 ?곹깭瑜?濡쒕뱶?쒕떎.
-            await renderer.init(ref.current as HTMLElement);
+            // Parse aspectRatio to get game dimensions
+            let gameWidth = 1280;
+            let gameHeight = 720;
+            if (aspectRatio) {
+                const [wStr, hStr] = aspectRatio.split("x");
+                gameWidth = parseInt(wStr) || 1280;
+                gameHeight = parseInt(hStr) || 720;
+            }
+
+            // Initialize renderer with fixed game size for runtime
+            await renderer.init(ref.current as HTMLElement, { width: gameWidth, height: gameHeight });
             if (!active) return;
             rendererReadyRef.current = true;
 
             // Enable runtime mode for Rules and TICK events
             renderer.isRuntimeMode = true;
+
+            // Center camera on the game area
+            renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
 
             for (const asset of assets) {
                 // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
@@ -473,24 +485,27 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     color: colors.textSecondary,
                     padding: '4px 8px',
                 }}>
-                    InGame Camera
+                    InGame Camera ({aspectRatio})
                 </span>
             </div>
 
             {/* Phaser Canvas Container + UI Overlay */}
             <div style={{
                 flex: 1,
-                position: 'relative', // Relative for overlay
-                background: colors.bgPrimary,
+                position: 'relative',
+                background: '#000', // Black letterbox bars
                 border: `2px solid ${colors.borderColor}`,
                 borderRadius: '6px',
                 overflow: 'hidden',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
             }}>
-                {/* Phaser Container */}
-                <div ref={ref} style={{ width: '100%', height: '100%' }} />
-
-                {/* Game UI Overlay */}
-                <GameUIOverlay gameCore={gameCore} showHud={false} />
+                {/* Phaser handles scaling via FIT mode */}
+                <div ref={ref} style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    {/* Game UI Overlay */}
+                    <GameUIOverlay gameCore={gameCore} showHud={false} />
+                </div>
             </div>
         </div>
     );

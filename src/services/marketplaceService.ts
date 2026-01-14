@@ -101,8 +101,8 @@ class MarketplaceService {
         });
     }
 
-    async getUploadUrl(assetId: string, versionId: string, fileName: string, contentType: string): Promise<{ uploadUrl: string }> {
-        return apiClient.request<{ uploadUrl: string }>(`/assets/${assetId}/versions/${versionId}/upload-url?fileName=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(contentType)}`);
+    async getUploadUrl(assetId: string, versionId: string, fileName: string, contentType: string): Promise<{ uploadUrl: string; s3Key?: string }> {
+        return apiClient.request<{ uploadUrl: string; s3Key?: string }>(`/assets/${assetId}/versions/${versionId}/upload-url?fileName=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(contentType)}`);
     }
 
     async publishVersion(versionId: string): Promise<void> {

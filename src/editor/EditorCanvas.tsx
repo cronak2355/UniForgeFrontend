@@ -88,7 +88,7 @@ function indexTiles(tiles: TilePlacement[]) {
 export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
-    const { tiles, entities, modules, currentSceneId } = useEditorCoreSnapshot();
+    const { tiles, entities, modules, aspectRatio, currentSceneId } = useEditorCoreSnapshot();
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
@@ -345,23 +345,23 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         };
 
         renderer.onPointerUp = (worldX, worldY) => {
-        const activeDragged = draggedAssetRef.current;
-        if (activeDragged && activeDragged.tag !== "Tile") {
-            if (ghostIdRef.current) {
-                renderer.remove(ghostIdRef.current);
-                ghostIdRef.current = null;
-            }
+            const activeDragged = draggedAssetRef.current;
+            if (activeDragged && activeDragged.tag !== "Tile") {
+                if (ghostIdRef.current) {
+                    renderer.remove(ghostIdRef.current);
+                    ghostIdRef.current = null;
+                }
 
-            const entity = assetToEntity(activeDragged, worldX, worldY);
-            addEntityRef.current(entity);
-            gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
-                name: entity.name,
-                texture: entity.texture ?? entity.name,
-                variables: entity.variables,
-                components: splitLogicItems(entity.logic),
-                modules: entity.modules,
-            });
-        }
+                const entity = assetToEntity(activeDragged, worldX, worldY);
+                addEntityRef.current(entity);
+                gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
+                    name: entity.name,
+                    texture: entity.texture ?? entity.name,
+                    variables: entity.variables,
+                    components: splitLogicItems(entity.logic),
+                    modules: entity.modules,
+                });
+            }
 
             renderer.clearPreviewTile();
             isPointerDownRef.current = false;
@@ -370,10 +370,14 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             dragOffsetRef.current = { x: 0, y: 0 };
         };
 
-        renderer.onScroll = (deltaY) => {
-            const dy = Math.exp(deltaY * -(1 / 1000));
-            const zoom = Math.min(Math.max(renderer.getCameraZoom() * dy, 0.1), 10);
-            renderer.setCameraZoom(zoom);
+        renderer.onScroll = (deltaY, screenX, screenY) => {
+            // Slower zoom speed
+            const dy = Math.exp(deltaY * -(1 / 2000));
+            const prevZoom = renderer.getCameraZoom();
+            const nextZoom = Math.min(Math.max(prevZoom * dy, 0.1), 20);
+
+            // Simple Center Zoom for smoothness
+            renderer.setCameraZoom(nextZoom);
         };
 
         return () => {
@@ -536,6 +540,23 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         gameCore.setModuleLibrary(modules, (updated) => core.updateModule(updated));
     }, [modules, isRendererReady]);
 
+    useEffect(() => {
+        const renderer = rendererRef.current;
+        if (!renderer || !isRendererReady) return;
+
+        let w = 0;
+        let h = 0;
+        switch (aspectRatio) {
+            case "1280x720": w = 1280; h = 720; break;
+            case "1920x1080": w = 1920; h = 1080; break;
+            case "1024x768": w = 1024; h = 768; break;
+            case "720x1280": w = 720; h = 1280; break;
+            case "1080x1920": w = 1080; h = 1920; break;
+            default: w = 0; h = 0; break;
+        }
+        renderer.setGuideFrame(w, h);
+    }, [aspectRatio, isRendererReady]);
+
     // Entry Style Colors
     const colors = {
         bgPrimary: '#0d1117',
@@ -574,6 +595,29 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 }}>
                     Camera
                 </span>
+
+                <select
+                    value={aspectRatio}
+                    onChange={(e) => core.setAspectRatio(e.target.value)}
+                    style={{
+                        background: colors.bgTertiary,
+                        color: colors.textPrimary,
+                        border: `1px solid ${colors.borderColor}`,
+                        borderRadius: '4px',
+                        padding: '2px 4px',
+                        fontSize: '11px',
+                        marginLeft: '8px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <option value="Free">Free Aspect</option>
+                    <option value="1280x720">1280x720 (16:9)</option>
+                    <option value="1920x1080">1920x1080 (16:9)</option>
+                    <option value="1024x768">1024x768 (4:3)</option>
+                    <option value="720x1280">720x1280 (9:16)</option>
+                    <option value="1080x1920">1080x1920 (9:16)</option>
+                </select>
 
                 {selected_asset?.tag === "Tile" && (
                     <div style={{
@@ -654,6 +698,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 <div ref={ref} style={{ width: '100%', height: '100%' }} />
                 <GameUIOverlay gameCore={gameCore} showHud={false} />
             </div>
-        </div>
+        </div >
     );
 }

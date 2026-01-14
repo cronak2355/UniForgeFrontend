@@ -37,6 +37,7 @@ class PhaserRenderScene extends Phaser.Scene {
     private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
     private spaceKey!: Phaser.Input.Keyboard.Key;
     private keyState: Record<string, boolean> = {};
+    private keysDownState: Record<string, boolean> = {};
 
     constructor() {
         super("PhaserRenderScene");
@@ -79,7 +80,10 @@ class PhaserRenderScene extends Phaser.Scene {
         EventBus.on((event) => {
             if (event.type === "KEY_DOWN") {
                 const code = event.data?.key as string;
-                if (code) this.keyState[code] = true;
+                if (code) {
+                    this.keyState[code] = true;
+                    this.keysDownState[code] = true;
+                }
             }
             if (event.type === "KEY_UP") {
                 const code = event.data?.key as string;
@@ -359,8 +363,12 @@ class PhaserRenderScene extends Phaser.Scene {
             jump: (this.spaceKey?.isDown === true) ||
                 (this.cursors?.up?.isDown === true) ||
                 (this.wasd?.W?.isDown === true),
-            keys: { ...this.keyState }
+            keys: { ...this.keyState },
+            keysDown: { ...this.keysDownState }
         };
+        // Reset keysDownState after consuming it for this frame
+        this.keysDownState = {};
+
         this.phaserRenderer.onInputState?.(input);
 
         if (this.phaserRenderer.isEditableFocused()) {
@@ -459,7 +467,7 @@ export class PhaserRenderer implements IRenderer {
     onPointerDown?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerMove?: (worldX: number, worldY: number, worldZ: number) => void;
     onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
-    onScroll?: (deltaY: number) => void;
+    onScroll?: (deltaY: number, screenX: number, screenY: number) => void;
     onUpdateCallback?: (time: number, delta: number) => void;
     onInputState?: (input: InputState) => void;
     getRuntimeContext?: () => RuntimeContext | null;
@@ -541,7 +549,7 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Lifecycle =====
 
-    async init(container: HTMLElement): Promise<void> {
+    async init(container: HTMLElement, options?: { width?: number, height?: number }): Promise<void> {
         this._container = container;
 
         const scene = new PhaserRenderScene();
@@ -550,7 +558,14 @@ export class PhaserRenderer implements IRenderer {
 
         const config: Phaser.Types.Core.GameConfig = {
             type: Phaser.AUTO,
-            scale: { mode: Phaser.Scale.RESIZE },
+            scale: options?.width && options?.height ? {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
+                width: options.width,
+                height: options.height,
+            } : {
+                mode: Phaser.Scale.RESIZE
+            },
             parent: container,
             scene: [scene],
             audio: { noAudio: true },
@@ -632,6 +647,12 @@ export class PhaserRenderer implements IRenderer {
             this.gridGraphics = null;
         }
 
+        // 3.1. 가이드 프레임 그래픽스 정리
+        if (this.guideGraphics) {
+            this.guideGraphics.destroy();
+            this.guideGraphics = null;
+        }
+
         // 3.5. 파티클 매니저 정리
         if (this.scene?.particleManager) {
             this.scene.particleManager.destroy();
@@ -658,6 +679,31 @@ export class PhaserRenderer implements IRenderer {
         this.onScroll = undefined;
 
         console.log("[PhaserRenderer] Destroyed - all resources cleaned up");
+    }
+
+    // ===== Guide Frame =====
+    private guideGraphics: Phaser.GameObjects.Graphics | null = null;
+
+    public setGuideFrame(width: number, height: number) {
+        if (!this.scene) return;
+
+        // Lazy init
+        if (!this.guideGraphics) {
+            this.guideGraphics = this.scene.add.graphics();
+            this.guideGraphics.setDepth(10000); // Top most
+            // this.guideGraphics.setScrollFactor(0); // REMOVED: In editor, we want it to move with camera
+        }
+
+        this.guideGraphics.clear();
+
+        if (width <= 0 || height <= 0) return;
+
+        // Draw White Frame
+        this.guideGraphics.lineStyle(2, 0xffffff, 1);
+        this.guideGraphics.strokeRect(0, 0, width, height);
+
+        // Optional: Label or semi-transparent fill?
+        // Just frame as requested.
     }
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
@@ -765,7 +811,12 @@ export class PhaserRenderer implements IRenderer {
         // UI Element Common Settings
         if (isUI) {
             const uiObj = obj as any;
-            if (uiObj.setScrollFactor) uiObj.setScrollFactor(0);
+
+            // REMOVED: We want UI to move with camera in Editor Mode for precise placement.
+            // Runtime usage should handle ScrollFactor(0) separately or we apply it only if isRuntimeMode.
+            if (this.isRuntimeMode && uiObj.setScrollFactor) {
+                uiObj.setScrollFactor(0);
+            }
 
             if (z < 100) uiObj.setDepth(100);
             else uiObj.setDepth(z);
@@ -1068,6 +1119,46 @@ export class PhaserRenderer implements IRenderer {
         return this.scene.cameras.main.zoom;
     }
 
+    /**
+     * 특정 화면 좌표를 기준으로 줌 설정
+     * @param screenX 화면 X (픽셀)
+     * @param screenY 화면 Y (픽셀)
+     * @param targetZoom 목표 줌 레벨
+     */
+    zoomAt(screenX: number, screenY: number, targetZoom: number): void {
+        if (!this.scene) return;
+        const cam = this.scene.cameras.main;
+
+        // 1. Get World Point BEFORE zoom
+        // Note: getWorldPoint returns the world coordinate that corresponds to the screen coordinate
+        // taking into account current zoom and scroll.
+        const worldPoint = cam.getWorldPoint(screenX, screenY);
+
+        // 2. Set Zoom
+        cam.setZoom(targetZoom);
+
+        // 3. Set Scroll to maintain Mouse anchor
+        // Formula: WorldX = (ScreenX - CamX) / CamZoom + CamScrollX
+        // We want CamScrollX = WorldX - (ScreenX - CamX) / CamZoom
+        // Usually cam.x is 0 (viewport offset).
+        cam.scrollX = worldPoint.x - (screenX - cam.x) / targetZoom;
+        cam.scrollY = worldPoint.y - (screenY - cam.y) / targetZoom;
+    }
+
+    setCameraScroll(x: number, y: number): void {
+        if (!this.scene) return;
+        this.scene.cameras.main.scrollX = x;
+        this.scene.cameras.main.scrollY = y;
+    }
+
+    getCameraScroll(): { x: number, y: number } {
+        if (!this.scene) return { x: 0, y: 0 };
+        return {
+            x: this.scene.cameras.main.scrollX,
+            y: this.scene.cameras.main.scrollY
+        };
+    }
+
     // ===== Coordinate Transformation =====
 
     /**
@@ -1257,32 +1348,40 @@ export class PhaserRenderer implements IRenderer {
             }
         };
 
+        // Wheel event - use same coordinate calculation as other pointer events
         const onWheel = (e: WheelEvent) => {
-            const result = getWorldPos(e.clientX, e.clientY);
-            if (result?.inside && this.onScroll) {
+            if (this.onScroll && canvas) {
                 e.preventDefault();
-                this.onScroll(e.deltaY);
+
+                // Calculate screen coordinates the same way as getWorldPos
+                const rect = canvas.getBoundingClientRect();
+                const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+                this.onScroll(e.deltaY, screenX, screenY);
             }
         };
 
         window.addEventListener("pointerdown", onPointerDown);
         window.addEventListener("pointermove", onPointerMove, { capture: true });
         window.addEventListener("pointerup", onPointerUp);
-        window.addEventListener("wheel", onWheel, { passive: false });
+
+        // Attach wheel to canvas directly
+        canvas.addEventListener("wheel", onWheel, { passive: false });
 
         // Cleanup on scene shutdown
         this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             window.removeEventListener("pointerdown", onPointerDown);
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);
-            window.removeEventListener("wheel", onWheel);
+            canvas.removeEventListener("wheel", onWheel);
         });
 
         this.scene.events.once(Phaser.Scenes.Events.DESTROY, () => {
             window.removeEventListener("pointerdown", onPointerDown);
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);
-            window.removeEventListener("wheel", onWheel);
+            canvas.removeEventListener("wheel", onWheel);
         });
     }
 

@@ -36,5 +36,6 @@ export function useEditorCoreSnapshot() {
         draggedAsset: typeof core.getDraggedAsset === "function" ? core.getDraggedAsset() : null,
         selectedEntity: typeof core.getSelectedEntity === "function" ? core.getSelectedEntity() : null,
         editorMode: typeof core.getEditorMode === "function" ? core.getEditorMode() : undefined,
+        aspectRatio: typeof core.getAspectRatio === "function" ? core.getAspectRatio() : "1280x720",
     };
 }

@@ -42,6 +42,8 @@ export class EditorState implements IGameState {
     // Global entities (scene-independent)
     private globalEntities: Map<string, EditorEntity> = new Map();
 
+    private aspectRatio: string = "1280x720"; // Default Aspect Ratio
+
     private selectedAsset: Asset | null = null;
     private draggedAsset: Asset | null = null;
     private selectedEntity: EditorEntity | null = null;
@@ -121,7 +123,8 @@ export class EditorState implements IGameState {
         const state = JSON.stringify({
             entities: Array.from(scene.entities.entries()),
             tiles: Array.from(scene.tiles.entries()),
-            globalEntities: Array.from(this.globalEntities.entries())
+            globalEntities: Array.from(this.globalEntities.entries()),
+            aspectRatio: this.aspectRatio
         });
 
         // If we are not at the end, truncate future history
@@ -168,6 +171,10 @@ export class EditorState implements IGameState {
 
             // Restore Global
             this.globalEntities = new Map(state.globalEntities);
+
+            if (state.aspectRatio) {
+                this.aspectRatio = state.aspectRatio;
+            }
 
             // Restore selection if possible (check if ID exists)
             if (this.selectedEntity && !scene.entities.has(this.selectedEntity.id)) {
@@ -623,6 +630,15 @@ export class EditorState implements IGameState {
     sendContextToEditorModeStateMachine(ctx: EditorContext) {
         if (ctx.currentMode && ctx.currentMode !== this.editorMode) {
             this.editorMode = ctx.currentMode;
+            this.notify();
+        }
+    }
+
+    getAspectRatio() { return this.aspectRatio; }
+    setAspectRatio(ratio: string) {
+        if (this.aspectRatio !== ratio) {
+            this.snapshot();
+            this.aspectRatio = ratio;
             this.notify();
         }
     }

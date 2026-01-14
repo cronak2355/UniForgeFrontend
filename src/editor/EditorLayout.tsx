@@ -810,6 +810,7 @@ function EditorLayoutInner() {
                                     type="file"
                                     accept=".json"
                                     onChange={(e) => {
+
                                         const file = e.target.files?.[0];
                                         if (!file) return;
                                         const reader = new FileReader();
@@ -1054,10 +1055,10 @@ function EditorLayoutInner() {
                             }}
                         />
                     ) : (
-                    <RunTimeCanvas
-                        key={`run-${runSession}`}
-                        onRuntimeEntitySync={handleRuntimeEntitySync}
-                    />
+                        <RunTimeCanvas
+                            key={`run-${runSession}`}
+                            onRuntimeEntitySync={handleRuntimeEntitySync}
+                        />
                     )}
 
                     {/* Asset Panel (Center Bottom) */}

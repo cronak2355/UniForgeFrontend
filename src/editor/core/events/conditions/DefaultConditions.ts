@@ -225,6 +225,17 @@ ConditionRegistry.register("SignalFlag", (ctx: ActionContext, params: Record<str
     return ctx.entityContext?.signals.flags[key] === true;
 });
 
+ConditionRegistry.register("InputDown", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const key = (params.key as string) ?? "";
+    if (!key) return false;
+
+    // Check keysDown state from InputSystem (just pressed this frame)
+    if (ctx.input?.keysDown?.[key] === true) {
+        return true;
+    }
+    return false;
+});
+
 console.log(
     "[DefaultConditions] 14 conditions registered: IsGrounded, IsAlive, HpBelow, HpAbove, InRange, OutOfRange, VarEquals, VarNotEquals, VarGreaterThan, VarGreaterOrEqual, VarLessThan, VarLessOrEqual, SignalFlag, Input*"
 );
