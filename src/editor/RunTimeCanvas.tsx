@@ -158,7 +158,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
 
             // Initialize renderer with fixed game size for runtime
             await renderer.init(ref.current as HTMLElement, { width: gameWidth, height: gameHeight });
-            await renderer.init(ref.current as HTMLElement);
             if (!active) return;
             rendererReadyRef.current = true;
 
