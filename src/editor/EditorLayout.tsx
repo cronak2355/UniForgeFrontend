@@ -199,11 +199,35 @@ function EditorLayoutInner() {
                     }
                 }
 
-                // 3. If scene is still empty after loading, inject demo entities
+                // 3. If scene is still empty after loading, add a default camera (essential for viewing)
                 const scene = core.getCurrentScene();
                 if (scene && scene.entities.size === 0) {
-                    console.log("[EditorLayout] Empty scene detected, loading demo entities");
-                    (core as any).loadDemoScene?.();
+                    console.log("[EditorLayout] Empty scene detected. Adding default camera.");
+                    // Add default camera
+                    const cameraEntity = {
+                        id: crypto.randomUUID(),
+                        name: "Main Camera",
+                        active: true,
+                        position: { x: 0, y: 0, z: -10 },
+                        rotation: { x: 0, y: 0, z: 0 },
+                        scale: { x: 1, y: 1, z: 1 },
+                        components: [
+                            {
+                                type: "Camera",
+                                props: {
+                                    fov: 60,
+                                    size: 5,
+                                    isPerspective: true,
+                                    zoom: 1,
+                                    checkLayers: true // default
+                                }
+                            }
+                        ],
+                        variables: [],
+                        scripts: []
+                    };
+                    core.addEntity(cameraEntity as any);
+                    core.setSelectedEntity(cameraEntity as any);
                 }
             } catch (err) {
                 console.error("[EditorLayout] Critical error in initEditor", err);
