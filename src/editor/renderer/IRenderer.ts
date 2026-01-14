@@ -5,6 +5,8 @@
  * Phaser, Three.js 등 다양한 엔진으로 구현할 수 있습니다.
  */
 
+import type { EditorEvent } from "../types/Event";
+
 /**
  * 3D 좌표 (z축 포함)
  * Phaser에서는 z를 setDepth()로 매핑
@@ -31,6 +33,7 @@ export interface SpawnOptions {
     width?: number;
     height?: number;
     color?: number;
+    events?: EditorEvent[];
 }
 
 /**

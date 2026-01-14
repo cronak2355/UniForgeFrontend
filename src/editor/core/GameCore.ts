@@ -12,6 +12,7 @@ import type {
     SignalComponent,
     LogicComponent
 } from "../types/Component";
+import type { EditorEvent } from "../types/Event";
 
 import type { Trigger } from "../types/Trigger";
 import type { Condition } from "../types/Condition";
@@ -47,8 +48,10 @@ export interface GameEntity {
     width?: number;
     height?: number;
     /** ?뷀떚????븷 (寃뚯엫 濡쒖쭅 ?寃잜똿?? */
+    /** ?뷀떚????븷 (寃뚯엫 濡쒖쭅 ?€寃잜똿?? */
     role: string;
     modules?: ModuleGraph[];
+    events?: EditorEvent[];
 }
 
 /**
@@ -71,6 +74,7 @@ export interface CreateEntityOptions {
     color?: number;
     role?: string;
     modules?: ModuleGraph[];
+    events?: EditorEvent[];
 }
 
 interface TriggerRuntime {
@@ -121,6 +125,7 @@ export class GameCore {
     private moduleLibrary: ModuleGraph[] = [];
     private onModuleUpdate?: (module: ModuleGraph) => void;
     private logicActionStates: Map<string, LogicActionState> = new Map();
+    private clickedEntities: Set<string> = new Set();
 
     // ===== 援щ룆??(?곹깭 蹂寃??뚮┝) =====
     private listeners: Set<() => void> = new Set();
@@ -190,6 +195,14 @@ export class GameCore {
             onModuleVarChange: (entityId, moduleId, name, value) =>
                 this.handleModuleVarChange(entityId, moduleId, name, value),
         });
+
+        // Initialize click handler
+        this.renderer.onEntityClick = (id, x, y) => this.handleEntityClick(id, x, y);
+    }
+
+    private handleEntityClick(id: string, x: number, y: number) {
+        console.log(`[GameCore] Entity clicked: ${id}`);
+        this.clickedEntities.add(id);
     }
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
@@ -236,6 +249,7 @@ export class GameCore {
             components: options.components ?? [],
             role: options.role ?? "neutral",
             modules: options.modules ?? [],
+            events: options.events ?? [],
             width: options.width ?? 40,
             height: options.height ?? 40,
         };
@@ -249,6 +263,7 @@ export class GameCore {
             width: options.width,
             height: options.height,
             color: options.color,
+            events: options.events,
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotationZ);
         this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
@@ -809,6 +824,9 @@ export class GameCore {
                 console.error("[ModuleRuntime] Failed", result);
             }
         }
+
+        // Clear clicks at end of frame
+        this.clickedEntities.clear();
     }
 
     private isTriggerActivated(
@@ -1028,6 +1046,9 @@ export class GameCore {
         switch (trigger.type) {
             case "OnUpdate":
                 return true;
+
+            case "OnClick":
+                return this.clickedEntities.has(entity.id);
 
             case "OnStart":
                 if (!componentId) return false;

@@ -113,6 +113,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 components: e.components,
                 role: e.role,
                 modules: e.modules,
+                events: e.events,
             });
         }
     };
