@@ -370,8 +370,14 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
-            if (cameraEntity && this.cameras?.main) {
-                this.cameras.main.centerOn(cameraEntity.x, cameraEntity.y);
+            try {
+                if (cameraEntity && this.cameras?.main) {
+                    const cx = Number(cameraEntity.x) || 0;
+                    const cy = Number(cameraEntity.y) || 0;
+                    this.cameras.main.centerOn(cx, cy);
+                }
+            } catch (e) {
+                console.warn("[PhaserRenderer] Camera sync error:", e);
             }
         }
 
