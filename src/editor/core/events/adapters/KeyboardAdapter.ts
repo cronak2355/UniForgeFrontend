@@ -8,7 +8,7 @@ export class KeyboardAdapter {
         }
 
         scene.input.keyboard.on('keydown', (event: KeyboardEvent) => {
-            // 반복 입력 방지 옵션이 필요할 수 있음
+            if (event.repeat) return; // Prevent auto-repeat from firing KEY_DOWN multiple times
             EventBus.emit("KEY_DOWN", { key: event.code });
         });
 
