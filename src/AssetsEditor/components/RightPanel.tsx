@@ -66,6 +66,10 @@ export function RightPanel() {
   // 🦴 리깅 모달 상태
   const [showRigger, setShowRigger] = useState(false);
 
+  // Asset/Motion Type State (Restored for Export)
+  const [assetType, setAssetType] = useState<'character' | 'object' | 'effect'>('character');
+  const [motionType, setMotionType] = useState('explode');
+
   // ==================== Animation Preview ====================
 
   useEffect(() => {

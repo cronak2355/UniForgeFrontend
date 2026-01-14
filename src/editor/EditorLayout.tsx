@@ -790,7 +790,7 @@ function EditorLayoutInner() {
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
                         description: (asset as any).description
                     });
-                    console.log("Auto-imported asset:", asset.name);
+                    console.log("Auto-imported asset:", (asset as any).name);
                 }
             } catch (e) {
                 console.error("Failed to auto-load new asset:", e);
@@ -1498,7 +1498,7 @@ function EditorLayoutInner() {
                     style={{
                         position: 'fixed',
                         bottom: '24px',
-                        right: '72px',
+                        right: '360px', // Moved left to avoid RightPanel (320px) overlap
                         padding: '12px 24px',
                         background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                         color: 'white',
@@ -1507,7 +1507,7 @@ function EditorLayoutInner() {
                         boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
                         border: '1px solid rgba(255,255,255,0.2)',
                         cursor: 'pointer',
-                        zIndex: 100,
+                        zIndex: 2000,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
