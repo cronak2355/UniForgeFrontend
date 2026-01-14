@@ -487,17 +487,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 }}>
                     {fps} FPS
                 </span>
-                <span style={{
-                    fontSize: '12px',
-                    color: colors.accentLight,
-                    marginLeft: 'auto',
-                    padding: '4px 8px',
-                    background: colors.bgTertiary,
-                    borderRadius: '4px',
-                    fontFamily: 'monospace'
-                }}>
-                    {fps} FPS
-                </span>
             </div>
 
             <div style={{

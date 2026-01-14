@@ -579,8 +579,16 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             case "1080x1920": w = 1080; h = 1920; break;
             default: w = 0; h = 0; break;
         }
-        renderer.setGuideFrame(w, h);
-    }, [aspectRatio, isRendererReady]);
+        let cx = 0;
+        let cy = 0;
+        const mainCamera = entities.find(e => e.name === "Main Camera");
+        if (mainCamera) {
+            cx = mainCamera.x;
+            cy = mainCamera.y;
+        }
+
+        renderer.setGuideFrame(w, h, cx, cy);
+    }, [aspectRatio, isRendererReady, entities]);
 
     // Entry Style Colors
     const colors = {
