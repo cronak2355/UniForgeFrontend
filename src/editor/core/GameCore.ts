@@ -15,6 +15,8 @@ import { ExecutionPipeline } from "./ExecutionPipeline";
 import { RuntimeEntity } from "./RuntimeEntity";
 import { RuntimeComponent } from "./RuntimeComponent";
 import { TransformSystem } from "./systems/TransformSystem";
+import { LogicSystem } from "./systems/LogicSystem";
+import { PhysicsSystem } from "./systems/PhysicsSystem";
 import { type GameConfig, defaultGameConfig } from "./GameConfig";
 import { ModuleRuntime } from "./flow/ModuleRuntime"; // Keep for now, might need refactor later
 import type { ModuleGraph, ModuleLiteral } from "../types/Module";
@@ -69,11 +71,7 @@ export class GameCore {
         this.runtimeContext = new RuntimeContext();
         this.pipeline = new ExecutionPipeline(this.runtimeContext);
 
-        // 2. Register Systems
-        this.pipeline.addSystem(new TransformSystem());
-        // TODO: Add more systems (Logic, Physics, etc.)
-
-        // 3. Initialize Legacy Module Wrapper
+        // 2. Initialize Legacy Module Wrapper
         // This connects the legacy module system specific lookups to the new Data Context
         this.moduleRuntime = new ModuleRuntime({
             getEntity: (id) => {
@@ -107,6 +105,11 @@ export class GameCore {
             onModuleVarChange: (entityId, moduleId, name, value) =>
                 this.handleModuleVarChange(entityId, moduleId, name, value),
         });
+
+        // 3. Register Systems
+        this.pipeline.addSystem(new TransformSystem());
+        this.pipeline.addSystem(new PhysicsSystem());
+        this.pipeline.addSystem(new LogicSystem(this.moduleRuntime));
 
         // 4. Setup Global Events
         this.setupEventHandlers();
@@ -174,22 +177,9 @@ export class GameCore {
     update(time: number, deltaTime: number): void {
         const dt = deltaTime / 1000;
 
-        // 1. Physics Update (Constraint: Must run before logic for now due to Legacy Physics)
-        collisionSystem.update();
-
-        // 2. Pipeline Execution
+        // Pipeline Execution
+        // The pipeline now manages Input -> Logic -> Physics -> LateUpdate order via its Systems list.
         this.pipeline.executeFrame(dt);
-
-        // 3. Module/Legacy Logic Update (Deferred integration pending LogicSystem)
-        // We run this AFTER pipeline or AS a system. For now, let's keep it here 
-        // until we wrap it in a proper System.
-        // TODO: Move to LogicSystem
-        const results = this.moduleRuntime.update(time, dt);
-        for (const result of results) {
-            if (result.status === "failed") {
-                // console.error("[ModuleRuntime] Failed", result);
-            }
-        }
     }
 
     /**
