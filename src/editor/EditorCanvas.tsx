@@ -476,6 +476,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 gameCore.removeEntity(id);
             }
         }
+        gameCore.flush(); // Sync removals
 
         for (const ent of entities) {
             const prevEnt = prevEntitiesMapRef.current.get(ent.id);
@@ -498,6 +499,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             if (gameCore.hasEntity(ent.id) && needsRespawn) {
                 gameCore.removeEntity(ent.id);
+                gameCore.flush(); // Sync removal immediately so we can recreate
             }
 
             if (!gameCore.hasEntity(ent.id)) {
@@ -525,6 +527,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 }
             }
         }
+        gameCore.flush(); // Sync final state
 
         // Update previous entities map for next render
         prevEntitiesMapRef.current = new Map(entities.map(e => [e.id, e]));
