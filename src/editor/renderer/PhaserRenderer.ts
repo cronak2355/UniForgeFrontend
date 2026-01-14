@@ -359,45 +359,19 @@ class PhaserRenderScene extends Phaser.Scene {
             //     this.frameCount = 0;
             // }
 
-            // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
-            const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
-            // Optimized: Use RuntimeContext Iterator (No Array allocation)
-            let playerEntity: any = null;
+            // Camera Sync: Find "Main Camera" and sync position
+            let cameraEntity: any = null;
 
-            // 1. Search by Tag & Role (Single pass)
+            // Search for Main Camera
             for (const e of runtimeContext.entities.values()) {
-                // Check Tags
-                // Note: RuntimeEntity definition might need 'tags' property if it's substantial
-                // Assuming adaptation or direct property exist.
-                // If not, we might need variables check. 
-                // Let's assume RuntimeEntity mirrors needed props or we use variables.
-                // Actually, RuntimeEntity doesn't have tags in interface yet, checking implementation...
-                // It usually relies on variables or direct prop. 
-                // Let's check variables for "tags" or "role". 
-                // We added 'role' to RuntimeEntity interface!
-
-                if (cameraRoles.includes(e.role ?? "")) {
-                    playerEntity = e;
+                if (e.name === "Main Camera") {
+                    cameraEntity = e;
                     break;
-                }
-
-                // Name fallback
-                if (e.name?.toLowerCase().includes('player')) {
-                    if (!playerEntity) playerEntity = e; // Keep seeking better match? Or just take it.
                 }
             }
 
-            if (playerEntity) {
-                const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
-                if (playerObj && this.cameras?.main) {
-                    // 부드러운 카메라 추적
-                    const cam = this.cameras.main;
-                    const targetX = playerObj.x - cam.width / 2;
-                    const targetY = playerObj.y - cam.height / 2;
-                    const lerp = 0.1;
-                    cam.scrollX += (targetX - cam.scrollX) * lerp;
-                    cam.scrollY += (targetY - cam.scrollY) * lerp;
-                }
+            if (cameraEntity && this.cameras?.main) {
+                this.cameras.main.centerOn(cameraEntity.x, cameraEntity.y);
             }
         }
 
