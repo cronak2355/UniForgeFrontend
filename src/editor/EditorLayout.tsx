@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef, useCallback } from "react";
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
+import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
 
@@ -20,10 +21,12 @@ import { createGame, updateGameThumbnail } from "../services/gameService";
 import { authService } from "../services/authService";
 import { assetService } from "../services/assetService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
-import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
+import { AssetLibraryModal } from "./AssetLibraryModal";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import type { EditorVariable } from "./types/Variable";
+import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal"; // Import SaveGameModal
+import { saveGameVersion, updateGameInfo } from "../services/gameService"; // Import new service methods
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -141,23 +144,27 @@ function EditorLayoutInner() {
             try {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
-                if (gameId) {
+                if (gameId && gameId !== "undefined") {
                     try {
                         const sceneJson = await loadScene(gameId);
                         if (sceneJson) {
                             console.log("[EditorLayout] Loaded scene from server");
-                            // Validate assets and entities similarly to autosave
-                            // REMOVED: S3 URL filtering that was deleting production assets
-                            // if (sceneJson.assets) {
-                            //     sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
-                            // }
-
                             core.clear();
                             SceneSerializer.deserialize(sceneJson, core);
                             loadedFromServer = true;
+                        } else {
+                            // Loaded but empty (New Game)
+                            console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+                            core.clear();
+                            loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
                         }
                     } catch (e) {
-                        console.warn("[EditorLayout] Server load failed, falling back to local autosave:", e);
+                        console.warn("[EditorLayout] Server load failed:", e);
+                        // If server load fails (e.g. 404 Not Found because no version exists yet), 
+                        // we should treat it as a fresh new game, NOT fall back to local autosave.
+                        console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                        core.clear();
+                        loadedFromServer = true;
                     }
                 }
 
@@ -198,11 +205,35 @@ function EditorLayoutInner() {
                     }
                 }
 
-                // 3. If scene is still empty after loading, inject demo entities
+                // 3. If scene is still empty after loading, add a default camera (essential for viewing)
                 const scene = core.getCurrentScene();
                 if (scene && scene.entities.size === 0) {
-                    console.log("[EditorLayout] Empty scene detected, loading demo entities");
-                    (core as any).loadDemoScene?.();
+                    console.log("[EditorLayout] Empty scene detected. Adding default camera.");
+                    // Add default camera
+                    const cameraEntity = {
+                        id: crypto.randomUUID(),
+                        name: "Main Camera",
+                        active: true,
+                        position: { x: 0, y: 0, z: -10 },
+                        rotation: { x: 0, y: 0, z: 0 },
+                        scale: { x: 1, y: 1, z: 1 },
+                        components: [
+                            {
+                                type: "Camera",
+                                props: {
+                                    fov: 60,
+                                    size: 5,
+                                    isPerspective: true,
+                                    zoom: 1,
+                                    checkLayers: true // default
+                                }
+                            }
+                        ],
+                        variables: [],
+                        scripts: []
+                    };
+                    core.addEntity(cameraEntity as any);
+                    core.setSelectedEntity(cameraEntity as any);
                 }
             } catch (err) {
                 console.error("[EditorLayout] Critical error in initEditor", err);
@@ -265,6 +296,91 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
+
+    // Save Game Modal State
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isSavingProject, setIsSavingProject] = useState(false);
+
+    const handleSaveProject = async (title: string, description: string) => {
+        setIsSavingProject(true);
+        try {
+            const sceneJson = SceneSerializer.serialize(core);
+            let id = gameId;
+
+            // If ID is invalid (undefined or empty), create a new game
+            if (!id) {
+                const user = await authService.getCurrentUser();
+                if (!user) {
+                    alert("로그인이 필요합니다. (Login required to create a game)");
+                    setIsSavingProject(false);
+                    return;
+                }
+                const newGame = await createGame(user.id, title, description);
+                id = String(newGame.gameId);
+                navigate(`/editor/${id}`, { replace: true });
+            } else {
+                // Update existing game info
+                await updateGameInfo(id, title, description);
+            }
+
+            // Save Version (Scene Data)
+            // Use existing saveScenes or new saveGameVersion? 
+            // saveScenes calls POST /games/{id}/versions, which is what we want.
+            // Let's use the one imported or keep using logic.
+            // gameService.saveGameVersion is essentially the same as api/sceneApi.saveScenes.
+            // Let's use the new one for consistency if we imported it.
+            await saveGameVersion(id, sceneJson);
+
+            // Capture and Upload Thumbnail
+            try {
+                const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
+                if (canvasEl) {
+                    const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
+                    const response = await fetch(thumbnailDataUrl);
+                    const blob = await response.blob();
+                    const contentType = 'image/png';
+                    const token = localStorage.getItem('token');
+
+                    const presignParams = new URLSearchParams({
+                        ownerType: 'GAME',
+                        ownerId: id,
+                        imageType: 'thumbnail',
+                        contentType: contentType
+                    });
+                    const presignRes = await fetch(
+                        `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
+                        {
+                            method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        }
+                    );
+
+                    if (presignRes.ok) {
+                        const presignData = await presignRes.json();
+                        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+
+                        if (uploadUrl) {
+                            await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
+                            const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                            // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                            await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Thumbnail upload failed:", err);
+            }
+
+            alert("프로젝트가 성공적으로 저장되었습니다!");
+            setIsSaveModalOpen(false);
+        } catch (e) {
+            console.error("Save failed:", e);
+            alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
+        } finally {
+            setIsSavingProject(false);
+        }
+    };
+
     const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
         const activeEntity = localSelectedEntity ?? selectedEntity;
@@ -567,13 +683,20 @@ function EditorLayoutInner() {
 
                 // We need to ensure we have the URL.
                 // assetService.getAsset might return url or imageUrl depending on endpoint.
-                const url = (asset as any).imageUrl || asset.url;
+                const url = (asset as any).imageUrl || (asset as any).url;
 
                 if (url) {
+                    const resolvedTag =
+                        typeof (asset as any).tag === 'string' && (asset as any).tag.length > 0
+                            ? (asset as any).tag
+                            : typeof (asset as any).genre === 'string' && (asset as any).genre.length > 0
+                                ? (asset as any).genre
+                                : 'Character';
+
                     core.addAsset({
-                        id: asset.id,
-                        tag: asset.tag || 'Character',
-                        name: asset.name,
+                        id: (asset as any).id,
+                        tag: resolvedTag,
+                        name: (asset as any).name,
                         url: url,
                         idx: -1,
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
@@ -695,90 +818,9 @@ function EditorLayoutInner() {
                             <MenuItem label="Load Project" onClick={() => {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
-                            <MenuItem label="Save Project" onClick={async () => {
-                                try {
-                                    const sceneJson = SceneSerializer.serialize(core);
-                                    // Use ID as string directly (UUID support)
-                                    let id = gameId;
-
-                                    // If ID is invalid (undefined or empty), prompt to create a new game
-                                    if (!id) {
-                                        const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
-                                        if (!title) return; // User cancelled
-
-                                        // Try to get real authorId from authService
-                                        const user = await authService.getCurrentUser();
-                                        if (!user) {
-                                            alert("로그인이 필요합니다. (Login required to create a game)");
-                                            return;
-                                        }
-
-                                        // createGame now expects string authorId and returns string gameId (in GameSummary)
-                                        // But wait, createGame returns GameSummary where gameId might be number if I didn't update the interface?
-                                        // I updated createGame to return Promise<GameSummary>.
-                                        // Let's assume GameSummary.gameId is string or we cast it.
-                                        const newGame = await createGame(user.id, title, "Created from Editor");
-                                        id = String(newGame.gameId);
-
-                                        // Silent navigation to correct URL
-                                        navigate(`/editor/${id}`, { replace: true });
-                                    }
-
-                                    await saveScenes(id, sceneJson);
-
-                                    // Capture thumbnail from canvas
-                                    try {
-                                        const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
-                                        if (canvasEl) {
-                                            const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
-                                            // Convert to blob and upload
-                                            const response = await fetch(thumbnailDataUrl);
-                                            const blob = await response.blob();
-                                            const contentType = 'image/png';
-                                            const token = localStorage.getItem('token');
-
-                                            // Use existing presign endpoint for game thumbnail
-                                            const presignParams = new URLSearchParams({
-                                                ownerType: 'GAME',
-                                                ownerId: id,
-                                                imageType: 'thumbnail',
-                                                contentType: contentType
-                                            });
-                                            const presignRes = await fetch(
-                                                `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
-                                                {
-                                                    method: 'POST',
-                                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
-                                                }
-                                            );
-
-                                            if (presignRes.ok) {
-                                                const presignData = await presignRes.json();
-                                                const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-
-                                                if (uploadUrl) {
-                                                    await fetch(uploadUrl, {
-                                                        method: 'PUT',
-                                                        headers: { 'Content-Type': contentType },
-                                                        body: blob,
-                                                    });
-
-                                                    // Update game with thumbnail URL (use CloudFront or API proxy URL)
-                                                    const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                                                    await updateGameThumbnail(id, thumbnailUrl);
-                                                    console.log('[EditorLayout] Thumbnail uploaded successfully');
-                                                }
-                                            }
-                                        }
-                                    } catch (thumbnailError) {
-                                        console.warn('[EditorLayout] Thumbnail upload failed (non-critical):', thumbnailError);
-                                    }
-
-                                    alert("성공적으로 저장되었습니다! (Saved to server)");
-                                } catch (e) {
-                                    console.error(e);
-                                    alert("Failed to save project: " + String(e));
-                                }
+                            <MenuItem label="Save Project" onClick={() => {
+                                console.error("[EditorLayout] Save Project Clicked. Setting isSaveModalOpen to true.");
+                                setIsSaveModalOpen(true);
                             }} />
                             <MenuItem
                                 label="Export"
@@ -1078,16 +1120,10 @@ function EditorLayoutInner() {
                             actionLabels={{}}
                             onCreateVariable={handleCreateActionVariable}
                             onUpdateVariable={handleUpdateModuleVariable}
-                            onDeleteAsset={async (asset) => {
-                                try {
-                                    const token = authService.getToken();
-                                    await assetService.deleteAsset(asset.id, token);
-                                    // Refresh assets
-                                    core.setAssets(assets.filter(a => a.id !== asset.id));
-                                } catch (e) {
-                                    console.error("Failed to delete asset", e);
-                                    alert("Failed to delete asset");
-                                }
+                            onDeleteAsset={(asset) => {
+                                // Just remove from local editor, do not delete from S3
+                                const currentAssets = Array.from(core.getAssets());
+                                core.setAssets(currentAssets.filter(a => a.id !== asset.id));
                             }}
                         />
                     </div>
@@ -1116,7 +1152,12 @@ function EditorLayoutInner() {
                     }}>
                         Inspector
                     </div>
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {/* Asset Animation Settings (when asset is selected) */}
+                        {selectedAsset && (
+                            <AssetAnimationSettings asset={selectedAsset} />
+                        )}
+                        {/* Entity Inspector */}
                         {localSelectedEntity && (
                             <InspectorPanel
                                 entity={localSelectedEntity}

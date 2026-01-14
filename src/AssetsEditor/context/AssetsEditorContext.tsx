@@ -125,6 +125,9 @@ export interface AssetsEditorContextType {
   deleteAnimation: (name: string) => void;
   renameAnimation: (oldName: string, newName: string) => void;
 
+  // Derived animations array for easier consumption
+  animations: Array<{ name: string; frames: number[]; fps: number; loop: boolean }>;
+
   currentAssetId: string | null;
   setCurrentAssetId: (id: string | null) => void;
 }
@@ -1138,12 +1141,8 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     setIsLoading,
     featherAmount,
     setFeatherAmount,
-    downloadWebP: async (filename: string) => {
-      // stub
-    },
-    exportAsSpriteSheet: async (options) => {
-      // stub or link to service if needed
-    },
+    downloadWebP,
+    exportAsSpriteSheet,
     saveToLibrary,
     assets,
     deleteAsset,
@@ -1155,6 +1154,13 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     addAnimation,
     deleteAnimation,
     renameAnimation,
+    // Derived animations array from animationMap
+    animations: Object.entries(animationMap).map(([name, data]) => ({
+      name,
+      frames: data.frames.map((_, i) => i),
+      fps: data.fps,
+      loop: data.loop
+    })),
     currentAssetId,
     setCurrentAssetId,
     currentAssetMetadata,

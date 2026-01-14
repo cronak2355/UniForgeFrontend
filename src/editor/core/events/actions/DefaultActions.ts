@@ -406,6 +406,7 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
     let targetX = params.targetX as number | undefined;
     let targetY = params.targetY as number | undefined;
 
+    // Priority 1: targetId (specific entity)
     if (params.targetId) {
         const targetObj = renderer.getGameObject?.(params.targetId as string);
         if (targetObj) {
@@ -414,8 +415,23 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
         }
     }
 
+    // Priority 2: targetRole (find nearest entity with that role)
     if (targetX === undefined || targetY === undefined) {
-        console.warn("[Action] FireProjectile: No target specified");
+        const targetRole = params.targetRole as string | undefined;
+        if (targetRole) {
+            const gameCore = ctx.globals?.gameCore;
+            if (gameCore?.getNearestEntityByRole) {
+                const nearest = gameCore.getNearestEntityByRole(targetRole, ownerObj.x, ownerObj.y, ownerId);
+                if (nearest) {
+                    targetX = nearest.x;
+                    targetY = nearest.y;
+                }
+            }
+        }
+    }
+
+    if (targetX === undefined || targetY === undefined) {
+        // No target found - silent return (common in bullet hell when no enemies exist)
         return;
     }
 
@@ -499,6 +515,27 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     if (!varName) return;
 
     setVar(entity, varName, value);
+});
+
+// IncrementVar: Add/subtract amount from a variable (for timers, counters, etc.)
+ActionRegistry.register("IncrementVar", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const entity = getEntity(ctx);
+    if (!entity) return;
+
+    const varName = params.name as string;
+    if (!varName) return;
+
+    // Get current value
+    const currentVar = entity.variables?.find(v => v.name === varName);
+    const currentValue = typeof currentVar?.value === "number" ? currentVar.value : 0;
+
+    // Get amount (default to deltaTime for timer usage)
+    const dt = (ctx.eventData.dt as number) ?? 0.016;
+    const amount = (params.amount as number) ?? dt;
+
+    // Calculate new value
+    const newValue = currentValue + amount;
+    setVar(entity, varName, newValue);
 });
 
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {

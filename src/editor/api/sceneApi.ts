@@ -1,6 +1,6 @@
 import type { SceneJSON, GameDataJSON } from "../core/SceneSerializer";
 
-const API_BASE = "https://uniforge.kr/api";
+const API_BASE = "/api";
 
 export async function saveScenes(
     gameId: string,
@@ -55,7 +55,7 @@ export async function loadScene(
 
     // Check if response is HTML (e.g. 404 page from frontend server)
     if (text.trim().startsWith("<")) {
-        console.warn("[sceneApi] Received HTML instead of JSON. Treating as empty/404.");
+        console.log("[sceneApi] New project detected (server returned HTML/404). Starting fresh.");
         return null;
     }
 

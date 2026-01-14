@@ -8,6 +8,7 @@ export interface User {
     name: string;
     provider: 'LOCAL' | 'GOOGLE';
     profileImage: string | null;
+    role: 'USER' | 'ADMIN';
 }
 
 export interface AuthResponse {

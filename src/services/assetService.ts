@@ -1,9 +1,11 @@
+import { apiClient } from './apiClient';
+
 export interface UploadedAssetData {
     id: string;
     url: string;
     name: string;
     tag: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
 }
 
 export const assetService = {
@@ -12,7 +14,7 @@ export const assetService = {
         name: string,
         tag: string,
         token: string | null,
-        metadata?: any,
+        metadata?: Record<string, unknown>,
         isPublic: boolean = true
     ): Promise<UploadedAssetData> {
         const contentType = file.type || "application/octet-stream";
@@ -46,60 +48,42 @@ export const assetService = {
             });
         }
 
-        // 2. PROD MODE: Full Chain
+        // 2. PROD/API MODE: Full Chain via apiClient
 
-        // Step A: Create Asset Entity to get a real ID
-        const createRes = await fetch("https://uniforge.kr/api/assets", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+        // Step A: Create Asset Entity
+
+        const assetEntity = await apiClient.request<{ id: string; name: string }>('/assets', {
+            method: 'POST',
             body: JSON.stringify({
                 name: name,
                 description: metadata ? JSON.stringify(metadata) : "Uploaded from Asset Editor",
                 genre: tag, // Map tag to genre
                 isPublic: isPublic,
                 price: 0
-            }),
+            })
         });
 
-        if (!createRes.ok) {
-            const msg = await createRes.text();
-            throw new Error(`Failed to create asset entity: ${msg}`);
-        }
-
-        const assetEntity = await createRes.json();
         const assetId = assetEntity.id;
         const versionId = "1"; // Default version for now
 
         // Step B: Get Upload URL
-        const imageType = "base"; // Use base for the main asset file
+        const imageType = "base";
         const params = new URLSearchParams({
             contentType,
             imageType,
         });
 
-        const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+        // This endpoint returns a map { uploadUrl: ..., s3Key: ... }
+        const presignData = await apiClient.request<{ uploadUrl?: string; presignedUrl?: string; url?: string; s3Key?: string; key?: string }>(
+            `/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`
+        );
 
-        const presignRes = await fetch(requestUrl, {
-            headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-        });
-
-        if (!presignRes.ok) {
-            const message = await presignRes.text();
-            throw new Error(message || "Failed to get upload URL.");
-        }
-
-        const presignData = await presignRes.json();
         const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
         if (!uploadUrl) {
             throw new Error("Upload URL missing in response.");
         }
 
-        // Step C: Upload to S3
+        // Step C: Upload to S3 (Direct fetch required as this is S3, not our API)
         const uploadRes = await fetch(uploadUrl, {
             method: "PUT",
             headers: { "Content-Type": contentType },
@@ -107,7 +91,7 @@ export const assetService = {
         });
 
         if (!uploadRes.ok) {
-            throw new Error("Upload failed.");
+            throw new Error("Upload to S3 failed.");
         }
 
         const extractS3Key = (url: string) => {
@@ -126,43 +110,29 @@ export const assetService = {
         }
 
         // Step D: Register Image
-        const imageRes = await fetch("https://uniforge.kr/api/images", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+        await apiClient.request('/images', {
+            method: 'POST',
             body: JSON.stringify({
                 ownerType: "ASSET",
                 ownerId: assetId,
                 imageType,
                 s3Key,
                 contentType,
-            }),
-        });
-
-        if (!imageRes.ok) {
-            const message = await imageRes.text();
-            throw new Error(message || "Failed to register image.");
-        }
-
-        // Step E: Update Asset with the Proxy URL
-        // The backend proxy endpoint for S3 images
-        const finalAssetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-
-        const patchRes = await fetch(`https://uniforge.kr/api/assets/${assetId}`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-                imageUrl: finalAssetUrl
             })
         });
 
-        if (!patchRes.ok) {
-            console.warn("Failed to patch asset with image URL, but upload succeeded.");
+        // Step E: Update Asset with the Proxy URL
+        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+
+        try {
+            await apiClient.request(`/assets/${assetId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    imageUrl: finalAssetUrl
+                })
+            });
+        } catch (e) {
+            console.warn("Failed to patch asset with image URL, but upload succeeded.", e);
         }
 
         console.log(`[assetService] Asset Created & Uploaded: ${assetId}, URL: ${finalAssetUrl}`);
@@ -179,10 +149,10 @@ export const assetService = {
     async updateAsset(
         assetId: string,
         file: File | Blob,
-        metadata: any,
+        metadata: Record<string, unknown>,
         token: string | null
-    ): Promise<void> {
-        // 1. Get Upload URL for existing asset
+    ): Promise<{ id: string; url: string }> {
+        // 1. Get Upload URL
         const versionId = Date.now().toString();
         const contentType = file.type || "application/octet-stream";
         const imageType = "base";
@@ -191,23 +161,16 @@ export const assetService = {
             imageType,
         });
 
-        const requestUrl = `https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`;
+        const presignData = await apiClient.request<{ uploadUrl?: string; presignedUrl?: string; url?: string; s3Key?: string; key?: string }>(
+            `/assets/${encodeURIComponent(assetId)}/versions/${encodeURIComponent(versionId)}/upload-url?${params.toString()}`
+        );
 
-        const presignRes = await fetch(requestUrl, {
-            headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-        });
-
-        if (!presignRes.ok) {
-            const message = await presignRes.text();
-            throw new Error(message || "Failed to get upload URL for update.");
+        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+        if (!uploadUrl) {
+            throw new Error("Upload URL missing in response.");
         }
 
-        const presignData = await presignRes.json();
-        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-
-        // 2. Upload to S3
+        // 2. Upload to S3 (Direct fetch)
         await fetch(uploadUrl, {
             method: "PUT",
             headers: { "Content-Type": contentType },
@@ -230,48 +193,39 @@ export const assetService = {
         }
 
         // 3. Register Image in DB
-        await fetch("https://uniforge.kr/api/images", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+        await apiClient.request('/images', {
+            method: 'POST',
             body: JSON.stringify({
                 ownerType: "ASSET",
                 ownerId: assetId,
                 imageType,
                 s3Key,
                 contentType,
-            }),
+            })
         });
 
         // 4. Update Metadata AND Image URL
-        // The backend proxy endpoint
-        const finalAssetUrl = `https://uniforge.kr/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
 
-        const updateBody: any = {
+        const updateBody: Record<string, unknown> = {
             imageUrl: finalAssetUrl
         };
         if (metadata) {
             updateBody.description = JSON.stringify(metadata);
         }
 
-        await fetch(`https://uniforge.kr/api/assets/${encodeURIComponent(assetId)}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+        // CHANGED: PUT -> PATCH to match backend controller
+        await apiClient.request(`/assets/${encodeURIComponent(assetId)}`, {
+            method: "PATCH",
             body: JSON.stringify(updateBody)
         });
 
-        console.log(`[assetService] Asset Updated: ${assetId} with new version ${versionId}`);
+        console.log(`[assetService] Asset Updated: ${assetId}`);
+        return { id: assetId, url: finalAssetUrl };
     },
 
-    async getAsset(assetId: string): Promise<any> {
-        const res = await fetch(`https://uniforge.kr/api/assets/${assetId}`);
-        if (!res.ok) throw new Error("Failed to fetch asset details");
-        return await res.json();
+    async getAsset(assetId: string): Promise<unknown> {
+        return apiClient.request(`/assets/${assetId}`);
     },
 
     /**
@@ -294,6 +248,7 @@ export const assetService = {
         localStorage.removeItem(LOCAL_ASSETS_KEY);
         console.log("[assetService] Local assets cleared");
     },
+
     async deleteAsset(assetId: string, token: string | null): Promise<void> {
         // 1. DEV MODE: Local Mock
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
@@ -301,7 +256,7 @@ export const assetService = {
             const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
             try {
                 const existingAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
-                const filtered = existingAssets.filter((a: any) => a.id !== assetId);
+                const filtered = existingAssets.filter((a: UploadedAssetData) => a.id !== assetId);
                 localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(filtered));
                 return;
             } catch (e) {
@@ -310,18 +265,11 @@ export const assetService = {
             }
         }
 
-        // 2. PROD MODE: API Call
-        const res = await fetch(`https://uniforge.kr/api/assets/${assetId}`, {
-            method: "DELETE",
-            headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+        // 2. PROD/API MODE
+        await apiClient.request(`/assets/${assetId}`, {
+            method: "DELETE"
         });
 
-        if (!res.ok) {
-            const msg = await res.text();
-            throw new Error(msg || "Failed to delete asset");
-        }
         console.log(`[assetService] Asset Deleted: ${assetId}`);
     }
 };

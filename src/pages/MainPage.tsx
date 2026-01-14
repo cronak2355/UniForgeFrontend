@@ -1,11 +1,90 @@
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { createGame } from '../services/gameService';
+import { createGame, fetchMyGames, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
 const MainPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [myGames, setMyGames] = useState<GameSummary[]>([]);
+    const [loadingGames, setLoadingGames] = useState(true);
+
+    // Selection Mode State
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedGameIds, setSelectedGameIds] = useState<Set<string>>(new Set());
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Long Press Handlers
+    const handleMouseDown = (gameId: string) => {
+        if (isSelectionMode) return;
+        longPressTimer.current = setTimeout(() => {
+            setIsSelectionMode(true);
+            setSelectedGameIds(new Set([gameId]));
+        }, 800); // 0.8s hold
+    };
+
+    const handleMouseUp = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+    };
+
+    const toggleSelection = (gameId: string) => {
+        const newSet = new Set(selectedGameIds);
+        if (newSet.has(gameId)) {
+            newSet.delete(gameId);
+            if (newSet.size === 0) setIsSelectionMode(false);
+        } else {
+            newSet.add(gameId);
+        }
+        setSelectedGameIds(newSet);
+    };
+
+    const handleCardClick = (gameId: string) => {
+        if (isSelectionMode) {
+            toggleSelection(gameId);
+        } else {
+            navigate(`/editor/${gameId}`);
+        }
+    };
+
+    const handleDeleteSelected = async () => {
+        if (!confirm(`선택한 ${selectedGameIds.size}개의 프로젝트를 삭제하시겠습니까?`)) return;
+        try {
+            const { deleteGame } = await import('../services/gameService');
+            await Promise.all(Array.from(selectedGameIds).map(id => deleteGame(id)));
+            setMyGames(prev => prev.filter(g => !selectedGameIds.has(g.gameId)));
+            setIsSelectionMode(false);
+            setSelectedGameIds(new Set());
+        } catch (e) {
+            console.error(e);
+            alert("삭제 실패");
+        }
+    };
+
+    useEffect(() => {
+        if (user?.id) {
+            loadMyGames();
+        } else {
+            setLoadingGames(false);
+        }
+    }, [user?.id]);
+
+    const loadMyGames = async () => {
+        try {
+            if (!user?.id) return;
+            setLoadingGames(true);
+            const games = await fetchMyGames(user.id);
+            setMyGames(Array.isArray(games) ? games : []);
+        } catch (error) {
+            console.error("Failed to load games:", error);
+        } finally {
+            setLoadingGames(false);
+        }
+    };
 
     const handleCreateGame = async () => {
         try {
@@ -24,17 +103,34 @@ const MainPage = () => {
                 title="대시보드"
                 showLogo={false}
                 actionButtons={
-                    <button
-                        onClick={handleCreateGame}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition-colors text-sm"
-                    >
-                        <i className="fa-solid fa-plus"></i>
-                        새 프로젝트
-                    </button>
+                    isSelectionMode ? (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => { setIsSelectionMode(false); setSelectedGameIds(new Set()); }}
+                                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleDeleteSelected}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold"
+                            >
+                                삭제 ({selectedGameIds.size})
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleCreateGame}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition-colors text-sm"
+                        >
+                            <i className="fa-solid fa-plus"></i>
+                            새 프로젝트
+                        </button>
+                    )
                 }
             />
 
-            <main className="flex-1 p-8 lg:p-12 max-w-[1400px] mx-auto w-full">
+            <main className="flex-1 p-8 lg:p-12 max-w-[1400px] mx-auto w-full" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchEnd={handleMouseUp}>
                 {/* Welcome Section */}
                 <div className="mb-12">
                     <p className="text-sm text-gray-500 uppercase tracking-widest mb-2 font-medium">Welcome back</p>
@@ -107,20 +203,69 @@ const MainPage = () => {
                                 View All
                             </button>
                         </div>
-                        <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[240px]">
-                            <div className="w-16 h-16 bg-[#1a1a1a] rounded-2xl flex items-center justify-center mb-6">
-                                <i className="fa-solid fa-folder-open text-2xl text-gray-700"></i>
+
+                        {loadingGames ? (
+                            <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex items-center justify-center min-h-[240px]">
+                                <i className="fa-solid fa-spinner fa-spin text-2xl text-gray-600"></i>
                             </div>
-                            <h3 className="text-white font-medium mb-2">프로젝트가 없습니다</h3>
-                            <p className="text-gray-500 text-sm mb-6">새로운 아이디어를 실현해보세요</p>
-                            <button
-                                onClick={handleCreateGame}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white text-sm font-medium rounded-lg transition-colors border border-[#333]"
-                            >
-                                <i className="fa-solid fa-plus"></i>
-                                프로젝트 생성
-                            </button>
-                        </div>
+                        ) : myGames.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-4">
+                                {myGames.slice(0, 3).map((game) => (
+                                    <div
+                                        key={game.gameId}
+                                        onClick={() => handleCardClick(game.gameId)}
+                                        onMouseDown={() => handleMouseDown(game.gameId)}
+                                        onTouchStart={() => handleMouseDown(game.gameId)}
+                                        className={`
+                                            bg-[#111] border rounded-xl p-4 flex items-center gap-4 transition-all cursor-pointer group select-none relative
+                                            ${isSelectionMode && selectedGameIds.has(game.gameId) ? 'border-blue-500 bg-blue-900/20' : 'border-[#222] hover:bg-[#1a1a1a] hover:border-[#333]'}
+                                        `}
+                                    >
+                                        {isSelectionMode && (
+                                            <div className="absolute top-4 right-4 z-10">
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedGameIds.has(game.gameId) ? 'border-blue-500 bg-blue-500' : 'border-gray-500 bg-transparent'}`}>
+                                                    {selectedGameIds.has(game.gameId) && <i className="fa-solid fa-check text-white text-xs"></i>}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="w-16 h-16 bg-[#222] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                            {game.thumbnailUrl ? (
+                                                <img src={getCloudFrontUrl(game.thumbnailUrl)} alt={game.title} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <i className="fa-solid fa-gamepad text-gray-600 text-xl"></i>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-white font-medium mb-1 truncate group-hover:text-blue-400 transition-colors">{game.title}</h3>
+                                            <p className="text-gray-500 text-sm truncate">{game.description || 'No description'}</p>
+                                        </div>
+                                        <div className="text-xs text-gray-600">
+                                            {new Date(game.createdAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                ))}
+                                {myGames.length > 3 && (
+                                    <button className="w-full py-3 text-sm text-gray-500 hover:text-white bg-[#111] border border-[#222] rounded-xl hover:bg-[#1a1a1a] transition-colors">
+                                        View All ({myGames.length} projects)
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[240px]">
+                                <div className="w-16 h-16 bg-[#1a1a1a] rounded-2xl flex items-center justify-center mb-6">
+                                    <i className="fa-solid fa-folder-open text-2xl text-gray-700"></i>
+                                </div>
+                                <h3 className="text-white font-medium mb-2">프로젝트가 없습니다</h3>
+                                <p className="text-gray-500 text-sm mb-6">새로운 아이디어를 실현해보세요</p>
+                                <button
+                                    onClick={handleCreateGame}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white text-sm font-medium rounded-lg transition-colors border border-[#333]"
+                                >
+                                    <i className="fa-solid fa-plus"></i>
+                                    프로젝트 생성
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Activity Section */}

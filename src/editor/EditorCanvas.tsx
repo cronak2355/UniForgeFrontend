@@ -425,10 +425,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         (async () => {
             for (const asset of nextNonTileAssets) {
-                if (loadedTexturesRef.current.has(asset.name)) continue;
+                // Allow renderer to decide if reload is needed (e.g. metadata change)
                 await renderer.loadTexture(asset.name, asset.url, asset.metadata);
                 if (cancelled) return;
-                loadedTexturesRef.current.add(asset.name);
             }
 
             if (nextSignature !== tileSignatureRef.current) {
@@ -448,13 +447,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
 
-                if (!loadedTexturesRef.current.has(textureKey)) {
-                    const asset = assetLookup.get(textureKey);
-                    if (asset) {
-                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
-                        if (cancelled) return;
-                        loadedTexturesRef.current.add(textureKey);
-                    }
+                const asset = assetLookup.get(textureKey);
+                if (asset) {
+                    // Always try to load/update texture logic
+                    await renderer.loadTexture(textureKey, asset.url, asset.metadata);
+                    if (cancelled) return;
                 }
                 renderer.refreshEntityTexture(ent.id, textureKey);
             }

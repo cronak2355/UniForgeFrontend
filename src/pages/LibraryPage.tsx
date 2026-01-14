@@ -5,6 +5,7 @@ import { fetchMyGames } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 import AssetCard from '../components/common/AssetCard';
 import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
 // --- Types ---
 interface UILibraryItem {
@@ -72,6 +73,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                 // Dynamic imports
                 const { libraryService } = await import('../services/libraryService');
                 const { marketplaceService } = await import('../services/marketplaceService');
+                const { userService } = await import('../services/userService');
 
                 // 1. Fetch Collections
                 const fetchedCollections = await libraryService.getCollections();
@@ -81,38 +83,61 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                     icon: c.icon || 'fa-folder'
                 })));
 
-                // 2. Fetch Games
-                const games = await fetchMyGames(user.id);
-                setMyGames(games.map(game => ({
-                    id: game.gameId,
-                    title: game.title,
-                    type: 'game',
-                    thumbnail: game.thumbnailUrl ?? DEFAULT_GAME_THUMBNAIL,
-                    author: `User ${game.authorId}`,
-                    purchaseDate: game.createdAt.split('T')[0],
-                })));
+                // 2. Fetch Games & Assets (Raw Data)
+                const [games, libraryItems] = await Promise.all([
+                    fetchMyGames(user.id),
+                    libraryService.getLibrary()
+                ]);
 
-                // 3. Fetch Assets
-                const libraryItems = await libraryService.getLibrary();
+                // 3. Process Assets
                 const assetItems = libraryItems.filter(item => item.itemType === 'ASSET');
-
+                let assetDetails: any[] = [];
                 if (assetItems.length > 0) {
-                    const assetDetails = await Promise.all(
+                    assetDetails = await Promise.all(
                         assetItems.map(item => marketplaceService.getAssetById(item.refId).catch(() => null))
                     );
+                }
 
+                // 4. Collect Author IDs to fetch names
+                const authorIds = new Set<string>();
+                games.forEach(g => authorIds.add(g.authorId));
+                assetDetails.forEach(d => { if (d) authorIds.add(d.authorId); });
+
+                // 5. Fetch User Names
+                const userMap = await userService.getUsersByIds(Array.from(authorIds));
+
+                // Optimistic override for current user
+                if (user && user.id) {
+                    userMap.set(user.id, { id: user.id, name: user.name, email: user.email, profileImage: user.profileImage } as any);
+                }
+
+                // 6. Map to UI
+                setMyGames(games.map(game => {
+                    const authorName = userMap.get(game.authorId)?.name || "Unknown User";
+                    return {
+                        id: game.gameId,
+                        title: game.title,
+                        type: 'game',
+                        thumbnail: getCloudFrontUrl(game.thumbnailUrl) ?? DEFAULT_GAME_THUMBNAIL,
+                        author: authorName,
+                        purchaseDate: game.createdAt.split('T')[0],
+                    };
+                }));
+
+                if (assetItems.length > 0) {
                     const mappedAssets = assetDetails
                         .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
                         .map(detail => {
                             const libItem = libraryItems.find(li => li.refId === detail.id);
+                            const authorName = userMap.get(detail.authorId)?.name || detail.author || "Unknown User";
                             return {
                                 id: detail.id,
                                 libraryItemId: libItem?.id,
                                 title: detail.name,
                                 type: 'asset' as const,
                                 assetType: detail.genre || 'Unknown',
-                                thumbnail: detail.imageUrl || detail.image || DEFAULT_ASSET_THUMBNAIL,
-                                author: detail.author || `User ${detail.authorId}`,
+                                thumbnail: getCloudFrontUrl(detail.imageUrl || detail.image) || DEFAULT_ASSET_THUMBNAIL,
+                                author: authorName,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
                                 collectionId: libItem?.collectionId || undefined
                             };

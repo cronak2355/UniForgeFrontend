@@ -16,6 +16,7 @@ import { colors } from "../constants/colors";
 import { ActionRegistry } from "../core/events/ActionRegistry";
 import { useEditorCoreSnapshot } from "../../contexts/EditorCoreContext";
 import { ActionEditor } from "../inspector/ActionEditor";
+import type { Asset } from "../types/Asset";
 
 type Props = {
   module: ModuleGraph;
@@ -54,7 +55,7 @@ export function ModuleGraphEditor({
   onChange,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const { entities: allEntities } = useEditorCoreSnapshot();
+  const { entities: allEntities, assets } = useEditorCoreSnapshot();
   const connectingRef = useRef<{
     nodeId: string;
     portId: string;
@@ -577,6 +578,7 @@ export function ModuleGraphEditor({
                     entities={entityOptions}
                     modules={modules}
                     actionLabels={actionLabels}
+                    assets={assets}
                     onCreateVariable={(name, value, type) => {
                       syncModuleVariable(name, value, type);
                       onCreateVariable?.(name, value, type);
@@ -658,6 +660,7 @@ function FlowNodeEditor({
   entities,
   modules,
   actionLabels,
+  assets,
   onCreateVariable,
   onUpdate,
 }: {
@@ -667,6 +670,7 @@ function FlowNodeEditor({
   entities: { id: string; name: string }[];
   modules: ModuleGraph[];
   actionLabels?: Record<string, string>;
+  assets?: Asset[];
   onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
   onUpdate: (patch: Partial<ModuleFlowNode>) => void;
 }) {
@@ -688,6 +692,7 @@ function FlowNodeEditor({
         variables={variables}
         entities={entities}
         modules={modules}
+        assets={assets}
         onCreateVariable={onCreateVariable}
         onUpdate={(next) => {
           const { type, ...params } = next;

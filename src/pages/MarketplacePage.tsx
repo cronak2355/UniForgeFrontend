@@ -5,6 +5,7 @@ import { marketplaceService, Asset } from '../services/marketplaceService';
 import TopBar from '../components/common/TopBar';
 import AssetCard from '../components/common/AssetCard';
 import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
 const MarketplacePage = () => {
     const { logout } = useAuth();
@@ -52,7 +53,7 @@ const MarketplacePage = () => {
                 // Map backend data to UI format
                 const mappedData = data.map(asset => ({
                     ...asset,
-                    image: asset.image || asset.imageUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
+                    image: getCloudFrontUrl(asset.image || asset.imageUrl) || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
                     rating: asset.rating || 0,
                     type: asset.assetType || "오브젝트",
                     genre: asset.genre || "기타",

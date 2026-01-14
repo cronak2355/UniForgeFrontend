@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+
+
 import { useAssetsEditor } from '../context/AssetsEditorContext';
 import type { Frame } from '../engine/FrameManager';
 import {
@@ -9,18 +11,13 @@ import {
 } from '../services/simpleAnimationService';
 import { AnimationManager } from './AnimationManager';
 import { PartRigger } from './PartRigger';
+import { AIStudioTab, type ChatMessage } from './AIStudioTab';
 import { useJob } from '../context/JobContext';
 import { StylePresetService } from '../services/StylePresetService';
 import { generateAsset, fetchAssetAsBlob } from '../services/SagemakerService';
 import { exportSpriteSheet } from '../services/SpriteSheetExporter';
 import { assetService } from '../../services/assetService';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'ai';
-  content: string;
-  timestamp: Date;
-}
 
 type TabType = 'ai' | 'animate' | 'export';
 
@@ -44,26 +41,31 @@ export function RightPanel() {
     loadAIImage,
     pixelSize,
     addFrame,
-    selectFrame,
-    applyImageData,
-    getWorkCanvas,
-    featherAmount,
-    setFeatherAmount,
-    triggerBackgroundRemoval,
+      selectFrame,
+      applyImageData,
+      getWorkCanvas,
+      featherAmount,
+      setFeatherAmount,
+      triggerBackgroundRemoval,
     exportAsSpriteSheet,
     animationMap,
     activeAnimationName,
-    currentAssetMetadata,
     currentAssetId,
     setCurrentAssetId,
   } = useAssetsEditor();
+  const animations = Object.entries(animationMap).map(([name, data]) => ({
+    name,
+    frames: data.frames,
+    fps: data.fps,
+    loop: data.loop,
+  }));
 
   // ==================== State ====================
   const [activeTab, setActiveTab] = useState<TabType>('ai');
   const [previewFrame, setPreviewFrame] = useState(0);
   const [thumbnails, setThumbnails] = useState<(string | null)[]>([]);
   const intervalRef = useRef<number | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
+
 
   // AI State
   const [aiPrompt, setAiPrompt] = useState('');
@@ -110,11 +112,7 @@ export function RightPanel() {
     }
   }, [currentFrameIndex, isPlaying]);
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+  // Chat scroll effect now handled inside AIStudioTab component
 
   // ==================== Utility ====================
 
@@ -427,46 +425,20 @@ export function RightPanel() {
         motionType: assetType === 'effect' ? motionType : undefined
       };
 
-      // Generate Thumbnail Blob (First frame of the exported sprite sheet - global first frame)
-      let thumbnailBlob: Blob | null = null;
-      if (masterFrames.length > 0) {
-        try {
-          const firstFrame = masterFrames[0]; // Global first frame
-          const canvas = document.createElement("canvas");
-          canvas.width = pixelSize;
-          canvas.height = pixelSize;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            const imgData = new ImageData(new Uint8ClampedArray(firstFrame.data), pixelSize, pixelSize);
-            ctx.putImageData(imgData, 0, 0);
-            thumbnailBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-          }
-        } catch (err) {
-          console.warn("Failed to generate thumbnail:", err);
-        }
+      const token = localStorage.getItem("token");
+      const assetName = exportName.trim() || 'animation_sprite';
+      const tag = assetType === 'character' ? 'Character' : assetType === 'effect' ? 'Particle' : 'Tile';
+      let savedId = currentAssetId;
+
+      console.log("[AssetsEditor] Uploading asset", { assetName, tag, metadata, currentAssetId });
+      if (currentAssetId) {
+        await assetService.updateAsset(currentAssetId, blob, metadata, token);
+      } else {
+        const result = await assetService.uploadAsset(blob, assetName, tag, token, metadata);
+        savedId = result.id;
       }
 
-      // Redirect to Create Asset Page for Metadata Input
-      navigate('/create-asset', {
-        state: {
-          assetBlob: blob,
-          thumbnailBlob: thumbnailBlob,
-          assetName: exportName || currentAssetMetadata?.name || 'New Asset',
-          description: currentAssetMetadata?.description, // Pass original description (or handle inside CreateAssetPage)
-          initialData: currentAssetMetadata ? {
-            name: currentAssetMetadata.name,
-            description: currentAssetMetadata.description,
-            tag: currentAssetMetadata.genre, // Map genre to tag
-            isPublic: currentAssetMetadata.isPublic
-          } : undefined,
-          metadata: metadata,
-          returnToEditor: true,
-          gameId: gameId,
-          assetId: currentAssetId
-        }
-      });
-      return null; // Navigation will handle the next step
-
+      return savedId;
     } catch (e) {
       console.error(e);
       alert("Failed to save: " + String(e));
@@ -486,14 +458,15 @@ export function RightPanel() {
     }
   };
 
-  const handleSaveAndExit = async () => {
+const handleSaveAndExit = async () => {
+    console.log("[AssetsEditor] Saving asset", { assetType, exportName });
     const savedId = await performSave();
     if (savedId) {
-      if (gameId) {
-        window.location.href = `/editor/${gameId}?newAssetId=${savedId}`;
-      } else {
-        window.location.href = '/editor';
-      }
+      const targetPath = gameId ? `/editor/${gameId}` : '/editor';
+      console.log("[AssetsEditor] Navigating to editor with new asset", { savedId, targetPath });
+      navigate(`${targetPath}?newAssetId=${savedId}`);
+    } else {
+      console.warn("[AssetsEditor] Save returned no asset ID");
     }
   };
 
@@ -573,164 +546,29 @@ export function RightPanel() {
         {/* Tab Content */}
         <div className="flex-1 overflow-hidden flex flex-col relative">
 
-          {/* --- AI Studio --- */}
           {activeTab === 'ai' && (
-            <div className="flex-1 flex flex-col">
-              {/* Chat Area */}
-              <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-                {chatMessages.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
-                    <span className="text-4xl mb-2 grayscale">✨</span>
-                    <p className="text-xs uppercase tracking-wide">Generator Ready</p>
-                  </div>
-                )}
-                {chatMessages.map(msg => (
-                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`
-                              max-w-[85%] px-3 py-2 text-xs leading-relaxed border
-                              ${msg.role === 'user'
-                        ? 'bg-blue-600/20 text-blue-100 border-blue-500/30'
-                        : 'bg-white/5 text-white/80 border-white/10'}
-                          `}>
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-white/5 px-3 py-2 text-xs text-white/40 animate-pulse flex gap-2 items-center border border-white/10">
-                      <div className="w-1.5 h-1.5 bg-blue-500 animate-bounce" />
-                      <div className="w-1.5 h-1.5 bg-blue-500 animate-bounce [animation-delay:0.1s]" />
-                      <div className="w-1.5 h-1.5 bg-blue-500 animate-bounce [animation-delay:0.2s]" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Input Area */}
-              <div className="p-4 bg-black/10 border-t border-white/5 space-y-3">
-
-                {/* Style & Concept Settings (3-Step Granularity) */}
-                <div className="flex flex-col gap-2 mb-2">
-
-                  {/* 1. Visual Style Selector */}
-                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
-                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Style</span>
-                    <select
-                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
-                      value={selectedStyleId}
-                      onChange={(e) => setSelectedStyleId(e.target.value)}
-                    >
-                      {visualStyles.map(s => (
-                        <option key={s.id} value={s.id} className="bg-[#1a1a1a] text-white py-1">{s.name}</option>
-                      ))}
-                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
-                    </select>
-                  </div>
-
-                  {/* 2. Theme Selector */}
-                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
-                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Theme</span>
-                    <select
-                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
-                      value={selectedThemeId}
-                      onChange={(e) => setSelectedThemeId(e.target.value)}
-                    >
-                      {themes.map(t => (
-                        <option key={t.id} value={t.id} className="bg-[#1a1a1a] text-white py-1">{t.name}</option>
-                      ))}
-                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
-                    </select>
-                  </div>
-
-                  {/* 3. Mood Selector */}
-                  <div className="flex justify-between items-center bg-white/5 px-2 py-1 border border-white/5">
-                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest w-12">Mood</span>
-                    <select
-                      className="bg-[#1a1a1a] text-xs text-white border border-white/20 rounded-md px-2 py-1 outline-none focus:border-blue-500/50 appearance-none flex-1 font-mono"
-                      value={selectedMoodId}
-                      onChange={(e) => setSelectedMoodId(e.target.value)}
-                    >
-                      {moods.map(m => (
-                        <option key={m.id} value={m.id} className="bg-[#1a1a1a] text-white py-1">{m.name}</option>
-                      ))}
-                      <option value="" className="bg-[#1a1a1a] text-white/50">(None)</option>
-                    </select>
-                  </div>
-
-                </div>
-
-                {/* Controls Row */}
-                <div className="flex items-center gap-2">
-                  {/* Type Selector */}
-                  <div className="flex bg-white/5 p-0.5 border border-white/5">
-                    {(['character', 'object', 'effect'] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setAssetType(t)}
-                        className={`px-2 py-1 text-[10px] uppercase tracking-wide transition-colors ${assetType === t ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white'}`}
-                        title={t}
-                      >
-                        {t === 'character' ? 'CHAR' : t === 'object' ? 'OBJ' : 'FX'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Feather Slider */}
-                  <div className="flex-1 flex items-center gap-2 bg-white/5 px-2 py-1 border border-white/5">
-                    <span className="text-[10px] text-white/40 uppercase">Feather / Tol</span>
-                    <input
-                      type="range" min="0" max="100" value={featherAmount}
-                      onChange={e => setFeatherAmount(Number(e.target.value))}
-                      className="flex-1 h-1 bg-white/10"
-                    />
-                    <span className="text-[10px] text-blue-400 w-4 font-mono">{featherAmount}</span>
-                  </div>
-                </div>
-
-                {/* Prompt Input (Textarea + Big Button) */}
-                <div className="flex flex-col gap-2">
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-blue-500/5 blur opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
-                    <textarea
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Describe asset..."
-                      rows={3}
-                      className="w-full bg-[#0a0a0a] border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors resize-none font-mono"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handleGenerateSingle}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] border border-white/10 relative overflow-hidden group"
-                    >
-                      <span className="relative z-10 flex items-center justify-center gap-2">
-                        <span>✨ Generate Asset</span>
-                      </span>
-                      <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform" />
-                    </button>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleRefine}
-                        className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-[10px] uppercase tracking-widest transition-colors border border-white/5"
-                      >
-                        Refine Selected
-                      </button>
-                      <button
-                        onClick={triggerBackgroundRemoval}
-                        className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400/50 hover:text-red-400 text-[10px] uppercase tracking-widest transition-colors border border-red-500/10 hover:border-red-500/30"
-                      >
-                        Remove BG
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AIStudioTab
+              chatMessages={chatMessages}
+              isLoading={isLoading}
+              aiPrompt={aiPrompt}
+              onPromptChange={setAiPrompt}
+              assetType={assetType}
+              onAssetTypeChange={setAssetType}
+              featherAmount={featherAmount}
+              onFeatherChange={setFeatherAmount}
+              visualStyles={visualStyles}
+              themes={themes}
+              moods={moods}
+              selectedStyleId={selectedStyleId}
+              onStyleChange={setSelectedStyleId}
+              selectedThemeId={selectedThemeId}
+              onThemeChange={setSelectedThemeId}
+              selectedMoodId={selectedMoodId}
+              onMoodChange={setSelectedMoodId}
+              onGenerate={handleGenerateSingle}
+              onRefine={handleRefine}
+              onRemoveBg={triggerBackgroundRemoval}
+            />
           )}
 
           {/* --- Animation Studio --- */}
