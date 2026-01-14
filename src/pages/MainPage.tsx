@@ -1,11 +1,35 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { createGame } from '../services/gameService';
+import { createGame, fetchMyGames, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 
 const MainPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [myGames, setMyGames] = useState<GameSummary[]>([]);
+    const [loadingGames, setLoadingGames] = useState(true);
+
+    useEffect(() => {
+        if (user?.id) {
+            loadMyGames();
+        } else {
+            setLoadingGames(false);
+        }
+    }, [user?.id]);
+
+    const loadMyGames = async () => {
+        try {
+            if (!user?.id) return;
+            setLoadingGames(true);
+            const games = await fetchMyGames(user.id);
+            setMyGames(Array.isArray(games) ? games : []);
+        } catch (error) {
+            console.error("Failed to load games:", error);
+        } finally {
+            setLoadingGames(false);
+        }
+    };
 
     const handleCreateGame = async () => {
         try {
@@ -107,20 +131,57 @@ const MainPage = () => {
                                 View All
                             </button>
                         </div>
-                        <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[240px]">
-                            <div className="w-16 h-16 bg-[#1a1a1a] rounded-2xl flex items-center justify-center mb-6">
-                                <i className="fa-solid fa-folder-open text-2xl text-gray-700"></i>
+
+                        {loadingGames ? (
+                            <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex items-center justify-center min-h-[240px]">
+                                <i className="fa-solid fa-spinner fa-spin text-2xl text-gray-600"></i>
                             </div>
-                            <h3 className="text-white font-medium mb-2">프로젝트가 없습니다</h3>
-                            <p className="text-gray-500 text-sm mb-6">새로운 아이디어를 실현해보세요</p>
-                            <button
-                                onClick={handleCreateGame}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white text-sm font-medium rounded-lg transition-colors border border-[#333]"
-                            >
-                                <i className="fa-solid fa-plus"></i>
-                                프로젝트 생성
-                            </button>
-                        </div>
+                        ) : myGames.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-4">
+                                {myGames.slice(0, 3).map((game) => (
+                                    <div
+                                        key={game.gameId}
+                                        onClick={() => navigate(`/editor/${game.gameId}`)}
+                                        className="bg-[#111] border border-[#222] rounded-xl p-4 flex items-center gap-4 hover:bg-[#1a1a1a] hover:border-[#333] transition-all cursor-pointer group"
+                                    >
+                                        <div className="w-16 h-16 bg-[#222] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                            {game.thumbnailUrl ? (
+                                                <img src={game.thumbnailUrl} alt={game.title} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <i className="fa-solid fa-gamepad text-gray-600 text-xl"></i>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-white font-medium mb-1 truncate group-hover:text-blue-400 transition-colors">{game.title}</h3>
+                                            <p className="text-gray-500 text-sm truncate">{game.description || 'No description'}</p>
+                                        </div>
+                                        <div className="text-xs text-gray-600">
+                                            {new Date(game.createdAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                ))}
+                                {myGames.length > 3 && (
+                                    <button className="w-full py-3 text-sm text-gray-500 hover:text-white bg-[#111] border border-[#222] rounded-xl hover:bg-[#1a1a1a] transition-colors">
+                                        View All ({myGames.length} projects)
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-[#111] border border-[#222] rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[240px]">
+                                <div className="w-16 h-16 bg-[#1a1a1a] rounded-2xl flex items-center justify-center mb-6">
+                                    <i className="fa-solid fa-folder-open text-2xl text-gray-700"></i>
+                                </div>
+                                <h3 className="text-white font-medium mb-2">프로젝트가 없습니다</h3>
+                                <p className="text-gray-500 text-sm mb-6">새로운 아이디어를 실현해보세요</p>
+                                <button
+                                    onClick={handleCreateGame}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white text-sm font-medium rounded-lg transition-colors border border-[#333]"
+                                >
+                                    <i className="fa-solid fa-plus"></i>
+                                    프로젝트 생성
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Activity Section */}
