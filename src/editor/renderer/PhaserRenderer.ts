@@ -254,6 +254,10 @@ class PhaserRenderScene extends Phaser.Scene {
     };
     private reusableEvent: GameEvent = { type: "TICK", data: {}, timestamp: Date.now() };
 
+    // Performance Monitoring
+    private frameCount = 0;
+    private accFrameTime = 0;
+
     // 물리 상태는 RuntimePhysics에서 관리됨
 
     update(time: number, delta: number) {
@@ -264,8 +268,7 @@ class PhaserRenderScene extends Phaser.Scene {
             // [Optimized Update Loop]
             // Direct iteration with reused objects instead of EventBus.emit("TICK")
 
-            // TICK 이벤트는 레거시 호환성을 위해 남겨두되, 주요 로직은 직접 처리
-            // EventBus.emit("TICK", { time, delta, dt: delta / 1000 }); // Disabled for perf
+            const frameStart = performance.now();
 
             const dt = delta / 1000;
             const entities = this.phaserRenderer.core.getEntities();
@@ -283,18 +286,20 @@ class PhaserRenderScene extends Phaser.Scene {
             const input = runtimeContext?.getInput();
 
             // Iterate entities directly
+            let processedEntityCount = 0;
+            let processedComponentCount = 0;
+
             entities.forEach((entity) => {
                 // Optimization: inline simple alive check
                 const hpVar = entity.variables?.find((v: any) => v.name === "hp");
                 if (hpVar && (hpVar.value as number) <= 0) return;
 
-                const components = splitLogicItems(entity.logic);
-                // Filter only OnUpdate/TICK logic to avoid checking other types needlessly
-                const updateComponents = components.filter((component): component is LogicComponent =>
-                    component.type === "Logic" && (component.event === "OnUpdate" || component.event === "TICK")
-                );
+                // [Optimization] Avoid allocating arrays with splitLogicItems and filter
+                // We iterate the logic array directly.
+                const logicItems = entity.logic;
+                if (!logicItems || logicItems.length === 0) return;
 
-                if (updateComponents.length === 0) return;
+                processedEntityCount++;
 
                 // Reuse Context
                 this.reusableCtx.entityId = entity.id;
@@ -302,8 +307,17 @@ class PhaserRenderScene extends Phaser.Scene {
                 this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
                 this.reusableCtx.eventData = this.reusableEvent.data ?? {};
 
-                // Process Logic
-                for (const component of updateComponents) {
+                for (const item of logicItems) {
+                    // Check if it's a component
+                    if (item.kind !== "component") continue;
+
+                    const component = item.component;
+                    // Check Event Type (Inline Filter)
+                    if (component.type !== "Logic") continue;
+                    if (component.event !== "OnUpdate" && component.event !== "TICK") continue;
+
+                    processedComponentCount++;
+
                     // We know the event matches because we filtered by it, but conditions still apply
                     if (!this.passesConditions(component, this.reusableCtx)) continue;
 
@@ -313,6 +327,23 @@ class PhaserRenderScene extends Phaser.Scene {
                     }
                 }
             });
+
+            // [Performance Reporting]
+            const frameDuration = performance.now() - frameStart;
+            this.accFrameTime += frameDuration;
+            this.frameCount++;
+
+            const REPORT_INTERVAL = 300; // ~5 seconds at 60fps
+            if (this.frameCount >= REPORT_INTERVAL) {
+                const avgTime = this.accFrameTime / this.frameCount;
+                console.log(`[Performance] Component Execution Report (Avg over ${this.frameCount} frames):`);
+                console.log(` - Avg Frame Time (Components Only): ${avgTime.toFixed(4)} ms`);
+                console.log(` - Entities Processed: ${processedEntityCount} / ${entities.size}`);
+                console.log(` - Components Processed: ${processedComponentCount}`);
+
+                this.accFrameTime = 0;
+                this.frameCount = 0;
+            }
 
             // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
             const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
