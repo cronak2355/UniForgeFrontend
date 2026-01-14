@@ -21,10 +21,12 @@ import { createGame, updateGameThumbnail } from "../services/gameService";
 import { authService } from "../services/authService";
 import { assetService } from "../services/assetService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
-import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
+import { AssetLibraryModal } from "./AssetLibraryModal";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import type { EditorVariable } from "./types/Variable";
+import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal"; // Import SaveGameModal
+import { saveGameVersion, updateGameInfo } from "../services/gameService"; // Import new service methods
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -290,6 +292,91 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
+
+    // Save Game Modal State
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isSavingProject, setIsSavingProject] = useState(false);
+
+    const handleSaveProject = async (title: string, description: string) => {
+        setIsSavingProject(true);
+        try {
+            const sceneJson = SceneSerializer.serialize(core);
+            let id = gameId;
+
+            // If ID is invalid (undefined or empty), create a new game
+            if (!id) {
+                const user = await authService.getCurrentUser();
+                if (!user) {
+                    alert("로그인이 필요합니다. (Login required to create a game)");
+                    setIsSavingProject(false);
+                    return;
+                }
+                const newGame = await createGame(user.id, title, description);
+                id = String(newGame.gameId);
+                navigate(`/editor/${id}`, { replace: true });
+            } else {
+                // Update existing game info
+                await updateGameInfo(id, title, description);
+            }
+
+            // Save Version (Scene Data)
+            // Use existing saveScenes or new saveGameVersion? 
+            // saveScenes calls POST /games/{id}/versions, which is what we want.
+            // Let's use the one imported or keep using logic.
+            // gameService.saveGameVersion is essentially the same as api/sceneApi.saveScenes.
+            // Let's use the new one for consistency if we imported it.
+            await saveGameVersion(id, sceneJson);
+
+            // Capture and Upload Thumbnail
+            try {
+                const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
+                if (canvasEl) {
+                    const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
+                    const response = await fetch(thumbnailDataUrl);
+                    const blob = await response.blob();
+                    const contentType = 'image/png';
+                    const token = localStorage.getItem('token');
+
+                    const presignParams = new URLSearchParams({
+                        ownerType: 'GAME',
+                        ownerId: id,
+                        imageType: 'thumbnail',
+                        contentType: contentType
+                    });
+                    const presignRes = await fetch(
+                        `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
+                        {
+                            method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        }
+                    );
+
+                    if (presignRes.ok) {
+                        const presignData = await presignRes.json();
+                        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+
+                        if (uploadUrl) {
+                            await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
+                            const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                            // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                            await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Thumbnail upload failed:", err);
+            }
+
+            alert("프로젝트가 성공적으로 저장되었습니다!");
+            setIsSaveModalOpen(false);
+        } catch (e) {
+            console.error("Save failed:", e);
+            alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
+        } finally {
+            setIsSavingProject(false);
+        }
+    };
+
     const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
         const activeEntity = localSelectedEntity ?? selectedEntity;
@@ -727,91 +814,7 @@ function EditorLayoutInner() {
                             <MenuItem label="Load Project" onClick={() => {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
-                            <MenuItem label="Save Project" onClick={async () => {
-                                try {
-                                    const sceneJson = SceneSerializer.serialize(core);
-                                    // Use ID as string directly (UUID support)
-                                    let id = gameId;
-
-                                    // If ID is invalid (undefined or empty), prompt to create a new game
-                                    if (!id) {
-                                        const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
-                                        if (!title) return; // User cancelled
-
-                                        // Try to get real authorId from authService
-                                        const user = await authService.getCurrentUser();
-                                        if (!user) {
-                                            alert("로그인이 필요합니다. (Login required to create a game)");
-                                            return;
-                                        }
-
-                                        // createGame now expects string authorId and returns string gameId (in GameSummary)
-                                        // But wait, createGame returns GameSummary where gameId might be number if I didn't update the interface?
-                                        // I updated createGame to return Promise<GameSummary>.
-                                        // Let's assume GameSummary.gameId is string or we cast it.
-                                        const newGame = await createGame(user.id, title, "Created from Editor");
-                                        id = String(newGame.gameId);
-
-                                        // Silent navigation to correct URL
-                                        navigate(`/editor/${id}`, { replace: true });
-                                    }
-
-                                    await saveScenes(id, sceneJson);
-
-                                    // Capture thumbnail from canvas
-                                    try {
-                                        const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
-                                        if (canvasEl) {
-                                            const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
-                                            // Convert to blob and upload
-                                            const response = await fetch(thumbnailDataUrl);
-                                            const blob = await response.blob();
-                                            const contentType = 'image/png';
-                                            const token = localStorage.getItem('token');
-
-                                            // Use existing presign endpoint for game thumbnail
-                                            const presignParams = new URLSearchParams({
-                                                ownerType: 'GAME',
-                                                ownerId: id,
-                                                imageType: 'thumbnail',
-                                                contentType: contentType
-                                            });
-                                            const presignRes = await fetch(
-                                                `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
-                                                {
-                                                    method: 'POST',
-                                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
-                                                }
-                                            );
-
-                                            if (presignRes.ok) {
-                                                const presignData = await presignRes.json();
-                                                const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-
-                                                if (uploadUrl) {
-                                                    await fetch(uploadUrl, {
-                                                        method: 'PUT',
-                                                        headers: { 'Content-Type': contentType },
-                                                        body: blob,
-                                                    });
-
-                                                    // Update game with thumbnail URL (use CloudFront or API proxy URL)
-                                                    const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                                                    await updateGameThumbnail(id, thumbnailUrl);
-                                                    console.log('[EditorLayout] Thumbnail uploaded successfully');
-                                                }
-                                            }
-                                        }
-                                    } catch (thumbnailError) {
-                                        console.warn('[EditorLayout] Thumbnail upload failed (non-critical):', thumbnailError);
-                                    }
-
-                                    alert("성공적으로 저장되었습니다! (Saved to server)");
-                                } catch (e) {
-                                    console.error(e);
-                                    alert("Failed to save project: " + String(e));
-                                }
-                            }} />
+                            <MenuItem label="Save Project" onClick={() => setIsSaveModalOpen(true)} />
                             <MenuItem
                                 label="Export"
                                 onClick={() => {
