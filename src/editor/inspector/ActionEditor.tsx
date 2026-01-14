@@ -177,6 +177,45 @@ export function ActionEditor({
           </>
         )}
 
+        {action.type === "FireProjectile" && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+            {/* Target Role */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Target</span>
+              <select
+                value={(action.targetRole as string) || "enemy"}
+                onChange={(e) => onUpdate({ ...action, targetRole: e.target.value })}
+                style={{ ...styles.smallSelect, flex: 1 }}
+              >
+                <option value="enemy">🎯 enemy (가장 가까운 적)</option>
+                <option value="player">👤 player</option>
+              </select>
+            </div>
+            {/* Speed */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Speed</span>
+              <input
+                type="number"
+                placeholder="500"
+                value={(action.speed as number) ?? 500}
+                onChange={(e) => onUpdate({ ...action, speed: parseFloat(e.target.value) || 500 })}
+                style={{ ...styles.textInput, flex: 1 }}
+              />
+            </div>
+            {/* Damage */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Damage</span>
+              <input
+                type="number"
+                placeholder="10"
+                value={(action.damage as number) ?? 10}
+                onChange={(e) => onUpdate({ ...action, damage: parseFloat(e.target.value) || 10 })}
+                style={{ ...styles.textInput, flex: 1 }}
+              />
+            </div>
+          </div>
+        )}
+
         {action.type === "SetVar" && (
           <>
             <input

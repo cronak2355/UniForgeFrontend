@@ -406,6 +406,7 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
     let targetX = params.targetX as number | undefined;
     let targetY = params.targetY as number | undefined;
 
+    // Priority 1: targetId (specific entity)
     if (params.targetId) {
         const targetObj = renderer.getGameObject?.(params.targetId as string);
         if (targetObj) {
@@ -414,8 +415,23 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
         }
     }
 
+    // Priority 2: targetRole (find nearest entity with that role)
     if (targetX === undefined || targetY === undefined) {
-        console.warn("[Action] FireProjectile: No target specified");
+        const targetRole = params.targetRole as string | undefined;
+        if (targetRole) {
+            const gameCore = ctx.globals?.gameCore;
+            if (gameCore?.getNearestEntityByRole) {
+                const nearest = gameCore.getNearestEntityByRole(targetRole, ownerObj.x, ownerObj.y, ownerId);
+                if (nearest) {
+                    targetX = nearest.x;
+                    targetY = nearest.y;
+                }
+            }
+        }
+    }
+
+    if (targetX === undefined || targetY === undefined) {
+        // No target found - silent return (common in bullet hell when no enemies exist)
         return;
     }
 
