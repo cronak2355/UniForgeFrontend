@@ -23,11 +23,16 @@ export const SaveGameModal: React.FC<SaveGameModalProps> = ({
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        console.error("[SaveGameModal] Mounted");
         setMounted(true);
-        return () => setMounted(false);
+        return () => {
+            console.error("[SaveGameModal] Unmounted");
+            setMounted(false);
+        }
     }, []);
 
     useEffect(() => {
+        console.error("[SaveGameModal] isOpen changed:", isOpen);
         if (isOpen) {
             setTitle(initialTitle);
             setDescription(initialDescription);
