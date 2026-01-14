@@ -43,8 +43,8 @@ export class ApiClient {
             if (!text || text.trim() === '') {
                 return undefined as T;
             }
-            console.error("Received HTML/Text instead of JSON (Soft 404):", text.substring(0, 200));
-            throw new Error('API 응답이 올바르지 않습니다 (HTML 반환됨). 서버 구성을 확인해주세요.');
+            console.error("Received HTML/Text instead of JSON (likely server error page):", text.substring(0, 200));
+            throw new Error(`서버 응답 오류 (Status: ${response.status}). 관리자에게 문의하세요.`);
         }
 
         return response.json();
