@@ -368,6 +368,24 @@ export function ActionEditor({
                 </option>
               )}
             </select>
+
+            <select
+              value={action.loop === true ? "true" : action.loop === false ? "false" : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                onUpdate({
+                  ...action,
+                  loop: val === "true" ? true : val === "false" ? false : undefined
+                });
+              }}
+              title="Loop Override"
+              style={{ ...styles.smallSelect, width: "80px" }}
+            >
+              <option value="">(Default)</option>
+              <option value="true">Loop</option>
+              <option value="false">Play Once</option>
+            </select>
+
             {currentAsset && (
               <button
                 onClick={() => navigate(`/assets-editor?assetId=${currentAsset.id}`)}
