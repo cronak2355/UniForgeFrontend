@@ -1043,6 +1043,7 @@ function EditorLayoutInner() {
                 overflow: 'hidden',
             }}>
                 {/* LEFT PANEL - Hierarchy */}
+                {/* LEFT PANEL REMOVED AS PER REQUEST
                 <div style={{
                     width: '280px',
                     background: colors.bgSecondary,
@@ -1050,30 +1051,9 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{ flex: '0 0 60%', padding: '0', overflowY: 'hidden', borderBottom: `2px solid ${colors.borderColor}` }}>
-                        <HierarchyPanel
-                            core={core}
-                            scenes={scenes}
-                            currentSceneId={currentSceneId}
-                            selectedId={selectedEntity?.id ?? null}
-                            onSelect={(e) => {
-                                core.setSelectedEntity(e as any);
-                                setLocalSelectedEntity(e as any);
-                                const cm = new CameraMode();
-                                const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
-                                core.sendContextToEditorModeStateMachine(ctx);
-                            }}
-                        />
-                    </div>
-                    {/* Recent Assets */}
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <RecentAssetsPanel
-                            assets={recentAssets}
-                            changeDraggedAsset={changeDraggedAssetHandler}
-                            onSelectAsset={changeSelectedAssetHandler}
-                        />
-                    </div>
+                   ...
                 </div>
+                */}
 
                 {/* CENTER - Phaser Canvas */}
                 <div style={{
