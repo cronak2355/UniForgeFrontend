@@ -177,6 +177,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 modules: ent.modules,
             });
         }
+        gameCore.flush(); // Sync Context immediately
 
         prevEntitiesMapRef.current = new Map(currentEntities.map((e) => [e.id, e]));
     }, [currentSceneId, isRendererReady]);
@@ -238,6 +239,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     modules: e.modules,
                 });
             }
+            gameCore.flush(); // Sync Context immediately
 
             setIsRendererReady(true);
         })();
@@ -361,6 +363,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     components: splitLogicItems(entity.logic),
                     modules: entity.modules,
                 });
+                gameCore.flush(); // Sync Context immediately
             }
 
             renderer.clearPreviewTile();

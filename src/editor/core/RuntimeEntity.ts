@@ -26,6 +26,9 @@ export interface RuntimeEntity {
     name: string;
     active: boolean;
 
+    // Legacy / Compatibility
+    modules?: any[];
+
     // NOTE: Variables are stored in RuntimeContext, but we keep a reference 
     // here for easy initialization or editor sync if needed. 
     // In a pure DOTS approach, these might be separate, but we keep them accessible.

@@ -192,6 +192,16 @@ export class GameCore {
         }
     }
 
+    /**
+     * Forces the application of queued deferred actions (Entity creation, etc.).
+     * Use this ONLY in Editor mode or initialization where the game loop is not driving the state.
+     */
+    flush(): void {
+        this.pipeline.flush();
+        // Also might need to update renderer? Renderer is immediate in createEntity currently.
+        // So just pipeline flush is enough to sync RuntimeContext.
+    }
+
     // =========================================================================
     // Public API (Facade)
     // =========================================================================
@@ -216,10 +226,10 @@ export class GameCore {
             rotationX: options.rotationX ?? 0,
             rotationY: options.rotationY ?? 0,
             scaleZ: options.scaleZ ?? 1,
-            rotationZ: options.rotationZ ?? 0,
             // Meta
             name: options.name ?? `Entity_${id.slice(0, 8)}`,
-            active: true
+            active: true,
+            modules: options.modules
         };
 
         // Queue Creation
@@ -318,11 +328,43 @@ export class GameCore {
     // ... Additional compatibility methods ...
 
     getEntity(id: string) {
-        return this.runtimeContext.entities.get(id);
+        const entity = this.runtimeContext.entities.get(id);
+        if (!entity) return undefined;
+
+        // Legacy Adapter: Attach variables for Editor compatibility
+        const vars: any[] = [];
+        const entityVars = this.runtimeContext.entityVariables.get(id);
+        if (entityVars) {
+            for (const v of entityVars.values()) {
+                vars.push({ name: v.name, value: v.value, type: v.type });
+            }
+        }
+
+        return {
+            ...entity,
+            variables: vars
+        };
     }
 
     getAllEntities() {
-        return this.runtimeContext.entities;
+        // Expensive Adapter for Legacy Editor UI
+        // TODO: Refactor RunTimeCanvas to use RuntimeContext directly
+        const adapterMap = new Map();
+        for (const [id, entity] of this.runtimeContext.entities) {
+            const vars: any[] = [];
+            const entityVars = this.runtimeContext.entityVariables.get(id);
+            if (entityVars) {
+                for (const v of entityVars.values()) {
+                    vars.push({ name: v.name, value: v.value, type: v.type });
+                }
+            }
+            adapterMap.set(id, { ...entity, variables: vars });
+        }
+        return adapterMap;
+    }
+
+    hasEntity(id: string): boolean {
+        return this.runtimeContext.entities.has(id);
     }
 
     getRuntimeContext() {
@@ -401,5 +443,49 @@ export class GameCore {
     destroy() {
         if (this.eventHandler) EventBus.off(this.eventHandler);
         this.runtimeContext.clearEntities();
+    }
+
+    // Compatibility Methods
+
+    moveEntity(id: string, x: number, y: number): void {
+        const entity = this.runtimeContext.entities.get(id);
+        if (entity) {
+            (entity as any).x = x;
+            (entity as any).y = y;
+        }
+        this.renderer.update(id, x, y, entity?.z ?? 0, entity?.rotation ?? 0);
+        collisionSystem.updatePosition(id, x, y);
+    }
+
+    setEntityTransform(id: string, transform: {
+        x: number; y: number; z: number;
+        rotationX?: number; rotationY?: number; rotationZ?: number;
+        scaleX: number; scaleY: number; scaleZ?: number;
+    }): void {
+        const entity = this.runtimeContext.entities.get(id);
+        if (!entity) return;
+
+        const e = entity as any;
+        e.x = transform.x;
+        e.y = transform.y;
+        e.z = transform.z;
+        e.rotation = transform.rotationZ ?? e.rotation;
+        e.scaleX = transform.scaleX;
+        e.scaleY = transform.scaleY;
+        e.rotationX = transform.rotationX ?? e.rotationX;
+        e.rotationY = transform.rotationY ?? e.rotationY;
+        e.scaleZ = transform.scaleZ ?? e.scaleZ;
+
+        this.renderer.update(id, e.x, e.y, e.z, e.rotation);
+        this.renderer.setScale(id, e.scaleX, e.scaleY, e.scaleZ);
+        collisionSystem.updatePosition(id, e.x, e.y);
+        // Note: Not updating size in this quick patch, assuming scale doesn't change physics box often in Editor drag
+    }
+
+    updateEntityModules(id: string, modules: ModuleGraph[]): void {
+        const entity = this.runtimeContext.entities.get(id);
+        if (entity) {
+            (entity as any).modules = modules;
+        }
     }
 }

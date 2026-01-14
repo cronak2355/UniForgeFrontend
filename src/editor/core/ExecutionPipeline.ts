@@ -96,6 +96,14 @@ export class ExecutionPipeline {
         this.applyDeferredActions();
     }
 
+    /**
+     * Force apply deferred actions immediately.
+     * Useful for Editor tools or setup phases where no frame loop is running.
+     */
+    public flush() {
+        this.applyDeferredActions();
+    }
+
     private applyDeferredActions() {
         // 1. Create Entities
         for (const entity of this.deferredCreateEntities) {
