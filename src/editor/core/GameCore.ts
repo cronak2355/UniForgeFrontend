@@ -291,21 +291,34 @@ export class GameCore {
             }
         }
 
-        // 6. Setup Modules (Legacy Field on Entity? We should store it in Context)
-        // For now, attach to Entity (Compatibility) or handle separately.
-        // Let's add a "Modules" component if we were pure, but here we might attach to an internal map in Context later.
-        // Currently, RuntimeEntity doesn't have modules field in my new def. 
-        // I should probably add a dedicated place for modules.
-        // HACK: For now, we update the ModuleRuntime directly since it manages its own state.
-        if (options.modules) {
-            for (const module of options.modules) {
-                // ModuleRuntime.startModule creates an instance and adds it to the list.
-                // It treats it as "Running" immediately.
-                this.moduleRuntime.startModule(id, module);
-            }
-        }
+        // 6. Modules are NOT auto-started at spawn.
+        // Modules are only executed via "RunModule" action.
+        // The modules array is stored on the entity for reference by RunModule action.
+        // if (options.modules) {
+        //     for (const module of options.modules) {
+        //         this.moduleRuntime.startModule(id, module);
+        //     }
+        // }
 
         EventBus.emit("OnStart", {}, id);
+        return true;
+    }
+
+    /**
+     * Start a module for an entity by module ID or name.
+     * Called by RunModule action.
+     */
+    startModule(entityId: string, moduleIdOrName: string): boolean {
+        // Find the module from moduleLibrary
+        const module = this.moduleLibrary.find(
+            (m) => m.id === moduleIdOrName || m.name === moduleIdOrName
+        );
+        if (!module) {
+            console.warn(`[GameCore] Module not found in library: ${moduleIdOrName}`);
+            return false;
+        }
+
+        this.moduleRuntime.startModule(entityId, module);
         return true;
     }
 
@@ -443,14 +456,6 @@ export class GameCore {
 
     // Compatibility stub
     validateIdSync() { return true; }
-    startModule(entityId: string, moduleId: string) {
-        // Trigger manual start if supported by ModuleRuntime
-        // e.g. look for "OnStart" node in that module?
-        // Or specific trigger?
-        // For now, let's emit a generic start event for that module context
-        EventBus.emit("OnStart", {}, entityId);
-        return true;
-    }
     destroy() {
         if (this.eventHandler) EventBus.off(this.eventHandler);
         this.runtimeContext.clearEntities();

@@ -111,6 +111,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 texture: e.texture ?? e.name,
                 variables: e.variables,
                 components: e.components,
+                logic: e.logic,  // Pass logic array for RuntimeContext registration
                 role: e.role,
                 modules: e.modules,
             });

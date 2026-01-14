@@ -265,55 +265,62 @@ class PhaserRenderScene extends Phaser.Scene {
         this.phaserRenderer.onUpdate(time, delta);
 
         if (this.phaserRenderer.isRuntimeMode) {
-            // [Optimized Update Loop]
-            // Uses RuntimeContext to get Logic components instead of EditorState
+            // [Live Editor Sync Update Loop]
+            // Reads logic directly from EditorState for live editing during runtime
+            // RuntimeContext is used for physics/variable state only
 
             const frameStart = performance.now();
             const dt = delta / 1000;
 
             const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
-            if (!runtimeContext) return;
+            const input = runtimeContext?.getInput();
 
-            const input = runtimeContext.getInput();
-
-            // Get Logic components from RuntimeContext (registered via GameCore.createEntity -> pipeline)
-            const logicComponents = runtimeContext.getAllComponentsOfType("Logic");
+            // Read entities from EditorState for live editing
+            const entities = this.phaserRenderer.core.getEntities();
             let processedComponentCount = 0;
 
-            for (const comp of logicComponents) {
-                const logicData = comp.data as import("../types/Component").LogicComponent | undefined;
-                if (!logicData) continue;
+            entities.forEach((entity) => {
+                // Check entity is alive (from RuntimeContext variables)
+                if (runtimeContext) {
+                    const hpVar = runtimeContext.getEntityVariable(entity.id, "hp");
+                    if (typeof hpVar === "number" && hpVar <= 0) return;
+                }
 
-                // Filter: OnUpdate or TICK only
-                if (logicData.event !== "OnUpdate" && logicData.event !== "TICK") continue;
+                // Read logic directly from EditorState (live sync)
+                const logicItems = entity.logic;
+                if (!logicItems || logicItems.length === 0) return;
 
-                // Check entity is alive
-                const hpVar = runtimeContext.getEntityVariable(comp.entityId, "hp");
-                if (typeof hpVar === "number" && hpVar <= 0) continue;
-
-                // Prepare context with scene/renderer (Phaser specific)
-                this.reusableCtx.entityId = comp.entityId;
+                // Prepare context
+                this.reusableCtx.entityId = entity.id;
                 this.reusableCtx.eventData = { time, delta, dt };
                 this.reusableCtx.input = input;
-                this.reusableCtx.entityContext = runtimeContext.getEntityContext(comp.entityId);
+                this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
                 this.reusableCtx.globals = {
                     scene: this,
                     renderer: this.phaserRenderer,
-                    entities: runtimeContext.entities,
+                    entities: entities,
                     gameCore: this.phaserRenderer.gameCore
                 };
 
-                // Check conditions
-                if (!this.passesConditions(logicData, this.reusableCtx)) continue;
+                for (const item of logicItems) {
+                    if (item.kind !== "component") continue;
 
-                processedComponentCount++;
+                    const component = item.component;
+                    if (component.type !== "Logic") continue;
+                    if (component.event !== "OnUpdate" && component.event !== "TICK") continue;
 
-                // Execute Actions
-                for (const action of logicData.actions ?? []) {
-                    const { type, ...params } = action;
-                    ActionRegistry.run(type, this.reusableCtx, params);
+                    // Check conditions
+                    if (!this.passesConditions(component, this.reusableCtx)) continue;
+
+                    processedComponentCount++;
+
+                    // Execute Actions (reads current actions from EditorState)
+                    for (const action of component.actions ?? []) {
+                        const { type, ...params } = action;
+                        ActionRegistry.run(type, this.reusableCtx, params);
+                    }
                 }
-            }
+            });
 
             // [Performance Reporting]
             const frameDuration = performance.now() - frameStart;
