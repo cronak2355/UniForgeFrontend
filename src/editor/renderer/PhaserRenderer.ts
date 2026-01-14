@@ -982,7 +982,7 @@ export class PhaserRenderer implements IRenderer {
             // Non-UI tinting
             if ('setTint' in obj) {
                 // @ts-ignore
-                obj.setTint(color);
+                obj.setTint(options?.color || 0xffffff);
             }
         }
 
