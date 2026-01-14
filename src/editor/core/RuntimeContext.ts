@@ -1,4 +1,7 @@
 import type { InputState } from "./RuntimePhysics";
+import type { RuntimeEntity } from "./RuntimeEntity";
+import type { RuntimeComponent } from "./RuntimeComponent";
+import { ModuleLiteral } from "../types/Module";
 
 export type CollisionContact = {
     otherId: string;
@@ -27,10 +30,164 @@ export type EntityRuntimeContext = {
     signals: EntitySignalContext;
 };
 
+export type RuntimeVariable = {
+    name: string;
+    type: string;
+    value: ModuleLiteral;
+}
+
+/**
+ * RuntimeContext
+ * 
+ * Central Data Container for the Runtime.
+ * Holds all Entities, Components, and Runtime States.
+ * Acts as the "Database" for the Query System.
+ */
 export class RuntimeContext {
+    // =========================================================================
+    // Core Data Stores
+    // =========================================================================
+
+    /** All Active Runtime Entities mapped by ID */
+    public entities: Map<string, RuntimeEntity> = new Map();
+
+    /** 
+     * Components grouped by Type.
+     * Map<ComponentType, ComponentArray> 
+     * Useful for iterating all components of a specific type (System query).
+     */
+    public componentsByType: Map<string, RuntimeComponent[]> = new Map();
+
+    /**
+     * Map helper to find specific components by Entity ID.
+     * Map<EntityId, Component[]>
+     */
+    public componentsByEntity: Map<string, RuntimeComponent[]> = new Map();
+
+    /**
+     * Logic components grouped by Event Type for efficient queries.
+     * Map<EventType, RuntimeComponent[]>
+     * e.g., "OnUpdate" -> [comp1, comp2], "OnCollision" -> [comp3]
+     */
+    public componentsByEvent: Map<string, RuntimeComponent[]> = new Map();
+
+    /** Global and Local Variables */
+    public variables: Map<string, RuntimeVariable> = new Map();
+    public entityVariables: Map<string, Map<string, RuntimeVariable>> = new Map();
+
+
+    // =========================================================================
+    // Legacy / Subsystem States (Physics, Input, Signals)
+    // =========================================================================
     private input: InputState = { left: false, right: false, up: false, down: false, jump: false };
-    private entities: Map<string, EntityRuntimeContext> = new Map();
+    private entityContexts: Map<string, EntityRuntimeContext> = new Map();
     private groundTags: Set<string> = new Set(["Wall"]);
+
+    // =========================================================================
+    // Data Management
+    // =========================================================================
+
+    public registerEntity(entity: RuntimeEntity) {
+        this.entities.set(entity.id, entity);
+    }
+
+    public unregisterEntity(id: string) {
+        this.entities.delete(id);
+        this.componentsByEntity.delete(id);
+        // Clean up entity variables
+        this.entityVariables.delete(id);
+        // Clean up entity context
+        this.entityContexts.delete(id);
+    }
+
+    public registerComponent(component: RuntimeComponent) {
+        // Index by Type
+        if (!this.componentsByType.has(component.type)) {
+            this.componentsByType.set(component.type, []);
+        }
+        this.componentsByType.get(component.type)!.push(component);
+
+        // Index by Entity
+        if (!this.componentsByEntity.has(component.entityId)) {
+            this.componentsByEntity.set(component.entityId, []);
+        }
+        this.componentsByEntity.get(component.entityId)!.push(component);
+
+        // Index by Event (for Logic components)
+        if (component.type === "Logic") {
+            const eventType = (component.data as any)?.event;
+            if (eventType) {
+                if (!this.componentsByEvent.has(eventType)) {
+                    this.componentsByEvent.set(eventType, []);
+                }
+                this.componentsByEvent.get(eventType)!.push(component);
+            }
+        }
+    }
+
+    public unregisterComponent(component: RuntimeComponent) {
+        // Remove from Type Index
+        const typeList = this.componentsByType.get(component.type);
+        if (typeList) {
+            const idx = typeList.indexOf(component);
+            if (idx !== -1) typeList.splice(idx, 1);
+        }
+
+        // Remove from Entity Index
+        const entityList = this.componentsByEntity.get(component.entityId);
+        if (entityList) {
+            const idx = entityList.indexOf(component);
+            if (idx !== -1) entityList.splice(idx, 1);
+        }
+
+        // Remove from Event Index (for Logic components)
+        if (component.type === "Logic") {
+            const eventType = (component.data as any)?.event;
+            if (eventType) {
+                const eventList = this.componentsByEvent.get(eventType);
+                if (eventList) {
+                    const idx = eventList.indexOf(component);
+                    if (idx !== -1) eventList.splice(idx, 1);
+                }
+            }
+        }
+    }
+
+    public getAllComponentsOfType(type: string): RuntimeComponent[] {
+        return this.componentsByType.get(type) ?? [];
+    }
+
+    /**
+     * Get Logic components by event type (OnUpdate, OnStart, OnCollision, etc.)
+     * Much more efficient than getAllComponentsOfType("Logic") + filter
+     */
+    public getComponentsByEvent(eventType: string): RuntimeComponent[] {
+        return this.componentsByEvent.get(eventType) ?? [];
+    }
+
+    public getEntityComponents(entityId: string): RuntimeComponent[] {
+        return this.componentsByEntity.get(entityId) ?? [];
+    }
+
+    // =========================================================================
+    // Variable Access
+    // =========================================================================
+
+    public setEntityVariable(entityId: string, name: string, value: ModuleLiteral, type: string = "any") {
+        if (!this.entityVariables.has(entityId)) {
+            this.entityVariables.set(entityId, new Map());
+        }
+        this.entityVariables.get(entityId)!.set(name, { name, value, type });
+    }
+
+    public getEntityVariable(entityId: string, name: string): ModuleLiteral | undefined {
+        return this.entityVariables.get(entityId)?.get(name)?.value;
+    }
+
+
+    // =========================================================================
+    // Input & System Hooks
+    // =========================================================================
 
     setInput(next: InputState): void {
         this.input = { ...next };
@@ -45,14 +202,18 @@ export class RuntimeContext {
     }
 
     beginFrame(): void {
-        for (const ctx of this.entities.values()) {
+        for (const ctx of this.entityContexts.values()) {
             ctx.collisions.entered = [];
             ctx.collisions.exited = [];
         }
     }
 
+    // =========================================================================
+    // Entity Context (Physics/Collision/Signal Buffer)
+    // =========================================================================
+
     getEntityContext(entityId: string): EntityRuntimeContext {
-        const existing = this.entities.get(entityId);
+        const existing = this.entityContexts.get(entityId);
         if (existing) {
             return existing;
         }
@@ -68,14 +229,20 @@ export class RuntimeContext {
                 values: {},
             },
         };
-        this.entities.set(entityId, created);
+        this.entityContexts.set(entityId, created);
         return created;
     }
 
     clearEntities(): void {
         this.entities.clear();
+        this.componentsByType.clear();
+        this.componentsByEntity.clear();
+        this.entityVariables.clear();
+        this.entityContexts.clear();
+        this.variables.clear();
     }
 
+    // Pass-through for Physics System
     recordCollisionEnter(entityId: string, contact: CollisionContact): void {
         const ctx = this.getEntityContext(entityId);
         this.upsertContact(ctx.collisions.current, contact);
