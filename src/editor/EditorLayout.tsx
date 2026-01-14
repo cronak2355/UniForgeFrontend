@@ -818,7 +818,10 @@ function EditorLayoutInner() {
                             <MenuItem label="Load Project" onClick={() => {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
-                            <MenuItem label="Save Project" onClick={() => setIsSaveModalOpen(true)} />
+                            <MenuItem label="Save Project" onClick={() => {
+                                console.log("Save Project menu item clicked");
+                                setIsSaveModalOpen(true);
+                            }} />
                             <MenuItem
                                 label="Export"
                                 onClick={() => {
