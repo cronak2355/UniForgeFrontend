@@ -10,14 +10,12 @@ import type { ModuleGraph } from "./types/Module";
 import { defaultGameConfig } from "./core/GameConfig";
 import { EventBus } from "./core/events/EventBus";
 import type { GameEvent } from "./core/events/EventBus";
+import type { InputState } from "./core/RuntimePhysics";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
 
-
-
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
-    // ????먯뀑???섎굹??罹붾쾭?ㅻ줈 ?⑹퀜 ??쇱뀑 ?띿뒪泥섎? 留뚮뱺??
     const tileAssets = assets.filter((asset) => asset.tag === "Tile");
     if (tileAssets.length === 0) return null;
 
@@ -72,7 +70,6 @@ function applyAllTiles(renderer: PhaserRenderer, tiles: TilePlacement[]) {
 }
 
 function indexTiles(tiles: TilePlacement[]) {
-    // ???諛곗뿴??醫뚰몴 ??留듭쑝濡?蹂?섑빐 diff 怨꾩궛???ъ슜?쒕떎.
     const map = new Map<string, TilePlacement>();
     for (const t of tiles) {
         map.set(`${t.x},${t.y}`, t);
@@ -83,6 +80,26 @@ function indexTiles(tiles: TilePlacement[]) {
 type RunTimeCanvasProps = {
     onRuntimeEntitySync?: (entity: EditorEntity) => void;
 };
+
+function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
+    entities.forEach((entity) => {
+        gameRuntime.createEntity(entity.id, entity.type, entity.x, entity.y, {
+            name: entity.name,
+            z: entity.z,
+            rotationX: entity.rotationX,
+            rotationY: entity.rotationY,
+            rotationZ: entity.rotationZ,
+            scaleX: entity.scaleX,
+            scaleY: entity.scaleY,
+            scaleZ: 1,
+            variables: entity.variables,
+            components: entity.components,
+            modules: entity.modules,
+            role: entity.role,
+            texture: entity.texture,
+        });
+    });
+}
 
 export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const ref = useRef<HTMLDivElement>(null);
@@ -97,33 +114,15 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
     const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
-
-    const spawnRuntimeEntities = (gameRuntime: GameCore, sourceEntities: EditorEntity[]) => {
-        for (const e of sourceEntities) {
-            gameRuntime.createEntity(e.id, e.type, e.x, e.y, {
-                name: e.name,
-                z: e.z,
-                rotationX: e.rotationX,
-                rotationY: e.rotationY,
-                rotationZ: e.rotationZ ?? e.rotation,
-                scaleX: e.scaleX,
-                scaleY: e.scaleY,
-                texture: e.texture ?? e.name,
-                variables: e.variables,
-                components: e.components,
-                logic: e.logic,  // Pass logic array for RuntimeContext registration
-                role: e.role,
-                modules: e.modules,
-            });
-        }
-    };
+    const [fps, setFps] = useState(0);
+    const frameCountRef = useRef(0);
+    const lastFpsTimeRef = useRef(0);
 
     useEffect(() => {
         selectedEntityIdRef.current = selectedEntity?.id ?? null;
     }, [selectedEntity]);
 
     useEffect(() => {
-        // ?고????뚮뜑??寃뚯엫肄붿뼱 珥덇린??(理쒖큹 1??
         if (!ref.current) return;
         if (rendererRef.current) return;
 
@@ -131,10 +130,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         rendererRef.current = renderer;
         const gameRuntime = new GameCore(renderer);
         gameCoreRef.current = gameRuntime;
-        setGameCore(gameRuntime); // State update triggers UI render
-        renderer.gameCore = gameRuntime; // Enable role-based targeting in actions
-        renderer.gameConfig = defaultGameConfig; // ??븷 湲곕컲 ?ㅼ젙 ?곌껐
-        gameRuntime.setGameConfig(defaultGameConfig); // GameCore?먮룄 ?ㅼ젙 ?곌껐
+        setGameCore(gameRuntime);
+        renderer.gameCore = gameRuntime;
+        renderer.gameConfig = defaultGameConfig;
+        gameRuntime.setGameConfig(defaultGameConfig);
         renderer.useEditorCoreRuntimePhysics = false;
         renderer.getRuntimeContext = () => gameRuntime.getRuntimeContext();
         renderer.onInputState = (input) => {
@@ -148,7 +147,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         let active = true;
 
         (async () => {
-            // ?뚮뜑??珥덇린?????띿뒪泥???쇱뀑/珥덇린 ?곹깭瑜?濡쒕뱶?쒕떎.
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
             rendererReadyRef.current = true;
@@ -156,40 +154,25 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             // Enable runtime mode for Rules and TICK events
             renderer.isRuntimeMode = true;
 
-            for (const asset of assets) {
-                // ??쇱? ??쇱뀑 罹붾쾭?ㅻ줈 泥섎━?섎?濡?鍮꾪??쇰쭔 濡쒕뱶?쒕떎.
-                if (asset.tag === "Tile") continue;
-                console.log(`[RunTimeCanvas] Loading asset: ${asset.name}`, asset.metadata);
-                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
-            }
-
-            const tilesetCanvas = await buildTilesetCanvas(assets);
-            if (tilesetCanvas) {
-                // ??쇱뀑 ?띿뒪泥??깅줉 ????쇰㏊ ?앹꽦
-                renderer.addCanvasTexture("tiles", tilesetCanvas);
-                renderer.initTilemap("tiles");
-            }
-
-            for (const t of tiles) {
-                // ??λ맂 ???諛곗튂 蹂듭썝
-                renderer.setTile(t.x, t.y, t.tile);
-            }
-
-            // 理쒖떊 ?몄쭛 ?곗씠?곕줈 ?뷀떚???앹꽦 (Inspector 蹂寃?諛섏쁺)
             const freshEntities = Array.from(core.getEntities().values());
-
             spawnRuntimeEntities(gameRuntime, freshEntities);
 
             if (renderer.isRuntimeMode) {
-                console.log(`[RunTimeCanvas] Initialized with ${entities.length} entities`);
+                console.log(`[RunTimeCanvas] Initialized with ${freshEntities.length} entities`);
             }
 
             // 렌더링 루프 콜백 설정
             renderer.onUpdateCallback = (time, delta) => {
                 gameRuntime.update(time, delta);
 
-                // [UI Text Sync] Runtime variable -> Phaser Text
-                // 모든 엔티티를 순회하며 uiText 변수가 있다면 화면에 반영
+                // FPS Calculation
+                frameCountRef.current++;
+                if (time > lastFpsTimeRef.current + 500) {
+                    setFps(Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current)));
+                    frameCountRef.current = 0;
+                    lastFpsTimeRef.current = time;
+                }
+
                 // [UI Text Sync] Runtime variable -> Phaser Text
                 // Optimized: Access RuntimeContext directly
                 const runtimeContext = gameRuntime.getRuntimeContext();
@@ -258,6 +241,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     }
                 }
 
+                // Selected Entity Sync
                 const selectedId = selectedEntityIdRef.current;
                 if (!selectedId) return;
 
@@ -275,18 +259,14 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     rotationX: runtimeEntity.rotationX ?? editorEntity.rotationX,
                     rotationY: runtimeEntity.rotationY ?? editorEntity.rotationY,
                     rotationZ: runtimeEntity.rotationZ ?? editorEntity.rotationZ,
-                    rotation:
-                        typeof runtimeEntity.rotationZ === "number"
-                            ? runtimeEntity.rotationZ
-                            : editorEntity.rotation,
+                    rotation: typeof runtimeEntity.rotationZ === "number" ? runtimeEntity.rotationZ : editorEntity.rotation,
                     scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
                     scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
-
                     variables: nextVars,
                     modules: nextModules,
                 };
-                const sameVars =
-                    editorEntity.variables.length === nextVars.length &&
+
+                const sameVars = editorEntity.variables.length === nextVars.length &&
                     editorEntity.variables.every((v, idx) => {
                         const next = nextVars[idx];
                         return (
@@ -305,9 +285,8 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     editorEntity.rotationZ === nextEntity.rotationZ &&
                     editorEntity.scaleX === nextEntity.scaleX &&
                     editorEntity.scaleY === nextEntity.scaleY;
-                const sameModules =
-                    JSON.stringify(editorEntity.modules ?? []) ===
-                    JSON.stringify(nextEntity.modules ?? []);
+                const sameModules = JSON.stringify(editorEntity.modules ?? []) === JSON.stringify(nextEntity.modules ?? []);
+
                 if (sameVars && sameTransform && sameModules) return;
 
                 if (onRuntimeEntitySync) {
@@ -319,7 +298,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         })();
 
         return () => {
-            // 애니메이션 및 정리
             active = false;
             gameRuntime.destroy && gameRuntime.destroy();
             renderer.onUpdateCallback = undefined;
@@ -375,7 +353,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     }, [modules]);
 
     useEffect(() => {
-        // ???蹂寃쎌궗??쭔 諛섏쁺 (異붽?/??젣 diff)
         const renderer = rendererRef.current;
         if (!renderer || !tilemapReadyRef.current) return;
 
@@ -409,7 +386,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         let cancelled = false;
 
         (async () => {
-            // 커스텀 파티클 등 기타 에셋 업데이트
             renderer.updateAssets?.(assets);
 
             for (const asset of nextNonTileAssets) {
@@ -451,7 +427,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         };
     }, [assets, entities]);
 
-    // Entry Style Colors
     const colors = {
         bgPrimary: '#0d1117',
         bgSecondary: '#161b22',
@@ -471,7 +446,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
             padding: '12px',
             overflow: 'hidden',
         }}>
-            {/* Toolbar */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -489,28 +463,30 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 }}>
                     InGame Camera
                 </span>
+                <span style={{
+                    fontSize: '12px',
+                    color: colors.accentLight,
+                    marginLeft: 'auto',
+                    padding: '4px 8px',
+                    background: colors.bgTertiary,
+                    borderRadius: '4px',
+                    fontFamily: 'monospace'
+                }}>
+                    {fps} FPS
+                </span>
             </div>
 
-            {/* Phaser Canvas Container + UI Overlay */}
             <div style={{
                 flex: 1,
-                position: 'relative', // Relative for overlay
+                position: 'relative',
                 background: colors.bgPrimary,
                 border: `2px solid ${colors.borderColor}`,
                 borderRadius: '6px',
                 overflow: 'hidden',
             }}>
-                {/* Phaser Container */}
                 <div ref={ref} style={{ width: '100%', height: '100%' }} />
-
-                {/* Game UI Overlay */}
                 <GameUIOverlay gameCore={gameCore} showHud={false} />
             </div>
         </div>
     );
 }
-
-
-
-
-
