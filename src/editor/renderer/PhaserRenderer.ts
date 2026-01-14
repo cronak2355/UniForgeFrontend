@@ -266,80 +266,66 @@ class PhaserRenderScene extends Phaser.Scene {
 
         if (this.phaserRenderer.isRuntimeMode) {
             // [Optimized Update Loop]
-            // Direct iteration with reused objects instead of EventBus.emit("TICK")
+            // Uses RuntimeContext to get Logic components instead of EditorState
 
             const frameStart = performance.now();
-
             const dt = delta / 1000;
-            const entities = this.phaserRenderer.core.getEntities();
-
-            // Prepare reused objects
-            this.reusableCtx.globals = {
-                scene: this,
-                renderer: this.phaserRenderer,
-                entities: entities, // Map ref
-                gameCore: this.phaserRenderer.gameCore
-            };
-            this.reusableEvent.data = { time, delta, dt };
 
             const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
-            const input = runtimeContext?.getInput();
+            if (!runtimeContext) return;
 
-            // Iterate entities directly
-            let processedEntityCount = 0;
+            const input = runtimeContext.getInput();
+
+            // Get Logic components from RuntimeContext (registered via GameCore.createEntity -> pipeline)
+            const logicComponents = runtimeContext.getAllComponentsOfType("Logic");
             let processedComponentCount = 0;
 
-            entities.forEach((entity) => {
-                // Optimization: inline simple alive check
-                const hpVar = entity.variables?.find((v: any) => v.name === "hp");
-                if (hpVar && (hpVar.value as number) <= 0) return;
+            for (const comp of logicComponents) {
+                const logicData = comp.data as import("../types/Component").LogicComponent | undefined;
+                if (!logicData) continue;
 
-                // [Optimization] Avoid allocating arrays with splitLogicItems and filter
-                // We iterate the logic array directly.
-                const logicItems = entity.logic;
-                if (!logicItems || logicItems.length === 0) return;
+                // Filter: OnUpdate or TICK only
+                if (logicData.event !== "OnUpdate" && logicData.event !== "TICK") continue;
 
-                processedEntityCount++;
+                // Check entity is alive
+                const hpVar = runtimeContext.getEntityVariable(comp.entityId, "hp");
+                if (typeof hpVar === "number" && hpVar <= 0) continue;
 
-                // Reuse Context
-                this.reusableCtx.entityId = entity.id;
+                // Prepare context with scene/renderer (Phaser specific)
+                this.reusableCtx.entityId = comp.entityId;
+                this.reusableCtx.eventData = { time, delta, dt };
                 this.reusableCtx.input = input;
-                this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
-                this.reusableCtx.eventData = this.reusableEvent.data ?? {};
+                this.reusableCtx.entityContext = runtimeContext.getEntityContext(comp.entityId);
+                this.reusableCtx.globals = {
+                    scene: this,
+                    renderer: this.phaserRenderer,
+                    entities: runtimeContext.entities,
+                    gameCore: this.phaserRenderer.gameCore
+                };
 
-                for (const item of logicItems) {
-                    // Check if it's a component
-                    if (item.kind !== "component") continue;
+                // Check conditions
+                if (!this.passesConditions(logicData, this.reusableCtx)) continue;
 
-                    const component = item.component;
-                    // Check Event Type (Inline Filter)
-                    if (component.type !== "Logic") continue;
-                    if (component.event !== "OnUpdate" && component.event !== "TICK") continue;
+                processedComponentCount++;
 
-                    processedComponentCount++;
-
-                    // We know the event matches because we filtered by it, but conditions still apply
-                    if (!this.passesConditions(component, this.reusableCtx)) continue;
-
-                    for (const action of component.actions ?? []) {
-                        const { type, ...params } = action;
-                        ActionRegistry.run(type, this.reusableCtx, params);
-                    }
+                // Execute Actions
+                for (const action of logicData.actions ?? []) {
+                    const { type, ...params } = action;
+                    ActionRegistry.run(type, this.reusableCtx, params);
                 }
-            });
+            }
 
             // [Performance Reporting]
             const frameDuration = performance.now() - frameStart;
             this.accFrameTime += frameDuration;
             this.frameCount++;
 
-            const REPORT_INTERVAL = 300; // ~5 seconds at 60fps
+            const REPORT_INTERVAL = 300;
             if (this.frameCount >= REPORT_INTERVAL) {
                 const avgTime = this.accFrameTime / this.frameCount;
                 console.log(`[Performance] Component Execution Report (Avg over ${this.frameCount} frames):`);
-                console.log(` - Avg Frame Time (Components Only): ${avgTime.toFixed(4)} ms`);
-                console.log(` - Entities Processed: ${processedEntityCount} / ${entities.size}`);
-                console.log(` - Components Processed: ${processedComponentCount}`);
+                console.log(` - Avg Frame Time: ${avgTime.toFixed(4)} ms`);
+                console.log(` - Logic Components Executed: ${processedComponentCount}`);
 
                 this.accFrameTime = 0;
                 this.frameCount = 0;

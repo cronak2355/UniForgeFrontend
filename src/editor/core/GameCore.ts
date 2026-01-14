@@ -21,6 +21,7 @@ import { type GameConfig, defaultGameConfig } from "./GameConfig";
 import { ModuleRuntime } from "./flow/ModuleRuntime"; // Keep for now, might need refactor later
 import type { ModuleGraph, ModuleLiteral } from "../types/Module";
 import { collisionSystem } from "./CollisionSystem"; // Legacy Wrapper
+import type { EditorLogicItem } from "../types/Logic";
 
 // Legacy Type Aliases for compatibility during migration (or future deprecation)
 export type GameEntity = RuntimeEntity;
@@ -45,6 +46,7 @@ export interface CreateEntityOptions {
     color?: number;
     role?: string;
     modules?: ModuleGraph[];
+    logic?: EditorLogicItem[];
 }
 
 export class GameCore {
@@ -256,7 +258,7 @@ export class GameCore {
         // 3. Queue Logic Data
         this.pipeline.queueCreateEntity(entity);
 
-        // 4. Queue Components
+        // 4. Queue Components (from options.components - legacy)
         if (options.components) {
             for (const c of options.components) {
                 const runtimeComp: RuntimeComponent = {
@@ -265,6 +267,20 @@ export class GameCore {
                     data: c
                 };
                 this.pipeline.queueAddComponent(runtimeComp);
+            }
+        }
+
+        // 4b. Queue Components from logic array (EditorLogicItem[])
+        if (options.logic) {
+            for (const item of options.logic) {
+                if (item.kind === "component") {
+                    const runtimeComp: RuntimeComponent = {
+                        entityId: id,
+                        type: item.component.type,
+                        data: item.component
+                    };
+                    this.pipeline.queueAddComponent(runtimeComp);
+                }
             }
         }
 
