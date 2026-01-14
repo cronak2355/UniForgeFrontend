@@ -6,6 +6,7 @@ import {
   NEGATIVE_KEYWORDS
 } from '../data/AnimationPresets';
 import type { AnimationPreset } from '../data/AnimationPresets';
+import { authService } from '../../services/authService';
 
 // 애니메이션 프레임 전용 API (seed 기반 일관성)
 const ANIMATION_API_URL = '/api/generate-animation-frame';
@@ -26,6 +27,14 @@ export interface GeneratedFrame {
   frameIndex: number;
   imageData: string;  // base64
   prompt: string;
+}
+
+function getAuthHeaders() {
+  const token = authService.getToken();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
 }
 
 /**
@@ -81,9 +90,13 @@ export async function generateAnimation(
 
       const response = await fetch(ANIMATION_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(requestBody),
       });
+
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Please log in again.");
+      }
 
       const data = await response.json();
 
@@ -157,9 +170,13 @@ export async function regenerateFrame(
 
   const response = await fetch(ANIMATION_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(requestBody),
   });
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized: Please log in again.");
+  }
 
   const data = await response.json();
 
@@ -182,7 +199,7 @@ export async function generateBaseFrame(
 
   const response = await fetch(ANIMATION_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       prompt,
       size: canvasSize,
@@ -191,6 +208,10 @@ export async function generateBaseFrame(
       frame_index: 0,
     }),
   });
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized: Please log in again.");
+  }
 
   const data = await response.json();
 
@@ -229,7 +250,7 @@ export async function generateAnimationFromBase(
     try {
       const response = await fetch(ANIMATION_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           prompt,
           size: canvasSize,
@@ -239,6 +260,10 @@ export async function generateAnimationFromBase(
           frame_index: i,
         }),
       });
+
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Please log in again.");
+      }
 
       const data = await response.json();
 
@@ -274,7 +299,7 @@ export async function generateSingleImage(
 ): Promise<string> {
   const response = await fetch(GENERATE_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       prompt,
       size: canvasSize,
@@ -282,6 +307,10 @@ export async function generateSingleImage(
       negative_prompt: NEGATIVE_KEYWORDS,
     }),
   });
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized: Please log in again.");
+  }
 
   const data = await response.json();
 
