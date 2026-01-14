@@ -20,33 +20,13 @@ export const assetService = {
         const contentType = file.type || "application/octet-stream";
 
         // 1. DEV MODE: Local Mock (localStorage 저장)
+
+        // 1. DEV MODE: Mock Logic Removed - Always use Real API
+        /* 
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-            console.log("[assetService] Running in DEV mode (Mock Upload with localStorage)");
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const assetUrl = e.target?.result as string;
-                    const newAsset: UploadedAssetData = {
-                        id: crypto.randomUUID(),
-                        url: assetUrl,
-                        name,
-                        tag,
-                        metadata
-                    };
-
-                    // localStorage에 저장
-                    const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
-                    const existingAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
-                    existingAssets.push(newAsset);
-                    localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(existingAssets));
-                    console.log(`[assetService] Saved to localStorage: ${newAsset.name} (${newAsset.tag})`);
-
-                    resolve(newAsset);
-                };
-                reader.onerror = (err) => reject(err);
-                reader.readAsDataURL(file);
-            });
-        }
+           // Mock logic removed to force real S3 tests
+        } 
+        */
 
         // 2. PROD/API MODE: Full Chain via apiClient
 
@@ -251,19 +231,13 @@ export const assetService = {
 
     async deleteAsset(assetId: string, token: string | null): Promise<void> {
         // 1. DEV MODE: Local Mock
+
+        // 1. DEV MODE: Mock Logic Removed
+        /*
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-            console.log(`[assetService] Mock Deleting asset: ${assetId}`);
-            const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
-            try {
-                const existingAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
-                const filtered = existingAssets.filter((a: UploadedAssetData) => a.id !== assetId);
-                localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(filtered));
-                return;
-            } catch (e) {
-                console.warn("Failed to delete local asset", e);
-                return;
-            }
+             // Mock logic removed
         }
+        */
 
         // 2. PROD/API MODE
         await apiClient.request(`/assets/${assetId}`, {

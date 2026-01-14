@@ -1,17 +1,17 @@
 // src/AssetsEditor/services/animationService.ts
 
-import { 
-  ANIMATION_PRESETS, 
+import {
+  ANIMATION_PRESETS,
   buildFramePrompt,
   NEGATIVE_KEYWORDS
 } from '../data/AnimationPresets';
 import type { AnimationPreset } from '../data/AnimationPresets';
 
 // 애니메이션 프레임 전용 API (seed 기반 일관성)
-const ANIMATION_API_URL = 'http://localhost:8000/api/generate-animation-frame';
+const ANIMATION_API_URL = `${import.meta.env.VITE_AI_API_URL || 'http://localhost:8000'}/api/generate-animation-frame`;
 
 // 기존 단일 이미지 생성 API
-const GENERATE_API_URL = 'http://localhost:8000/api/AIgenerate';
+const GENERATE_API_URL = `${import.meta.env.VITE_AI_API_URL || 'http://localhost:8000'}/api/AIgenerate`;
 
 export interface GenerateOptions {
   characterDescription: string;  // 예: "blue armored knight with sword"
@@ -38,13 +38,13 @@ export interface GeneratedFrame {
 export async function generateAnimation(
   options: GenerateOptions
 ): Promise<GeneratedFrame[]> {
-  const { 
-    characterDescription, 
-    presetId, 
+  const {
+    characterDescription,
+    presetId,
     canvasSize,
     onFrameGenerated,
     onProgress,
-    onError 
+    onError
   } = options;
 
   const preset = ANIMATION_PRESETS[presetId];
@@ -61,7 +61,7 @@ export async function generateAnimation(
   for (let i = 0; i < preset.frames.length; i++) {
     const frame = preset.frames[i];
     const prompt = buildFramePrompt(characterDescription, preset, i);
-    
+
     onProgress?.(i + 1, preset.frameCount);
     console.log(`   프레임 ${i + 1}/${preset.frameCount}: ${frame.description}`);
 
@@ -97,13 +97,13 @@ export async function generateAnimation(
           sharedSeed = data.seed;
           console.log(`   🎲 Seed 고정: ${sharedSeed}`);
         }
-        
+
         const generatedFrame: GeneratedFrame = {
           frameIndex: i,
           imageData: data.image,
           prompt,
         };
-        
+
         generatedFrames.push(generatedFrame);
         onFrameGenerated?.(i, data.image);
       }
@@ -142,7 +142,7 @@ export async function regenerateFrame(
   }
 
   const prompt = buildFramePrompt(characterDescription, preset, frameIndex);
-  
+
   const requestBody: Record<string, unknown> = {
     prompt,
     size: canvasSize,
@@ -223,7 +223,7 @@ export async function generateAnimationFromBase(
 
   for (let i = 0; i < preset.frames.length; i++) {
     const prompt = buildFramePrompt(characterDescription, preset, i);
-    
+
     onProgress?.(i + 1, preset.frameCount);
 
     try {
