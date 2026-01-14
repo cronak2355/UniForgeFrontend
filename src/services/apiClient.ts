@@ -1,5 +1,5 @@
 export class ApiClient {
-    private static readonly API_BASE_URL = 'https://uniforge.kr/api';
+    private static readonly API_BASE_URL = '/api';
 
     private getToken(): string | null {
         return localStorage.getItem('token');

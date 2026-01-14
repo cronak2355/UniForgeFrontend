@@ -105,6 +105,11 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                 // 5. Fetch User Names
                 const userMap = await userService.getUsersByIds(Array.from(authorIds));
 
+                // Optimistic override for current user
+                if (user && user.id) {
+                    userMap.set(user.id, { id: user.id, name: user.name, email: user.email, profileImage: user.profileImage } as any);
+                }
+
                 // 6. Map to UI
                 setMyGames(games.map(game => {
                     const authorName = userMap.get(game.authorId)?.name || "Unknown User";
