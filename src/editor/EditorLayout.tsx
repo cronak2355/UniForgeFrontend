@@ -819,7 +819,6 @@ function EditorLayoutInner() {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
                             <MenuItem label="Save Project" onClick={() => {
-                                alert("Save Project Clicked!"); // Force feedback
                                 setIsSaveModalOpen(true);
                             }} />
                             <MenuItem
