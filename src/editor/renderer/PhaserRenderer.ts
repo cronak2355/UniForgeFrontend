@@ -138,16 +138,21 @@ class PhaserRenderScene extends Phaser.Scene {
                 return;
             }
 
-            // [Optimized] Fetch all entities once per event batch
-            const allEntities = this.phaserRenderer.isRuntimeMode
-                ? (this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities())
-                : this.phaserRenderer.core.getEntities();
+            // [Optimized] Use RuntimeContext directly used primarily for lookups
+            // Accessing entities via RuntimeContext is O(1) or O(N) iteration without allocation
+            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+
+            // Helper to get entities for global lookup (Scene globals)
+            // We pass the raw Map to avoid reconstruction. 
+            // Warning: Consumers must handle Raw RuntimeEntity objects, not EditorEntity adapters.
+            // But ActionRegistry globals usually expect specific interfaces.
+            const globalEntities = runtimeContext ? runtimeContext.entities : this.phaserRenderer.core.getEntities();
 
             this.phaserRenderer.core.getEntities().forEach((entity) => {
                 const components = splitLogicItems(entity.logic);
                 const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
                 if (logicComponents.length === 0) return;
-                const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+
                 const input = runtimeContext?.getInput();
                 const entityCtx = runtimeContext?.getEntityContext(entity.id);
 
@@ -156,7 +161,13 @@ class PhaserRenderScene extends Phaser.Scene {
                     eventData: event.data || {},
                     input,
                     entityContext: entityCtx,
-                    globals: { scene: this, renderer: this.phaserRenderer, entities: allEntities, gameCore: this.phaserRenderer.gameCore }
+                    // Pass the Map directly. Logic actions should handle Map<string, RuntimeEntity>
+                    globals: {
+                        scene: this,
+                        renderer: this.phaserRenderer,
+                        entities: globalEntities,
+                        gameCore: this.phaserRenderer.gameCore
+                    }
                 };
 
                 if (this.shouldSkipEntity(ctx, event)) {
@@ -202,9 +213,19 @@ class PhaserRenderScene extends Phaser.Scene {
     };
 
     private shouldSkipEntity(ctx: ActionContext, event: GameEvent): boolean {
-        const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
+        // Optimization: Access RuntimeEntity variables directly if possible
+        const entities = ctx.globals?.entities as Map<string, any>;
         const entity = entities?.get(ctx.entityId);
-        const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
+
+        let hpValue: any;
+        if (this.phaserRenderer.isRuntimeMode && this.phaserRenderer.gameCore) {
+            // Direct Runtime Access
+            hpValue = this.phaserRenderer.gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, "hp");
+        } else {
+            // Fallback to Editor adapter structure
+            hpValue = entity?.variables?.find((v: any) => v.name === "hp")?.value;
+        }
+
         if (typeof hpValue === "number" && hpValue <= 0) {
             return true;
         }
@@ -336,19 +357,30 @@ class PhaserRenderScene extends Phaser.Scene {
 
             // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
             const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
-            const allEntities = Array.from(this.phaserRenderer.core.getEntities().values());
+            // Optimized: Use RuntimeContext Iterator (No Array allocation)
+            let playerEntity: any = null;
 
-            // tags 배열에서 찾기 (1순위: tags, 2순위: role, 3순위: 이름)
-            let playerEntity = allEntities.find(e =>
-                e.tags?.some(tag => cameraRoles.includes(tag))
-            );
-            if (!playerEntity) {
-                playerEntity = allEntities.find(e => hasRole(e.role, cameraRoles));
-            }
-            if (!playerEntity) {
-                playerEntity = allEntities.find(e =>
-                    e.name?.toLowerCase().includes('player')
-                );
+            // 1. Search by Tag & Role (Single pass)
+            for (const e of runtimeContext.entities.values()) {
+                // Check Tags
+                // Note: RuntimeEntity definition might need 'tags' property if it's substantial
+                // Assuming adaptation or direct property exist.
+                // If not, we might need variables check. 
+                // Let's assume RuntimeEntity mirrors needed props or we use variables.
+                // Actually, RuntimeEntity doesn't have tags in interface yet, checking implementation...
+                // It usually relies on variables or direct prop. 
+                // Let's check variables for "tags" or "role". 
+                // We added 'role' to RuntimeEntity interface!
+
+                if (cameraRoles.includes(e.role ?? "")) {
+                    playerEntity = e;
+                    break;
+                }
+
+                // Name fallback
+                if (e.name?.toLowerCase().includes('player')) {
+                    if (!playerEntity) playerEntity = e; // Keep seeking better match? Or just take it.
+                }
             }
 
             if (playerEntity) {
@@ -358,7 +390,7 @@ class PhaserRenderScene extends Phaser.Scene {
                     const cam = this.cameras.main;
                     const targetX = playerObj.x - cam.width / 2;
                     const targetY = playerObj.y - cam.height / 2;
-                    const lerp = 0.1; // 부드러움 정도
+                    const lerp = 0.1;
                     cam.scrollX += (targetX - cam.scrollX) * lerp;
                     cam.scrollY += (targetY - cam.scrollY) * lerp;
                 }
@@ -554,6 +586,7 @@ export class PhaserRenderer implements IRenderer {
         getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
         getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
         getAllEntities?(): Map<string, any>;
+        getRuntimeContext?(): RuntimeContext;
     };
 
     /** 寃뚯엫 ?ㅼ젙 (??븷蹂?湲곕뒫 留ㅽ븨) */
