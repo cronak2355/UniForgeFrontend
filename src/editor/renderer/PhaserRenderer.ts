@@ -717,26 +717,29 @@ export class PhaserRenderer implements IRenderer {
     // ===== Guide Frame =====
     private guideGraphics: Phaser.GameObjects.Graphics | null = null;
 
-    public setGuideFrame(width: number, height: number) {
+    public setGuideFrame(width: number, height: number, x: number = 0, y: number = 0) {
         if (!this.scene) return;
 
         // Lazy init
         if (!this.guideGraphics) {
             this.guideGraphics = this.scene.add.graphics();
             this.guideGraphics.setDepth(10000); // Top most
-            // this.guideGraphics.setScrollFactor(0); // REMOVED: In editor, we want it to move with camera
         }
 
         this.guideGraphics.clear();
 
         if (width <= 0 || height <= 0) return;
 
-        // Draw White Frame
+        // Draw White Frame Centered at (x, y)
         this.guideGraphics.lineStyle(2, 0xffffff, 1);
-        this.guideGraphics.strokeRect(0, 0, width, height);
+        this.guideGraphics.strokeRect(x - width / 2, y - height / 2, width, height);
 
-        // Optional: Label or semi-transparent fill?
-        // Just frame as requested.
+        // Optional: Crosshair center
+        this.guideGraphics.lineStyle(1, 0xffffff, 0.5);
+        this.guideGraphics.moveTo(x - 10, y);
+        this.guideGraphics.lineTo(x + 10, y);
+        this.guideGraphics.moveTo(x, y - 10);
+        this.guideGraphics.lineTo(x, y + 10);
     }
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
