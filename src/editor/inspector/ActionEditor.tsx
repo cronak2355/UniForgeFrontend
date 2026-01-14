@@ -217,67 +217,70 @@ export function ActionEditor({
         )}
 
         {action.type === "SetVar" && (
-          <>
-            <input
-              type="text"
-              placeholder="name"
-              value={(action.name as string) || ""}
-              onChange={(e) => onUpdate({ ...action, name: e.target.value })}
-              onBlur={() => {
-                const name = (action.name as string) || "";
-                if (!name || selectedVar) return;
-                onCreateVariable?.(name, action.value);
-              }}
-              list={`${listId}-vars`}
-              style={styles.textInput}
-            />
-            <datalist id={`${listId}-vars`}>
-              {variables.map((v) => (
-                <option key={v.id} value={v.name} />
-              ))}
-            </datalist>
-            {selectedVar?.type === "bool" ? (
-              <select
-                value={action.value === true ? "true" : "false"}
-                onChange={(e) => onUpdate({ ...action, value: e.target.value === "true" })}
-                onBlur={() => {
-                  const name = (action.name as string) || "";
-                  if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
-                }}
-                style={styles.smallSelect}
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            ) : selectedVar?.type === "int" || selectedVar?.type === "float" ? (
-              <input
-                type="number"
-                placeholder="value"
-                value={action.value !== undefined ? Number(action.value) : 0}
-                onChange={(e) => onUpdate({ ...action, value: parseFloat(e.target.value) || 0 })}
-                onBlur={() => {
-                  const name = (action.name as string) || "";
-                  if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
-                }}
-                style={styles.textInput}
-              />
-            ) : (
+          <div className="flex flex-col gap-2 w-full">
+            {/* Target Variable */}
+            <div className="flex gap-1 items-center">
+              <span className="text-xs text-gray-500 w-12">Target</span>
               <input
                 type="text"
-                placeholder="value"
-                value={action.value !== undefined ? String(action.value) : ""}
-                onChange={(e) => onUpdate({ ...action, value: e.target.value })}
+                placeholder="variable name"
+                value={(action.name as string) || ""}
+                onChange={(e) => onUpdate({ ...action, name: e.target.value })}
                 onBlur={() => {
                   const name = (action.name as string) || "";
                   if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
+                  // Auto-create only if simple assignment? Or just create regardless.
+                  // For now, keep simple auto-create.
+                  onCreateVariable?.(name, 0);
                 }}
-                style={styles.textInput}
+                list={`${listId}-vars`}
+                style={{ ...styles.textInput, flex: 1 }}
+              />
+              <datalist id={`${listId}-vars`}>
+                {variables.map((v) => (
+                  <option key={v.id} value={v.name} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* Operation Selector */}
+            <div className="flex gap-1 items-center">
+              <span className="text-xs text-gray-500 w-12">Op</span>
+              <select
+                value={(action.operation as string) || "Set"}
+                onChange={(e) => onUpdate({ ...action, operation: e.target.value })}
+                style={{ ...styles.smallSelect, flex: 1 }}
+              >
+                <option value="Set">=</option>
+                <option value="Add">+ (Add)</option>
+                <option value="Sub">- (Sub)</option>
+                <option value="Multiply">* (Mul)</option>
+                <option value="Divide">/ (Div)</option>
+              </select>
+            </div>
+
+            {/* Operand 1 */}
+            <OperandInput
+              label="Val 1"
+              value={action.operand1 as any}
+              onChange={(v) => onUpdate({ ...action, operand1: v })}
+              variables={variables}
+              entities={entities}
+              listId={listId}
+            />
+
+            {/* Operand 2 (Only if not Set) */}
+            {(action.operation && action.operation !== "Set") && (
+              <OperandInput
+                label="Val 2"
+                value={action.operand2 as any}
+                onChange={(v) => onUpdate({ ...action, operand2: v })}
+                variables={variables}
+                entities={entities}
+                listId={listId}
               />
             )}
-          </>
+          </div>
         )}
 
         {action.type === "IncrementVar" && (
@@ -765,6 +768,144 @@ function ParamInput({
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         style={styles.smallNumberInput}
       />
+    </div>
+  );
+}
+
+function OperandInput({
+  label,
+  value,
+  onChange,
+  variables,
+  entities,
+  listId,
+}: {
+  label: string;
+  value: any; // ValueSource | number | string | ...
+  onChange: (val: any) => void;
+  variables: EditorVariable[];
+  entities: { id: string; name: string }[];
+  listId: string;
+}) {
+  // Normalize value to ValueSource structure if it isn't already
+  const source = (typeof value === 'object' && value !== null && 'type' in value)
+    ? value
+    : { type: 'literal', value: value };
+
+  const sourceType = source.type || 'literal';
+  const isVector2 = sourceType === 'literal' && typeof source.value === 'object' && source.value !== null && 'x' in source.value;
+
+  const updateSource = (updates: any) => {
+    onChange({ ...source, ...updates });
+  };
+
+  return (
+    <div className="flex gap-1 items-center w-full">
+      <span className="text-xs text-gray-500 w-12">{label}</span>
+
+      {/* Type Selector */}
+      <select
+        value={sourceType}
+        onChange={(e) => updateSource({ type: e.target.value })}
+        style={{ ...styles.smallSelect, width: '70px', flex: '0 0 auto' }}
+      >
+        <option value="literal">Value</option>
+        <option value="variable">Var</option>
+        <option value="property">Prop</option>
+        <option value="mouse">Mouse</option>
+      </select>
+
+      {/* Inputs based on Type */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 4, alignItems: 'center' }}>
+
+        {sourceType === 'literal' && (
+          <>
+            {isVector2 ? (
+              <div className="flex gap-1 items-center flex-1">
+                <span className="text-[10px] text-gray-500">X</span>
+                <input
+                  className="variable-value w-full min-w-0"
+                  style={{ ...styles.smallNumberInput, flex: 1 }}
+                  value={source.value.x}
+                  onChange={(e) => updateSource({ value: { ...source.value, x: parseFloat(e.target.value) || 0 } })}
+                />
+                <span className="text-[10px] text-gray-500">Y</span>
+                <input
+                  className="variable-value w-full min-w-0"
+                  style={{ ...styles.smallNumberInput, flex: 1 }}
+                  value={source.value.y}
+                  onChange={(e) => updateSource({ value: { ...source.value, y: parseFloat(e.target.value) || 0 } })}
+                />
+                <button
+                  onClick={() => updateSource({ value: 0 })}
+                  style={{ fontSize: '10px', padding: '0 4px', background: '#333', border: '1px solid #555' }}
+                  title="Switch to Scalar"
+                >
+                  #
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-1 items-center flex-1">
+                <input
+                  className="variable-value"
+                  style={{ ...styles.textInput, flex: 1, width: '100%' }}
+                  placeholder="0 or text"
+                  value={typeof source.value === 'object' ? JSON.stringify(source.value) : (source.value ?? "")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const n = parseFloat(v);
+                    updateSource({ value: isNaN(n) ? v : n });
+                  }}
+                />
+                <button
+                  onClick={() => updateSource({ value: { x: 0, y: 0 } })}
+                  style={{ fontSize: '10px', padding: '0 4px', background: '#333', border: '1px solid #555' }}
+                  title="Switch to Vector2"
+                >
+                  xy
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {sourceType === 'variable' && (
+          <input
+            className="variable-value"
+            style={{ ...styles.textInput, width: '100%' }}
+            placeholder="variable name"
+            value={source.name ?? ""}
+            onChange={(e) => updateSource({ name: e.target.value })}
+            list={`${listId}-vars`}
+          />
+        )}
+
+        {sourceType === 'property' && (
+          <>
+            <select
+              style={{ ...styles.smallSelect, flex: 1 }}
+              value={source.targetId ?? ""}
+              onChange={(e) => updateSource({ targetId: e.target.value })}
+            >
+              <option value="">(Self)</option>
+              {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <input
+              style={{ ...styles.textInput, flex: 1 }}
+              placeholder="prop (x, hp..)"
+              value={source.property ?? ""}
+              onChange={(e) => updateSource({ property: e.target.value })}
+            />
+          </>
+        )}
+
+        {sourceType === 'mouse' && (
+          <div className="text-xs text-gray-400 flex items-center">
+            Uses Mouse Pos
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }

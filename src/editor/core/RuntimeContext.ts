@@ -178,6 +178,23 @@ export class RuntimeContext {
             this.entityVariables.set(entityId, new Map());
         }
         this.entityVariables.get(entityId)!.set(name, { name, value, type });
+
+        // Sync to RuntimeEntity.variables array (for Editor Inspector Sync)
+        const entity = this.entities.get(entityId);
+        if (entity && entity.variables) {
+            const existingVar = entity.variables.find((v) => v.name === name);
+            if (existingVar) {
+                existingVar.value = value as any;
+                existingVar.type = type as any;
+            } else {
+                entity.variables.push({
+                    id: crypto.randomUUID(), // Assuming crypto is available or generic ID
+                    name,
+                    value: value as any,
+                    type: type as any
+                });
+            }
+        }
     }
 
     public getEntityVariable(entityId: string, name: string): ModuleLiteral | undefined {

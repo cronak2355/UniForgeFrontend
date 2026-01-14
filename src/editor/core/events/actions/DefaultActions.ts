@@ -8,6 +8,7 @@ import type { EditorEntity } from "../../../types/Entity";
 
 type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
 type RuntimeEntity = {
+    id?: string;
     variables?: VariableEntry[];
     x?: number;
     y?: number;
@@ -506,15 +507,136 @@ ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unkn
 
 // --- Variable Actions ---
 
+type ValueSource = {
+    type: "literal" | "variable" | "property" | "mouse";
+    value?: any;
+    name?: string;     // for variable
+    targetId?: string; // for property (entity id)
+    property?: string; // for property name
+    axis?: "x" | "y";  // for mouse
+};
+
+function resolveValue(ctx: ActionContext, source: ValueSource | number | string): any {
+    // 1. Legacy/Simple support (if source is just a primitive)
+    if (typeof source !== "object" || source === null) {
+        return source;
+    }
+
+    // 2. ValueSource object
+    const src = source as ValueSource;
+    if (src.type === "literal") {
+        return src.value;
+    }
+
+    if (src.type === "variable") {
+        if (!src.name) return 0;
+        const entity = getEntity(ctx);
+        const variable = entity?.variables?.find(v => v.name === src.name);
+        return variable?.value ?? 0;
+    }
+
+    if (src.type === "property") {
+        const targetId = src.targetId === "self" || !src.targetId ? ctx.entityId : src.targetId;
+        const targetEntity = getEntityById(ctx, targetId);
+
+        // Special case: "variables" are not properties on runtime entity in the same way, 
+        // but let's assume property means core transforms or derived stats.
+        if (!targetEntity || !src.property) return 0;
+
+        // Check core transform
+        if (src.property in targetEntity) {
+            return (targetEntity as any)[src.property];
+        }
+
+        // Check variables as fallback (e.g. accessing another entity's HP)
+        const v = targetEntity.variables?.find(v => v.name === src.property);
+        return v?.value ?? 0;
+    }
+
+    if (src.type === "mouse") {
+        const input = ctx.input;
+        // RuntimeContext's input might not have mouse position yet in this version.
+        // Assuming we might need to extend InputState or use a global mouse provider.
+        // For now, let's assume InputState has mouseX/Y if standardized, or fallback to 0.
+        // Checking RuntimePhysics.ts InputState: { left, right, up, down, jump } - No mouse.
+        // TODO: Pass mouse position in ActionContext or InputState.
+        // For now, use eventData as a hack if passed, or default 0 to avoid crash.
+        // In the future: ctx.input.mouseX
+        return (ctx.eventData as any)?.mouseX ?? 0;
+    }
+
+    return 0;
+}
+
 ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, unknown>) => {
     const entity = getEntity(ctx);
     if (!entity) return;
 
     const varName = params.name as string;
-    const value = params.value as number | string;
     if (!varName) return;
 
-    setVar(entity, varName, value);
+    // Enhanced SetVar: Variable = Op1 [Operation] Op2
+    const operation = (params.operation as string) ?? "Set";
+    const operand1 = params.operand1 as ValueSource | number | string;
+    const operand2 = params.operand2 as ValueSource | number | string;
+
+    // Check if using legacy mode (simple value param)
+    if (params.value !== undefined && params.operand1 === undefined) {
+        setVar(entity, varName, params.value as number | string);
+        return;
+    }
+
+    const val1 = resolveValue(ctx, operand1 ?? 0);
+    const val2 = resolveValue(ctx, operand2 ?? 0);
+
+    let result: number | string | boolean | object = val1;
+
+    // If string operation, simple concat for add, ignore others
+    if (typeof val1 === "string" || typeof val2 === "string") {
+        if (operation === "Add") {
+            result = String(val1) + String(val2);
+        } else {
+            // For strings, Set is the only other valid op really
+            result = val1;
+        }
+    }
+    // If Vector2 operation
+    else if ((typeof val1 === 'object' && val1 !== null && 'x' in val1 && 'y' in val1) &&
+        (typeof val2 === 'object' && val2 !== null && 'x' in val2 && 'y' in val2)) {
+        const v1 = val1 as { x: number, y: number };
+        const v2 = val2 as { x: number, y: number };
+        switch (operation) {
+            case "Add": result = { x: v1.x + v2.x, y: v1.y + v2.y }; break;
+            case "Sub": result = { x: v1.x - v2.x, y: v1.y - v2.y }; break;
+            case "Multiply": result = { x: v1.x * v2.x, y: v1.y * v2.y }; break; // Element-wise
+            case "Divide": result = { x: v1.x / (v2.x || 1), y: v1.y / (v2.y || 1) }; break;
+            default: result = v1; break;
+        }
+    }
+    // Numeric Operation
+    else {
+        const n1 = Number(val1);
+        const n2 = Number(val2);
+
+        switch (operation) {
+            case "Add": result = n1 + n2; break;
+            case "Sub": result = n1 - n2; break;
+            case "Multiply": result = n1 * n2; break;
+            case "Divide": result = n1 / (n2 !== 0 ? n2 : 1); break;
+            case "Set": default: result = val1; break;
+        }
+    }
+
+    setVar(entity, varName, result as any);
+
+    // Sync to RuntimeContext map (for Modules/Global access)
+    const gameCore = ctx.globals?.gameCore as any;
+    if (gameCore?.getRuntimeContext) {
+        const id = entity.id ?? ctx.entityId;
+        if (id) {
+            gameCore.getRuntimeContext().setEntityVariable(id, varName, result as any);
+        }
+    }
 });
 
 // IncrementVar: Add/subtract amount from a variable (for timers, counters, etc.)
