@@ -1175,6 +1175,16 @@ function EditorLayoutInner() {
 
 
 
+
+            {/* Save Game Modal */}
+            <SaveGameModal
+                isOpen={isSaveModalOpen}
+                onClose={() => setIsSaveModalOpen(false)}
+                onSave={handleSaveProject}
+                isSaving={isSavingProject}
+                initialTitle={gameId && gameId !== 'undefined' ? "Project" : "New Project"}
+            />
+
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
                 <AssetLibraryModal
