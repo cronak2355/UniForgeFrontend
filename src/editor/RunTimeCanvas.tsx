@@ -190,56 +190,69 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
 
                 // [UI Text Sync] Runtime variable -> Phaser Text
                 // 모든 엔티티를 순회하며 uiText 변수가 있다면 화면에 반영
-                const allEntities = gameRuntime.getAllEntities();
-                if (allEntities) {
-                    for (const entity of allEntities.values()) {
-                        // Check if this is a UI element with bar type
-                        const uiTypeVar = entity.variables?.find((v: any) => v.name === "uiType");
-                        const isUI = entity.variables?.find((v: any) => v.name === "isUI")?.value;
+                // [UI Text Sync] Runtime variable -> Phaser Text
+                // Optimized: Access RuntimeContext directly
+                const runtimeContext = gameRuntime.getRuntimeContext();
 
-                        if (!isUI) continue; // Skip non-UI entities
+                // Helper to get variable value
+                const getVarValue = (entId: string, varName: string, isRuntime: boolean, entObj?: any) => {
+                    if (isRuntime) {
+                        return runtimeContext.getEntityVariable(entId, varName);
+                    } else {
+                        return entObj?.variables?.find((v: any) => v.name === varName)?.value;
+                    }
+                };
 
-                        // Get source entity for cross-entity linking
-                        const uiSourceEntityId = entity.variables?.find((v: any) => v.name === "uiSourceEntity")?.value;
+                for (const [id, entity] of runtimeContext.entities) {
+                    // Check if this is a UI element
+                    const isUI = runtimeContext.getEntityVariable(id, "isUI");
+                    if (isUI !== true) continue;
 
-                        // Look up source entity from runtime entities
-                        let sourceEntity = uiSourceEntityId
-                            ? allEntities.get(String(uiSourceEntityId))
-                            : null;
+                    // Get source entity for cross-entity linking
+                    const uiSourceEntityId = runtimeContext.getEntityVariable(id, "uiSourceEntity");
 
-                        // Fallback to global entities if not found in runtime
-                        if (!sourceEntity && uiSourceEntityId) {
-                            sourceEntity = core.getGlobalEntities().get(String(uiSourceEntityId)) as any;
+                    let sourceId = uiSourceEntityId ? String(uiSourceEntityId) : null;
+                    let isRuntimeSource = false;
+                    let sourceEntity: any = null;
+
+                    // 1. Try Runtime Entities
+                    if (sourceId && runtimeContext.entities.has(sourceId)) {
+                        sourceEntity = runtimeContext.entities.get(sourceId);
+                        isRuntimeSource = true;
+                    }
+                    // 2. Fallback to Global Editor Entities (for static refs)
+                    else if (sourceId) {
+                        sourceEntity = core.getGlobalEntities().get(sourceId);
+                        isRuntimeSource = false;
+                    }
+
+                    if (!sourceEntity) continue;
+
+                    const uiType = runtimeContext.getEntityVariable(id, "uiType");
+                    const uiValueLink = runtimeContext.getEntityVariable(id, "uiValueVar");
+                    const uiText = runtimeContext.getEntityVariable(id, "uiText");
+
+                    // Priority: Linked Variable (from source entity) > Static Text
+                    if (uiValueLink) {
+                        const val = getVarValue(sourceId!, String(uiValueLink), isRuntimeSource, sourceEntity);
+                        if (val !== undefined) {
+                            renderer.setText(id, String(val));
                         }
+                    } else if (uiText !== undefined) {
+                        renderer.setText(id, String(uiText));
+                    }
 
-                        if (!sourceEntity) continue;
+                    // [UI Bar Sync]
+                    if (uiType === "bar") {
+                        const valVarName = runtimeContext.getEntityVariable(id, "uiValueVar");
+                        const maxVarName = runtimeContext.getEntityVariable(id, "uiMaxVar");
 
-                        const uiTextVar = entity.variables?.find((v: any) => v.name === "uiText");
-                        const uiValueLink = entity.variables?.find((v: any) => v.name === "uiValueVar")?.value;
+                        if (valVarName && maxVarName) {
+                            const val = getVarValue(sourceId!, String(valVarName), isRuntimeSource, sourceEntity);
+                            const max = getVarValue(sourceId!, String(maxVarName), isRuntimeSource, sourceEntity);
 
-                        // Priority: Linked Variable (from source entity) > Static Text
-                        if (uiValueLink) {
-                            const linkedVar = sourceEntity.variables?.find((v: any) => v.name === String(uiValueLink));
-                            if (linkedVar && linkedVar.value !== undefined) {
-                                renderer.setText(entity.id, String(linkedVar.value));
-                            }
-                        } else if (uiTextVar) {
-                            renderer.setText(entity.id, String(uiTextVar.value));
-                        }
-
-                        // [UI Bar Sync]
-                        if (uiTypeVar && uiTypeVar.value === "bar") {
-                            const valVarName = entity.variables.find((v: any) => v.name === "uiValueVar")?.value;
-                            const maxVarName = entity.variables.find((v: any) => v.name === "uiMaxVar")?.value;
-
-                            if (valVarName && maxVarName) {
-                                // Look up from SOURCE entity, not UI entity
-                                const valVar = sourceEntity.variables?.find((v: any) => v.name === String(valVarName));
-                                const maxVar = sourceEntity.variables?.find((v: any) => v.name === String(maxVarName));
-
-                                if (valVar && maxVar) {
-                                    renderer.setBarValue(entity.id, Number(valVar.value), Number(maxVar.value));
-                                }
+                            if (val !== undefined && max !== undefined) {
+                                renderer.setBarValue(id, Number(val), Number(max));
                             }
                         }
                     }

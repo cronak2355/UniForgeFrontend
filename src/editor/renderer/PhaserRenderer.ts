@@ -138,6 +138,11 @@ class PhaserRenderScene extends Phaser.Scene {
                 return;
             }
 
+            // [Optimized] Fetch all entities once per event batch
+            const allEntities = this.phaserRenderer.isRuntimeMode
+                ? (this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities())
+                : this.phaserRenderer.core.getEntities();
+
             this.phaserRenderer.core.getEntities().forEach((entity) => {
                 const components = splitLogicItems(entity.logic);
                 const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
@@ -151,7 +156,7 @@ class PhaserRenderScene extends Phaser.Scene {
                     eventData: event.data || {},
                     input,
                     entityContext: entityCtx,
-                    globals: { scene: this, renderer: this.phaserRenderer, entities: this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities(), gameCore: this.phaserRenderer.gameCore }
+                    globals: { scene: this, renderer: this.phaserRenderer, entities: allEntities, gameCore: this.phaserRenderer.gameCore }
                 };
 
                 if (this.shouldSkipEntity(ctx, event)) {

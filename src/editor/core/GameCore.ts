@@ -282,6 +282,7 @@ export class GameCore {
             // Meta
             name: options.name ?? `Entity_${id.slice(0, 8)}`,
             active: true,
+            role: options.role,
             modules: options.modules
         };
 
@@ -420,6 +421,7 @@ export class GameCore {
 
         return {
             ...entity,
+            rotationZ: entity.rotation, // Compatibility alias
             variables: vars
         };
     }
@@ -436,9 +438,26 @@ export class GameCore {
                     vars.push({ name: v.name, value: v.value, type: v.type });
                 }
             }
-            adapterMap.set(id, { ...entity, variables: vars });
+            adapterMap.set(id, {
+                ...entity,
+                rotationZ: entity.rotation, // Compatibility alias
+                variables: vars
+            });
         }
         return adapterMap;
+    }
+
+    resetRuntime() {
+        // Clear all runtime data
+        this.runtimeContext.clearEntities();
+
+        // Clear renderer entities
+        // Since we don't have a direct clear() on renderer, we rely on removeEntity logic or manual clear
+        // But here we just want to reset state. 
+        // Consumers of resetRuntime (RunTimeCanvas) are expected to handle Renderer clear if they don't use GameCore.removeEntity
+        // actually RunTimeCanvas manages lifecycle. 
+        // For now, just clearing context is what's requested by the missing method.
+        // Ideally we should sync with renderer, but PhserRenderer might handle clear separately.
     }
 
     hasEntity(id: string): boolean {
@@ -456,6 +475,10 @@ export class GameCore {
 
     setGameConfig(config: GameConfig) {
         this.gameConfig = config;
+    }
+
+    getGameConfig(): GameConfig {
+        return this.gameConfig;
     }
 
     // Legacy Support methods

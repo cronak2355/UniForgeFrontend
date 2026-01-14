@@ -25,6 +25,7 @@ export interface RuntimeEntity {
     // Metadata
     name: string;
     active: boolean;
+    role?: string;
 
     // Legacy / Compatibility
     modules?: any[];
