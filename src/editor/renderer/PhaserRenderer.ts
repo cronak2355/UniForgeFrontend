@@ -184,6 +184,13 @@ class PhaserRenderScene extends Phaser.Scene {
 
         // 준?비? 완료 ? 알림
         this.phaserRenderer.onSceneReady();
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this._keyboardAdapter?.destroy();
+        });
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+            this._keyboardAdapter?.destroy();
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -310,6 +317,8 @@ class PhaserRenderScene extends Phaser.Scene {
                 for (const component of updateComponents) {
                     // We know the event matches because we filtered by it, but conditions still apply
                     if (!this.passesConditions(component, this.reusableCtx)) continue;
+
+                    console.log(`[PhaserRenderer] Logic executing for entity ${entity.id}`);
 
                     for (const action of component.actions ?? []) {
                         const { type, ...params } = action;
