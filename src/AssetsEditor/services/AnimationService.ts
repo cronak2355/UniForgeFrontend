@@ -297,28 +297,39 @@ export async function generateSingleImage(
   canvasSize: number,
   assetType: string = 'character'
 ): Promise<string> {
-  const response = await fetch(GENERATE_API_URL, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      prompt,
-      size: canvasSize,
-      asset_type: assetType,
-      negative_prompt: NEGATIVE_KEYWORDS,
-    }),
-  });
+  try {
+    const response = await fetch(GENERATE_API_URL, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        prompt,
+        size: canvasSize,
+        asset_type: assetType,
+        negative_prompt: NEGATIVE_KEYWORDS,
+      }),
+    });
 
-  if (response.status === 401) {
-    throw new Error("Unauthorized: Please log in again.");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`AI Generation Failed [${response.status}]:`, errorText);
+      throw new Error(`Server Error ${response.status}: ${errorText || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    if (!data.image) {
+      throw new Error("No image data received from server");
+    }
+
+    return data.image;
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    throw error;
   }
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error);
-  }
-
-  return data.image;
 }
 
 // 유틸리티

@@ -89,9 +89,9 @@ function EditorContent() {
       {/* Header (Top Floating) */}
       <header className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-full flex items-center gap-6 z-50">
         {/* Logo */}
+        {/* Logo */}
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="UniForge Logo" width="20" height="20" className="object-contain" />
-          <span className="text-white font-bold tracking-tight text-sm">UniForge</span>
+          <img src="/logo.png" alt="UniForge Logo" height="28" className="h-7 w-auto object-contain" />
         </div>
 
         <div className="w-px h-3 bg-white/10" />
