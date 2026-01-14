@@ -241,6 +241,28 @@ export function ActionEditor({
           </>
         )}
 
+        {action.type === "IncrementVar" && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+            <input
+              type="text"
+              placeholder="variable name"
+              value={(action.name as string) || ""}
+              onChange={(e) => onUpdate({ ...action, name: e.target.value })}
+              list={`${listId}-vars`}
+              style={{ ...styles.textInput, flex: 1 }}
+            />
+            <span style={{ color: '#aaa', fontSize: '11px' }}>+</span>
+            <input
+              type="number"
+              placeholder="dt"
+              title="증가량 (비우면 deltaTime 사용)"
+              value={(action.amount as number) ?? ""}
+              onChange={(e) => onUpdate({ ...action, amount: e.target.value ? parseFloat(e.target.value) : undefined })}
+              style={{ ...styles.textInput, width: '60px' }}
+            />
+          </div>
+        )}
+
         {action.type === "Attack" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>

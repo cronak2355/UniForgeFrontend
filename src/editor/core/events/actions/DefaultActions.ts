@@ -501,6 +501,27 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     setVar(entity, varName, value);
 });
 
+// IncrementVar: Add/subtract amount from a variable (for timers, counters, etc.)
+ActionRegistry.register("IncrementVar", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const entity = getEntity(ctx);
+    if (!entity) return;
+
+    const varName = params.name as string;
+    if (!varName) return;
+
+    // Get current value
+    const currentVar = entity.variables?.find(v => v.name === varName);
+    const currentValue = typeof currentVar?.value === "number" ? currentVar.value : 0;
+
+    // Get amount (default to deltaTime for timer usage)
+    const dt = (ctx.eventData.dt as number) ?? 0.016;
+    const amount = (params.amount as number) ?? dt;
+
+    // Calculate new value
+    const newValue = currentValue + amount;
+    setVar(entity, varName, newValue);
+});
+
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
     const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string) => boolean } | undefined;
     if (!gameCore?.startModule) return;
