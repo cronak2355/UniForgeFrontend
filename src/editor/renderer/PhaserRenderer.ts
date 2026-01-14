@@ -1171,11 +1171,25 @@ export class PhaserRenderer implements IRenderer {
         // Now try to play the animation
         if (this.scene?.anims.exists(targetAnimKey)) {
             sprite.play(targetAnimKey, true);
+
+            // [Debug] Inspect runtime animation state
+            const currentAnim = sprite.anims.currentAnim;
+            // Phaser 3 Animation does not have 'loop' property exposed directly in d.ts sometimes or it is 'repeat' (-1).
+            // Actually, internal 'loop' might be missing in TS defs. 'repeat' is reliable.
+            // On AnimationState (sprite.anims), 'repeatCounter' tracks remaining.
+            console.log(`[PhaserRenderer] Playing '${targetAnimKey}' on ${id}. Runtime check: repeat=${currentAnim?.repeat}, repeatCounter=${sprite.anims.repeatCounter} isPlaying=${sprite.anims.isPlaying}`);
+
+            // [Debug] Add one-time complete listener
+            sprite.once('animationcomplete', (anim: Phaser.Animations.Animation, frame: Phaser.Animations.AnimationFrame) => {
+                console.log(`[PhaserRenderer] Animation '${anim.key}' COMPLETED on ${id}`);
+            });
+
         } else {
             // Try with current texture prefix
             const prefixedName = `${targetTexture}_${name.split('_').pop()}`;
             if (this.scene?.anims.exists(prefixedName)) {
                 sprite.play(prefixedName, true);
+                console.log(`[PhaserRenderer] Playing prefixed '${prefixedName}' (fallback)`);
             } else {
                 // Fallback: find any animation for this texture
                 let available: string[] = [];
