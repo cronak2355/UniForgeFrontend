@@ -10,6 +10,7 @@ import type { EditorComponent } from "../types/Component";
 import type { EditorVariable } from "../types/Variable";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
+import { ActionRegistry } from "./events/ActionRegistry";
 import { RuntimeContext } from "./RuntimeContext";
 import { ExecutionPipeline } from "./ExecutionPipeline";
 import { RuntimeEntity } from "./RuntimeEntity";
@@ -126,8 +127,68 @@ export class GameCore {
             if (event.type.startsWith("COLLISION")) {
                 this.handleCollisionEvent(event);
             }
+
+            // Execute Logic components based on event type
+            this.executeEventLogicComponents(event);
         };
         EventBus.on(this.eventHandler);
+    }
+
+    /**
+     * Execute Logic components that match the given event type.
+     * Maps EventBus events to Logic component event types.
+     */
+    private executeEventLogicComponents(event: any) {
+        const eventType = event.type;
+        const entityId = event.entityId ?? event.data?.entityA ?? event.data?.entityId;
+
+        // Map EventBus event types to Logic component event types
+        const eventMapping: Record<string, string[]> = {
+            "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
+            "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
+            "COLLISION_EXIT": ["OnCollisionExit"],
+            "ENTITY_DIED": ["OnDestroy"],
+            "OnStart": ["OnStart"],
+        };
+
+        const mappedEvents = eventMapping[eventType];
+        if (!mappedEvents) return;
+
+        // For collision events, execute for both entities
+        const entityIds: string[] = [];
+        if (eventType.startsWith("COLLISION") && event.data?.entityA && event.data?.entityB) {
+            entityIds.push(event.data.entityA, event.data.entityB);
+        } else if (entityId) {
+            entityIds.push(entityId);
+        }
+
+        // Get Logic components and execute matching ones
+        const allLogicComps = this.runtimeContext.getAllComponentsOfType("Logic");
+
+        for (const comp of allLogicComps) {
+            if (!entityIds.includes(comp.entityId)) continue;
+
+            const logicData = comp.data as import("./RuntimeComponent").RuntimeComponent["data"] & { event?: string; actions?: any[]; conditions?: any[] };
+            if (!logicData?.event || !mappedEvents.includes(logicData.event)) continue;
+
+            // Build action context
+            const ctx = {
+                entityId: comp.entityId,
+                eventData: event.data ?? {},
+                input: this.runtimeContext.getInput(),
+                entityContext: this.runtimeContext.getEntityContext(comp.entityId),
+                globals: {
+                    gameCore: this,
+                    entities: this.runtimeContext.entities,
+                }
+            };
+
+            // Execute actions
+            for (const action of logicData.actions ?? []) {
+                const { type, ...params } = action;
+                ActionRegistry.run(type, ctx, params);
+            }
+        }
     }
 
     private handleCollisionEvent(event: any) {

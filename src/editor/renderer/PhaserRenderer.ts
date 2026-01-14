@@ -277,16 +277,15 @@ class PhaserRenderScene extends Phaser.Scene {
 
             const input = runtimeContext.getInput();
 
-            // Query Logic components from RuntimeContext
-            const logicComponents = runtimeContext.getAllComponentsOfType("Logic");
+            // Query OnUpdate/TICK components directly using event index (optimized)
+            const updateComponents = runtimeContext.getComponentsByEvent("OnUpdate");
+            const tickComponents = runtimeContext.getComponentsByEvent("TICK");
+            const logicComponents = [...updateComponents, ...tickComponents];
             let processedComponentCount = 0;
 
             for (const comp of logicComponents) {
                 const logicData = comp.data as import("../types/Component").LogicComponent | undefined;
                 if (!logicData) continue;
-
-                // Filter: OnUpdate or TICK only
-                if (logicData.event !== "OnUpdate" && logicData.event !== "TICK") continue;
 
                 // Check entity is alive (from RuntimeContext)
                 const entity = runtimeContext.entities.get(comp.entityId);
@@ -319,21 +318,16 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
-            // [Performance Reporting]
-            const frameDuration = performance.now() - frameStart;
-            this.accFrameTime += frameDuration;
-            this.frameCount++;
-
-            const REPORT_INTERVAL = 300;
-            if (this.frameCount >= REPORT_INTERVAL) {
-                const avgTime = this.accFrameTime / this.frameCount;
-                console.log(`[Performance] Component Execution Report (Avg over ${this.frameCount} frames):`);
-                console.log(` - Avg Frame Time: ${avgTime.toFixed(4)} ms`);
-                console.log(` - Logic Components Executed: ${processedComponentCount}`);
-
-                this.accFrameTime = 0;
-                this.frameCount = 0;
-            }
+            // [Performance Reporting - Disabled for production]
+            // Uncomment for debugging performance
+            // const frameDuration = performance.now() - frameStart;
+            // this.accFrameTime += frameDuration;
+            // this.frameCount++;
+            // if (this.frameCount >= 300) {
+            //     console.log(`[Performance] Avg Frame Time: ${(this.accFrameTime / this.frameCount).toFixed(4)} ms`);
+            //     this.accFrameTime = 0;
+            //     this.frameCount = 0;
+            // }
 
             // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
             const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;

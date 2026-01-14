@@ -478,8 +478,30 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         }
         gameCore.flush(); // Sync removals
 
+        // Helper: Check if entity has changed (shallow comparison of key properties)
+        const hasEntityChanged = (curr: EditorEntity, prev: EditorEntity | undefined): boolean => {
+            if (!prev) return true; // New entity
+            if (curr.x !== prev.x || curr.y !== prev.y || curr.z !== prev.z) return true;
+            if (curr.rotation !== prev.rotation || curr.scaleX !== prev.scaleX || curr.scaleY !== prev.scaleY) return true;
+            if (curr.logic.length !== prev.logic.length) return true;
+            if (curr.variables.length !== prev.variables.length) return true;
+            // Deep check for variables (only if lengths match)
+            for (let i = 0; i < curr.variables.length; i++) {
+                const cv = curr.variables[i];
+                const pv = prev.variables[i];
+                if (cv.name !== pv.name || cv.value !== pv.value) return true;
+            }
+            return false;
+        };
+
         for (const ent of entities) {
             const prevEnt = prevEntitiesMapRef.current.get(ent.id);
+
+            // Skip unchanged entities for performance
+            if (gameCore.hasEntity(ent.id) && prevEnt && !hasEntityChanged(ent, prevEnt)) {
+                continue;
+            }
+
             const isUI = ent.variables.some((v: any) => v.name === "isUI" && v.value === true);
             const uiText = ent.variables.find((v: any) => v.name === "uiText")?.value;
             const uiColor = ent.variables.find((v: any) => v.name === "uiColor")?.value;

@@ -64,6 +64,13 @@ export class RuntimeContext {
      */
     public componentsByEntity: Map<string, RuntimeComponent[]> = new Map();
 
+    /**
+     * Logic components grouped by Event Type for efficient queries.
+     * Map<EventType, RuntimeComponent[]>
+     * e.g., "OnUpdate" -> [comp1, comp2], "OnCollision" -> [comp3]
+     */
+    public componentsByEvent: Map<string, RuntimeComponent[]> = new Map();
+
     /** Global and Local Variables */
     public variables: Map<string, RuntimeVariable> = new Map();
     public entityVariables: Map<string, Map<string, RuntimeVariable>> = new Map();
@@ -105,6 +112,17 @@ export class RuntimeContext {
             this.componentsByEntity.set(component.entityId, []);
         }
         this.componentsByEntity.get(component.entityId)!.push(component);
+
+        // Index by Event (for Logic components)
+        if (component.type === "Logic") {
+            const eventType = (component.data as any)?.event;
+            if (eventType) {
+                if (!this.componentsByEvent.has(eventType)) {
+                    this.componentsByEvent.set(eventType, []);
+                }
+                this.componentsByEvent.get(eventType)!.push(component);
+            }
+        }
     }
 
     public unregisterComponent(component: RuntimeComponent) {
@@ -121,10 +139,30 @@ export class RuntimeContext {
             const idx = entityList.indexOf(component);
             if (idx !== -1) entityList.splice(idx, 1);
         }
+
+        // Remove from Event Index (for Logic components)
+        if (component.type === "Logic") {
+            const eventType = (component.data as any)?.event;
+            if (eventType) {
+                const eventList = this.componentsByEvent.get(eventType);
+                if (eventList) {
+                    const idx = eventList.indexOf(component);
+                    if (idx !== -1) eventList.splice(idx, 1);
+                }
+            }
+        }
     }
 
     public getAllComponentsOfType(type: string): RuntimeComponent[] {
         return this.componentsByType.get(type) ?? [];
+    }
+
+    /**
+     * Get Logic components by event type (OnUpdate, OnStart, OnCollision, etc.)
+     * Much more efficient than getAllComponentsOfType("Logic") + filter
+     */
+    public getComponentsByEvent(eventType: string): RuntimeComponent[] {
+        return this.componentsByEvent.get(eventType) ?? [];
     }
 
     public getEntityComponents(entityId: string): RuntimeComponent[] {
