@@ -1131,7 +1131,7 @@ function EditorLayoutInner() {
                 overflow: 'hidden',
             }}>
                 {/* LEFT PANEL - Hierarchy */}
-                {/* LEFT PANEL REMOVED AS PER REQUEST
+                {/* LEFT PANEL - Hierarchy */}
                 <div style={{
                     width: '280px',
                     background: colors.bgSecondary,
@@ -1139,9 +1139,18 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                   ...
+                    <HierarchyPanel
+                        core={core}
+                        scenes={scenes}
+                        currentSceneId={currentSceneId}
+                        selectedId={selectedEntity?.id ?? null}
+                        onSelect={(entity) => {
+                            core.setSelectedEntity(entity);
+                            setLocalSelectedEntity(entity);
+                        }}
+                    />
                 </div>
-                */}
+
 
                 {/* CENTER - Phaser Canvas */}
                 <div style={{
