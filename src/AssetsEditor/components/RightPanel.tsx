@@ -11,15 +11,12 @@ import {
 } from '../services/simpleAnimationService';
 import { AnimationManager } from './AnimationManager';
 import { PartRigger } from './PartRigger';
-import { AIStudioTab, type ChatMessage } from './AIStudioTab';
 import { useJob } from '../context/JobContext';
-import { StylePresetService } from '../services/StylePresetService';
-import { generateAsset, fetchAssetAsBlob } from '../services/SagemakerService';
 import { exportSpriteSheet } from '../services/SpriteSheetExporter';
 import { assetService } from '../../services/assetService';
 
 
-type TabType = 'ai' | 'animate' | 'export';
+type TabType = 'animate' | 'export';
 
 export function RightPanel() {
   const navigate = useNavigate();
@@ -38,15 +35,11 @@ export function RightPanel() {
     downloadWebP,
     isLoading,
     setIsLoading,
-    loadAIImage,
     pixelSize,
     addFrame,
-      selectFrame,
-      applyImageData,
-      getWorkCanvas,
-      featherAmount,
-      setFeatherAmount,
-      triggerBackgroundRemoval,
+    selectFrame,
+    applyImageData,
+    getWorkCanvas,
     exportAsSpriteSheet,
     animationMap,
     activeAnimationName,
@@ -61,17 +54,11 @@ export function RightPanel() {
   }));
 
   // ==================== State ====================
-  const [activeTab, setActiveTab] = useState<TabType>('ai');
+  const [activeTab, setActiveTab] = useState<TabType>('animate');
   const [previewFrame, setPreviewFrame] = useState(0);
   const [thumbnails, setThumbnails] = useState<(string | null)[]>([]);
   const intervalRef = useRef<number | null>(null);
 
-
-  // AI State
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [assetType, setAssetType] = useState<'character' | 'object' | 'effect'>('character');
-  const [motionType, setMotionType] = useState('explode');
 
   // Export State
   const [exportName, setExportName] = useState('sprite');
@@ -112,16 +99,8 @@ export function RightPanel() {
     }
   }, [currentFrameIndex, isPlaying]);
 
-  // Chat scroll effect now handled inside AIStudioTab component
 
   // ==================== Utility ====================
-
-  const addChatMessage = (role: 'user' | 'ai', content: string) => {
-    setChatMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role, content, timestamp: new Date() }
-    ]);
-  };
 
   const base64ToBlob = (base64DataUrl: string): Promise<Blob> => {
     return fetch(base64DataUrl).then(res => res.blob());
@@ -154,122 +133,14 @@ export function RightPanel() {
   // Job Context
   const { addJob } = useJob();
 
-  // Style Presets State (3D Granularity)
-  const [visualStyles] = useState(StylePresetService.getVisualStyles());
-  const [themes] = useState(StylePresetService.getThemes());
-  const [moods] = useState(StylePresetService.getMoods());
-
-  const [selectedStyleId, setSelectedStyleId] = useState('pixel_art');
-  const [selectedThemeId, setSelectedThemeId] = useState('fantasy');
-  const [selectedMoodId, setSelectedMoodId] = useState('neutral');
 
   // ==================== Handlers ====================
 
-  /**
-   * AI 단일 이미지 생성 (Background Job)
-   */
-  const handleGenerateSingle = async () => {
-    if (!aiPrompt.trim()) return;
-
-    const userPrompt = aiPrompt;
-
-    // 스타일/테마/무드 적용
-    const finalPrompt = StylePresetService.buildPrompt(userPrompt, selectedStyleId, selectedThemeId, selectedMoodId);
-
-    // UI 표시용 이름 찾기
-    const styleName = visualStyles.find(s => s.id === selectedStyleId)?.name || 'Raw';
-    const themeName = themes.find(t => t.id === selectedThemeId)?.name || 'Raw';
-    const moodName = moods.find(m => m.id === selectedMoodId)?.name || 'Neutral';
-
-    // 채팅창에는 사용자 입력만 표시 + 요약
-    addChatMessage('user', `✨ ${userPrompt}`);
-    addChatMessage('user', `🎨 [${styleName} | ${themeName} | ${moodName}]`);
-    setAiPrompt('');
-
-    // 백그라운드 작업 추가
-    addJob('AI 이미지 생성', async () => {
-      // SageMaker API 호출
-      const result = await generateAsset({
-        prompt: finalPrompt, // Enriched prompt
-        asset_type: assetType === 'effect' ? 'object' : assetType,
-        width: pixelSize,
-        height: pixelSize,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || result.message || 'AI 생성 실패');
-      }
-
-      if (result.asset_url) {
-        // Blob 반환 (JobNotification이 받아서 loadAIImage 호출)
-        const blob = await fetchAssetAsBlob(result.asset_url);
-
-        // Convert to Base64 (DataURL) for reliable history state transfer
-        const base64Url = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-
-        addChatMessage('ai', '✨ 백그라운드 생성 완료! 결과를 확인하세요.');
-        return base64Url;
-      } else {
-        throw new Error('이미지 URL이 없습니다');
-      }
-    });
-
-    // UI 차단 없음 (isLoading 제거)
-  };
-
-  /**
-   * AI Refine (Background Job)
-   */
-  const handleRefine = async () => {
-    if (!aiPrompt.trim()) return;
-
-    const sourceCanvas = getWorkCanvas();
-    if (!sourceCanvas) {
-      alert('캔버스 내용을 가져올 수 없습니다.');
-      return;
-    }
-
-    const base64Image = sourceCanvas.toDataURL('image/png').split(',')[1];
-    const userPrompt = aiPrompt;
-
-    // 스타일/테마/무드 적용
-    const finalPrompt = StylePresetService.buildPrompt(userPrompt, selectedStyleId, selectedThemeId, selectedMoodId);
-
-    addChatMessage('user', `✨ Refine: ${userPrompt} [${selectedThemeId}]`);
-    setAiPrompt('');
-
-    addJob('AI 리파인 작업', async () => {
-      const result = await generateAsset({
-        prompt: finalPrompt,
-        asset_type: assetType === 'effect' ? 'object' : assetType,
-        width: pixelSize,
-        height: pixelSize,
-        image: base64Image,
-        strength: 0.65,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || result.message || 'AI Refine Failed');
-      }
-
-      if (result.asset_url) {
-        const blob = await fetchAssetAsBlob(result.asset_url);
-        addChatMessage('ai', '✨ 리파인 완료! 결과를 적용해보세요.');
-        return blob;
-      } else {
-        throw new Error('No image URL returned');
-      }
-    });
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleGenerateSingle();
+      // AI generation removed
     }
   };
 
@@ -334,7 +205,7 @@ export function RightPanel() {
 
       selectFrame(0);
       setIsPlaying(true);
-      addChatMessage('ai', `🦴 리깅 애니메이션 ${rigFrames.length}프레임 적용 완료!`);
+      // addChatMessage('ai', `🦴 리깅 애니메이션 ${rigFrames.length}프레임 적용 완료!`); // Removed AI chat message
     } catch (error) {
       console.error('Rig Apply Error:', error);
     } finally {
@@ -458,7 +329,7 @@ export function RightPanel() {
     }
   };
 
-const handleSaveAndExit = async () => {
+  const handleSaveAndExit = async () => {
     console.log("[AssetsEditor] Saving asset", { assetType, exportName });
     const savedId = await performSave();
     if (savedId) {
@@ -527,7 +398,7 @@ const handleSaveAndExit = async () => {
       <div className="glass-panel border border-white/10 bg-black/40 flex-1 flex flex-col overflow-hidden">
         {/* Tabs Switcher */}
         <div className="flex border-b border-white/5">
-          {(['ai', 'animate', 'export'] as TabType[]).map((tab) => (
+          {(['animate', 'export'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -546,30 +417,6 @@ const handleSaveAndExit = async () => {
         {/* Tab Content */}
         <div className="flex-1 overflow-hidden flex flex-col relative">
 
-          {activeTab === 'ai' && (
-            <AIStudioTab
-              chatMessages={chatMessages}
-              isLoading={isLoading}
-              aiPrompt={aiPrompt}
-              onPromptChange={setAiPrompt}
-              assetType={assetType}
-              onAssetTypeChange={setAssetType}
-              featherAmount={featherAmount}
-              onFeatherChange={setFeatherAmount}
-              visualStyles={visualStyles}
-              themes={themes}
-              moods={moods}
-              selectedStyleId={selectedStyleId}
-              onStyleChange={setSelectedStyleId}
-              selectedThemeId={selectedThemeId}
-              onThemeChange={setSelectedThemeId}
-              selectedMoodId={selectedMoodId}
-              onMoodChange={setSelectedMoodId}
-              onGenerate={handleGenerateSingle}
-              onRefine={handleRefine}
-              onRemoveBg={triggerBackgroundRemoval}
-            />
-          )}
 
           {/* --- Animation Studio --- */}
           {activeTab === 'animate' && (
