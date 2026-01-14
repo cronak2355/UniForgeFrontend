@@ -18,7 +18,11 @@ import { assetService } from '../../services/assetService';
 
 type TabType = 'animate' | 'export';
 
-export function RightPanel() {
+type Props = {
+  onOpenAiWizard?: () => void;
+};
+
+export function RightPanel({ onOpenAiWizard }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('gameId');
@@ -444,12 +448,23 @@ export function RightPanel() {
                 </div>
               </div>
 
-              {/* Auto Rigger Button */}
-              <div className="pt-4 border-t border-white/10">
-                <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">Advanced</h3>
+              <div className="pt-4 border-t border-white/10 space-y-2">
+                <h3 className="text-xs font-bold text-white mb-2 uppercase tracking-wide">AI & Magic</h3>
+
+                {/* AI Wizard Button */}
+                <button
+                  onClick={onOpenAiWizard}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 border border-white/10 text-white shadow-lg transition-all flex items-center justify-center gap-2 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                  <span className="text-lg relative z-10">✨</span>
+                  <span className="text-xs font-bold uppercase tracking-widest relative z-10">AI Generate</span>
+                </button>
+
+                {/* Auto Rigger Button */}
                 <button
                   onClick={handleOpenRigger}
-                  className="w-full py-3 bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-white/10 hover:border-purple-500/50 text-white/80 hover:text-white transition-all flex items-center justify-center gap-2 group"
+                  className="w-full py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white/80 hover:text-white transition-all flex items-center justify-center gap-2 group"
                 >
                   <span className="text-lg">🦴</span>
                   <span className="text-xs font-bold uppercase tracking-widest">Auto Rigger</span>
