@@ -292,13 +292,11 @@ export class GameCore {
         // I should probably add a dedicated place for modules.
         // HACK: For now, we update the ModuleRuntime directly since it manages its own state.
         if (options.modules) {
-            // We need a way to register modules. 
-            // In new design, ModuleRuntime should query 'ModuleComponent'.
-            // Let's assume we handle it via legacy path for now.
-            /* 
-               We might need to patch RuntimeEntity or Context to hold modules 
-               if we strictly want to remove it from GameCore state 
-            */
+            for (const module of options.modules) {
+                // ModuleRuntime.startModule creates an instance and adds it to the list.
+                // It treats it as "Running" immediately.
+                this.moduleRuntime.startModule(id, module);
+            }
         }
 
         EventBus.emit("OnStart", {}, id);
@@ -439,7 +437,14 @@ export class GameCore {
 
     // Compatibility stub
     validateIdSync() { return true; }
-    startModule(entityId: string, moduleId: string) { return false; } // TODO
+    startModule(entityId: string, moduleId: string) {
+        // Trigger manual start if supported by ModuleRuntime
+        // e.g. look for "OnStart" node in that module?
+        // Or specific trigger?
+        // For now, let's emit a generic start event for that module context
+        EventBus.emit("OnStart", {}, entityId);
+        return true;
+    }
     destroy() {
         if (this.eventHandler) EventBus.off(this.eventHandler);
         this.runtimeContext.clearEntities();
@@ -486,6 +491,11 @@ export class GameCore {
         const entity = this.runtimeContext.entities.get(id);
         if (entity) {
             (entity as any).modules = modules;
+            // Re-register with runtime
+            this.moduleRuntime.removeEntity(id);
+            for (const m of modules) {
+                this.moduleRuntime.startModule(id, m);
+            }
         }
     }
 }
