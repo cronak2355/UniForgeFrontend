@@ -233,7 +233,17 @@ export interface IRenderer {
     /**
      * 스크롤 시 호출
      */
-    onScroll?: (deltaY: number) => void;
+    onScroll?: (deltaY: number, screenX: number, screenY: number) => void;
+
+    /**
+     * 카메라 스크롤(좌상단 좌표) 설정
+     */
+    setCameraScroll?(x: number, y: number): void;
+
+    /**
+     * 카메라 스크롤 반환
+     */
+    getCameraScroll?(): { x: number, y: number };
 
     // ===== Particle System =====
 

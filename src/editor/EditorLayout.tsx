@@ -21,10 +21,14 @@ import { createGame, updateGameThumbnail } from "../services/gameService";
 import { authService } from "../services/authService";
 import { assetService } from "../services/assetService";
 import { syncLegacyFromLogic } from "./utils/entityLogic";
-import { AssetLibraryModal } from "./AssetLibraryModal"; // Import AssetLibraryModal
+import { AssetLibraryModal } from "./AssetLibraryModal";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import type { EditorVariable } from "./types/Variable";
+import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal";
+import { saveGameVersion, updateGameInfo } from "../services/gameService";
+import { AiWizardModal } from "../AssetsEditor/components/AiWizardModal";
+import { generateSingleImage } from "../AssetsEditor/services/AnimationService";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -142,23 +146,27 @@ function EditorLayoutInner() {
             try {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
-                if (gameId) {
+                if (gameId && gameId !== "undefined") {
                     try {
                         const sceneJson = await loadScene(gameId);
                         if (sceneJson) {
                             console.log("[EditorLayout] Loaded scene from server");
-                            // Validate assets and entities similarly to autosave
-                            // REMOVED: S3 URL filtering that was deleting production assets
-                            // if (sceneJson.assets) {
-                            //     sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
-                            // }
-
                             core.clear();
                             SceneSerializer.deserialize(sceneJson, core);
                             loadedFromServer = true;
+                        } else {
+                            // Loaded but empty (New Game)
+                            console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+                            core.clear();
+                            loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
                         }
                     } catch (e) {
-                        console.warn("[EditorLayout] Server load failed, falling back to local autosave:", e);
+                        console.warn("[EditorLayout] Server load failed:", e);
+                        // If server load fails (e.g. 404 Not Found because no version exists yet), 
+                        // we should treat it as a fresh new game, NOT fall back to local autosave.
+                        console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                        core.clear();
+                        loadedFromServer = true;
                     }
                 }
 
@@ -290,6 +298,177 @@ function EditorLayoutInner() {
 
     // New State for Asset Library Modal
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
+
+    // Save Game Modal State
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isSavingProject, setIsSavingProject] = useState(false);
+
+    // AI Wizard State
+    const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
+    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+    const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
+        setIsGeneratingAi(true);
+        console.log("Generating AI Asset:", prompt);
+        try {
+            // 1. Call AI Service
+            // Default size 512 for now
+            const base64Image = await generateSingleImage(prompt, 512, category.toLowerCase());
+
+            // 2. Upload/Process as Asset (Convert Base64 to Blob)
+            const res = await fetch(`data:image/png;base64,${base64Image}`);
+            const blob = await res.blob();
+            const file = new File([blob], `ai_gen_${Date.now()}.png`, { type: 'image/png' });
+
+            // 3. Upload using AssetService
+            const token = localStorage.getItem("token");
+            const assetName = metadata.userPrompt.slice(0, 20) || "AI Asset"; // Use prompt snippet as name
+            const result = await assetService.uploadAsset(file, assetName, category, token, metadata, false);
+
+            // 4. Add to Editor Core
+            const newAssetId = result.id;
+            // IMPORTANT: We need the full URL. uploadAsset returns it.
+            core.addAsset({
+                id: result.id,
+                tag: result.tag, // or category
+                name: result.name,
+                url: result.url,
+                idx: -1,
+                metadata: metadata
+            });
+
+            // 5. Auto-Place Entity in Center of Screen (or Camera View)
+            const camera = core.getEntities().get('Main Camera'); // brittle lookup, better to get active camera
+            // Default to 0,0 if no camera found
+            const x = 0;
+            const y = 0;
+
+            const newEntity: EditorEntity = {
+                id: crypto.randomUUID(),
+                name: assetName,
+                type: "sprite",
+                x: x,
+                y: y,
+                z: 0,
+                rotation: 0,
+                scaleX: 1,
+                scaleY: 1,
+                role: "neutral", // Default role
+                logic: buildLogicItems({ components: [] }),
+                components: [],
+                variables: [],
+                events: [],
+                texture: result.name, // Sprite uses name or id? Usually name in this engine
+                // But wait, core.addAsset(a) -> a.name is used as key? 
+                // Let's check EditorCanvas logic. usually uses name or unique ID. 
+                // In EditorCore, assets are stored map: id -> Asset. 
+                // Phaser uses texture key. We should verify what key is used.
+                // Assuming Name is Unique enough or ID is used. 
+                // ACTUALLY: Let's use ID if the engine supports it, or Name if simpler.
+                // For safety, let's look at dropped assets logic.
+                // Dropped assets use result.name. So we stick to result.name.
+            };
+
+            // Ensure texture key logic matches. 
+            // Ideally we shouldn't rely on Name being unique. 
+            // If duplicate name, Phaser might conflict. 
+            // UploadService should maybe append ID to name if we use name as key.
+
+            core.addEntity(newEntity);
+            core.setSelectedEntity(newEntity);
+            setLocalSelectedEntity(newEntity); // Update UI
+
+            console.log("AI Asset Placed:", newEntity);
+
+        } catch (e) {
+            console.error("AI Generation Failed:", e);
+            alert("AI Generation Failed: " + (e instanceof Error ? e.message : 'Unknown'));
+        } finally {
+            setIsGeneratingAi(false);
+        }
+    };
+
+    const handleSaveProject = async (title: string, description: string) => {
+
+        setIsSavingProject(true);
+        try {
+            const sceneJson = SceneSerializer.serialize(core);
+            let id = gameId;
+
+            // If ID is invalid (undefined or empty), create a new game
+            if (!id) {
+                const user = await authService.getCurrentUser();
+                if (!user) {
+                    alert("로그인이 필요합니다. (Login required to create a game)");
+                    setIsSavingProject(false);
+                    return;
+                }
+                const newGame = await createGame(user.id, title, description);
+                id = String(newGame.gameId);
+                navigate(`/editor/${id}`, { replace: true });
+            } else {
+                // Update existing game info
+                await updateGameInfo(id, title, description);
+            }
+
+            // Save Version (Scene Data)
+            // Use existing saveScenes or new saveGameVersion? 
+            // saveScenes calls POST /games/{id}/versions, which is what we want.
+            // Let's use the one imported or keep using logic.
+            // gameService.saveGameVersion is essentially the same as api/sceneApi.saveScenes.
+            // Let's use the new one for consistency if we imported it.
+            await saveGameVersion(id, sceneJson);
+
+            // Capture and Upload Thumbnail
+            try {
+                const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
+                if (canvasEl) {
+                    const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
+                    const response = await fetch(thumbnailDataUrl);
+                    const blob = await response.blob();
+                    const contentType = 'image/png';
+                    const token = localStorage.getItem('token');
+
+                    const presignParams = new URLSearchParams({
+                        ownerType: 'GAME',
+                        ownerId: id,
+                        imageType: 'thumbnail',
+                        contentType: contentType
+                    });
+                    const presignRes = await fetch(
+                        `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
+                        {
+                            method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        }
+                    );
+
+                    if (presignRes.ok) {
+                        const presignData = await presignRes.json();
+                        const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
+
+                        if (uploadUrl) {
+                            await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
+                            const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                            // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                            await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Thumbnail upload failed:", err);
+            }
+
+            alert("프로젝트가 성공적으로 저장되었습니다!");
+            setIsSaveModalOpen(false);
+        } catch (e) {
+            console.error("Save failed:", e);
+            alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
+        } finally {
+            setIsSavingProject(false);
+        }
+    };
+
     const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
         const activeEntity = localSelectedEntity ?? selectedEntity;
@@ -592,26 +771,26 @@ function EditorLayoutInner() {
 
                 // We need to ensure we have the URL.
                 // assetService.getAsset might return url or imageUrl depending on endpoint.
-                const url = (asset as any).imageUrl || asset.url;
+                const url = (asset as any).imageUrl || (asset as any).url;
 
                 if (url) {
                     const resolvedTag =
-                        typeof asset.tag === 'string' && asset.tag.length > 0
-                            ? asset.tag
-                            : typeof asset.genre === 'string' && asset.genre.length > 0
-                                ? asset.genre
+                        typeof (asset as any).tag === 'string' && (asset as any).tag.length > 0
+                            ? (asset as any).tag
+                            : typeof (asset as any).genre === 'string' && (asset as any).genre.length > 0
+                                ? (asset as any).genre
                                 : 'Character';
 
                     core.addAsset({
-                        id: asset.id,
+                        id: (asset as any).id,
                         tag: resolvedTag,
-                        name: asset.name,
+                        name: (asset as any).name,
                         url: url,
                         idx: -1,
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
                         description: (asset as any).description
                     });
-                    console.log("Auto-imported asset:", asset.name);
+                    console.log("Auto-imported asset:", (asset as any).name);
                 }
             } catch (e) {
                 console.error("Failed to auto-load new asset:", e);
@@ -727,90 +906,9 @@ function EditorLayoutInner() {
                             <MenuItem label="Load Project" onClick={() => {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
-                            <MenuItem label="Save Project" onClick={async () => {
-                                try {
-                                    const sceneJson = SceneSerializer.serialize(core);
-                                    // Use ID as string directly (UUID support)
-                                    let id = gameId;
-
-                                    // If ID is invalid (undefined or empty), prompt to create a new game
-                                    if (!id) {
-                                        const title = prompt("저장할 새 게임의 제목을 입력해주세요:", "My New Game");
-                                        if (!title) return; // User cancelled
-
-                                        // Try to get real authorId from authService
-                                        const user = await authService.getCurrentUser();
-                                        if (!user) {
-                                            alert("로그인이 필요합니다. (Login required to create a game)");
-                                            return;
-                                        }
-
-                                        // createGame now expects string authorId and returns string gameId (in GameSummary)
-                                        // But wait, createGame returns GameSummary where gameId might be number if I didn't update the interface?
-                                        // I updated createGame to return Promise<GameSummary>.
-                                        // Let's assume GameSummary.gameId is string or we cast it.
-                                        const newGame = await createGame(user.id, title, "Created from Editor");
-                                        id = String(newGame.gameId);
-
-                                        // Silent navigation to correct URL
-                                        navigate(`/editor/${id}`, { replace: true });
-                                    }
-
-                                    await saveScenes(id, sceneJson);
-
-                                    // Capture thumbnail from canvas
-                                    try {
-                                        const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
-                                        if (canvasEl) {
-                                            const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
-                                            // Convert to blob and upload
-                                            const response = await fetch(thumbnailDataUrl);
-                                            const blob = await response.blob();
-                                            const contentType = 'image/png';
-                                            const token = localStorage.getItem('token');
-
-                                            // Use existing presign endpoint for game thumbnail
-                                            const presignParams = new URLSearchParams({
-                                                ownerType: 'GAME',
-                                                ownerId: id,
-                                                imageType: 'thumbnail',
-                                                contentType: contentType
-                                            });
-                                            const presignRes = await fetch(
-                                                `https://uniforge.kr/api/uploads/presign/image?${presignParams.toString()}`,
-                                                {
-                                                    method: 'POST',
-                                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
-                                                }
-                                            );
-
-                                            if (presignRes.ok) {
-                                                const presignData = await presignRes.json();
-                                                const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
-
-                                                if (uploadUrl) {
-                                                    await fetch(uploadUrl, {
-                                                        method: 'PUT',
-                                                        headers: { 'Content-Type': contentType },
-                                                        body: blob,
-                                                    });
-
-                                                    // Update game with thumbnail URL (use CloudFront or API proxy URL)
-                                                    const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                                                    await updateGameThumbnail(id, thumbnailUrl);
-                                                    console.log('[EditorLayout] Thumbnail uploaded successfully');
-                                                }
-                                            }
-                                        }
-                                    } catch (thumbnailError) {
-                                        console.warn('[EditorLayout] Thumbnail upload failed (non-critical):', thumbnailError);
-                                    }
-
-                                    alert("성공적으로 저장되었습니다! (Saved to server)");
-                                } catch (e) {
-                                    console.error(e);
-                                    alert("Failed to save project: " + String(e));
-                                }
+                            <MenuItem label="Save Project" onClick={() => {
+                                console.error("[EditorLayout] Save Project Clicked. Setting isSaveModalOpen to true.");
+                                setIsSaveModalOpen(true);
                             }} />
                             <MenuItem
                                 label="Export"
@@ -842,6 +940,7 @@ function EditorLayoutInner() {
                                     type="file"
                                     accept=".json"
                                     onChange={(e) => {
+
                                         const file = e.target.files?.[0];
                                         if (!file) return;
                                         const reader = new FileReader();
@@ -1032,6 +1131,7 @@ function EditorLayoutInner() {
                 overflow: 'hidden',
             }}>
                 {/* LEFT PANEL - Hierarchy */}
+                {/* LEFT PANEL REMOVED AS PER REQUEST
                 <div style={{
                     width: '280px',
                     background: colors.bgSecondary,
@@ -1039,30 +1139,9 @@ function EditorLayoutInner() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <div style={{ flex: '0 0 60%', padding: '0', overflowY: 'hidden', borderBottom: `2px solid ${colors.borderColor}` }}>
-                        <HierarchyPanel
-                            core={core}
-                            scenes={scenes}
-                            currentSceneId={currentSceneId}
-                            selectedId={selectedEntity?.id ?? null}
-                            onSelect={(e) => {
-                                core.setSelectedEntity(e as any);
-                                setLocalSelectedEntity(e as any);
-                                const cm = new CameraMode();
-                                const ctx: EditorContext = { currentMode: cm, currentSelecedEntity: e as any, mouse: "mousedown" };
-                                core.sendContextToEditorModeStateMachine(ctx);
-                            }}
-                        />
-                    </div>
-                    {/* Recent Assets */}
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <RecentAssetsPanel
-                            assets={recentAssets}
-                            changeDraggedAsset={changeDraggedAssetHandler}
-                            onSelectAsset={changeSelectedAssetHandler}
-                        />
-                    </div>
+                   ...
                 </div>
+                */}
 
                 {/* CENTER - Phaser Canvas */}
                 <div style={{
@@ -1163,6 +1242,48 @@ function EditorLayoutInner() {
             </div>
 
 
+
+
+            {/* AI Wizard FAB */}
+            <div style={{
+                position: 'fixed',
+                bottom: '30px',
+                right: '300px', // Left of inspector
+                zIndex: 100,
+            }}>
+                <button
+                    onClick={() => setIsAiWizardOpen(true)}
+                    style={{
+                        width: '56px', height: '56px', borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                        color: 'white', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '24px', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Generate AI Asset"
+                >
+                    ✨
+                </button>
+            </div>
+
+            {/* AI Wizard Modal */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
+
+            {/* Save Game Modal */}
+            <SaveGameModal
+                isOpen={isSaveModalOpen}
+                onClose={() => setIsSaveModalOpen(false)}
+                onSave={handleSaveProject}
+                isSaving={isSavingProject}
+                initialTitle={gameId && gameId !== 'undefined' ? "Project" : "New Project"}
+            />
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
@@ -1363,6 +1484,64 @@ function EditorLayoutInner() {
                         </div>
                     </div>
                 </div>
+            )}
+            {/* AI Wizard Modal & FAB */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
+
+            {!isAiWizardOpen && (
+                <button
+                    onClick={() => setIsAiWizardOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: '24px',
+                        right: '360px', // Moved left to avoid RightPanel (320px) overlap
+                        padding: '12px 24px',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                        color: 'white',
+                        borderRadius: '9999px',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        cursor: 'pointer',
+                        zIndex: 2000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                    <span style={{ fontSize: '18px' }}>✨</span>
+                    <span>AI Generate</span>
+                </button>
+            )}
+
+            {/* Asset Library Modal */}
+            {isAssetLibraryOpen && (
+                <AssetLibraryModal
+                    onClose={() => setIsAssetLibraryOpen(false)}
+                    onAssetSelect={(asset) => {
+                        core.setDraggedAsset(asset);
+                        setIsAssetLibraryOpen(false);
+                    }}
+                />
+            )}
+
+            {/* Save Game Modal */}
+            {isSaveModalOpen && (
+                <SaveGameModal
+                    isOpen={isSaveModalOpen}
+                    onClose={() => setIsSaveModalOpen(false)}
+                    onSave={handleSaveProject}
+                    initialTitle=""
+                    initialDescription=""
+                    isSaving={isSavingProject}
+                />
             )}
         </div>
     );

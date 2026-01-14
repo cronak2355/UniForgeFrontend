@@ -243,7 +243,9 @@ const CreateAssetPage = () => {
             setUploadProgress(50);
 
             // Step 3: Get presigned upload URL
-            const { uploadUrl } = await marketplaceService.getUploadUrl(assetId, version.id, file.name, file.type);
+            const { uploadUrl, s3Key: responseKey } = await marketplaceService.getUploadUrl(assetId, version.id, file.name, file.type);
+            console.log("[CreateAssetPage] Got Upload URL:", uploadUrl, "Key from Response:", responseKey);
+
             setUploadProgress(60);
 
             // Step 4: Upload file directly to S3
@@ -261,16 +263,21 @@ const CreateAssetPage = () => {
             setUploadProgress(90);
 
             // Step 4.5: Register Main Image Resource (CRITICAL FIX)
-            // Extract S3 Key from uploadUrl
-            let mainS3Key: string | null = null;
-            try {
-                const parsed = new URL(uploadUrl);
-                // Remove leading slash
-                mainS3Key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
-                // Decode if encoded (e.g. %20)
-                mainS3Key = decodeURIComponent(mainS3Key);
-            } catch (e) {
-                console.warn("Failed to extract S3 Key from upload URL", e);
+            // Extract S3 Key from uploadUrl if responseKey is missing
+            let mainS3Key: string | null = responseKey || null;
+
+            if (!mainS3Key) {
+                try {
+                    const parsed = new URL(uploadUrl);
+                    // Remove leading slash
+                    mainS3Key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+                    mainS3Key = decodeURIComponent(mainS3Key);
+                    console.warn("[CreateAssetPage] s3Key missing in response, extracted from URL:", mainS3Key);
+                } catch (e) {
+                    console.warn("Failed to extract S3 Key from upload URL", e);
+                }
+            } else {
+                console.log("[CreateAssetPage] Using trusted s3Key from response:", mainS3Key);
             }
 
             if (mainS3Key) {

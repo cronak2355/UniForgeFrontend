@@ -1,17 +1,18 @@
 // src/AssetsEditor/services/animationService.ts
 
-import { 
-  ANIMATION_PRESETS, 
+import {
+  ANIMATION_PRESETS,
   buildFramePrompt,
   NEGATIVE_KEYWORDS
 } from '../data/AnimationPresets';
 import type { AnimationPreset } from '../data/AnimationPresets';
+import { authService } from '../../services/authService';
 
 // 애니메이션 프레임 전용 API (seed 기반 일관성)
-const ANIMATION_API_URL = 'http://localhost:8000/api/generate-animation-frame';
+const ANIMATION_API_URL = '/api/generate-animation-frame';
 
 // 기존 단일 이미지 생성 API
-const GENERATE_API_URL = 'http://localhost:8000/api/AIgenerate';
+const GENERATE_API_URL = '/api/AIgenerate';
 
 export interface GenerateOptions {
   characterDescription: string;  // 예: "blue armored knight with sword"
@@ -28,6 +29,14 @@ export interface GeneratedFrame {
   prompt: string;
 }
 
+function getAuthHeaders() {
+  const token = authService.getToken();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+}
+
 /**
  * 애니메이션 프레임들을 순차적으로 생성
  * 
@@ -38,13 +47,13 @@ export interface GeneratedFrame {
 export async function generateAnimation(
   options: GenerateOptions
 ): Promise<GeneratedFrame[]> {
-  const { 
-    characterDescription, 
-    presetId, 
+  const {
+    characterDescription,
+    presetId,
     canvasSize,
     onFrameGenerated,
     onProgress,
-    onError 
+    onError
   } = options;
 
   const preset = ANIMATION_PRESETS[presetId];
@@ -61,7 +70,7 @@ export async function generateAnimation(
   for (let i = 0; i < preset.frames.length; i++) {
     const frame = preset.frames[i];
     const prompt = buildFramePrompt(characterDescription, preset, i);
-    
+
     onProgress?.(i + 1, preset.frameCount);
     console.log(`   프레임 ${i + 1}/${preset.frameCount}: ${frame.description}`);
 
@@ -81,9 +90,13 @@ export async function generateAnimation(
 
       const response = await fetch(ANIMATION_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(requestBody),
       });
+
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Please log in again.");
+      }
 
       const data = await response.json();
 
@@ -97,13 +110,13 @@ export async function generateAnimation(
           sharedSeed = data.seed;
           console.log(`   🎲 Seed 고정: ${sharedSeed}`);
         }
-        
+
         const generatedFrame: GeneratedFrame = {
           frameIndex: i,
           imageData: data.image,
           prompt,
         };
-        
+
         generatedFrames.push(generatedFrame);
         onFrameGenerated?.(i, data.image);
       }
@@ -142,7 +155,7 @@ export async function regenerateFrame(
   }
 
   const prompt = buildFramePrompt(characterDescription, preset, frameIndex);
-  
+
   const requestBody: Record<string, unknown> = {
     prompt,
     size: canvasSize,
@@ -157,9 +170,13 @@ export async function regenerateFrame(
 
   const response = await fetch(ANIMATION_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(requestBody),
   });
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized: Please log in again.");
+  }
 
   const data = await response.json();
 
@@ -182,7 +199,7 @@ export async function generateBaseFrame(
 
   const response = await fetch(ANIMATION_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       prompt,
       size: canvasSize,
@@ -191,6 +208,10 @@ export async function generateBaseFrame(
       frame_index: 0,
     }),
   });
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized: Please log in again.");
+  }
 
   const data = await response.json();
 
@@ -223,13 +244,13 @@ export async function generateAnimationFromBase(
 
   for (let i = 0; i < preset.frames.length; i++) {
     const prompt = buildFramePrompt(characterDescription, preset, i);
-    
+
     onProgress?.(i + 1, preset.frameCount);
 
     try {
       const response = await fetch(ANIMATION_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           prompt,
           size: canvasSize,
@@ -239,6 +260,10 @@ export async function generateAnimationFromBase(
           frame_index: i,
         }),
       });
+
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Please log in again.");
+      }
 
       const data = await response.json();
 
@@ -272,24 +297,39 @@ export async function generateSingleImage(
   canvasSize: number,
   assetType: string = 'character'
 ): Promise<string> {
-  const response = await fetch(GENERATE_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      size: canvasSize,
-      asset_type: assetType,
-      negative_prompt: NEGATIVE_KEYWORDS,
-    }),
-  });
+  try {
+    const response = await fetch(GENERATE_API_URL, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        prompt,
+        size: canvasSize,
+        asset_type: assetType,
+        negative_prompt: NEGATIVE_KEYWORDS,
+      }),
+    });
 
-  const data = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`AI Generation Failed [${response.status}]:`, errorText);
+      throw new Error(`Server Error ${response.status}: ${errorText || response.statusText}`);
+    }
 
-  if (data.error) {
-    throw new Error(data.error);
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    if (!data.image) {
+      throw new Error("No image data received from server");
+    }
+
+    return data.image;
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    throw error;
   }
-
-  return data.image;
 }
 
 // 유틸리티

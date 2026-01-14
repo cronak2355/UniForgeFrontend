@@ -7,6 +7,7 @@ export interface InputState {
     down: boolean;
     jump: boolean;
     keys?: Record<string, boolean>;
+    keysDown?: Record<string, boolean>;
 }
 
 export interface PhysicsState {

@@ -57,7 +57,7 @@ export async function createGame(authorId: string, title: string, description: s
     }
     const data = await res.json();
     // Map backend Entity (id) to Frontend Interface (gameId)
-    return { ...data, gameId: data.id };
+    return { ...data, gameId: data.gameId || data.id }; // Ensure gameId is set correctly
 }
 
 export async function updateGameThumbnail(gameId: string, thumbnailUrl: string): Promise<GameSummary> {
@@ -96,4 +96,38 @@ export async function deleteGame(gameId: string): Promise<void> {
     if (!res.ok) {
         throw new Error("Failed to delete game");
     }
+}
+
+export async function saveGameVersion(gameId: string, sceneData: any): Promise<void> {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/games/${gameId}/versions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(sceneData),
+    });
+
+    if (!res.ok) throw new Error("Failed to save game version");
+}
+
+export async function updateGameInfo(gameId: string, title?: string, description?: string, thumbnailUrl?: string): Promise<GameSummary> {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const body: any = {};
+    if (title) body.title = title;
+    if (description) body.description = description;
+    if (thumbnailUrl) body.thumbnailUrl = thumbnailUrl;
+
+    const res = await fetch(`${API_BASE}/games/${gameId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error("Failed to update game info");
+    return res.json();
 }

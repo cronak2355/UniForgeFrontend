@@ -113,7 +113,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
     const tilemapReadyRef = useRef(false);
     const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
-    const { core, assets, tiles, entities, selectedEntity, modules } = useEditorCoreSnapshot();
+    const { core, assets, tiles, entities, selectedEntity, modules, aspectRatio } = useEditorCoreSnapshot();
     const [fps, setFps] = useState(0);
     const frameCountRef = useRef(0);
     const lastFpsTimeRef = useRef(0);
@@ -147,12 +147,26 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         let active = true;
 
         (async () => {
+            // Parse aspectRatio to get game dimensions
+            let gameWidth = 1280;
+            let gameHeight = 720;
+            if (aspectRatio) {
+                const [wStr, hStr] = aspectRatio.split("x");
+                gameWidth = parseInt(wStr) || 1280;
+                gameHeight = parseInt(hStr) || 720;
+            }
+
+            // Initialize renderer with fixed game size for runtime
+            await renderer.init(ref.current as HTMLElement, { width: gameWidth, height: gameHeight });
             await renderer.init(ref.current as HTMLElement);
             if (!active) return;
             rendererReadyRef.current = true;
 
             // Enable runtime mode for Rules and TICK events
             renderer.isRuntimeMode = true;
+
+            // Center camera on the game area
+            renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
 
             const freshEntities = Array.from(core.getEntities().values());
             spawnRuntimeEntities(gameRuntime, freshEntities);
@@ -461,7 +475,18 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                     color: colors.textSecondary,
                     padding: '4px 8px',
                 }}>
-                    InGame Camera
+                    InGame Camera ({aspectRatio})
+                </span>
+                <span style={{
+                    fontSize: '12px',
+                    color: colors.accentLight,
+                    marginLeft: 'auto',
+                    padding: '4px 8px',
+                    background: colors.bgTertiary,
+                    borderRadius: '4px',
+                    fontFamily: 'monospace'
+                }}>
+                    {fps} FPS
                 </span>
                 <span style={{
                     fontSize: '12px',
@@ -483,6 +508,9 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
                 border: `2px solid ${colors.borderColor}`,
                 borderRadius: '6px',
                 overflow: 'hidden',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
             }}>
                 <div ref={ref} style={{ width: '100%', height: '100%' }} />
                 <GameUIOverlay gameCore={gameCore} showHud={false} />

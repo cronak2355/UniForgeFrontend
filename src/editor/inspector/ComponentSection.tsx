@@ -60,7 +60,8 @@ const CONDITION_TYPES = [
     { value: "VarGreaterOrEqual", label: ">=" },
     { value: "VarLessThan", label: "<" },
     { value: "VarLessOrEqual", label: "<=" },
-    { value: "InputKey", label: "Input" },
+    { value: "InputKey", label: "Input (Hold)" },
+    { value: "InputDown", label: "Input (Down)" },
 ];
 
 const INPUT_KEY_OPTIONS = [
@@ -566,7 +567,7 @@ function ConditionEditor({
     onRemove: () => void;
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
-    const isInputCondition = condition.type === "InputKey";
+    const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
     const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive";
 
     return (
@@ -590,7 +591,7 @@ function ConditionEditor({
                 value={condition.type}
                 onChange={(e) => {
                     const nextType = e.target.value;
-                    if (nextType === "InputKey") {
+                    if (nextType === "InputKey" || nextType === "InputDown") {
                         onUpdate({ ...condition, type: nextType, key: (condition.key as string) ?? "KeyA" });
                         return;
                     }

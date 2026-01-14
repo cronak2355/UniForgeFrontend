@@ -4,7 +4,11 @@ import { PaletteSection } from './PaletteSection';
 import './LeftPanel.css';
 import { useAssetsEditor } from '../../context/AssetsEditorContext';
 
-export function LeftPanel() {
+type Props = {
+    onOpenAiWizard?: () => void;
+};
+
+export function LeftPanel({ onOpenAiWizard }: Props) {
     const { loadAIImage } = useAssetsEditor();
 
     return (
@@ -33,7 +37,7 @@ export function LeftPanel() {
 
             <FramesSection />
             <ToolsSection />
-            <PaletteSection />
+            <PaletteSection onOpenAiWizard={onOpenAiWizard} />
         </div>
     );
 }
