@@ -43,7 +43,7 @@ function AppRoutes() {
             <Route path="/library" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/admin" element={isAuthenticated ? <AdminRoute><AppLayout><AdminPage /></AppLayout></AdminRoute> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <AppLayout><BuildPage /></AppLayout> : <Navigate to="/auth" replace />} />
-            <Route path="/assets-editor" element={isAuthenticated ? <AppLayout><AssetsEditorPage /></AppLayout> : <Navigate to="/auth" replace />} />
+            <Route path="/assets-editor" element={isAuthenticated ? <AssetsEditorPage /> : <Navigate to="/auth" replace />} />
 
             {/* Full-screen Editor Routes (no sidebar) */}
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
