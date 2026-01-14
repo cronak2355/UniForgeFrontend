@@ -1137,7 +1137,7 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Animation =====
 
-    playAnim(id: string, name: string): void {
+    playAnim(id: string, name: string, loop?: boolean): void {
         const obj = this.entities.get(id);
         if (!obj) {
             console.warn(`[PhaserRenderer] Cannot play anim: entity "${id}" not found`);
@@ -1171,6 +1171,16 @@ export class PhaserRenderer implements IRenderer {
         // Now try to play the animation
         if (this.scene?.anims.exists(targetAnimKey)) {
             sprite.play(targetAnimKey, true);
+
+            // [Loop Override]
+            if (loop !== undefined) {
+                // If loop is explicit, override the repeat setting for this playback
+                const repeatVal = loop ? -1 : 0;
+                if (sprite.anims) {
+                    sprite.anims.repeat = repeatVal;
+                }
+            }
+
 
             // [Debug] Inspect runtime animation state
             const currentAnim = sprite.anims.currentAnim;
