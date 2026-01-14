@@ -8,10 +8,10 @@ import {
 import type { AnimationPreset } from '../data/AnimationPresets';
 
 // 애니메이션 프레임 전용 API (seed 기반 일관성)
-const ANIMATION_API_URL = `${import.meta.env.VITE_AI_API_URL || 'http://localhost:8000'}/api/generate-animation-frame`;
+const ANIMATION_API_URL = '/api/generate-animation-frame';
 
 // 기존 단일 이미지 생성 API
-const GENERATE_API_URL = `${import.meta.env.VITE_AI_API_URL || 'http://localhost:8000'}/api/AIgenerate`;
+const GENERATE_API_URL = '/api/AIgenerate';
 
 export interface GenerateOptions {
   characterDescription: string;  // 예: "blue armored knight with sword"

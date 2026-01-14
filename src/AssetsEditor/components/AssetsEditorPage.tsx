@@ -118,12 +118,12 @@ function EditorContent() {
 
       {/* Floating Left Panel */}
       <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40">
-        <LeftPanel />
+        <LeftPanel onOpenAiWizard={() => setIsAiWizardOpen(true)} />
       </div>
 
       {/* Floating Right Panel */}
       <div className="absolute right-6 top-1/2 -translate-y-1/2 z-40 h-[85vh]">
-        <RightPanel onOpenAiWizard={() => setIsAiWizardOpen(true)} />
+        <RightPanel />
       </div>
 
     </div>

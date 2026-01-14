@@ -87,9 +87,9 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>AI Asset Wizard</h2>
+                        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>AI 에셋 생성 마법사</h2>
                         <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                            Step {step} of 3: {step === 1 ? 'Select Category' : step === 2 ? 'Description' : 'Style & Vibe'}
+                            {step}단계 / 3: {step === 1 ? '카테고리 선택' : step === 2 ? '설명 입력' : '스타일 & 분위기'}
                         </div>
                     </div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '20px' }}>&times;</button>
@@ -117,7 +117,9 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                                     <div style={{ fontSize: '40px', marginBottom: '16px' }}>
                                         {cat === 'CHARACTER' ? '🤺' : cat === 'OBJECT' ? '📦' : '✨'}
                                     </div>
-                                    <div style={{ fontWeight: 600, fontSize: '18px' }}>{cat}</div>
+                                    <div style={{ fontWeight: 600, fontSize: '18px' }}>
+                                        {cat === 'CHARACTER' ? '캐릭터' : cat === 'OBJECT' ? '오브젝트' : '이펙트'}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -127,19 +129,20 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                     {step === 2 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
                             <div style={{ textAlign: 'center', fontSize: '18px', marginBottom: '10px' }}>
-                                Describe your {category?.toLowerCase()}:
+                                {category === 'CHARACTER' ? '어떤 캐릭터를 만들까요?' :
+                                    category === 'OBJECT' ? '어떤 물건을 만들까요?' : '어떤 이펙트를 만들까요?'}
                             </div>
                             <textarea
                                 value={userPrompt}
                                 onChange={e => setUserPrompt(e.target.value)}
-                                placeholder={`e.g., A flaming sword suitable for a warrior...`}
+                                placeholder={`예: 전설의 검을 든 푸른 갑옷의 기사...`}
                                 style={{
                                     flex: 1, background: '#111', border: '1px solid #444',
                                     borderRadius: '8px', padding: '16px', color: 'white', fontSize: '16px', resize: 'none'
                                 }}
                             />
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <button onClick={handleBack} style={{ padding: '10px 20px', borderRadius: '8px', background: '#333', color: 'white', border: 'none', cursor: 'pointer' }}>Back</button>
+                                <button onClick={handleBack} style={{ padding: '10px 20px', borderRadius: '8px', background: '#333', color: 'white', border: 'none', cursor: 'pointer' }}>이전</button>
                                 <button
                                     onClick={handleNext}
                                     disabled={!userPrompt.trim()}
@@ -149,7 +152,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                                         color: userPrompt.trim() ? 'white' : '#666', border: 'none', cursor: 'pointer'
                                     }}
                                 >
-                                    Next
+                                    다음
                                 </button>
                             </div>
                         </div>
@@ -160,7 +163,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                             {/* Art Style */}
                             <div>
-                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>ART STYLE</label>
+                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>화풍 (Art Style)</label>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
                                     {ART_STYLES.map(s => (
                                         <div
@@ -174,7 +177,6 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                                             }}
                                         >
                                             <div style={{ fontSize: '12px', fontWeight: 600 }}>{s.label}</div>
-                                            {/* Placeholder for Image: <img src={s.imageUrl} ... /> */}
                                         </div>
                                     ))}
                                 </div>
@@ -182,7 +184,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
 
                             {/* Theme */}
                             <div>
-                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>THEME</label>
+                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>테마 (Theme)</label>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {THEMES.map(t => (
                                         <div
@@ -203,7 +205,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
 
                             {/* Mood */}
                             <div>
-                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>MOOD</label>
+                                <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>분위기 (Mood)</label>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {MOODS.map(m => (
                                         <div
@@ -224,7 +226,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
 
                             {/* Footer Actions */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                                <button onClick={handleBack} style={{ padding: '10px 20px', borderRadius: '8px', background: '#333', color: 'white', border: 'none', cursor: 'pointer' }}>Back</button>
+                                <button onClick={handleBack} style={{ padding: '10px 20px', borderRadius: '8px', background: '#333', color: 'white', border: 'none', cursor: 'pointer' }}>이전</button>
                                 <button
                                     onClick={handleGenerate}
                                     disabled={isGenerating}
@@ -236,7 +238,7 @@ export const AiWizardModal: React.FC<AiWizardModalProps> = ({ isOpen, onClose, o
                                         opacity: isGenerating ? 0.7 : 1
                                     }}
                                 >
-                                    {isGenerating ? 'Generating...' : '✨ Generate Asset'}
+                                    {isGenerating ? '생성 중...' : '✨ 에셋 생성하기'}
                                 </button>
                             </div>
                         </div>
