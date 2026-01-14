@@ -57,7 +57,7 @@ export async function createGame(authorId: string, title: string, description: s
     }
     const data = await res.json();
     // Map backend Entity (id) to Frontend Interface (gameId)
-    return { ...data, gameId: data.id };
+    return { ...data, gameId: data.gameId || data.id }; // Ensure gameId is set correctly
 }
 
 export async function updateGameThumbnail(gameId: string, thumbnailUrl: string): Promise<GameSummary> {

@@ -30,7 +30,7 @@ export const SaveGameModal: React.FC<SaveGameModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="bg-[#111] border border-white/10 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
 
                 <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">

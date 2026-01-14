@@ -144,23 +144,27 @@ function EditorLayoutInner() {
             try {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
-                if (gameId) {
+                if (gameId && gameId !== "undefined") {
                     try {
                         const sceneJson = await loadScene(gameId);
                         if (sceneJson) {
                             console.log("[EditorLayout] Loaded scene from server");
-                            // Validate assets and entities similarly to autosave
-                            // REMOVED: S3 URL filtering that was deleting production assets
-                            // if (sceneJson.assets) {
-                            //     sceneJson.assets = sceneJson.assets.filter((asset: any) => !asset.url?.includes('amazonaws.com'));
-                            // }
-
                             core.clear();
                             SceneSerializer.deserialize(sceneJson, core);
                             loadedFromServer = true;
+                        } else {
+                            // Loaded but empty (New Game)
+                            console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+                            core.clear();
+                            loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
                         }
                     } catch (e) {
-                        console.warn("[EditorLayout] Server load failed, falling back to local autosave:", e);
+                        console.warn("[EditorLayout] Server load failed:", e);
+                        // If server load fails (e.g. 404 Not Found because no version exists yet), 
+                        // we should treat it as a fresh new game, NOT fall back to local autosave.
+                        console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                        core.clear();
+                        loadedFromServer = true;
                     }
                 }
 
@@ -679,20 +683,20 @@ function EditorLayoutInner() {
 
                 // We need to ensure we have the URL.
                 // assetService.getAsset might return url or imageUrl depending on endpoint.
-                const url = (asset as any).imageUrl || asset.url;
+                const url = (asset as any).imageUrl || (asset as any).url;
 
                 if (url) {
                     const resolvedTag =
-                        typeof asset.tag === 'string' && asset.tag.length > 0
-                            ? asset.tag
-                            : typeof asset.genre === 'string' && asset.genre.length > 0
-                                ? asset.genre
+                        typeof (asset as any).tag === 'string' && (asset as any).tag.length > 0
+                            ? (asset as any).tag
+                            : typeof (asset as any).genre === 'string' && (asset as any).genre.length > 0
+                                ? (asset as any).genre
                                 : 'Character';
 
                     core.addAsset({
-                        id: asset.id,
+                        id: (asset as any).id,
                         tag: resolvedTag,
-                        name: asset.name,
+                        name: (asset as any).name,
                         url: url,
                         idx: -1,
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
