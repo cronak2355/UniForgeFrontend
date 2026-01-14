@@ -5,6 +5,7 @@ import { fetchMyGames } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 import AssetCard from '../components/common/AssetCard';
 import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
 // --- Types ---
 interface UILibraryItem {
@@ -117,7 +118,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                         id: game.gameId,
                         title: game.title,
                         type: 'game',
-                        thumbnail: game.thumbnailUrl ?? DEFAULT_GAME_THUMBNAIL,
+                        thumbnail: getCloudFrontUrl(game.thumbnailUrl) ?? DEFAULT_GAME_THUMBNAIL,
                         author: authorName,
                         purchaseDate: game.createdAt.split('T')[0],
                     };
@@ -135,7 +136,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                 title: detail.name,
                                 type: 'asset' as const,
                                 assetType: detail.genre || 'Unknown',
-                                thumbnail: detail.imageUrl || detail.image || DEFAULT_ASSET_THUMBNAIL,
+                                thumbnail: getCloudFrontUrl(detail.imageUrl || detail.image) || DEFAULT_ASSET_THUMBNAIL,
                                 author: authorName,
                                 purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
                                 collectionId: libItem?.collectionId || undefined

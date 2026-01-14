@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createGame, fetchMyGames, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
 const MainPage = () => {
     const { user } = useAuth();
@@ -229,7 +230,7 @@ const MainPage = () => {
                                         )}
                                         <div className="w-16 h-16 bg-[#222] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
                                             {game.thumbnailUrl ? (
-                                                <img src={game.thumbnailUrl} alt={game.title} className="w-full h-full object-cover" />
+                                                <img src={getCloudFrontUrl(game.thumbnailUrl)} alt={game.title} className="w-full h-full object-cover" />
                                             ) : (
                                                 <i className="fa-solid fa-gamepad text-gray-600 text-xl"></i>
                                             )}
