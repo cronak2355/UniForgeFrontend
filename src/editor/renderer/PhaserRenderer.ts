@@ -1838,7 +1838,7 @@ export class PhaserRenderer implements IRenderer {
         // AUTO-GENERATE: If no explicit animations but spritesheet has multiple frames, create "default" animation
         // Use effectiveFrameCount computed earlier
 
-        if (effectiveFrameCount > 1) {
+        if (effectiveFrameCount > 1 && !metadata?.animations?.["default"]) {
             const defaultAnimKey = `${key}_default`;
 
             if (this.scene.anims.exists(defaultAnimKey)) {
