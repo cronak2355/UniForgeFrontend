@@ -80,3 +80,20 @@ export async function updateGameThumbnail(gameId: string, thumbnailUrl: string):
     }
     return res.json();
 }
+
+export async function deleteGame(gameId: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/games/${gameId}`, {
+        method: "DELETE",
+        headers,
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to delete game");
+    }
+}
