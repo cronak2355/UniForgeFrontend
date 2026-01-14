@@ -90,12 +90,7 @@ function EditorContent() {
       <header className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-full flex items-center gap-6 z-50">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          {/* SVG Logo - Same as before but no bg */}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#3b82f6" />
-            <path d="M2 17L12 22L22 17" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <img src="/logo.png" alt="UniForge Logo" width="20" height="20" className="object-contain" />
           <span className="text-white font-bold tracking-tight text-sm">UniForge</span>
         </div>
 
