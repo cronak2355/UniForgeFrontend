@@ -1706,6 +1706,7 @@ export class PhaserRenderer implements IRenderer {
             }
 
             this.scene.load.once("complete", () => {
+                if (!this.scene) return;
                 const texture = this.scene.textures.get(key);
                 let framesToSlice = 0;
                 let frameWidth = 0;
@@ -1791,6 +1792,7 @@ export class PhaserRenderer implements IRenderer {
                     this.scene.anims.remove(animKey);
                 }
 
+                console.log(`[PhaserRenderer] Creating animation '${animKey}': fps=${config.fps}, loop=${config.loop}, repeat=${config.loop ? -1 : 0}`);
                 this.scene.anims.create({
                     key: animKey,
                     frames: validFrames.map(f => ({ key: key, frame: String(f) })), // Direct mapping safer for manual slices
