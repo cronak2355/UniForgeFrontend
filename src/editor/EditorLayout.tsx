@@ -1485,6 +1485,64 @@ function EditorLayoutInner() {
                     </div>
                 </div>
             )}
+            {/* AI Wizard Modal & FAB */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
+
+            {!isAiWizardOpen && (
+                <button
+                    onClick={() => setIsAiWizardOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: '24px',
+                        right: '72px',
+                        padding: '12px 24px',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                        color: 'white',
+                        borderRadius: '9999px',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        cursor: 'pointer',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                    <span style={{ fontSize: '18px' }}>✨</span>
+                    <span>AI Generate</span>
+                </button>
+            )}
+
+            {/* Asset Library Modal */}
+            {isAssetLibraryOpen && (
+                <AssetLibraryModal
+                    onClose={() => setIsAssetLibraryOpen(false)}
+                    onAssetSelect={(asset) => {
+                        core.setDraggedAsset(asset);
+                        setIsAssetLibraryOpen(false);
+                    }}
+                />
+            )}
+
+            {/* Save Game Modal */}
+            {isSaveModalOpen && (
+                <SaveGameModal
+                    isOpen={isSaveModalOpen}
+                    onClose={() => setIsSaveModalOpen(false)}
+                    onSave={handleSaveProject}
+                    initialTitle=""
+                    initialDescription=""
+                    isSaving={isSavingProject}
+                />
+            )}
         </div>
     );
 }
