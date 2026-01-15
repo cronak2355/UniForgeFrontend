@@ -48,6 +48,12 @@ function setVar(entity: RuntimeEntity | undefined, name: string, value: number |
     const existing = entity.variables.find((v) => v.name === name);
     if (existing) {
         if (existing.type === "int" || existing.type === "float") {
+            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+                // [Auto-Upgrade] Assigning Vector2 to Number -> Upgrade variable to vector2
+                existing.type = "vector2";
+                existing.value = { x: Number((value as any).x), y: Number((value as any).y) };
+                return;
+            }
             const num = typeof value === "number" ? value : Number(value);
             existing.value = Number.isNaN(num) ? 0 : num;
         } else if (existing.type === "bool") {
@@ -287,7 +293,7 @@ ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<strin
     if (!gameObject || !targetObject) return;
 
     const entity = getEntity(ctx);
-    const speed = resolveValue(ctx, params.speed ?? getNumberVar(entity, "speed") ?? 100);
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 100) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetObject.x - gameObject.x;
@@ -509,7 +515,7 @@ ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, un
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
-    const speed = Number(resolveValue(ctx, params.speed ?? 90));
+    const speed = Number(resolveValue(ctx, (params.speed ?? 90) as any));
     const dt = 0.016;
 
     if (gameObject.rotation !== undefined) {
@@ -545,6 +551,7 @@ type ValueSource = {
     targetId?: string; // for property (entity id)
     property?: string; // for property name
     axis?: "x" | "y";  // for mouse
+    mode?: "absolute" | "relative" | "screen"; // for mouse
 };
 
 function resolveValue(ctx: ActionContext, source: ValueSource | number | string): any {
@@ -598,16 +605,29 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
 
     if (src.type === "mouse") {
         const input = ctx.input;
-        // RuntimeContext's input might not have mouse position yet in this version.
-        // Assuming we might need to extend InputState or use a global mouse provider.
-        // For now, let's assume InputState has mouseX/Y if standardized, or fallback to 0.
-        // Checking RuntimePhysics.ts InputState: { left, right, up, down, jump } - No mouse.
-        // TODO: Pass mouse position in ActionContext or InputState.
-        // For now, use eventData as a hack if passed, or default 0 to avoid crash.
-        // In the future: ctx.input.mouseX
-        return (ctx.eventData as any)?.mouseX ?? 0;
-    }
+        let x = input?.mouseX ?? 0;
+        let y = input?.mouseY ?? 0;
 
+        if (src.mode === "screen") {
+            x = input?.mouseScreenX ?? 0;
+            y = input?.mouseScreenY ?? 0;
+        } else if (src.mode === "relative") {
+            // Relative to Entity (World Mouse - Entity Pos)
+            const entities = ctx.globals?.entities as Map<string, any>;
+            const entity = entities?.get(ctx.entityId);
+            if (entity) {
+                x -= (entity.x ?? 0);
+                y -= (entity.y ?? 0);
+            }
+        }
+
+        // console.log(`[ResolveValue] Mouse (${src.mode ?? 'abs'}): ${x}, ${y}`);
+
+        if (src.axis === "x") return x;
+        if (src.axis === "y") return y;
+
+        return { x, y };
+    }
     return 0;
 }
 
@@ -632,6 +652,8 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
 
     const val1 = resolveValue(ctx, operand1 ?? 0);
     const val2 = resolveValue(ctx, operand2 ?? 0);
+
+    // console.log(`[SetVar] ${varName} = ${JSON.stringify(val1)} (Op: ${operation}), Source: ${JSON.stringify(operand1)}`);
 
 
     let result: number | string | boolean | object = val1;
@@ -940,7 +962,7 @@ ActionRegistry.register("PlayParticle", (ctx: ActionContext, params: Record<stri
 
     const x = (params.x as number) ?? gameObject?.x ?? entity?.x ?? 0;
     const y = (params.y as number) ?? gameObject?.y ?? entity?.y ?? 0;
-    const scale = Number(resolveValue(ctx, params.scale ?? 1));
+    const scale = Number(resolveValue(ctx, (params.scale ?? 1) as any));
 
     // 커스텀 파티클 체크 (custom: 접두어)
     if (preset.startsWith("custom:")) {

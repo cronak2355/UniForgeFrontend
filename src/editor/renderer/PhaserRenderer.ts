@@ -319,6 +319,10 @@ class PhaserRenderScene extends Phaser.Scene {
                 up: this.cursors?.up.isDown || this.wasd?.W.isDown || false,
                 down: this.cursors?.down.isDown || this.wasd?.S.isDown || false,
                 jump: (this.spaceKey?.isDown === true) || (this.cursors?.up?.isDown === true) || (this.wasd?.W?.isDown === true),
+                mouseX: this.input.activePointer?.worldX ?? 0,
+                mouseY: this.input.activePointer?.worldY ?? 0,
+                mouseScreenX: this.input.activePointer?.x ?? 0,
+                mouseScreenY: this.input.activePointer?.y ?? 0,
                 keys: { ...this.keyState },
                 keysDown: { ...this.keysDownState }
             };
@@ -370,6 +374,8 @@ class PhaserRenderScene extends Phaser.Scene {
             jump: (this.spaceKey?.isDown === true) ||
                 (this.cursors?.up?.isDown === true) ||
                 (this.wasd?.W?.isDown === true),
+            mouseX: this.input.activePointer?.worldX ?? 0,
+            mouseY: this.input.activePointer?.worldY ?? 0,
             keys: { ...this.keyState },
             keysDown: { ...this.keysDownState }
         };

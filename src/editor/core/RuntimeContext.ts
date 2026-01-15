@@ -79,7 +79,7 @@ export class RuntimeContext {
     // =========================================================================
     // Legacy / Subsystem States (Physics, Input, Signals)
     // =========================================================================
-    private input: InputState = { left: false, right: false, up: false, down: false, jump: false };
+    private input: InputState = { left: false, right: false, up: false, down: false, jump: false, mouseX: 0, mouseY: 0 };
     private entityContexts: Map<string, EntityRuntimeContext> = new Map();
     private groundTags: Set<string> = new Set(["Wall"]);
 
