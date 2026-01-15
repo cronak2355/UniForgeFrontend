@@ -182,12 +182,12 @@ class PhaserRenderScene extends Phaser.Scene {
                     if (!this.matchesEvent(component, event)) continue;
                     if (!this.passesConditions(component, ctx)) continue;
 
-                    if (event.type === "OnStart") {
-                        console.log("[OnStart] component triggered", {
-                            entityId: ctx.entityId,
-                            event: component.event,
-                        });
-                    }
+                    // if (event.type === "OnStart") {
+                    //     console.log("[OnStart] component triggered", {
+                    //         entityId: ctx.entityId,
+                    //         event: component.event,
+                    //     });
+                    // }
 
                     for (const action of component.actions ?? []) {
                         const { type, ...params } = action;
@@ -314,57 +314,8 @@ class PhaserRenderScene extends Phaser.Scene {
 
             const input = runtimeContext.getInput();
 
-            // Query OnUpdate/TICK components directly using event index (optimized)
-            const updateComponents = runtimeContext.getComponentsByEvent("OnUpdate");
-            const tickComponents = runtimeContext.getComponentsByEvent("TICK");
-            const logicComponents = [...updateComponents, ...tickComponents];
-            let processedComponentCount = 0;
-
-            for (const comp of logicComponents) {
-                const logicData = comp.data as import("../types/Component").LogicComponent | undefined;
-                if (!logicData) continue;
-
-                // Check entity is alive (from RuntimeContext)
-                const entity = runtimeContext.entities.get(comp.entityId);
-                if (!entity || !entity.active) continue;
-
-                const hpVar = runtimeContext.getEntityVariable(comp.entityId, "hp");
-                if (typeof hpVar === "number" && hpVar <= 0) continue;
-
-                // Prepare context with Phaser-specific globals
-                this.reusableCtx.entityId = comp.entityId;
-                this.reusableCtx.eventData = { time, delta, dt };
-                this.reusableCtx.input = input;
-                this.reusableCtx.entityContext = runtimeContext.getEntityContext(comp.entityId);
-                this.reusableCtx.globals = {
-                    scene: this,
-                    renderer: this.phaserRenderer,
-                    entities: runtimeContext.entities,
-                    gameCore: this.phaserRenderer.gameCore
-                };
-
-                // Check conditions
-                if (!this.passesConditions(logicData, this.reusableCtx)) continue;
-
-                processedComponentCount++;
-
-                // Execute Actions
-                for (const action of logicData.actions ?? []) {
-                    const { type, ...params } = action;
-                    ActionRegistry.run(type, this.reusableCtx, params);
-                }
-            }
-
-            // [Performance Reporting - Disabled for production]
-            // Uncomment for debugging performance
-            // const frameDuration = performance.now() - frameStart;
-            // this.accFrameTime += frameDuration;
-            // this.frameCount++;
-            // if (this.frameCount >= 300) {
-            //     console.log(`[Performance] Avg Frame Time: ${(this.accFrameTime / this.frameCount).toFixed(4)} ms`);
-            //     this.accFrameTime = 0;
-            //     this.frameCount = 0;
-            // }
+            // [Optimized] Logic execution is now handled by LogicSystem via GameCore pipeline.
+            // Duplicate execution loop removed.
 
             // Camera Sync: Find "Main Camera" and sync position
             let cameraEntity: any = null;
@@ -384,8 +335,11 @@ class PhaserRenderScene extends Phaser.Scene {
                     this.cameras.main.centerOn(cx, cy);
                 }
             } catch (e) {
-                console.warn("[PhaserRenderer] Camera sync error:", e);
+                // Silent fail for camera sync
             }
+
+            // [CRITICAL FIX] Exit early for runtime mode - don't execute editor physics below
+            return;
         }
 
         // ?ㅻ낫?쒓? 珥덇린?붾릺吏€ ?딆븯?쇰㈃ ?ㅽ궢
@@ -650,12 +604,23 @@ export class PhaserRenderer implements IRenderer {
     /**
      * ?낅뜲?댄듃 猷⑦봽 (?대???
      */
-    onUpdate(_time: number, _delta: number): void {
+    onUpdate(time: number, delta: number): void {
+        // console.log(`[PhaserRenderer] onUpdate. Runtime: ${this.isRuntimeMode}, Core: ${!!this.gameCore}`);
+
         if (this.gridVisible) {
             this.redrawGrid();
         }
+
+        // [Fix] Execute GameCore loop (Logic, Physics, etc.)
+        // This is critical for RuntimeContext-based systems (LogicSystem) to run.
+        if (this.isRuntimeMode && this.gameCore) {
+            (this.gameCore as any).update(time, delta);
+        } else {
+            // console.warn("[PhaserRenderer] Skipping GameCore update. Runtime:", this.isRuntimeMode, "Core:", !!this.gameCore);
+        }
+
         if (this.onUpdateCallback) {
-            this.onUpdateCallback(_time, _delta);
+            this.onUpdateCallback(time, delta);
         }
     }
 
@@ -764,7 +729,7 @@ export class PhaserRenderer implements IRenderer {
 
         // ID 중복 검사
         if (this.entities.has(id)) {
-            console.error(`[PhaserRenderer] Entity with id "${id}" already exists! ID sync violation.`);
+            console.warn(`[PhaserRenderer] Entity with id "${id}" already exists. Skipping duplicate spawn.`);
             return;
         }
 
@@ -942,7 +907,7 @@ export class PhaserRenderer implements IRenderer {
             this.scene.physics.add.existing(obj);
         }
 
-        console.log(`[PhaserRenderer] Spawned ${uiType} id=${id} x=${x} y=${y} z=${z} isUI=${isUI} runtime=${this.isRuntimeMode}`);
+        // console.log(`[PhaserRenderer] Spawned ${uiType} id=${id} x=${x} y=${y} z=${z} isUI=${isUI} runtime=${this.isRuntimeMode}`);
 
         this.attachEntityInteraction(obj, id, uiType || type);
 
@@ -1062,15 +1027,26 @@ export class PhaserRenderer implements IRenderer {
         if (obj) {
             obj.destroy();
             this.entities.delete(id);
-            console.log(`[PhaserRenderer] Removed entity: ${id}`);
+            // console.log(`[PhaserRenderer] Removed entity: ${id}`);
         } else {
             console.warn(`[PhaserRenderer] Cannot remove: entity "${id}" not found`);
         }
     }
 
     refreshEntityTexture(id: string, textureKey: string): void {
-        if (!this.scene || !this.scene.textures.exists(textureKey)) return;
+        // console.log(`[PhaserRenderer] refreshEntityTexture called for ${id} with ${textureKey}`);
+        if (!this.scene) {
+            console.warn("[PhaserRenderer] No scene during refreshEntityTexture");
+            return;
+        }
+        if (!this.scene.textures.exists(textureKey)) {
+            // console.warn(`[PhaserRenderer] Texture ${textureKey} not found for refreshEntityTexture`);
+            return;
+        }
+
         const obj = this.entities.get(id);
+        // console.log(`[PhaserRenderer] refreshEntityTexture found object for ${id}:`, obj ? obj.constructor.name : "null");
+
         if (!obj) return;
 
         // 1. Handle Sprite (Direct Entity)
@@ -1199,7 +1175,7 @@ export class PhaserRenderer implements IRenderer {
 
         // If target texture is different from current, switch the sprite's texture
         if (targetTexture !== sprite.texture.key && this.scene?.textures.exists(targetTexture)) {
-            console.log(`[PhaserRenderer] Switching texture: ${sprite.texture.key} -> ${targetTexture}`);
+            // console.log(`[PhaserRenderer] Switching texture: ${sprite.texture.key} -> ${targetTexture}`);
             sprite.setTexture(targetTexture, 0);
         }
 
@@ -1351,6 +1327,39 @@ export class PhaserRenderer implements IRenderer {
         return this.scene?.particleManager?.getCustomTextures() ?? [];
     }
 
+    createAnimation(key: string, frames: string[], frameRate: number, repeat: number = -1): void {
+        if (!this.scene || this.scene.anims.exists(key)) return;
+
+        // Assuming frames are provided as an array of frame keys (e.g., ["frame0", "frame1"])
+        // or if it's a spritesheet, frames[0] is the texture key and subsequent frames are indices.
+        // For simplicity, let's assume frames are actual frame keys or a single texture key for generateFrameNumbers.
+        // If frames is an array of frame names/indices, we need to map them.
+        // If it's a spritesheet, we might need to generate frame numbers.
+
+        // This implementation assumes `frames` is an array of frame names/indices for a single texture.
+        // If `frames` contains multiple texture keys, a more complex animation creation is needed.
+        // For now, let's assume the first element of `frames` is the texture key, and we generate frames from it.
+        // Or, if `frames` are actual frame names, we can use `this.scene.anims.createFromAseprite` or similar.
+        // Given the `frames: string[]` type, it's most likely a list of frame names or a texture key + frame indices.
+
+        // Let's assume `frames` are frame names from a single texture.
+        // If `frames` is meant to be a texture key and then frame numbers, the signature should be different.
+        // For now, let's use `generateFrameNumbers` with the first frame as the texture key.
+        // This is a common pattern for spritesheet animations.
+
+        if (frames.length === 0) {
+            console.warn(`[PhaserRenderer] Cannot create animation '${key}': no frames provided.`);
+            return;
+        }
+
+        this.scene.anims.create({
+            key: key,
+            frames: this.scene.anims.generateFrameNumbers(frames[0], { start: 0, end: frames.length - 1 }),
+            frameRate: frameRate,
+            repeat: repeat
+        });
+    }
+
     /**
      * 지속 파티클 이미터 생성
      */
@@ -1389,6 +1398,47 @@ export class PhaserRenderer implements IRenderer {
             y: cam.worldView.centerY,
             z: 0,
         };
+    }
+
+    // ===== UI Update Helpers =====
+
+    updateText(id: string, text: string): void {
+        const entity = this.entities.get(id);
+        if (!entity || !entity.active) return;
+
+        let targetText: Phaser.GameObjects.Text | null = null;
+
+        if (entity instanceof Phaser.GameObjects.Text) {
+            targetText = entity;
+        } else if (entity instanceof Phaser.GameObjects.Container) {
+            // Try to find text child
+            const txt = entity.getByName("text");
+            if (txt && txt instanceof Phaser.GameObjects.Text) {
+                targetText = txt;
+            }
+        }
+
+        if (targetText) {
+            targetText.setText(text);
+        }
+    }
+
+    updateBar(id: string, ratio: number): void {
+        const entity = this.entities.get(id);
+        if (!entity || !entity.active) return;
+
+        if (entity instanceof Phaser.GameObjects.Container) {
+            // Expecting "fg" child for foreground bar
+            const fg = entity.getByName("fg") as Phaser.GameObjects.Rectangle;
+            if (fg && fg instanceof Phaser.GameObjects.Rectangle) {
+                // Assuming left-aligned (origin 0,0) or centered
+                // For simplicity, we just scale width relative to bg?
+                // Or if we used scaleX. 
+                // Let's assume we change scaleX if origin is 0, or width if we want.
+                // In spawn logic: .setOrigin(0, 0) was used for bar fg.
+                fg.setScale(Math.max(0, Math.min(1, ratio)), 1);
+            }
+        }
     }
 
     getCameraZoom(): number {
@@ -1794,7 +1844,7 @@ export class PhaserRenderer implements IRenderer {
                 }
             }
 
-            console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
+            // console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
 
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
                 scene.load.spritesheet(key, url, {
