@@ -740,7 +740,8 @@ function EditorLayoutInner() {
                 core.setSelectedEntity(preferred as any);
                 setLocalSelectedEntity(preferred as any);
             }
-            setRunSession((v) => v + 1);
+            // [REMOVED] setRunSession causes RunTimeCanvas to unmount/remount via key change
+            // setRunSession((v) => v + 1);
         } else if (prevMode === "run") {
             if (entityBackupRef.current) {
                 entityBackupRef.current.forEach((backupEntity, id) => {
@@ -985,95 +986,6 @@ function EditorLayoutInner() {
                         </TopBarMenu>
 
                         {/* UI Menu */}
-                        <TopBarMenu label="ui">
-                            <MenuItem label="Add Text" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Text",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 100,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
-                                        { id: crypto.randomUUID(), name: "uiText", type: "string", value: "New Text" },
-                                        { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 16 },
-                                        { id: crypto.randomUUID(), name: "uiColor", type: "string", value: "#ffffff" }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                            <MenuItem label="Add Panel" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Panel",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 90,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "panel" },
-                                        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#444444" },
-                                        { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
-                                        { id: crypto.randomUUID(), name: "height", type: "float", value: 100 }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                            <MenuItem label="Add Bar" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Bar",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 100,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
-                                        { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
-                                        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#2c3e50" },
-                                        { id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: "hp" },
-                                        { id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: "maxHp" },
-                                        { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
-                                        { id: crypto.randomUUID(), name: "height", type: "float", value: 20 }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                        </TopBarMenu>
 
                         {/* Edit Menu */}
                         <TopBarMenu label="edit">
@@ -1275,7 +1187,7 @@ function EditorLayoutInner() {
                                 entity={localSelectedEntity}
                                 onUpdateEntity={(updatedEntity) => {
                                     const normalized = syncLegacyFromLogic(updatedEntity);
-                                    core.addEntity(normalized as any);
+                                    core.updateEntityAnywhere(normalized as any);
                                     core.setSelectedEntity(normalized as any);
                                     setLocalSelectedEntity(normalized);
                                 }}

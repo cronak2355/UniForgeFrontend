@@ -625,6 +625,9 @@ export class PhaserRenderer implements IRenderer {
             // console.warn("[PhaserRenderer] Skipping GameCore update. Runtime:", this.isRuntimeMode, "Core:", !!this.gameCore);
         }
 
+        // Update UI Bars dynamically
+        this.updateBars();
+
         if (this.onUpdateCallback) {
             this.onUpdateCallback(time, delta);
         }
@@ -713,11 +716,12 @@ export class PhaserRenderer implements IRenderer {
 
         if (width <= 0 || height <= 0) return;
 
-        // Draw White Frame Centered at (x, y)
+        // Draw White Frame with Top-Left at (x, y)
+        // This matches Phaser's default origin for rectangles/containers
         this.guideGraphics.lineStyle(2, 0xffffff, 1);
-        this.guideGraphics.strokeRect(x - width / 2, y - height / 2, width, height);
+        this.guideGraphics.strokeRect(x, y, width, height);
 
-        // Optional: Crosshair center
+        // Optional: Crosshair at top-left corner (origin point)
         this.guideGraphics.lineStyle(1, 0xffffff, 0.5);
         this.guideGraphics.moveTo(x - 10, y);
         this.guideGraphics.lineTo(x + 10, y);
@@ -744,9 +748,23 @@ export class PhaserRenderer implements IRenderer {
             const opts = options as any;
             const fromOpts = opts?.variables?.find((v: any) => v.name === name);
             if (fromOpts) return fromOpts;
-            const entity = this.core.getEntity(id);
+            const entity = this.core.getEntity(id) || this.core.getGlobalEntity(id);
             return entity?.variables?.find(v => v.name === name);
         };
+
+        // Check if entity should be rendered (skip data-only entities like GameState)
+        const isRenderableVar = getVar("isRenderable");
+        if (isRenderableVar?.value === false) {
+            console.log(`[PhaserRenderer] Skipping non-renderable entity: ${id}`);
+            return;
+        }
+
+        // Skip GameState entity (data container, should not render)
+        const entityName = options?.name || this.core.getEntity(id)?.name || this.core.getGlobalEntity(id)?.name;
+        if (entityName === "GameState") {
+            console.log(`[PhaserRenderer] Skipping GameState entity (data-only)`);
+            return;
+        }
 
         const isUIVar = getVar("isUI");
         let isUI = isUIVar?.value === true;
@@ -806,20 +824,47 @@ export class PhaserRenderer implements IRenderer {
             }
         };
 
+        // [UI COORDINATE TRANSFORMATION]
+        // Editor: UI at world coords, Main Camera at (cx, cy) → screen offset = (x-cx, y-cy)
+        // Runtime: UI should appear at same screen offset, but camera is at (gameWidth/2, gameHeight/2)
+        // Therefore: runtime world pos = (x - cx) + (gameWidth/2, gameHeight/2)
+        let uiX = x;
+        let uiY = y;
+
+        if (isUI && this.isRuntimeMode && this.scene?.cameras?.main) {
+            // Find Main Camera entity to get editor camera position
+            const mainCamera = this.core.getEntities().get('Main Camera') ||
+                Array.from(this.core.getEntities().values()).find(e => e.name === 'Main Camera');
+
+            if (mainCamera) {
+                const cam = this.scene.cameras.main;
+                const editorCamX = mainCamera.x || 0;
+                const editorCamY = mainCamera.y || 0;
+
+                // Calculate screen offset from editor camera
+                const screenOffsetX = x - editorCamX;
+                const screenOffsetY = y - editorCamY;
+
+                // Apply same screen offset from runtime camera center
+                uiX = cam.centerX + screenOffsetX;
+                uiY = cam.centerY + screenOffsetY;
+            }
+        }
+
         let obj: Phaser.GameObjects.GameObject;
 
         if (uiType === "text") {
-            const textObj = this.scene.add.text(x, y, uiText, {
+            const textObj = this.scene.add.text(uiX, uiY, uiText, {
                 fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
                 color: uiColor,
                 fontFamily: 'monospace',
                 backgroundColor: uiBackgroundColor,
                 padding: { x: 4, y: 2 }
             });
-            textObj.setOrigin(0.5); // Center origin for consistency
+            textObj.setOrigin(0.5);
             obj = textObj;
         } else if (uiType === "button") {
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
             const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x3498db;
             let bg: Phaser.GameObjects.GameObject;
             if (options?.texture && this.scene.textures.exists(options.texture)) {
@@ -831,24 +876,20 @@ export class PhaserRenderer implements IRenderer {
             }
             bg.setName("bg");
 
-            const textObj = this.scene.add.text(0, 0, uiText, {
+            const label = this.scene.add.text(0, 0, uiText, {
                 fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
                 color: uiColor,
-                fontFamily: 'monospace'
-            }).setOrigin(0.5);
-            textObj.setName("text");
-
-            // Simple Interaction Feedback
-            // Moved to Runtime-only block to avoid Editor conflict
-
-
-            container.add([bg, textObj]);
+                fontFamily: 'monospace',
+            });
+            label.setOrigin(0.5);
+            label.setName("label");
+            container.add([bg, label]);
             container.setSize(width, height);
             obj = container;
 
         } else if (uiType === "panel" || uiType === "scrollPanel") {
             // Panel/ScrollPanel Container
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
             const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x2c3e50;
 
             // Panel BG (Sprite or Rect)
@@ -877,18 +918,18 @@ export class PhaserRenderer implements IRenderer {
         } else if (uiType === "image") {
             // UI Image - standard sprite but can be colored rect if no texture
             if (options?.texture && this.scene.textures.exists(options.texture)) {
-                const sprite = this.scene.add.sprite(x, y, options.texture);
+                const sprite = this.scene.add.sprite(uiX, uiY, options.texture);
                 setSize(sprite);
                 obj = sprite;
             } else {
                 // Fallback white rect for placeholder image
-                const rect = this.scene.add.rectangle(x, y, width, height, 0xffffff);
+                const rect = this.scene.add.rectangle(uiX, uiY, width, height, 0xffffff);
                 obj = rect;
             }
 
         } else if (uiType === "bar") {
             // Bar is a container with BG and FG
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
 
             // Background
             const bg = this.scene.add.rectangle(0, 0, width, height,
@@ -957,7 +998,9 @@ export class PhaserRenderer implements IRenderer {
         if (isUI) {
             const uiObj = obj as any;
 
-            // Apply ScrollFactor(0) for Runtime
+            // Apply ScrollFactor(0) for Runtime mode only
+            // Editor mode: UI moves with camera (scrollFactor=1, default)
+            // Runtime mode: UI fixed to screen (scrollFactor=0)
             if (this.isRuntimeMode) {
                 if (uiObj.setScrollFactor) {
                     uiObj.setScrollFactor(0);
@@ -1366,6 +1409,52 @@ export class PhaserRenderer implements IRenderer {
                 const fullWidth = bg.width;
                 fg.width = fullWidth * ratio;
             }
+        }
+    }
+
+    private updateBars(): void {
+        if (!this.scene) return;
+
+        // Get entities from the appropriate source (Runtime or Editor)
+        const entities = this.isRuntimeMode && this.gameCore?.getRuntimeContext
+            ? this.gameCore.getRuntimeContext()?.entities
+            : this.core.getEntities();
+
+        if (!entities) return;
+
+        // Iterate all entities and update bars
+        for (const [id, entity] of entities) {
+            // Check if this is a bar UI element
+            const isUI = entity.variables?.find((v: any) => v.name === "isUI")?.value === true;
+            const uiType = entity.variables?.find((v: any) => v.name === "uiType")?.value;
+
+            if (!isUI || uiType !== "bar") continue;
+
+            // Get bar configuration
+            const sourceEntityId = String(entity.variables?.find((v: any) => v.name === "uiSourceEntity")?.value || "");
+            const valueVarName = String(entity.variables?.find((v: any) => v.name === "uiValueVar")?.value || "");
+            const maxVarName = String(entity.variables?.find((v: any) => v.name === "uiMaxVar")?.value || "");
+
+            if (!sourceEntityId || !valueVarName || !maxVarName) continue;
+
+            // Resolve source entity (check both global and scene entities)
+            let sourceEntity: any = null;
+            if (this.isRuntimeMode && this.gameCore?.getRuntimeContext) {
+                const ctx = this.gameCore.getRuntimeContext();
+                sourceEntity = ctx?.entities.get(sourceEntityId);
+            } else {
+                sourceEntity = this.core.getGlobalEntities().get(sourceEntityId)
+                    || this.core.getEntities().get(sourceEntityId);
+            }
+
+            if (!sourceEntity) continue;
+
+            // Get current and max values
+            const currentValue = sourceEntity.variables?.find((v: any) => v.name === valueVarName)?.value ?? 0;
+            const maxValue = sourceEntity.variables?.find((v: any) => v.name === maxVarName)?.value ?? 1;
+
+            // Update the bar visual
+            this.setBarValue(id, Number(currentValue), Number(maxValue));
         }
     }
 

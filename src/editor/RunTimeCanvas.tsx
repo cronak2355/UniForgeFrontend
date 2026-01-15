@@ -109,7 +109,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const gameCoreRef = useRef<GameCore | null>(null);
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
-    const selectedEntityIdRef = useRef<string | null>(null);
     const initialModulesRef = useRef<ModuleGraph[] | null>(null);
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
@@ -119,19 +118,31 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const [fps, setFps] = useState(0);
     const frameCountRef = useRef(0);
     const lastFpsTimeRef = useRef(0);
+    const initializationStartedRef = useRef(false);
+    const cleanupDoneRef = useRef(false);
 
     useEffect(() => {
-        selectedEntityIdRef.current = selectedEntity?.id ?? null;
-    }, [selectedEntity]);
+        console.log("[RunTimeCanvas] useEffect CALLED - timestamp:", Date.now());
 
-    useEffect(() => {
-        if (!ref.current) return;
-
-        // [CRITICAL FIX] Prevent double initialization in Strict Mode
-        // If a renderer already exists from a previous mount cycle, skip
-        if (rendererRef.current) {
-            console.log("[RunTimeCanvas] Skipping duplicate initialization (Strict Mode)");
+        if (!ref.current) {
+            console.log("[RunTimeCanvas] No ref, skipping initialization");
             return;
+        }
+
+        // [GUARD] Prevent double initialization
+        if (initializationStartedRef.current) {
+            console.log("[RunTimeCanvas] Already  initialized, skipping");
+            return;
+        }
+
+        initializationStartedRef.current = true;
+        cleanupDoneRef.current = false;
+
+        // [CRITICAL FIX] If a renderer already exists, clean it up first
+        if (rendererRef.current) {
+            console.log("[RunTimeCanvas] Cleaning up existing renderer before re-init");
+            rendererRef.current.destroy();
+            rendererRef.current = null;
         }
 
         // [Lifecycle] Strict cleanup of any existing content
@@ -139,7 +150,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             ref.current.removeChild(ref.current.firstChild);
         }
 
-        // console.log("[RunTimeCanvas] Creating new PhaserRenderer instance");
+        console.log("[RunTimeCanvas] ========== STARTING INITIALIZATION ==========");
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
 
@@ -220,10 +231,19 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             }
             // console.log("[RunTimeCanvas] Textures loaded");
 
-            // 5. Spawn Entities
-            const freshEntities = Array.from(core.getEntities().values());
-            spawnRuntimeEntities(gameRuntime, freshEntities);
-            // console.log(`[RunTimeCanvas] Ready. Entities: ${freshEntities.length}`);
+            // 5. Spawn Entities (Global + Scene)
+            const globalEntities = Array.from(core.getGlobalEntities().values());
+            const sceneEntities = Array.from(core.getEntities().values());
+            const allEntities = [...globalEntities, ...sceneEntities];
+
+            console.log(`[RunTimeCanvas] === ENTITY DEBUG ===`);
+            console.log(`[RunTimeCanvas] Current Scene ID: ${core.getCurrentSceneId()}`);
+            console.log(`[RunTimeCanvas] Global Entities:`, globalEntities.map(e => e.name));
+            console.log(`[RunTimeCanvas] Scene Entities:`, sceneEntities.map(e => e.name));
+            console.log(`[RunTimeCanvas] All Scenes:`, Array.from(core.getScenes().entries()).map(([id, s]) => `${s.name} (${s.entities.size} entities)`));
+
+            spawnRuntimeEntities(gameRuntime, allEntities);
+            console.log(`[RunTimeCanvas] Ready. Global: ${globalEntities.length}, Scene: ${sceneEntities.length}, Total: ${allEntities.length}`);
 
             // 6. Start Loop
             renderer.onUpdateCallback = (time, delta) => {
@@ -290,25 +310,41 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         })();
 
         return () => {
+            // [GUARD] Prevent double cleanup
+            if (cleanupDoneRef.current) {
+                console.log("[RunTimeCanvas] Cleanup already done, skipping duplicate");
+                return;
+            }
+
+            cleanupDoneRef.current = true;
             isMounted = false;
-            console.log("[RunTimeCanvas] Cleanup triggered");
+            console.log("[RunTimeCanvas] ========== CLEANUP STARTED ==========");
 
-            gameRuntime.destroy && gameRuntime.destroy();
-            renderer.onUpdateCallback = undefined;
-            renderer.onInputState = undefined;
+            if (gameRuntime && gameRuntime.destroy) {
+                gameRuntime.destroy();
+            }
 
-            // Explicit destroy
-            renderer.destroy();
+            if (renderer) {
+                renderer.onUpdateCallback = undefined;
+                renderer.onInputState = undefined;
+                renderer.destroy();
+            }
 
             rendererRef.current = null;
             gameCoreRef.current = null;
             setGameCore(null);
+
             if (initialModulesRef.current) {
                 core.setModules(initialModulesRef.current);
                 initialModulesRef.current = null;
             }
+
+            // Reset initialization flag so component can re-init if remounted
+            initializationStartedRef.current = false;
+
+            console.log("[RunTimeCanvas] ========== CLEANUP COMPLETE ==========");
         };
-    }, []);
+    }, []); // Empty deps - only run on mount/unmount
 
     useEffect(() => {
         const handleSceneChange = (event: GameEvent) => {
@@ -336,7 +372,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             const gameRuntime = gameCoreRef.current;
             if (!gameRuntime) return;
             gameRuntime.resetRuntime();
-            spawnRuntimeEntities(gameRuntime, Array.from(target.entities.values()));
+
+            // Spawn global entities + target scene entities
+            const globalEntities = Array.from(core.getGlobalEntities().values());
+            const targetSceneEntities = Array.from(target.entities.values());
+            const allEntities = [...globalEntities, ...targetSceneEntities];
+            spawnRuntimeEntities(gameRuntime, allEntities);
         };
 
         EventBus.on(handleSceneChange);

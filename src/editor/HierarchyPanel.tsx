@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import type { EditorEntity } from "./types/Entity";
 import { colors } from "./constants/colors";
 import type { EditorState, SceneData } from "./EditorCore";
@@ -38,10 +38,6 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState<"scene" | "entity" | null>(null);
     const [showTemplateMenu, setShowTemplateMenu] = useState(false);
-    const [showHPBarModal, setShowHPBarModal] = useState(false);
-    const [selectedSourceEntity, setSelectedSourceEntity] = useState<string>("");
-    const [selectedValueVar, setSelectedValueVar] = useState<string>("");
-    const [selectedMaxVar, setSelectedMaxVar] = useState<string>("");
 
     // Runtime Sync
     const [runtimeEntities, setRuntimeEntities] = useState<any[]>([]);
@@ -112,7 +108,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
     };
 
     // Generic UI Entity Creator
-    const createUIEntity = (type: "text" | "button" | "panel" | "scrollPanel" | "image") => {
+    const createUIEntity = (type: "text" | "button" | "panel" | "scrollPanel" | "image" | "bar") => {
         const id = crypto.randomUUID();
         let name = "UI Element";
         let variables: any[] = [
@@ -172,6 +168,19 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                     { id: crypto.randomUUID(), name: "height", type: "float", value: 100 }
                 );
                 break;
+            case "bar":
+                name = "New Bar";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
+                    { id: crypto.randomUUID(), name: "height", type: "float", value: 20 },
+                    { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
+                    { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
+                    // Placeholder binding vars, to be set in Inspector
+                    { id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: "" },
+                    { id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: "hp" },
+                    { id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: "maxHp" }
+                );
+                break;
         }
 
         const entity: EditorEntity = {
@@ -188,48 +197,6 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         core.addEntity(entity);
         setShowTemplateMenu(false);
         onSelect(entity);
-    };
-
-    // Create HP Bar from template
-    const createHPBar = () => {
-        if (!selectedSourceEntity || !selectedValueVar || !selectedMaxVar) return;
-
-        const barId = crypto.randomUUID();
-        const barEntity: EditorEntity = {
-            id: barId,
-            name: "HP Bar",
-            type: "container",
-            role: "none",
-            events: [],
-            x: 400,
-            y: 50,
-            z: 100,
-            rotation: 0,
-            rotationX: 0,
-            rotationY: 0,
-            rotationZ: 0,
-            scaleX: 1,
-            scaleY: 1,
-            variables: [
-                { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
-                { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
-                { id: crypto.randomUUID(), name: "height", type: "float", value: 20 },
-                { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#333333" },
-                { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
-                { id: crypto.randomUUID(), name: "uiSourceEntity", type: "string", value: selectedSourceEntity },
-                { id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: selectedValueVar },
-                { id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: selectedMaxVar },
-            ],
-            components: [],
-            logic: []
-        };
-        core.addEntity(barEntity);
-        setShowHPBarModal(false);
-        setSelectedSourceEntity("");
-        setSelectedValueVar("");
-        setSelectedMaxVar("");
-        onSelect(barEntity);
     };
 
     if (runtimeCore) {
@@ -271,7 +238,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                             }}
                         >
                             <span style={{ fontSize: '10px', marginRight: '6px', opacity: 0.7 }}>
-                                {e.type === 'container' ? '📦' : '🧊'}
+                                {e.type === 'container' ? '?벀' : '?쭒'}
                             </span>
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {e.name}
@@ -344,8 +311,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                             <MenuOption onClick={() => createUIEntity("panel")} label="🔲 Panel" />
                             <MenuOption onClick={() => createUIEntity("scrollPanel")} label="📜 Scroll Panel" />
                             <MenuOption onClick={() => createUIEntity("image")} label="🖼️ Image" />
-                            <div style={{ height: '1px', background: colors.borderColor, margin: '2px 0' }} />
-                            <MenuOption onClick={() => { setShowHPBarModal(true); setShowTemplateMenu(false); }} label="❤️ HP Bar" />
+                            <MenuOption onClick={() => createUIEntity("bar")} label="📊 Bar" />
                         </div>
                     )}
                     <button
@@ -601,153 +567,6 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                     })}
             </div>
 
-            {/* HP Bar Creation Modal */}
-            {showHPBarModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.7)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
-                }}>
-                    <div style={{
-                        background: colors.bgSecondary,
-                        borderRadius: '8px',
-                        padding: '20px',
-                        minWidth: '300px',
-                        border: `1px solid ${colors.borderColor}`
-                    }}>
-                        <h3 style={{ margin: '0 0 16px 0', color: colors.textPrimary }}>❤️ HP Bar 만들기</h3>
-
-                        {/* Source Entity Selection */}
-                        <div style={{ marginBottom: '12px' }}>
-                            <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
-                                연결할 엔티티
-                            </label>
-                            <select
-                                value={selectedSourceEntity}
-                                onChange={(e) => {
-                                    setSelectedSourceEntity(e.target.value);
-                                    setSelectedValueVar("");
-                                    setSelectedMaxVar("");
-                                }}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    background: colors.bgInput,
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: '4px',
-                                    color: colors.textPrimary
-                                }}
-                            >
-                                <option value="">선택하세요</option>
-                                {/* Global */}
-                                {Array.from(core.getGlobalEntities().values()).map((ent: any) => (
-                                    <option key={ent.id} value={ent.id}>🌐 {ent.name}</option>
-                                ))}
-                                {/* Scene */}
-                                {Array.from(core.getEntities().values())
-                                    .filter((ent: any) => !ent.variables?.find((v: any) => v.name === "isUI")?.value)
-                                    .map((ent: any) => (
-                                        <option key={ent.id} value={ent.id}>{ent.name}</option>
-                                    ))}
-                            </select>
-                        </div>
-
-                        {/* Value Variable */}
-                        {selectedSourceEntity && (
-                            <div style={{ marginBottom: '12px' }}>
-                                <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
-                                    현재 HP 변수
-                                </label>
-                                <select
-                                    value={selectedValueVar}
-                                    onChange={(e) => setSelectedValueVar(e.target.value)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '8px',
-                                        background: colors.bgInput,
-                                        border: `1px solid ${colors.borderColor}`,
-                                        borderRadius: '4px',
-                                        color: colors.textPrimary
-                                    }}
-                                >
-                                    <option value="">선택하세요</option>
-                                    {(() => {
-                                        const ent = core.getGlobalEntities().get(selectedSourceEntity) || core.getEntities().get(selectedSourceEntity);
-                                        return ent?.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
-                                            <option key={v.id} value={v.name}>{v.name}</option>
-                                        ));
-                                    })()}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Max Variable */}
-                        {selectedSourceEntity && (
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '4px', color: colors.textSecondary, fontSize: '12px' }}>
-                                    최대 HP 변수
-                                </label>
-                                <select
-                                    value={selectedMaxVar}
-                                    onChange={(e) => setSelectedMaxVar(e.target.value)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '8px',
-                                        background: colors.bgInput,
-                                        border: `1px solid ${colors.borderColor}`,
-                                        borderRadius: '4px',
-                                        color: colors.textPrimary
-                                    }}
-                                >
-                                    <option value="">선택하세요</option>
-                                    {(() => {
-                                        const ent = core.getGlobalEntities().get(selectedSourceEntity) || core.getEntities().get(selectedSourceEntity);
-                                        return ent?.variables?.filter((v: any) => ["int", "float"].includes(v.type)).map((v: any) => (
-                                            <option key={v.id} value={v.name}>{v.name}</option>
-                                        ));
-                                    })()}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Buttons */}
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => { setShowHPBarModal(false); setSelectedSourceEntity(""); setSelectedValueVar(""); setSelectedMaxVar(""); }}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: 'transparent',
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: '4px',
-                                    color: colors.textSecondary,
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={createHPBar}
-                                disabled={!selectedSourceEntity || !selectedValueVar || !selectedMaxVar}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: colors.accent,
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    color: '#fff',
-                                    cursor: 'pointer',
-                                    opacity: (!selectedSourceEntity || !selectedValueVar || !selectedMaxVar) ? 0.5 : 1
-                                }}
-                            >
-                                생성
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
