@@ -1729,8 +1729,34 @@ export class PhaserRenderer implements IRenderer {
                         return;
                     }
                 } else {
-                    resolve();
-                    return;
+                    // [FIX] Even without metadata, check if this existing texture should be sliced via heuristic
+                    // This fixes drag-and-drop assets where the heuristic runs on first load but not on subsequent loads
+                    if (texture.frameTotal <= 1) {
+                        const img = texture.getSourceImage();
+                        if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement || img instanceof ImageBitmap) {
+                            const width = img.width;
+                            const height = img.height;
+
+                            // Heuristic: horizontal strip detection
+                            if (width > height && width % height === 0 && width / height > 1) {
+                                console.log(`[PhaserRenderer] Existing texture '${key}' detected as sprite strip (${width}x${height}). Reloading with slicing.`);
+                                scene.textures.remove(key);
+                                // Proceed to reload with heuristic slicing below
+                            } else {
+                                // Single static image, no slicing needed
+                                resolve();
+                                return;
+                            }
+                        } else {
+                            resolve();
+                            return;
+                        }
+                    } else {
+                        // Texture already has frames, ensure animations exist
+                        this.createAnimationsFromMetadata(key, metadata);
+                        resolve();
+                        return;
+                    }
                 }
             }
 
