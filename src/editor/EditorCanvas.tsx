@@ -178,6 +178,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 modules: ent.modules,
             });
         }
+        gameCore.flush(); // Sync Context immediately
 
         prevEntitiesMapRef.current = new Map(currentEntities.map((e) => [e.id, e]));
     }, [currentSceneId, isRendererReady]);
@@ -239,6 +240,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     modules: e.modules,
                 });
             }
+            gameCore.flush(); // Sync Context immediately
 
             setIsRendererReady(true);
         })();
@@ -362,7 +364,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 core.setDraggedAsset(null);
 
                 const entity = assetToEntity(activeDragged, worldX, worldY);
-
                 // [FIX] Load texture BEFORE adding entity to ensure animations are ready when OnStart fires
                 const textureKey = entity.texture ?? entity.name;
                 (async () => {
@@ -376,6 +377,18 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                         // Now add entity - synced to GameCore automatically
                         // Lock is released after entity is added to prevent race conditions
                         addEntityRef.current(entity);
+
+                        // DEV Logic: Sync to GameCore immediately
+                        if (gameCore) {
+                            gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
+                                name: entity.name,
+                                texture: entity.texture ?? entity.name,
+                                variables: entity.variables,
+                                components: splitLogicItems(entity.logic),
+                                modules: entity.modules,
+                            });
+                            gameCore.flush(); // Sync Context immediately
+                        }
                         isProcessingDropRef.current = false;
                     }
                 })();
@@ -495,9 +508,32 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 gameCore.removeEntity(id);
             }
         }
+        gameCore.flush(); // Sync removals
+
+        // Helper: Check if entity has changed (shallow comparison of key properties)
+        const hasEntityChanged = (curr: EditorEntity, prev: EditorEntity | undefined): boolean => {
+            if (!prev) return true; // New entity
+            if (curr.x !== prev.x || curr.y !== prev.y || curr.z !== prev.z) return true;
+            if (curr.rotation !== prev.rotation || curr.scaleX !== prev.scaleX || curr.scaleY !== prev.scaleY) return true;
+            if (curr.logic.length !== prev.logic.length) return true;
+            if (curr.variables.length !== prev.variables.length) return true;
+            // Deep check for variables (only if lengths match)
+            for (let i = 0; i < curr.variables.length; i++) {
+                const cv = curr.variables[i];
+                const pv = prev.variables[i];
+                if (cv.name !== pv.name || cv.value !== pv.value) return true;
+            }
+            return false;
+        };
 
         for (const ent of entities) {
             const prevEnt = prevEntitiesMapRef.current.get(ent.id);
+
+            // Skip unchanged entities for performance
+            if (gameCore.hasEntity(ent.id) && prevEnt && !hasEntityChanged(ent, prevEnt)) {
+                continue;
+            }
+
             const isUI = ent.variables.some((v: any) => v.name === "isUI" && v.value === true);
             const uiText = ent.variables.find((v: any) => v.name === "uiText")?.value;
             const uiColor = ent.variables.find((v: any) => v.name === "uiColor")?.value;
@@ -517,6 +553,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             if (gameCore.hasEntity(ent.id) && needsRespawn) {
                 gameCore.removeEntity(ent.id);
+                gameCore.flush(); // Sync removal immediately so we can recreate
             }
 
             if (!gameCore.hasEntity(ent.id)) {
@@ -544,6 +581,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 }
             }
         }
+        gameCore.flush(); // Sync final state
 
         // Update previous entities map for next render
         prevEntitiesMapRef.current = new Map(entities.map(e => [e.id, e]));
@@ -569,8 +607,16 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             case "1080x1920": w = 1080; h = 1920; break;
             default: w = 0; h = 0; break;
         }
-        renderer.setGuideFrame(w, h);
-    }, [aspectRatio, isRendererReady]);
+        let cx = 0;
+        let cy = 0;
+        const mainCamera = entities.find(e => e.name === "Main Camera");
+        if (mainCamera) {
+            cx = mainCamera.x;
+            cy = mainCamera.y;
+        }
+
+        renderer.setGuideFrame(w, h, cx, cy);
+    }, [aspectRatio, isRendererReady, entities]);
 
     // Entry Style Colors
     const colors = {

@@ -240,7 +240,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               <input
                 type="number"
                 style={inputStyle}
-                value={localEntity.x}
+                value={localEntity.x ?? 0}
                 onChange={(e) => updateTransform('x', parseFloat(e.target.value))}
               />
             </div>
@@ -249,7 +249,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               <input
                 type="number"
                 style={inputStyle}
-                value={localEntity.y}
+                value={localEntity.y ?? 0}
                 onChange={(e) => updateTransform('y', parseFloat(e.target.value))}
               />
             </div>
@@ -258,7 +258,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               <input
                 type="number"
                 style={inputStyle}
-                value={localEntity.z}
+                value={localEntity.z ?? 0}
                 onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
               />
             </div>
@@ -300,7 +300,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               <input
                 type="number"
                 style={inputStyle}
-                value={localEntity.scaleX}
+                value={localEntity.scaleX ?? 1}
                 onChange={(e) => updateTransform('scaleX', parseFloat(e.target.value))}
               />
             </div>
@@ -309,7 +309,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               <input
                 type="number"
                 style={inputStyle}
-                value={localEntity.scaleY}
+                value={localEntity.scaleY ?? 1}
                 onChange={(e) => updateTransform('scaleY', parseFloat(e.target.value))}
               />
             </div>
