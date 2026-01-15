@@ -137,6 +137,19 @@ function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
     const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
+    const [isDirty, setIsDirty] = useState(false);
+
+    // Prompt on exit if dirty
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty]);
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
@@ -148,26 +161,33 @@ function EditorLayoutInner() {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
                 if (gameId && gameId !== "undefined") {
-                    try {
-                        const sceneJson = await loadScene(gameId);
-                        if (sceneJson) {
-                            console.log("[EditorLayout] Loaded scene from server");
-                            core.clear();
-                            SceneSerializer.deserialize(sceneJson, core);
-                            loadedFromServer = true;
-                        } else {
-                            // Loaded but empty (New Game)
-                            console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
-                            core.clear();
-                            loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
-                        }
-                    } catch (e) {
-                        console.warn("[EditorLayout] Server load failed:", e);
-                        // If server load fails (e.g. 404 Not Found because no version exists yet), 
-                        // we should treat it as a fresh new game, NOT fall back to local autosave.
-                        console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                    if (gameId === 'new') {
+                        console.log("[EditorLayout] New project requested. Starting fresh.");
                         core.clear();
                         loadedFromServer = true;
+                        setIsDirty(false);
+                    } else {
+                        try {
+                            const sceneJson = await loadScene(gameId);
+                            if (sceneJson) {
+                                console.log("[EditorLayout] Loaded scene from server");
+                                core.clear();
+                                SceneSerializer.deserialize(sceneJson, core);
+                                loadedFromServer = true;
+                            } else {
+                                // Loaded but empty (New Game)
+                                console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+                                core.clear();
+                                loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
+                            }
+                        } catch (e) {
+                            console.warn("[EditorLayout] Server load failed:", e);
+                            // If server load fails (e.g. 404 Not Found because no version exists yet), 
+                            // we should treat it as a fresh new game, NOT fall back to local autosave.
+                            console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                            core.clear();
+                            loadedFromServer = true;
+                        }
                     }
                 }
 
@@ -406,7 +426,7 @@ function EditorLayoutInner() {
             let isNewGame = false;
 
             // 1. Create or Update Game Metadata
-            if (!id || id === "undefined") {
+            if (!id || id === "undefined" || id === 'new') {
                 const newGame = await createGame(user.id, title, description);
                 id = String(newGame.gameId);
                 isNewGame = true;
@@ -476,6 +496,7 @@ function EditorLayoutInner() {
             }
 
             alert("프로젝트가 성공적으로 저장되었습니다!");
+            setIsDirty(false);
             setIsSaveModalOpen(false);
 
         } catch (e) {
@@ -902,7 +923,12 @@ function EditorLayoutInner() {
                     {/* Logo (Refactored) */}
                     <div
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                        onClick={() => navigate('/main')}
+                        onClick={() => {
+                            if (isDirty) {
+                                if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
+                            }
+                            navigate('/projects');
+                        }}
                     >
                         <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
                         <span style={{
@@ -1205,6 +1231,7 @@ function EditorLayoutInner() {
                                 addEntity={(entity) => {
                                     core.addEntity(entity as any);
                                     core.setSelectedEntity(entity as any);
+                                    setIsDirty(true);
                                 }}
                             />
                         ) : (
@@ -1279,6 +1306,7 @@ function EditorLayoutInner() {
                                     core.addEntity(normalized as any);
                                     core.setSelectedEntity(normalized as any);
                                     setLocalSelectedEntity(normalized);
+                                    setIsDirty(true);
                                 }}
                             />
                         )}
