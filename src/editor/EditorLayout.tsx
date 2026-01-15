@@ -448,10 +448,15 @@ function EditorLayoutInner() {
                         const uploadUrl = presignData.uploadUrl || presignData.presignedUrl || presignData.url;
 
                         if (uploadUrl) {
-                            await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
-                            const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                            // Update thumbnail via updateGameInfo (or updateGameThumbnail)
-                            await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                            const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
+
+                            if (uploadRes.ok) {
+                                const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                                // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                                await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                            } else {
+                                console.error("Thumbnail upload to S3 failed:", uploadRes.status, uploadRes.statusText);
+                            }
                         }
                     }
                 }
