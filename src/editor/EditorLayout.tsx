@@ -140,9 +140,15 @@ function EditorLayoutInner() {
     const [isDirty, setIsDirty] = useState(false);
     const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
 
-    // Asset Panel Resize State
-    const [assetPanelHeight, setAssetPanelHeight] = useState(280);
-    const [isResizingAssetPanel, setIsResizingAssetPanel] = useState(false);
+    // Asset Panel Resize State (Removed - layout changed to Sidebar Tabs)
+    // const [assetPanelHeight, setAssetPanelHeight] = useState(280); 
+    // const [isResizingAssetPanel, setIsResizingAssetPanel] = useState(false);
+
+    // Sidebar Tab State
+    const [activeLeftTab, setActiveLeftTab] = useState<"hierarchy" | "assets">("hierarchy");
+
+    // Removed resize effect
+    /* useEffect(() => { ... resize logic ... }, []); */
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -1203,37 +1209,99 @@ function EditorLayoutInner() {
                 </div>
             </div>
 
-            {/* ===== MAIN EDITOR AREA (ORIGINAL) ===== */}
+            {/* ===== MAIN EDITOR AREA (Refactored) ===== */}
             <div style={{
                 display: 'flex',
                 flex: 1,
                 overflow: 'hidden',
             }}>
 
-                {/* Left Sidebar */}
+                {/* LEFT SIDEBAR (Tabs: Hierarchy / Assets) */}
                 <div style={{
-                    width: '280px',
+                    width: '320px', // Slightly wider for Assets
                     display: 'flex',
                     flexDirection: 'column',
-                    borderRight: `1px solid ${colors.borderColor}`
+                    borderRight: `1px solid ${colors.borderColor}`,
+                    background: colors.bgSecondary
                 }}>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <HierarchyPanel
-                            core={core}
-                            scenes={scenes}
-                            currentSceneId={currentSceneId}
-                            selectedId={selectedEntity?.id ?? null}
-                            onSelect={(entity) => {
-                                core.setSelectedEntity(entity);
-                                setLocalSelectedEntity(entity);
+                    {/* Sidebar Tabs */}
+                    <div style={{
+                        display: 'flex',
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        background: colors.bgTertiary
+                    }}>
+                        <button
+                            onClick={() => setActiveLeftTab("hierarchy")}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                border: 'none',
+                                background: activeLeftTab === "hierarchy" ? colors.bgSecondary : 'transparent',
+                                color: activeLeftTab === "hierarchy" ? colors.textPrimary : colors.textSecondary,
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                borderBottom: activeLeftTab === "hierarchy" ? `2px solid ${colors.accent}` : 'none'
                             }}
-                            runtimeCore={mode === "run" ? runtimeCore : null}
-                        />
+                        >
+                            <i className="fa-solid fa-list-ul" style={{ marginRight: '6px' }}></i>
+                            Hierarchy
+                        </button>
+                        <button
+                            onClick={() => setActiveLeftTab("assets")}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                border: 'none',
+                                background: activeLeftTab === "assets" ? colors.bgSecondary : 'transparent',
+                                color: activeLeftTab === "assets" ? colors.textPrimary : colors.textSecondary,
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                borderBottom: activeLeftTab === "assets" ? `2px solid ${colors.accent}` : 'none'
+                            }}
+                        >
+                            <i className="fa-solid fa-layer-group" style={{ marginRight: '6px' }}></i>
+                            Assets
+                        </button>
+                    </div>
+
+                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        {activeLeftTab === "hierarchy" ? (
+                            <HierarchyPanel
+                                core={core}
+                                scenes={scenes}
+                                currentSceneId={currentSceneId}
+                                selectedId={selectedEntity?.id ?? null}
+                                onSelect={(entity) => {
+                                    core.setSelectedEntity(entity);
+                                    setLocalSelectedEntity(entity);
+                                }}
+                                runtimeCore={mode === "run" ? runtimeCore : null}
+                            />
+                        ) : (
+                            <AssetPanelNew
+                                assets={assets}
+                                changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                                changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                                modules={modules}
+                                addModule={(module) => core.addModule(module)}
+                                updateModule={(module) => core.updateModule(module)}
+                                selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                                actionLabels={{}}
+                                onCreateVariable={handleCreateActionVariable}
+                                onUpdateVariable={handleUpdateModuleVariable}
+                                onDeleteAsset={(asset) => {
+                                    const currentAssets = Array.from(core.getAssets());
+                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
+                                }}
+                            />
+                        )}
                     </div>
 
                 </div>
 
-                {/* Main Content */}
+                {/* CENTER: Canvas */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                     {/* Toolbar */}
                     <div style={{
@@ -1246,16 +1314,14 @@ function EditorLayoutInner() {
                         background: colors.bgSecondary
                     }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                {/* Duplicate Play Button Removed */}
-                            </div>
+                             {/* Toolbar Buttons if any */}
                         </div>
                         <div style={{ fontSize: '12px', color: colors.textSecondary }}>
                             {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
                         </div>
                     </div>
 
-                    {/* Canvas Area */}
+                    {/* Canvas Area - FULL HEIGHT */}
                     <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
                         {mode === "dev" ? (
                             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -1281,51 +1347,6 @@ function EditorLayoutInner() {
                                 />
                             </div>
                         )}
-
-                        {/* Asset Panel (Center Bottom) */}
-                        {/* Asset Panel (Center Bottom) */}
-                        <div style={{
-                            height: `${assetPanelHeight}px`,
-                            borderTop: `2px solid ${colors.borderAccent}`,
-                            zIndex: 10,
-                            position: 'relative',
-                            flexShrink: 0
-                        }}>
-                            {/* Resize Handle */}
-                            <div
-                                onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    setIsResizingAssetPanel(true);
-                                }}
-                                style={{
-                                    position: 'absolute',
-                                    top: '-4px', // slightly above border for easier grab
-                                    left: 0,
-                                    right: 0,
-                                    height: '8px',
-                                    cursor: 'ns-resize',
-                                    zIndex: 20,
-                                }}
-                                className="hover:bg-blue-500/50 transition-colors"
-                            />
-                            <AssetPanelNew
-                                assets={assets}
-                                changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                                changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                                modules={modules}
-                                addModule={(module) => core.addModule(module)}
-                                updateModule={(module) => core.updateModule(module)}
-                                selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                                actionLabels={{}}
-                                onCreateVariable={handleCreateActionVariable}
-                                onUpdateVariable={handleUpdateModuleVariable}
-                                onDeleteAsset={(asset) => {
-                                    // Just remove from local editor, do not delete from S3
-                                    const currentAssets = Array.from(core.getAssets());
-                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
-                                }}
-                            />
-                        </div>
                     </div>
                 </div>
 
@@ -1375,290 +1396,234 @@ function EditorLayoutInner() {
 
             </div>
 
+    {/* AI Wizard Modal */}
+    <AiWizardModal
+        isOpen={isAiWizardOpen}
+        onClose={() => setIsAiWizardOpen(false)}
+        onGenerate={handleAiGenerate}
+    />
 
+    {/* Save Toast */}
+    {saveToast && (
+        <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            background: '#2563eb',
+            color: 'white',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 2000,
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            animation: 'fadeIn 0.3s ease-out'
+        }}>
+            <i className="fa-solid fa-check-circle"></i>
+            {saveToast}
+        </div>
+    )}
 
+    {/* Asset Library Modal */}
+    {isAssetLibraryOpen && (
+        <AssetLibraryModal
+            onClose={() => setIsAssetLibraryOpen(false)}
+            onAssetSelect={(libItem) => {
+                 // Convert library item to editor asset
+                 const newAsset: Asset = {
+                    id: libItem.id, // Use asset ID from backend
+                    tag: libItem.assetType || "Character",
+                    name: libItem.title,
+                    url: libItem.thumbnail, // Use the image URL
+                    idx: 0, // Default index
+                    metadata: libItem.metadata, // Pass the parsed metadata!
+                    description: libItem.description // Pass description for recovery
+                };
+                core.addAsset(newAsset);
+                setIsAssetLibraryOpen(false);
+            }}
+        />
+    )}
 
-
-            {/* AI Wizard Modal */}
-            <AiWizardModal
-                isOpen={isAiWizardOpen}
-                onClose={() => setIsAiWizardOpen(false)}
-                onGenerate={handleAiGenerate}
-            />
-
-            {/* Save Toast */}
-            {saveToast && (
+    {/* Drag & Drop Modal */}
+    {dropModalFiles.length > 0 && (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0, 0, 0, 0.65)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2000,
+                padding: "24px",
+            }}
+            onClick={() => resetDropModal()}
+        >
+            <div
+                style={{
+                    width: "100%",
+                    maxWidth: "520px",
+                    background: colors.bgSecondary,
+                    border: `1px solid ${colors.borderColor}`,
+                    borderRadius: "10px",
+                    padding: "20px",
+                    boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div style={{
-                    position: 'fixed',
-                    bottom: '24px',
-                    right: '24px',
-                    background: '#2563eb',
-                    color: 'white',
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                    zIndex: 2000,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    animation: 'fadeIn 0.3s ease-out'
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: colors.textPrimary,
+                    marginBottom: "12px",
                 }}>
-                    <i className="fa-solid fa-check-circle"></i>
-                    {saveToast}
+                    {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
                 </div>
-            )}
-
-            {/* Save Game Modal */}
-            <SaveGameModal
-                isOpen={isSaveModalOpen}
-                onClose={() => setIsSaveModalOpen(false)}
-                onSave={handleSaveProject}
-                isSaving={isSavingProject}
-                initialTitle={gameId && gameId !== 'undefined' ? "Project" : "New Project"}
-            />
-
-            {/* Asset Library Modal */}
-            {isAssetLibraryOpen && (
-                <AssetLibraryModal
-                    onClose={() => setIsAssetLibraryOpen(false)}
-                    onAssetSelect={(libItem) => {
-                        // Convert library item to editor asset
-                        const newAsset: Asset = {
-                            id: libItem.id, // Use asset ID from backend
-                            tag: libItem.assetType || "Character",
-                            name: libItem.title,
-                            url: libItem.thumbnail, // Use the image URL
-                            idx: 0, // Default index
-                            metadata: libItem.metadata, // Pass the parsed metadata!
-                            description: libItem.description // Pass description for recovery
-                        };
-                        core.addAsset(newAsset);
-                        setIsAssetLibraryOpen(false);
-                        console.log("Imported asset from library:", newAsset);
-                    }}
-                />
-            )}
-
-            {dropModalFiles.length > 0 && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0, 0, 0, 0.65)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 2000,
-                        padding: "24px",
-                    }}
-                    onClick={() => resetDropModal()}
-                >
-                    <div
-                        style={{
-                            width: "100%",
-                            maxWidth: "520px",
-                            background: colors.bgSecondary,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: "10px",
-                            padding: "20px",
-                            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: colors.textPrimary,
-                            marginBottom: "12px",
-                        }}>
-                            {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
-                        </div>
-                        {/* Content replaced by previous chunks */}
-                        {dropModalFiles.length === 0 && null}
-                        {dropModalFiles.length > 0 && (
-                            <div style={{
-                                background: colors.bgTertiary,
-                                border: `1px solid ${colors.borderColor}`,
-                                borderRadius: "8px",
-                                padding: "12px",
-                                color: colors.textSecondary,
-                                fontSize: "12px",
-                                lineHeight: 1.6,
-                                maxHeight: "150px",
-                                overflowY: "auto"
-                            }}>
-                                {dropModalFiles.length === 1 ? (
-                                    <>
-                                        <div>Filename: {dropModalFiles[0].name}</div>
-                                        <div>Type: {dropModalFiles[0].type || "unknown"}</div>
-                                        <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
-                                    </>
-                                ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
-                                            {dropModalFiles.length} files selected:
-                                        </div>
-                                        {dropModalFiles.map((f, i) => (
-                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
-                                                    {f.name}
-                                                </span>
-                                                <span>{Math.ceil(f.size / 1024)}KB</span>
-                                            </div>
-                                        ))}
+                {dropModalFiles.length > 0 && (
+                    <div style={{
+                        background: colors.bgTertiary,
+                        border: `1px solid ${colors.borderColor}`,
+                        borderRadius: "8px",
+                        padding: "12px",
+                        color: colors.textSecondary,
+                        fontSize: "12px",
+                        lineHeight: 1.6,
+                        maxHeight: "150px",
+                        overflowY: "auto"
+                    }}>
+                        {dropModalFiles.length === 1 ? (
+                            <>
+                                <div>Filename: {dropModalFiles[0].name}</div>
+                                <div>Type: {dropModalFiles[0].type || "unknown"}</div>
+                                <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
+                                    {dropModalFiles.length} files selected:
+                                </div>
+                                {dropModalFiles.map((f, i) => (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                                            {f.name}
+                                        </span>
+                                        <span>{Math.ceil(f.size / 1024)}KB</span>
                                     </div>
-                                )}
+                                ))}
                             </div>
                         )}
-                        <div style={{
-                            marginTop: "14px",
-                            display: "grid",
-                            gap: "10px",
-                        }}>
-                            {dropModalFiles.length === 1 && (
-                                <label style={{
-                                    display: "grid",
-                                    gap: "6px",
-                                    fontSize: "12px",
-                                    color: colors.textSecondary,
-                                }}>
-                                    Name
-                                    <input
-                                        type="text"
-                                        value={dropAssetName}
-                                        onChange={(e) => setDropAssetName(e.target.value)}
-                                        placeholder="Asset name"
-                                        style={{
-                                            background: colors.bgPrimary,
-                                            border: `1px solid ${colors.borderColor}`,
-                                            borderRadius: "6px",
-                                            padding: "8px 10px",
-                                            color: colors.textPrimary,
-                                            fontSize: "12px",
-                                            outline: "none",
-                                        }}
-                                    />
-                                </label>
-                            )}
-                            <label style={{
-                                display: "grid",
-                                gap: "6px",
-                                fontSize: "12px",
-                                color: colors.textSecondary,
-                            }}>
-                                Tag
-                                <select
-                                    value={dropAssetTag}
-                                    onChange={(e) => setDropAssetTag(e.target.value)}
-                                    style={{
-                                        background: colors.bgPrimary,
-                                        border: `1px solid ${colors.borderColor}`,
-                                        borderRadius: "6px",
-                                        padding: "8px 10px",
-                                        color: colors.textPrimary,
-                                        fontSize: "12px",
-                                        outline: "none",
-                                    }}
-                                >
-                                    <option value="Character">Character</option>
-                                    <option value="Tile">Tile</option>
-                                </select>
-                            </label>
-                        </div>
-                        {uploadError && (
-                            <div style={{
-                                marginTop: "10px",
-                                color: "#f87171",
-                                fontSize: "12px",
-                            }}>
-                                {uploadError}
-                            </div>
-                        )}
-                        <div style={{
-                            marginTop: "16px",
-                            display: "flex",
-                            gap: "8px",
-                            justifyContent: "flex-end",
-                        }}>
-                            <button
-                                type="button"
-                                onClick={handleAddAsset}
-                                disabled={isUploadingAsset}
-                                style={{
-                                    padding: "8px 14px",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    background: colors.bgTertiary,
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: "6px",
-                                    color: colors.textPrimary,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Add Asset
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => resetDropModal()}
-                                style={{
-                                    padding: "8px 14px",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    background: colors.borderAccent,
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: "6px",
-                                    color: colors.textPrimary,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Close
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
-            {/* AI Wizard Modal & FAB */}
-            <AiWizardModal
-                isOpen={isAiWizardOpen}
-                onClose={() => setIsAiWizardOpen(false)}
-                onGenerate={handleAiGenerate}
-            />
-
-
-            {/* Asset Library Modal */}
-            {isAssetLibraryOpen && (
-                <AssetLibraryModal
-                    onClose={() => setIsAssetLibraryOpen(false)}
-                    onAssetSelect={(asset) => {
-                        core.setDraggedAsset(asset);
-                        setIsAssetLibraryOpen(false);
-                    }}
-                />
-            )}
-
-            {/* Save Toast */}
-            {saveToast && (
+                )}
                 <div style={{
-                    position: 'fixed',
-                    bottom: '24px',
-                    right: '24px',
-                    background: '#2563eb',
-                    color: 'white',
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                    zIndex: 2000,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    animation: 'fadeIn 0.3s ease-out'
+                    marginTop: "14px",
+                    display: "grid",
+                    gap: "10px",
                 }}>
-                    <i className="fa-solid fa-check-circle"></i>
-                    {saveToast}
+                    {dropModalFiles.length === 1 && (
+                        <label style={{
+                            display: "grid",
+                            gap: "6px",
+                            fontSize: "12px",
+                            color: colors.textSecondary,
+                        }}>
+                            Name
+                            <input
+                                type="text"
+                                value={dropAssetName}
+                                onChange={(e) => setDropAssetName(e.target.value)}
+                                placeholder="Asset name"
+                                style={{
+                                    background: colors.bgPrimary,
+                                    border: `1px solid ${colors.borderColor}`,
+                                    borderRadius: "6px",
+                                    padding: "8px 10px",
+                                    color: colors.textPrimary,
+                                    fontSize: "12px",
+                                    outline: "none",
+                                }}
+                            />
+                        </label>
+                    )}
+                    <label style={{
+                        display: "grid",
+                        gap: "6px",
+                        fontSize: "12px",
+                        color: colors.textSecondary,
+                    }}>
+                        Tag
+                        <select
+                            value={dropAssetTag}
+                            onChange={(e) => setDropAssetTag(e.target.value)}
+                            style={{
+                                background: colors.bgPrimary,
+                                border: `1px solid ${colors.borderColor}`,
+                                borderRadius: "6px",
+                                padding: "8px 10px",
+                                color: colors.textPrimary,
+                                fontSize: "12px",
+                                outline: "none",
+                            }}
+                        >
+                            <option value="Character">Character</option>
+                            <option value="Tile">Tile</option>
+                        </select>
+                    </label>
                 </div>
-            )}
+                {uploadError && (
+                    <div style={{
+                        marginTop: "10px",
+                        color: "#f87171",
+                        fontSize: "12px",
+                    }}>
+                        {uploadError}
+                    </div>
+                )}
+                <div style={{
+                    marginTop: "16px",
+                    display: "flex",
+                    gap: "8px",
+                    justifyContent: "flex-end",
+                }}>
+                    <button
+                        type="button"
+                        onClick={handleAddAsset}
+                        disabled={isUploadingAsset}
+                        style={{
+                            padding: "8px 14px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            background: colors.bgTertiary,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: "6px",
+                            color: colors.textPrimary,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Add Asset
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => resetDropModal()}
+                        style={{
+                            padding: "8px 14px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            background: colors.borderAccent,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: "6px",
+                            color: colors.textPrimary,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    )}
         </div>
     );
 }
