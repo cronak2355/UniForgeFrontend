@@ -354,13 +354,34 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
                 const entity = assetToEntity(activeDragged, worldX, worldY);
                 addEntityRef.current(entity);
-                gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
-                    name: entity.name,
-                    texture: entity.texture ?? entity.name,
-                    variables: entity.variables,
-                    components: splitLogicItems(entity.logic),
-                    modules: entity.modules,
-                });
+
+                // [FIX] Load texture BEFORE creating entity to ensure animations are ready when OnStart fires
+                const textureKey = entity.texture ?? entity.name;
+                (async () => {
+                    try {
+                        // Ensure texture is loaded
+                        await renderer.loadTexture(textureKey, activeDragged.url, activeDragged.metadata);
+
+                        // Now create entity - OnStart will fire with texture/animations ready
+                        gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
+                            name: entity.name,
+                            texture: textureKey,
+                            variables: entity.variables,
+                            components: splitLogicItems(entity.logic),
+                            modules: entity.modules,
+                        });
+                    } catch (error) {
+                        console.error(`[EditorCanvas] Failed to load texture for dropped entity:`, error);
+                        // Create entity anyway with placeholder
+                        gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
+                            name: entity.name,
+                            texture: textureKey,
+                            variables: entity.variables,
+                            components: splitLogicItems(entity.logic),
+                            modules: entity.modules,
+                        });
+                    }
+                })();
             }
 
             renderer.clearPreviewTile();
