@@ -454,7 +454,8 @@ function EditorLayoutInner() {
                             const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
 
                             if (uploadRes.ok) {
-                                const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                                const s3Url = uploadUrl.split('?')[0];
+                                const thumbnailUrl = presignData.publicUrl || s3Url;
                                 // Update thumbnail via updateGameInfo
                                 await updateGameInfo(id, undefined, undefined, thumbnailUrl);
                                 console.log("[EditorLayout] Thumbnail updated");
