@@ -138,6 +138,7 @@ function EditorLayoutInner() {
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
     const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
     const [isDirty, setIsDirty] = useState(false);
+    const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
 
     // Prompt on exit if dirty
     useEffect(() => {
@@ -409,8 +410,7 @@ function EditorLayoutInner() {
         }
     };
 
-    const handleSaveProject = async (title: string, description: string) => {
-
+    const handleSaveProject = async () => {
         setIsSavingProject(true);
         try {
             // 0. Pre-check Login
@@ -425,20 +425,15 @@ function EditorLayoutInner() {
             let id = gameId;
             let isNewGame = false;
 
-            // 1. Create or Update Game Metadata
+            // 1. Create fallback (Should rarely happen with new flow)
             if (!id || id === "undefined" || id === 'new') {
-                const newGame = await createGame(user.id, title, description);
+                const newGame = await createGame(user.id, "Untitled Project", "Restored Project");
                 id = String(newGame.gameId);
                 isNewGame = true;
-                console.log("[EditorLayout] Created new game:", id);
-            } else {
-                // Update existing game info
-                await updateGameInfo(id, title, description);
-                console.log("[EditorLayout] Updated game info:", id);
+                console.log("[EditorLayout] Created fallback game:", id);
             }
 
-            // 2. Save Version (CRITICAL: Save data BEFORE navigation)
-            // This ensures that even if navigation triggers a reload, the data is safe in the DB.
+            // 2. Save Version
             await saveGameVersion(id, sceneJson);
             console.log("[EditorLayout] Saved game version");
 
@@ -495,17 +490,31 @@ function EditorLayoutInner() {
                 navigate(`/editor/${id}`, { replace: true });
             }
 
-            alert("프로젝트가 성공적으로 저장되었습니다!");
+            // Show Toast
+            setSaveToast("Project Saved Successfully");
+            setTimeout(() => setSaveToast(null), 3000);
             setIsDirty(false);
             setIsSaveModalOpen(false);
 
         } catch (e) {
-            console.error("Save failed:", e);
-            alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
+            console.error("Save Failed:", e);
+            alert("저장 실패: " + (e instanceof Error ? e.message : "Unknown Error"));
         } finally {
             setIsSavingProject(false);
         }
     };
+
+    // Hotkey: Ctrl+S
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                handleSaveProject();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [core, gameId]);
 
     const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
@@ -950,8 +959,7 @@ function EditorLayoutInner() {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
                             <MenuItem label="Save Project" onClick={() => {
-                                console.error("[EditorLayout] Save Project Clicked. Setting isSaveModalOpen to true.");
-                                setIsSaveModalOpen(true);
+                                handleSaveProject();
                             }} />
                             <MenuItem
                                 label="Export"
@@ -1326,6 +1334,29 @@ function EditorLayoutInner() {
                 onGenerate={handleAiGenerate}
             />
 
+            {/* Save Toast */}
+            {saveToast && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    background: '#2563eb',
+                    color: 'white',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 2000,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    animation: 'fadeIn 0.3s ease-out'
+                }}>
+                    <i className="fa-solid fa-check-circle"></i>
+                    {saveToast}
+                </div>
+            )}
+
             {/* Save Game Modal */}
             <SaveGameModal
                 isOpen={isSaveModalOpen}
@@ -1554,16 +1585,27 @@ function EditorLayoutInner() {
                 />
             )}
 
-            {/* Save Game Modal */}
-            {isSaveModalOpen && (
-                <SaveGameModal
-                    isOpen={isSaveModalOpen}
-                    onClose={() => setIsSaveModalOpen(false)}
-                    onSave={handleSaveProject}
-                    initialTitle=""
-                    initialDescription=""
-                    isSaving={isSavingProject}
-                />
+            {/* Save Toast */}
+            {saveToast && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    background: '#2563eb',
+                    color: 'white',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 2000,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    animation: 'fadeIn 0.3s ease-out'
+                }}>
+                    <i className="fa-solid fa-check-circle"></i>
+                    {saveToast}
+                </div>
             )}
         </div>
     );

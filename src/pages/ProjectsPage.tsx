@@ -1,10 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createGame, fetchMyGames, updateGameInfo, deleteGame, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 import { getCloudFrontUrl } from '../utils/imageUtils';
+import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 
 export default function ProjectsPage() {
     const { user } = useAuth();
@@ -25,6 +26,9 @@ export default function ProjectsPage() {
     const [renameModalOpen, setRenameModalOpen] = useState(false);
     const [targetGame, setTargetGame] = useState<GameSummary | null>(null);
     const [newName, setNewName] = useState("");
+
+    // Create Project State
+    const [createModalOpen, setCreateModalOpen] = useState(false);
 
     // Click outside to close menu
     useEffect(() => {
@@ -51,9 +55,19 @@ export default function ProjectsPage() {
         }
     };
 
-    const handleCreateGame = () => {
-        // Don't create game immediately. Just navigate to editor with 'new' param.
-        navigate(`/editor/new`);
+    const handleCreateGameClick = () => {
+        setCreateModalOpen(true);
+    };
+
+    const handleCreateProjectSubmit = async (title: string, description: string) => {
+        if (!user?.id) return;
+        try {
+            const newGame = await createGame(user.id, title, description);
+            navigate(`/editor/${newGame.gameId}`);
+        } catch (e) {
+            console.error(e);
+            alert("프로젝트 생성 실패");
+        }
     };
 
     // --- Multi-Select Logic ---
@@ -115,7 +129,8 @@ export default function ProjectsPage() {
         } catch (e) {
             // alert("삭제 실패"); 
             console.error(e);
-            alert("삭제 실패: " + e.message);
+            const msg = e instanceof Error ? e.message : "Unknown error";
+            alert("삭제 실패: " + msg);
         }
     };
 
@@ -178,7 +193,7 @@ export default function ProjectsPage() {
                                 <i className="fa-solid fa-check-square mr-2"></i> Select
                             </button>
                             <button
-                                onClick={handleCreateGame}
+                                onClick={handleCreateGameClick}
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-semibold transition-colors"
                             >
                                 <i className="fa-solid fa-plus"></i> New Project
@@ -321,7 +336,7 @@ export default function ProjectsPage() {
                         <h2 className="text-xl font-bold text-gray-300">No Projects Found</h2>
                         <p className="text-gray-500 mt-2 mb-6">Create your first project to get started.</p>
                         <button
-                            onClick={handleCreateGame}
+                            onClick={handleCreateGameClick}
                             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
                         >
                             Create Project
@@ -360,6 +375,13 @@ export default function ProjectsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                isOpen={createModalOpen}
+                onClose={() => setCreateModalOpen(false)}
+                onCreate={handleCreateProjectSubmit}
+            />
         </div>
     );
 }
