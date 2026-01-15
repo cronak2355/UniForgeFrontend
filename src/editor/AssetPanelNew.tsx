@@ -97,22 +97,33 @@ export function AssetPanelNew({
     return (
         <div style={{
             background: THEME.bg,
-            borderTop: `1px solid ${THEME.border}`,
-            height: "280px", // Increased Height
+            background: THEME.bg,
+            // borderTop: `1px solid ${THEME.border}`, // Remove top border if in sidebar? Keep for separation
+            height: "100%", // Fill container
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            overflow: "hidden" // Ensure internal scroll works
         }}>
 
             {/* Header / Tabs */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 16px',
-                height: '48px',
+                padding: '0 8px', // Reduce padding
+                height: '40px',   // Reduce height slightly
                 background: THEME.bgHeader,
                 borderBottom: `1px solid ${THEME.border}`,
-                gap: '8px'
+                gap: '8px',
+                overflowX: 'auto', // Enable scroll for tabs
+                scrollbarWidth: 'none', // Hide scrollbar
+                flexShrink: 0
             }}>
+                <style>{`
+                /* Hide scrollbar for Chrome/Safari */
+                .hide-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
                 <div style={{
                     fontSize: '12px',
                     fontWeight: 700,
