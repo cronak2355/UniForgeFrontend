@@ -260,14 +260,14 @@ export function AssetPanelNew({
                                         }}
                                         onClick={() => handleTileClick(asset)}
                                     >
-                                        <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                                        <div style={{ flex: 1, width: '100%', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', overflow: 'hidden' }}>
                                             <img
                                                 src={asset.url}
                                                 alt={asset.name}
                                                 draggable={false}
                                                 style={{
-                                                    maxWidth: '100%',
-                                                    maxHeight: '100%',
+                                                    width: '100%',
+                                                    height: '100%',
                                                     objectFit: 'contain',
                                                     filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))'
                                                 }}
