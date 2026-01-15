@@ -136,15 +136,8 @@ export function AssetPanelNew({
                     padding: '8px 4px', // Adjusted padding
                     gap: '8px',
                     overflowX: 'auto', // Horizontal scroll
-                    scrollbarWidth: 'none',
                     whiteSpace: 'nowrap'
                 }}>
-                    <style>{`
-                /* Hide scrollbar for Chrome/Safari */
-                .hide-scroll::-webkit-scrollbar {
-                    display: none;
-                }
-            `}</style>
 
                     {tabs.map((tab) => {
                         const isActive = currentTag === tab.id;
