@@ -42,7 +42,7 @@ function coerceBool(value: unknown): boolean {
     return Boolean(value);
 }
 
-function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean): void {
+function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
     if (!entity) return;
     if (!entity.variables) entity.variables = [];
     const existing = entity.variables.find((v) => v.name === name);
@@ -52,6 +52,15 @@ function setVar(entity: RuntimeEntity | undefined, name: string, value: number |
             existing.value = Number.isNaN(num) ? 0 : num;
         } else if (existing.type === "bool") {
             existing.value = coerceBool(value);
+        } else if (existing.type === "vector2") {
+            // Handle vector2 type
+            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+                existing.value = { x: Number(value.x), y: Number(value.y) };
+            } else {
+                // Fallback: treat as uniform scalar
+                const num = typeof value === 'number' ? value : Number(value);
+                existing.value = { x: num, y: num };
+            }
         } else {
             existing.value = String(value);
         }
@@ -604,6 +613,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const operand1 = params.operand1 as ValueSource | number | string;
     const operand2 = params.operand2 as ValueSource | number | string;
 
+
     // Check if using legacy mode (simple value param)
     if (params.value !== undefined && params.operand1 === undefined) {
         setVar(entity, varName, params.value as number | string);
@@ -612,6 +622,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
 
     const val1 = resolveValue(ctx, operand1 ?? 0);
     const val2 = resolveValue(ctx, operand2 ?? 0);
+
 
     let result: number | string | boolean | object = val1;
 
