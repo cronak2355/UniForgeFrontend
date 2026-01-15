@@ -318,7 +318,25 @@ class PhaserRenderScene extends Phaser.Scene {
             const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
             if (!runtimeContext) return;
 
-            const input = runtimeContext.getInput();
+            // Capture Input for Runtime
+            const input: InputState = {
+                left: this.cursors?.left.isDown || this.wasd?.A.isDown || false,
+                right: this.cursors?.right.isDown || this.wasd?.D.isDown || false,
+                up: this.cursors?.up.isDown || this.wasd?.W.isDown || false,
+                down: this.cursors?.down.isDown || this.wasd?.S.isDown || false,
+                jump: (this.spaceKey?.isDown === true) || (this.cursors?.up?.isDown === true) || (this.wasd?.W?.isDown === true),
+                mouseX: this.input.activePointer?.worldX ?? 0,
+                mouseY: this.input.activePointer?.worldY ?? 0,
+                mouseScreenX: this.input.activePointer?.x ?? 0,
+                mouseScreenY: this.input.activePointer?.y ?? 0,
+                keys: { ...this.keyState },
+                keysDown: { ...this.keysDownState }
+            };
+            // Reset keysDownState after consuming it
+            this.keysDownState = {};
+
+            // Sync Input to RuntimeContext
+            runtimeContext.setInput(input);
 
             // [Optimized] Logic execution is now handled by LogicSystem via GameCore pipeline.
             // Duplicate execution loop removed.
@@ -362,6 +380,8 @@ class PhaserRenderScene extends Phaser.Scene {
             jump: (this.spaceKey?.isDown === true) ||
                 (this.cursors?.up?.isDown === true) ||
                 (this.wasd?.W?.isDown === true),
+            mouseX: this.input.activePointer?.worldX ?? 0,
+            mouseY: this.input.activePointer?.worldY ?? 0,
             keys: { ...this.keyState },
             keysDown: { ...this.keysDownState }
         };

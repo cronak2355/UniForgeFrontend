@@ -6,6 +6,10 @@ export interface InputState {
     up: boolean;
     down: boolean;
     jump: boolean;
+    mouseX?: number;
+    mouseY?: number;
+    mouseScreenX?: number;
+    mouseScreenY?: number;
     keys?: Record<string, boolean>;
     keysDown?: Record<string, boolean>;
 }

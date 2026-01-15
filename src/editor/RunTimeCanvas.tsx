@@ -327,6 +327,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             if (renderer) {
                 renderer.onUpdateCallback = undefined;
                 renderer.onInputState = undefined;
+                renderer.onEntityClick = undefined; // Clean up the click handler
                 renderer.destroy();
             }
 

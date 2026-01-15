@@ -8,9 +8,15 @@ import type { ModuleGraph } from "../types/Module";
 // ===== URL Conversion for Unity =====
 
 /**
- * API 호스트 URL (환경변수 또는 현재 Origin 사용)
+ * Unity Export 전용 API 호스트 URL
+ * - VITE_UNITY_EXPORT_URL: Unity가 접근 가능한 외부 URL (우선)
+ * - VITE_API_URL: 기존 API URL (fallback)
+ * - window.location.origin: 현재 Origin (최종 fallback)
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
+const UNITY_EXPORT_BASE_URL =
+  import.meta.env.VITE_UNITY_EXPORT_URL ||
+  import.meta.env.VITE_API_URL ||
+  window.location.origin;
 
 /**
  * Converts a relative proxy URL to an absolute URL that Unity can access directly.
@@ -28,7 +34,7 @@ function toAbsoluteUrl(url: string | undefined): string {
 
   // Relative URL → Absolute URL
   if (url.startsWith("/")) {
-    return `${API_BASE_URL}${url}`;
+    return `${UNITY_EXPORT_BASE_URL}${url}`;
   }
 
   // Fallback: return as-is
@@ -50,7 +56,7 @@ export interface SceneEventJSON {
   id: string;
   trigger: string;
   triggerParams?: Record<string, unknown>;
-  conditionLogic?: "AND" | "OR";
+  conditionLogic?: "AND" | "OR" | "BRANCH";
   conditions?: Array<{ type: string;[key: string]: unknown }>;
   action: string;
   params?: Record<string, unknown>;
@@ -283,17 +289,26 @@ export class SceneSerializer {
         }
         return { ...v, type: fixedType };
       });
-      const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => {
-        return {
-          id: `logic_${i}`,
-          type: "Logic",
-          event: ev.trigger,
-          eventParams: ev.triggerParams ?? {},
-          conditions: ev.conditions ?? [],
-          conditionLogic: ev.conditionLogic ?? "AND",
-          actions: [{ type: ev.action, ...(ev.params || {}) }],
-        };
-      });
+      let logicComponents: LogicComponent[] = [];
+
+      // [Fix] Prioritize high-fidelity components array if available
+      // This preserves complex logic (BRANCH, elseActions) not representable in flat events
+      if (e.components && e.components.length > 0) {
+        logicComponents = e.components;
+      } else {
+        // Legacy Fallback: Reconstruct from flat events list
+        logicComponents = (e.events ?? []).map((ev, i) => {
+          return {
+            id: `logic_${i}`,
+            type: "Logic",
+            event: ev.trigger,
+            eventParams: ev.triggerParams ?? {},
+            conditions: ev.conditions ?? [],
+            conditionLogic: ev.conditionLogic ?? "AND",
+            actions: [{ type: ev.action, ...(ev.params || {}) }],
+          };
+        });
+      }
 
       const entity: EditorEntity = {
         id: e.id,

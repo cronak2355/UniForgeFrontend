@@ -473,11 +473,12 @@ const RuleItem = memo(function RuleItem({
                             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 <select
                                     value={rule.conditionLogic ?? "AND"}
-                                    onChange={(e) => onUpdate({ ...rule, conditionLogic: e.target.value as "AND" | "OR" })}
+                                    onChange={(e) => onUpdate({ ...rule, conditionLogic: e.target.value as "AND" | "OR" | "BRANCH" })}
                                     style={styles.smallSelect}
                                 >
                                     <option value="AND">AND</option>
                                     <option value="OR">OR</option>
+                                    <option value="BRANCH">BRANCH</option>
                                 </select>
                                 <button onClick={handleAddCondition} style={styles.smallAddButton}>+ Add</button>
                             </div>
@@ -488,6 +489,16 @@ const RuleItem = memo(function RuleItem({
                                 key={i}
                                 condition={cond}
                                 variables={variables}
+                                showActions={rule.conditionLogic === "BRANCH"}
+                                availableActions={availableActions}
+                                actionLabels={actionLabels}
+                                entities={entities}
+                                modules={modules}
+                                assets={assets}
+                                scenes={scenes}
+                                currentEntity={currentEntity}
+                                onCreateVariable={onCreateVariable}
+                                onUpdateModuleVariable={onUpdateModuleVariable}
                                 onUpdate={(c) => {
                                     const newConds = [...(rule.conditions || [])];
                                     newConds[i] = c;
@@ -500,56 +511,119 @@ const RuleItem = memo(function RuleItem({
                         ))}
                     </div>
 
-                    <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                            <label style={{ fontSize: "10px", color: colors.textSecondary }}>
-                                Actions ({rule.actions.length})
-                            </label>
-                            <button
-                                onClick={handleAddAction}
-                                style={{
-                                    background: "transparent",
-                                    border: "none",
-                                    color: colors.accentLight,
-                                    cursor: "pointer",
-                                    fontSize: "10px",
-                                }}
-                            >
-                                + Add
-                            </button>
+                    {/* Then Actions (조건 참) */}
+                    {rule.conditionLogic !== "BRANCH" && (
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                <label style={{ fontSize: "10px", color: colors.textSecondary }}>
+                                    Actions ({rule.actions.length})
+                                </label>
+                                <button
+                                    onClick={handleAddAction}
+                                    style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        color: colors.accentLight,
+                                        cursor: "pointer",
+                                        fontSize: "10px",
+                                    }}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                            {rule.actions.map((action, i) => (
+                                <ActionEditor
+                                    key={i}
+                                    action={action}
+                                    availableActions={availableActions}
+                                    actionLabels={actionLabels}
+                                    variables={variables}
+                                    entities={entities}
+                                    modules={modules}
+                                    assets={assets}
+                                    scenes={scenes}
+                                    currentEntity={currentEntity}
+                                    onCreateVariable={onCreateVariable}
+                                    onUpdateModuleVariable={onUpdateModuleVariable}
+                                    onUpdate={(a) => {
+                                        const newActions = [...rule.actions];
+                                        newActions[i] = a;
+                                        const moduleId =
+                                            a.type === "RunModule"
+                                                ? ((a.moduleId as string) ??
+                                                    (a.moduleName as string) ??
+                                                    (a.name as string) ??
+                                                    "")
+                                                : "";
+                                        onUpdate({ ...rule, actions: newActions }, moduleId || undefined);
+                                    }}
+                                    onRemove={() => {
+                                        onUpdate({ ...rule, actions: rule.actions.filter((_, j) => j !== i) });
+                                    }}
+                                />
+                            ))}
+                            {rule.actions.length === 0 && (
+                                <div style={{ fontSize: 9, color: "#6b8066", fontStyle: "italic" }}>없음</div>
+                            )}
                         </div>
-                        {rule.actions.map((action, i) => (
-                            <ActionEditor
-                                key={i}
-                                action={action}
-                                availableActions={availableActions}
-                                actionLabels={actionLabels}
-                                variables={variables}
-                                entities={entities}
-                                modules={modules}
-                                assets={assets}
-                                scenes={scenes}
-                                currentEntity={currentEntity}
-                                onCreateVariable={onCreateVariable}
-                                onUpdateModuleVariable={onUpdateModuleVariable}
-                                onUpdate={(a) => {
-                                    const newActions = [...rule.actions];
-                                    newActions[i] = a;
-                                    const moduleId =
-                                        a.type === "RunModule"
-                                            ? ((a.moduleId as string) ??
-                                                (a.moduleName as string) ??
-                                                (a.name as string) ??
-                                                "")
-                                            : "";
-                                    onUpdate({ ...rule, actions: newActions }, moduleId || undefined);
-                                }}
-                                onRemove={() => {
-                                    onUpdate({ ...rule, actions: rule.actions.filter((_, j) => j !== i) });
-                                }}
-                            />
-                        ))}
-                    </div>
+                    )}
+
+                    {/* Else Actions (조건 거짓) */}
+                    {/* Else Actions (조건 거짓) */}
+                    {rule.conditionLogic === "BRANCH" && (
+                        <div style={{ background: "rgba(200,100,100,0.05)", borderRadius: 4, padding: 4, border: "1px solid rgba(200,100,100,0.2)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                <label style={{ fontSize: "10px", color: "#f44336" }}>
+                                    ❌ Else ({rule.elseActions?.length || 0})
+                                </label>
+                                <button
+                                    onClick={() => {
+                                        const actionType = availableActions[0] || "Move";
+                                        onUpdate({
+                                            ...rule,
+                                            elseActions: [...(rule.elseActions || []), { type: actionType }],
+                                        });
+                                    }}
+                                    style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        color: "#f44336",
+                                        cursor: "pointer",
+                                        fontSize: "10px",
+                                    }}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                            {(rule.elseActions || []).map((action, i) => (
+                                <ActionEditor
+                                    key={i}
+                                    action={action}
+                                    availableActions={availableActions}
+                                    actionLabels={actionLabels}
+                                    variables={variables}
+                                    entities={entities}
+                                    modules={modules}
+                                    assets={assets}
+                                    scenes={scenes}
+                                    currentEntity={currentEntity}
+                                    onCreateVariable={onCreateVariable}
+                                    onUpdateModuleVariable={onUpdateModuleVariable}
+                                    onUpdate={(a) => {
+                                        const newElseActions = [...(rule.elseActions || [])];
+                                        newElseActions[i] = a;
+                                        onUpdate({ ...rule, elseActions: newElseActions });
+                                    }}
+                                    onRemove={() => {
+                                        onUpdate({ ...rule, elseActions: (rule.elseActions || []).filter((_, j) => j !== i) });
+                                    }}
+                                />
+                            ))}
+                            {(rule.elseActions?.length || 0) === 0 && (
+                                <div style={{ fontSize: 9, color: "#806666", fontStyle: "italic" }}>없음 (선택)</div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -561,91 +635,158 @@ function ConditionEditor({
     variables,
     onUpdate,
     onRemove,
+    showActions,
+    availableActions,
+    actionLabels,
+    entities,
+    modules,
+    assets,
+    scenes,
+    currentEntity,
+    onCreateVariable,
+    onUpdateModuleVariable,
 }: {
-    condition: { type: string;[key: string]: unknown };
+    condition: { type: string; then?: Array<{ type: string;[key: string]: unknown }>;[key: string]: unknown };
     variables: EditorVariable[];
     onUpdate: (c: { type: string;[key: string]: unknown }) => void;
     onRemove: () => void;
+    showActions?: boolean;
+    availableActions: string[];
+    actionLabels?: Record<string, string>;
+    entities?: { id: string; name: string }[];
+    modules?: ModuleGraph[];
+    assets?: Asset[];
+    scenes?: { id: string; name: string }[];
+    currentEntity?: EditorEntity;
+    onCreateVariable?: (name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;
+    onUpdateModuleVariable?: (moduleId: string, name: string, value: unknown, explicitType?: EditorVariable["type"]) => void;
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
     const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive";
+    const thenActions = condition.then || [];
+
+    const updateThenActions = (newActions: any[]) => {
+        onUpdate({ ...condition, then: newActions });
+    };
 
     return (
-        <div style={styles.conditionRow}>
-            {!isValueFreeCondition && (
-                <select
-                    value={(condition.name as string) || ""}
-                    onChange={(e) => onUpdate({ ...condition, name: e.target.value })}
-                    style={styles.smallSelect}
-                >
-                    <option value="">(variable)</option>
-                    {variables.map((v) => (
-                        <option key={v.id} value={v.name}>
-                            {v.name}
-                        </option>
-                    ))}
-                </select>
-            )}
-
-            <select
-                value={condition.type}
-                onChange={(e) => {
-                    const nextType = e.target.value;
-                    if (nextType === "InputKey" || nextType === "InputDown") {
-                        onUpdate({ ...condition, type: nextType, key: (condition.key as string) ?? "KeyA" });
-                        return;
-                    }
-                    onUpdate({ ...condition, type: nextType });
-                }}
-                style={styles.smallSelect}
-            >
-                {!CONDITION_TYPES.some((op) => op.value === condition.type) && (
-                    <option value={condition.type}>{condition.type}</option>
-                )}
-                {CONDITION_TYPES.map((op) => (
-                    <option key={op.value} value={op.value}>
-                        {op.label}
-                    </option>
-                ))}
-            </select>
-
-            {isInputCondition && (
-                <select
-                    value={(condition.key as string) || "KeyA"}
-                    onChange={(e) => onUpdate({ ...condition, key: e.target.value })}
-                    style={styles.smallSelect}
-                >
-                    {INPUT_KEY_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                        </option>
-                    ))}
-                </select>
-            )}
-
-            {!isValueFreeCondition && (
-                selectedVar?.type === "bool" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={styles.conditionRow}>
+                {!isValueFreeCondition && (
                     <select
-                        value={condition.value === true ? "true" : "false"}
-                        onChange={(e) => onUpdate({ ...condition, value: e.target.value === "true" })}
+                        value={(condition.name as string) || ""}
+                        onChange={(e) => onUpdate({ ...condition, name: e.target.value })}
                         style={styles.smallSelect}
                     >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
+                        <option value="">(variable)</option>
+                        {variables.map((v) => (
+                            <option key={v.id} value={v.name}>
+                                {v.name}
+                            </option>
+                        ))}
                     </select>
-                ) : (
-                    <input
-                        type="text"
-                        placeholder="value"
-                        value={condition.value !== undefined ? String(condition.value) : ""}
-                        onChange={(e) => onUpdate({ ...condition, value: coerceValue(e.target.value, selectedVar) })}
-                        style={styles.textInput}
-                    />
-                )
-            )}
+                )}
 
-            <button onClick={onRemove} style={styles.removeButton}>×</button>
+                <select
+                    value={condition.type}
+                    onChange={(e) => {
+                        const nextType = e.target.value;
+                        if (nextType === "InputKey" || nextType === "InputDown") {
+                            onUpdate({ ...condition, type: nextType, key: (condition.key as string) ?? "KeyA" });
+                            return;
+                        }
+                        onUpdate({ ...condition, type: nextType });
+                    }}
+                    style={styles.smallSelect}
+                >
+                    {!CONDITION_TYPES.some((op) => op.value === condition.type) && (
+                        <option value={condition.type}>{condition.type}</option>
+                    )}
+                    {CONDITION_TYPES.map((op) => (
+                        <option key={op.value} value={op.value}>
+                            {op.label}
+                        </option>
+                    ))}
+                </select>
+
+                {isInputCondition && (
+                    <select
+                        value={(condition.key as string) || "KeyA"}
+                        onChange={(e) => onUpdate({ ...condition, key: e.target.value })}
+                        style={styles.smallSelect}
+                    >
+                        {INPUT_KEY_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </option>
+                        ))}
+                    </select>
+                )}
+
+                {!isValueFreeCondition && (
+                    selectedVar?.type === "bool" ? (
+                        <select
+                            value={condition.value === true ? "true" : "false"}
+                            onChange={(e) => onUpdate({ ...condition, value: e.target.value === "true" })}
+                            style={styles.smallSelect}
+                        >
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    ) : (
+                        <input
+                            type="text"
+                            placeholder="value"
+                            value={condition.value !== undefined ? String(condition.value) : ""}
+                            onChange={(e) => onUpdate({ ...condition, value: coerceValue(e.target.value, selectedVar) })}
+                            style={styles.textInput}
+                        />
+                    )
+                )}
+
+                <button onClick={onRemove} style={styles.removeButton}>×</button>
+            </div>
+
+            {showActions && (
+                <div style={{ marginLeft: 16, borderLeft: "2px solid #666", paddingLeft: 8, paddingBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: colors.textSecondary }}>Then Actions ({thenActions.length})</span>
+                        <button
+                            onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Log" }])}
+                            style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
+                        >
+                            + Add Action
+                        </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {thenActions.map((act, idx) => (
+                            <ActionEditor
+                                key={idx}
+                                action={act}
+                                availableActions={availableActions}
+                                actionLabels={actionLabels}
+                                variables={variables}
+                                entities={entities || []}
+                                modules={modules || []}
+                                scenes={scenes}
+                                assets={assets}
+                                currentEntity={currentEntity}
+                                onCreateVariable={onCreateVariable}
+                                onUpdateModuleVariable={onUpdateModuleVariable}
+                                onUpdate={(updated) => {
+                                    const newActions = [...thenActions];
+                                    newActions[idx] = updated;
+                                    updateThenActions(newActions);
+                                }}
+                                onRemove={() => updateThenActions(thenActions.filter((_, i) => i !== idx))}
+                                showRemove={true}
+                            />
+                        ))}
+                        {thenActions.length === 0 && <div style={{ fontSize: 9, color: "#666" }}>No actions attached</div>}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

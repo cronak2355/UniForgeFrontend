@@ -15,6 +15,9 @@ export interface System {
 
     /** Called after all onUpdates, before rendering/end-frame */
     onLateUpdate?(context: RuntimeContext, dt: number): void;
+
+    /** Called when the pipeline is destroyed */
+    onDestroy?(): void;
 }
 
 /**
@@ -134,5 +137,17 @@ export class ExecutionPipeline {
             this.context.unregisterEntity(id);
         }
         this.deferredDestroyEntities = [];
+    }
+
+    /**
+     * Cleanup all systems
+     */
+    public destroy() {
+        for (const system of this.systems) {
+            if (system.onDestroy) {
+                system.onDestroy();
+            }
+        }
+        this.systems = [];
     }
 }
