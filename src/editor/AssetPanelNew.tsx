@@ -97,75 +97,88 @@ export function AssetPanelNew({
     return (
         <div style={{
             background: THEME.bg,
-            borderTop: `1px solid ${THEME.border}`,
-            height: "280px", // Increased Height
+            // borderTop: `1px solid ${THEME.border}`, // Remove top border if in sidebar? Keep for separation
+            height: "100%", // Fill container
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            overflow: "hidden" // Ensure internal scroll works
         }}>
 
             {/* Header / Tabs */}
             <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                padding: '0 16px',
-                height: '48px',
+                flexDirection: 'column', // Changed to column for stacked layout
                 background: THEME.bgHeader,
                 borderBottom: `1px solid ${THEME.border}`,
-                gap: '8px'
+                flexShrink: 0
             }}>
+                {/* Title Row */}
                 <div style={{
+                    padding: '8px 12px',
                     fontSize: '12px',
                     fontWeight: 700,
                     color: '#fff',
-                    marginRight: '16px',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    borderBottom: `1px solid ${THEME.border}` // Separator
                 }}>
                     <i className="fa-solid fa-layer-group text-blue-500"></i>
-                    Assets
+                    {tabs.find(t => t.id === currentTag)?.label || "Assets"}
                 </div>
 
-                {tabs.map((tab) => {
-                    const isActive = currentTag === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setCurrentTag(tab.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '6px 14px',
-                                fontSize: '13px',
-                                fontWeight: isActive ? 600 : 500,
-                                color: isActive ? '#fff' : THEME.textDim,
-                                background: isActive ? '#2563eb' : 'transparent', // Blue pill active
-                                border: 'none',
-                                borderRadius: '8px', // Pill shape
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                                    e.currentTarget.style.color = THEME.text;
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.color = THEME.textDim;
-                                }
-                            }}
-                        >
-                            <i className={`fa-solid ${tab.icon}`}></i>
-                            {tab.label}
-                        </button>
-                    );
-                })}
+                {/* Tabs Row (Scrollable) */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px 4px', // Adjusted padding
+                    gap: '8px',
+                    overflowX: 'auto', // Horizontal scroll
+                    whiteSpace: 'nowrap'
+                }}>
+
+                    {tabs.map((tab) => {
+                        const isActive = currentTag === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setCurrentTag(tab.id)}
+                                title={tab.label} // Tooltip
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '6px 10px', // Reduced padding for squares
+                                    flexShrink: 0, // Prevent shrinking
+                                    fontSize: '16px', // Larger icon
+                                    color: isActive ? '#fff' : THEME.textDim,
+                                    background: isActive ? '#2563eb' : 'transparent', // Blue pill active
+                                    border: 'none',
+                                    borderRadius: '8px', // Pill shape
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    aspectRatio: '1/1' // Make it roughly square
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                                        e.currentTarget.style.color = THEME.text;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = 'transparent';
+                                        e.currentTarget.style.color = THEME.textDim;
+                                    }
+                                }}
+                            >
+                                <i className={`fa-solid ${tab.icon}`}></i>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Main Content Area */}
@@ -240,14 +253,14 @@ export function AssetPanelNew({
                                         }}
                                         onClick={() => handleTileClick(asset)}
                                     >
-                                        <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                                        <div style={{ flex: 1, width: '100%', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', overflow: 'hidden' }}>
                                             <img
                                                 src={asset.url}
                                                 alt={asset.name}
                                                 draggable={false}
                                                 style={{
-                                                    maxWidth: '100%',
-                                                    maxHeight: '100%',
+                                                    width: '100%',
+                                                    height: '100%',
                                                     objectFit: 'contain',
                                                     filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))'
                                                 }}
@@ -416,11 +429,11 @@ export function AssetPanelNew({
                                     <ModuleGraphEditor
                                         key={module.id}
                                         module={module}
-                                        variables={selectedEntityVariables}
+                                        variables={selectedEntityVariables as any}
                                         modules={modules}
                                         actionLabels={actionLabels}
-                                        onCreateVariable={onCreateVariable}
-                                        onUpdateVariable={onUpdateVariable}
+                                        onCreateVariable={onCreateVariable as any}
+                                        onUpdateVariable={onUpdateVariable as any}
                                         onChange={(next) => updateModule(next)}
                                     />
                                 ))}

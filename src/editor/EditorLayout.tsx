@@ -137,6 +137,32 @@ function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
     const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
+    const [isDirty, setIsDirty] = useState(false);
+    const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
+
+    // Asset Panel Resize State (Removed - layout changed to Sidebar Tabs)
+    // const [assetPanelHeight, setAssetPanelHeight] = useState(280); 
+    // const [isResizingAssetPanel, setIsResizingAssetPanel] = useState(false);
+
+    // Sidebar Tab State
+    const [activeLeftTab, setActiveLeftTab] = useState<"hierarchy" | "assets">("hierarchy");
+
+    // Removed resize effect
+    /* useEffect(() => { ... resize logic ... }, []); */
+
+    // Resize logic removed
+
+    // Prompt on exit if dirty
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty]);
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
@@ -148,26 +174,33 @@ function EditorLayoutInner() {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
                 if (gameId && gameId !== "undefined") {
-                    try {
-                        const sceneJson = await loadScene(gameId);
-                        if (sceneJson) {
-                            console.log("[EditorLayout] Loaded scene from server");
-                            core.clear();
-                            SceneSerializer.deserialize(sceneJson, core);
-                            loadedFromServer = true;
-                        } else {
-                            // Loaded but empty (New Game)
-                            console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
-                            core.clear();
-                            loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
-                        }
-                    } catch (e) {
-                        console.warn("[EditorLayout] Server load failed:", e);
-                        // If server load fails (e.g. 404 Not Found because no version exists yet), 
-                        // we should treat it as a fresh new game, NOT fall back to local autosave.
-                        console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                    if (gameId === 'new') {
+                        console.log("[EditorLayout] New project requested. Starting fresh.");
                         core.clear();
                         loadedFromServer = true;
+                        setIsDirty(false);
+                    } else {
+                        try {
+                            const sceneJson = await loadScene(gameId);
+                            if (sceneJson) {
+                                console.log("[EditorLayout] Loaded scene from server");
+                                core.clear();
+                                SceneSerializer.deserialize(sceneJson, core);
+                                loadedFromServer = true;
+                            } else {
+                                // Loaded but empty (New Game)
+                                console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+                                core.clear();
+                                loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
+                            }
+                        } catch (e) {
+                            console.warn("[EditorLayout] Server load failed:", e);
+                            // If server load fails (e.g. 404 Not Found because no version exists yet), 
+                            // we should treat it as a fresh new game, NOT fall back to local autosave.
+                            console.log("[EditorLayout] Treating as new empty project due to load failure.");
+                            core.clear();
+                            loadedFromServer = true;
+                        }
                     }
                 }
 
@@ -389,8 +422,7 @@ function EditorLayoutInner() {
         }
     };
 
-    const handleSaveProject = async (title: string, description: string) => {
-
+    const handleSaveProject = async () => {
         setIsSavingProject(true);
         try {
             // 0. Pre-check Login
@@ -405,20 +437,15 @@ function EditorLayoutInner() {
             let id = gameId;
             let isNewGame = false;
 
-            // 1. Create or Update Game Metadata
-            if (!id || id === "undefined") {
-                const newGame = await createGame(user.id, title, description);
+            // 1. Create fallback (Should rarely happen with new flow)
+            if (!id || id === "undefined" || id === 'new') {
+                const newGame = await createGame(user.id, "Untitled Project", "Restored Project");
                 id = String(newGame.gameId);
                 isNewGame = true;
-                console.log("[EditorLayout] Created new game:", id);
-            } else {
-                // Update existing game info
-                await updateGameInfo(id, title, description);
-                console.log("[EditorLayout] Updated game info:", id);
+                console.log("[EditorLayout] Created fallback game:", id);
             }
 
-            // 2. Save Version (CRITICAL: Save data BEFORE navigation)
-            // This ensures that even if navigation triggers a reload, the data is safe in the DB.
+            // 2. Save Version
             await saveGameVersion(id, sceneJson);
             console.log("[EditorLayout] Saved game version");
 
@@ -454,7 +481,8 @@ function EditorLayoutInner() {
                             const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
 
                             if (uploadRes.ok) {
-                                const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
+                                const s3Url = uploadUrl.split('?')[0];
+                                const thumbnailUrl = presignData.publicUrl || s3Url;
                                 // Update thumbnail via updateGameInfo
                                 await updateGameInfo(id, undefined, undefined, thumbnailUrl);
                                 console.log("[EditorLayout] Thumbnail updated");
@@ -474,16 +502,31 @@ function EditorLayoutInner() {
                 navigate(`/editor/${id}`, { replace: true });
             }
 
-            alert("프로젝트가 성공적으로 저장되었습니다!");
+            // Show Toast
+            setSaveToast("Project Saved Successfully");
+            setTimeout(() => setSaveToast(null), 3000);
+            setIsDirty(false);
             setIsSaveModalOpen(false);
 
         } catch (e) {
-            console.error("Save failed:", e);
-            alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
+            console.error("Save Failed:", e);
+            alert("저장 실패: " + (e instanceof Error ? e.message : "Unknown Error"));
         } finally {
             setIsSavingProject(false);
         }
     };
+
+    // Hotkey: Ctrl+S
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                handleSaveProject();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [core, gameId]);
 
     const dragClearTokenRef = useRef(0);
     const handleCreateActionVariable = (name: string, value: unknown, type?: EditorVariable["type"]) => {
@@ -901,7 +944,12 @@ function EditorLayoutInner() {
                     {/* Logo (Refactored) */}
                     <div
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                        onClick={() => navigate('/main')}
+                        onClick={() => {
+                            if (isDirty) {
+                                if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
+                            }
+                            navigate('/projects');
+                        }}
                     >
                         <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
                         <span style={{
@@ -923,8 +971,7 @@ function EditorLayoutInner() {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
                             <MenuItem label="Save Project" onClick={() => {
-                                console.error("[EditorLayout] Save Project Clicked. Setting isSaveModalOpen to true.");
-                                setIsSaveModalOpen(true);
+                                handleSaveProject();
                             }} />
                             <MenuItem
                                 label="Export"
@@ -1140,86 +1187,77 @@ function EditorLayoutInner() {
                 </div>
             </div>
 
-            {/* ===== MAIN EDITOR AREA (ORIGINAL) ===== */}
+            {/* ===== MAIN EDITOR AREA (Refactored) ===== */}
             <div style={{
                 display: 'flex',
                 flex: 1,
                 overflow: 'hidden',
             }}>
 
-                {/* Left Sidebar */}
+                {/* LEFT SIDEBAR (Tabs: Hierarchy / Assets) */}
                 <div style={{
-                    width: '280px',
+                    width: '320px', // Slightly wider for Assets
                     display: 'flex',
                     flexDirection: 'column',
-                    borderRight: `1px solid ${colors.borderColor}`
+                    borderRight: `1px solid ${colors.borderColor}`,
+                    background: colors.bgSecondary
                 }}>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <HierarchyPanel
-                            core={core}
-                            scenes={scenes}
-                            currentSceneId={currentSceneId}
-                            selectedId={selectedEntity?.id ?? null}
-                            onSelect={(entity) => {
-                                core.setSelectedEntity(entity);
-                                setLocalSelectedEntity(entity);
-                            }}
-                            runtimeCore={mode === "run" ? runtimeCore : null}
-                        />
-                    </div>
-
-                </div>
-
-                {/* Main Content */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    {/* Toolbar */}
+                    {/* Sidebar Tabs */}
                     <div style={{
-                        height: '40px',
-                        borderBottom: `1px solid ${colors.borderColor}`,
                         display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 16px',
-                        justifyContent: 'space-between',
-                        background: colors.bgSecondary
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        background: colors.bgTertiary
                     }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                {/* Duplicate Play Button Removed */}
-                            </div>
-                        </div>
-                        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
-                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
-                        </div>
+                        <button
+                            onClick={() => setActiveLeftTab("hierarchy")}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                border: 'none',
+                                background: activeLeftTab === "hierarchy" ? colors.bgSecondary : 'transparent',
+                                color: activeLeftTab === "hierarchy" ? colors.textPrimary : colors.textSecondary,
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                borderBottom: activeLeftTab === "hierarchy" ? `2px solid ${colors.accent}` : 'none'
+                            }}
+                        >
+                            <i className="fa-solid fa-list-ul" style={{ marginRight: '6px' }}></i>
+                            Hierarchy
+                        </button>
+                        <button
+                            onClick={() => setActiveLeftTab("assets")}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                border: 'none',
+                                background: activeLeftTab === "assets" ? colors.bgSecondary : 'transparent',
+                                color: activeLeftTab === "assets" ? colors.textPrimary : colors.textSecondary,
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                borderBottom: activeLeftTab === "assets" ? `2px solid ${colors.accent}` : 'none'
+                            }}
+                        >
+                            <i className="fa-solid fa-layer-group" style={{ marginRight: '6px' }}></i>
+                            Assets
+                        </button>
                     </div>
 
-                    {/* Canvas Area */}
-                    <div style={{ flex: 1, position: 'relative', background: '#000' }}>
-                        {mode === "dev" ? (
-                            <EditorCanvas
-                                key={`edit-${runSession}`}
-                                assets={assets}
-                                selected_asset={selectedAsset}
-                                draggedAsset={draggedAsset}
-                                onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
-                                addEntity={(entity) => {
-                                    core.addEntity(entity as any);
-                                    core.setSelectedEntity(entity as any);
+                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        {activeLeftTab === "hierarchy" ? (
+                            <HierarchyPanel
+                                core={core}
+                                scenes={scenes}
+                                currentSceneId={currentSceneId}
+                                selectedId={selectedEntity?.id ?? null}
+                                onSelect={(entity) => {
+                                    core.setSelectedEntity(entity);
+                                    setLocalSelectedEntity(entity);
                                 }}
+                                runtimeCore={mode === "run" ? runtimeCore : null}
                             />
                         ) : (
-                            <RunTimeCanvas
-                                key={`run-${runSession}`}
-                                onRuntimeEntitySync={handleRuntimeEntitySync}
-                                onGameReady={setRuntimeCore}
-                            />
-                        )}
-
-                        {/* Asset Panel (Center Bottom) */}
-                        <div style={{
-                            height: '280px',
-                            borderTop: `2px solid ${colors.borderAccent}`,
-                            zIndex: 10
-                        }}>
                             <AssetPanelNew
                                 assets={assets}
                                 changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
@@ -1232,12 +1270,61 @@ function EditorLayoutInner() {
                                 onCreateVariable={handleCreateActionVariable}
                                 onUpdateVariable={handleUpdateModuleVariable}
                                 onDeleteAsset={(asset) => {
-                                    // Just remove from local editor, do not delete from S3
                                     const currentAssets = Array.from(core.getAssets());
                                     core.setAssets(currentAssets.filter(a => a.id !== asset.id));
                                 }}
                             />
+                        )}
+                    </div>
+
+                </div>
+
+                {/* CENTER: Canvas */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Toolbar */}
+                    <div style={{
+                        height: '40px',
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 16px',
+                        justifyContent: 'space-between',
+                        background: colors.bgSecondary
+                    }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {/* Toolbar Buttons if any */}
                         </div>
+                        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
+                        </div>
+                    </div>
+
+                    {/* Canvas Area - FULL HEIGHT */}
+                    <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
+                        {mode === "dev" ? (
+                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                                <EditorCanvas
+                                    key={`edit-${runSession}`}
+                                    assets={assets}
+                                    selected_asset={selectedAsset}
+                                    draggedAsset={draggedAsset}
+                                    onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
+                                    addEntity={(entity) => {
+                                        core.addEntity(entity as any);
+                                        core.setSelectedEntity(entity as any);
+                                        setIsDirty(true);
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                                <RunTimeCanvas
+                                    key={`run-${runSession}`}
+                                    onRuntimeEntitySync={handleRuntimeEntitySync}
+                                    onGameReady={setRuntimeCore}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1278,6 +1365,7 @@ function EditorLayoutInner() {
                                     core.addEntity(normalized as any);
                                     core.setSelectedEntity(normalized as any);
                                     setLocalSelectedEntity(normalized);
+                                    setIsDirty(true);
                                 }}
                             />
                         )}
@@ -1286,10 +1374,6 @@ function EditorLayoutInner() {
 
             </div>
 
-
-
-
-
             {/* AI Wizard Modal */}
             <AiWizardModal
                 isOpen={isAiWizardOpen}
@@ -1297,14 +1381,28 @@ function EditorLayoutInner() {
                 onGenerate={handleAiGenerate}
             />
 
-            {/* Save Game Modal */}
-            <SaveGameModal
-                isOpen={isSaveModalOpen}
-                onClose={() => setIsSaveModalOpen(false)}
-                onSave={handleSaveProject}
-                isSaving={isSavingProject}
-                initialTitle={gameId && gameId !== 'undefined' ? "Project" : "New Project"}
-            />
+            {/* Save Toast */}
+            {saveToast && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    background: '#2563eb',
+                    color: 'white',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 2000,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    animation: 'fadeIn 0.3s ease-out'
+                }}>
+                    <i className="fa-solid fa-check-circle"></i>
+                    {saveToast}
+                </div>
+            )}
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
@@ -1323,11 +1421,11 @@ function EditorLayoutInner() {
                         };
                         core.addAsset(newAsset);
                         setIsAssetLibraryOpen(false);
-                        console.log("Imported asset from library:", newAsset);
                     }}
                 />
             )}
 
+            {/* Drag & Drop Modal */}
             {dropModalFiles.length > 0 && (
                 <div
                     style={{
@@ -1362,8 +1460,6 @@ function EditorLayoutInner() {
                         }}>
                             {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
                         </div>
-                        {/* Content replaced by previous chunks */}
-                        {dropModalFiles.length === 0 && null}
                         {dropModalFiles.length > 0 && (
                             <div style={{
                                 background: colors.bgTertiary,
@@ -1505,36 +1601,6 @@ function EditorLayoutInner() {
                         </div>
                     </div>
                 </div>
-            )}
-            {/* AI Wizard Modal & FAB */}
-            <AiWizardModal
-                isOpen={isAiWizardOpen}
-                onClose={() => setIsAiWizardOpen(false)}
-                onGenerate={handleAiGenerate}
-            />
-
-
-            {/* Asset Library Modal */}
-            {isAssetLibraryOpen && (
-                <AssetLibraryModal
-                    onClose={() => setIsAssetLibraryOpen(false)}
-                    onAssetSelect={(asset) => {
-                        core.setDraggedAsset(asset);
-                        setIsAssetLibraryOpen(false);
-                    }}
-                />
-            )}
-
-            {/* Save Game Modal */}
-            {isSaveModalOpen && (
-                <SaveGameModal
-                    isOpen={isSaveModalOpen}
-                    onClose={() => setIsSaveModalOpen(false)}
-                    onSave={handleSaveProject}
-                    initialTitle=""
-                    initialDescription=""
-                    isSaving={isSavingProject}
-                />
             )}
         </div>
     );

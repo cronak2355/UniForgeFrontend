@@ -1,10 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createGame, fetchMyGames, updateGameInfo, deleteGame, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 import { getCloudFrontUrl } from '../utils/imageUtils';
+import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 
 export default function ProjectsPage() {
     const { user } = useAuth();
@@ -25,6 +26,9 @@ export default function ProjectsPage() {
     const [renameModalOpen, setRenameModalOpen] = useState(false);
     const [targetGame, setTargetGame] = useState<GameSummary | null>(null);
     const [newName, setNewName] = useState("");
+
+    // Create Project State
+    const [createModalOpen, setCreateModalOpen] = useState(false);
 
     // Click outside to close menu
     useEffect(() => {
@@ -51,12 +55,17 @@ export default function ProjectsPage() {
         }
     };
 
-    const handleCreateGame = async () => {
+    const handleCreateGameClick = () => {
+        setCreateModalOpen(true);
+    };
+
+    const handleCreateProjectSubmit = async (title: string, description: string) => {
         if (!user?.id) return;
         try {
-            const newGame = await createGame(user.id, "Untitled Project", "New Project");
+            const newGame = await createGame(user.id, title, description);
             navigate(`/editor/${newGame.gameId}`);
         } catch (e) {
+            console.error(e);
             alert("프로젝트 생성 실패");
         }
     };
@@ -120,7 +129,8 @@ export default function ProjectsPage() {
         } catch (e) {
             // alert("삭제 실패"); 
             console.error(e);
-            alert("삭제 실패: " + e.message);
+            const msg = e instanceof Error ? e.message : "Unknown error";
+            alert("삭제 실패: " + msg);
         }
     };
 
@@ -166,8 +176,8 @@ export default function ProjectsPage() {
                                 onClick={handleBatchDelete}
                                 disabled={selectedGameIds.size === 0}
                                 className={`px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors ${selectedGameIds.size > 0
-                                        ? 'bg-red-600 hover:bg-red-700'
-                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                    ? 'bg-red-600 hover:bg-red-700'
+                                    : 'bg-gray-600 cursor-not-allowed opacity-50'
                                     }`}
                             >
                                 <i className="fa-solid fa-trash mr-2"></i>
@@ -183,7 +193,7 @@ export default function ProjectsPage() {
                                 <i className="fa-solid fa-check-square mr-2"></i> Select
                             </button>
                             <button
-                                onClick={handleCreateGame}
+                                onClick={handleCreateGameClick}
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-semibold transition-colors"
                             >
                                 <i className="fa-solid fa-plus"></i> New Project
@@ -217,8 +227,8 @@ export default function ProjectsPage() {
                                     {isSelectionMode && (
                                         <div className="absolute top-2 right-2 z-10">
                                             <div className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${selectedGameIds.has(game.gameId)
-                                                    ? 'bg-blue-600 border-blue-600'
-                                                    : 'bg-black/50 border-gray-400 hover:border-white'
+                                                ? 'bg-blue-600 border-blue-600'
+                                                : 'bg-black/50 border-gray-400 hover:border-white'
                                                 }`}>
                                                 {selectedGameIds.has(game.gameId) && <i className="fa-solid fa-check text-white text-xs"></i>}
                                             </div>
@@ -300,8 +310,8 @@ export default function ProjectsPage() {
                                         key={page}
                                         onClick={() => handlePageChange(page)}
                                         className={`w-8 h-8 rounded flex items-center justify-center font-medium transition-colors ${currentPage === page
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-[#333] hover:bg-[#444] text-gray-300'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-[#333] hover:bg-[#444] text-gray-300'
                                             }`}
                                     >
                                         {page}
@@ -326,7 +336,7 @@ export default function ProjectsPage() {
                         <h2 className="text-xl font-bold text-gray-300">No Projects Found</h2>
                         <p className="text-gray-500 mt-2 mb-6">Create your first project to get started.</p>
                         <button
-                            onClick={handleCreateGame}
+                            onClick={handleCreateGameClick}
                             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
                         >
                             Create Project
@@ -365,6 +375,13 @@ export default function ProjectsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                isOpen={createModalOpen}
+                onClose={() => setCreateModalOpen(false)}
+                onCreate={handleCreateProjectSubmit}
+            />
         </div>
     );
 }
