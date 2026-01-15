@@ -5,6 +5,53 @@ import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { LogicComponent } from "../types/Component";
 import type { ModuleGraph } from "../types/Module";
 
+// ===== URL Conversion for Unity =====
+
+/**
+ * Unity Export 전용 API 호스트 URL
+ * - VITE_UNITY_EXPORT_URL: Unity가 접근 가능한 외부 URL (우선)
+ * - VITE_API_URL: 기존 API URL (fallback)
+ * - window.location.origin: 현재 Origin (최종 fallback)
+ */
+const UNITY_EXPORT_BASE_URL =
+  import.meta.env.VITE_UNITY_EXPORT_URL ||
+  import.meta.env.VITE_API_URL ||
+  window.location.origin;
+
+/**
+ * Converts a relative proxy URL to an absolute URL that Unity can access directly.
+ * - `/api/assets/s3/...` → `https://yourdomain.com/api/assets/s3/...`
+ * - Already absolute URLs are returned as-is.
+ * - Data URLs (base64) are returned as-is.
+ */
+function toAbsoluteUrl(url: string | undefined): string {
+  if (!url) return "";
+
+  // Already absolute or data URL
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+
+  // Relative URL → Absolute URL
+  if (url.startsWith("/")) {
+    return `${UNITY_EXPORT_BASE_URL}${url}`;
+  }
+
+  // Fallback: return as-is
+  return url;
+}
+
+/**
+ * Converts Asset URLs to Unity-accessible absolute URLs.
+ */
+function exportAssetForUnity(asset: Asset): Asset {
+  return {
+    ...asset,
+    url: toAbsoluteUrl(asset.url),
+    imageUrl: asset.imageUrl ? toAbsoluteUrl(asset.imageUrl) : undefined,
+  };
+}
+
 export interface SceneEventJSON {
   id: string;
   trigger: string;
