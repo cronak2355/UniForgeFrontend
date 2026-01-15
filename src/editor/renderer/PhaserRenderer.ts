@@ -1854,17 +1854,31 @@ export class PhaserRenderer implements IRenderer {
 
             let framesConfig: Phaser.Types.Animations.AnimationFrame[] = [];
 
+            // [Debug] Check actual frames in texture
+            const textureFrames = texture ? texture.getFrameNames() : [];
+            console.log(`[PhaserRenderer] Auto-gen debug for ${key}: availableFrames=${JSON.stringify(textureFrames)}`);
+
             // Use string frame keys for manually sliced textures, numeric otherwise
             if (texture && texture.has("0")) {
+                console.log(`[PhaserRenderer] Detected string-based frame "0". Using string keys.`);
                 framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
             } else if (metadata && metadata.frameCount && metadata.frameCount > 1) {
-                framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
+                // If metadata says we have frames, but texture.has("0") is false, 
+                // it might mean they are Number keys (if loaded via spritesheet) OR they don't exist yet?
+                // If loaded via spritesheet, frame names are typically 0, 1, 2... (Numbers)
+
+                // Let's create frames using numbers if they exist as numbers?
+                // generateFrameNumbers returns { frame: 0 }, { frame: 1 } ...
+                console.log(`[PhaserRenderer] Using generateFrameNumbers for spritesheet.`);
+                framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
             } else {
                 framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
             }
 
             // Get FPS from metadata.animations.default.fps or fallback to 8 (matching SpriteSheetExporter default)
             const defaultFps = (metadata as any)?.animations?.default?.fps ?? 8;
+
+            console.log(`[PhaserRenderer] Creating default anim '${defaultAnimKey}' with frames:`, framesConfig);
 
             this.scene.anims.create({
                 key: defaultAnimKey,
