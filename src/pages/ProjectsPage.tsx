@@ -74,6 +74,14 @@ export default function ProjectsPage() {
         setSelectedGameIds(newSet);
     };
 
+    const handleSelectAll = () => {
+        if (selectedGameIds.size === myGames.length) {
+            setSelectedGameIds(new Set());
+        } else {
+            setSelectedGameIds(new Set(myGames.map(g => g.gameId)));
+        }
+    };
+
     const handleBatchDelete = async () => {
         if (selectedGameIds.size === 0) return;
         if (!confirm(`선택한 ${selectedGameIds.size}개의 프로젝트를 삭제하시겠습니까?`)) return;
@@ -88,7 +96,7 @@ export default function ProjectsPage() {
             const maxPage = Math.ceil(remainingCount / ITEMS_PER_PAGE) || 1;
             if (currentPage > maxPage) setCurrentPage(maxPage);
         } catch (e) {
-            alert("일부 프로젝트 삭제 실패");
+            alert("일부 프로젝트 삭제 실패. (500 에러 발생 시 백엔드 배포를 기다려주세요)");
         }
     };
 
@@ -110,7 +118,9 @@ export default function ProjectsPage() {
             await deleteGame(gameId);
             setMyGames(prev => prev.filter(g => g.gameId !== gameId));
         } catch (e) {
-            alert("삭제 실패");
+            // alert("삭제 실패"); 
+            console.error(e);
+            alert("삭제 실패: " + e.message);
         }
     };
 
@@ -140,6 +150,12 @@ export default function ProjectsPage() {
                 <div className="flex gap-2">
                     {isSelectionMode ? (
                         <>
+                            <button
+                                onClick={handleSelectAll}
+                                className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm font-medium border border-gray-600 rounded-lg hover:border-gray-400"
+                            >
+                                {selectedGameIds.size > 0 && selectedGameIds.size === myGames.length ? "Deselect All" : "Select All"}
+                            </button>
                             <button
                                 onClick={toggleSelectionMode}
                                 className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm font-medium"
