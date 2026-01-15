@@ -11,6 +11,27 @@ type Props = {
     onSelect: (entity: EditorEntity) => void;
 };
 
+const MenuOption = ({ label, onClick }: { label: string, onClick: () => void }) => (
+    <button
+        onClick={onClick}
+        style={{
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            color: colors.textPrimary,
+            cursor: 'pointer',
+            padding: '6px 8px',
+            textAlign: 'left',
+            fontSize: '12px',
+            borderRadius: '3px',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = colors.bgInput}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+    >
+        {label}
+    </button>
+);
+
 export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect }: Props) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
@@ -75,6 +96,85 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         }
         setEditingId(null);
         setEditType(null);
+    };
+
+    // Generic UI Entity Creator
+    const createUIEntity = (type: "text" | "button" | "panel" | "scrollPanel" | "image") => {
+        const id = crypto.randomUUID();
+        let name = "UI Element";
+        let variables: any[] = [
+            { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
+            { id: crypto.randomUUID(), name: "uiType", type: "string", value: type },
+            { id: crypto.randomUUID(), name: "z", type: "float", value: 100 }, // Default High Z
+        ];
+
+        // Default transform
+        const transform = {
+            x: 400, y: 300, z: 100,
+            rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
+            scaleX: 1, scaleY: 1
+        };
+
+        switch (type) {
+            case "text":
+                name = "New Text";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "uiText", type: "string", value: "New Text" },
+                    { id: crypto.randomUUID(), name: "uiFontSize", type: "string", value: "24px" },
+                    { id: crypto.randomUUID(), name: "uiColor", type: "string", value: "#ffffff" }
+                );
+                break;
+            case "button":
+                name = "New Button";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "width", type: "float", value: 120 },
+                    { id: crypto.randomUUID(), name: "height", type: "float", value: 40 },
+                    { id: crypto.randomUUID(), name: "uiText", type: "string", value: "Button" },
+                    { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#3498db" },
+                    { id: crypto.randomUUID(), name: "uiColor", type: "string", value: "#ffffff" },
+                    { id: crypto.randomUUID(), name: "uiFontSize", type: "string", value: "16px" }
+                );
+                break;
+            case "panel":
+                name = "New Panel";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "width", type: "float", value: 300 },
+                    { id: crypto.randomUUID(), name: "height", type: "float", value: 200 },
+                    { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#2c3e50" }
+                );
+                break;
+            case "scrollPanel":
+                name = "Scroll Panel";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
+                    { id: crypto.randomUUID(), name: "height", type: "float", value: 300 },
+                    { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#34495e" },
+                    { id: crypto.randomUUID(), name: "contentHeight", type: "float", value: 600 } // Virtual height
+                );
+                break;
+            case "image":
+                name = "New Image";
+                variables.push(
+                    { id: crypto.randomUUID(), name: "width", type: "float", value: 100 },
+                    { id: crypto.randomUUID(), name: "height", type: "float", value: 100 }
+                );
+                break;
+        }
+
+        const entity: EditorEntity = {
+            id,
+            name,
+            type: "container",
+            role: "none",
+            events: [],
+            ...transform,
+            variables,
+            components: [],
+            logic: []
+        };
+        core.addEntity(entity);
+        setShowTemplateMenu(false);
+        onSelect(entity);
     };
 
     // Create HP Bar from template
@@ -170,26 +270,18 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                             borderRadius: '4px',
                             padding: '4px',
                             zIndex: 100,
-                            minWidth: '120px'
+                            minWidth: '140px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2px'
                         }}>
-                            <button
-                                onClick={() => { setShowHPBarModal(true); setShowTemplateMenu(false); }}
-                                style={{
-                                    width: '100%',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: colors.textPrimary,
-                                    cursor: 'pointer',
-                                    padding: '6px 8px',
-                                    textAlign: 'left',
-                                    fontSize: '12px',
-                                    borderRadius: '3px',
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = colors.bgInput}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                                ❤️ HP Bar
-                            </button>
+                            <MenuOption onClick={() => createUIEntity("text")} label="📝 Text" />
+                            <MenuOption onClick={() => createUIEntity("button")} label="🔘 Button" />
+                            <MenuOption onClick={() => createUIEntity("panel")} label="🔲 Panel" />
+                            <MenuOption onClick={() => createUIEntity("scrollPanel")} label="📜 Scroll Panel" />
+                            <MenuOption onClick={() => createUIEntity("image")} label="🖼️ Image" />
+                            <div style={{ height: '1px', background: colors.borderColor, margin: '2px 0' }} />
+                            <MenuOption onClick={() => { setShowHPBarModal(true); setShowTemplateMenu(false); }} label="❤️ HP Bar" />
                         </div>
                     )}
                     <button

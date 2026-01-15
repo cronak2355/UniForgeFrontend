@@ -26,7 +26,7 @@ export interface ActionGlobals {
         } | null;
         getAllEntityIds?(): string[];
         worldToScreen?(x: number, y: number, z?: number): { x: number; y: number };
-        playAnim?(id: string, name: string): void;
+        playAnim?(id: string, name: string, loop?: boolean): void;
         // 파티클 시스템
         playParticle?(presetId: string, x: number, y: number, scale?: number): void;
         playCustomParticle?(textureId: string, x: number, y: number, scale?: number): void;
@@ -119,17 +119,34 @@ class ActionRegistryClass {
     private registerDefaults() {
         this.register("PlayAnimation", (ctx, params) => {
             const animName = params.animationName as string;
-            console.log(`[ActionRegistry] PlayAnimation request:`, { entityId: ctx.entityId, animName, params, hasRenderer: !!ctx.globals?.renderer, hasPlayAnim: !!ctx.globals?.renderer?.playAnim });
+            const loopParam = params.loop;
+            const loop = typeof loopParam === 'boolean' ? loopParam : undefined;
+
+            console.log(`[ActionRegistry] PlayAnimation request:`, { entityId: ctx.entityId, animName, loop, params, hasRenderer: !!ctx.globals?.renderer, hasPlayAnim: !!ctx.globals?.renderer?.playAnim });
 
             if (animName && ctx.globals?.renderer?.playAnim) {
-                ctx.globals.renderer.playAnim(ctx.entityId, animName);
-                console.log(`[ActionRegistry] PlayAnimation executed: ${ctx.entityId} -> ${animName}`);
+                ctx.globals.renderer.playAnim(ctx.entityId, animName, loop);
+                console.log(`[ActionRegistry] PlayAnimation executed: ${ctx.entityId} -> ${animName} (loop=${loop})`);
             } else {
                 console.warn(`[ActionRegistry] PlayAnimation failed: missing name or renderer method`, {
                     animName,
                     hasRenderer: !!ctx.globals?.renderer,
                     hasPlayAnim: !!ctx.globals?.renderer?.playAnim
                 });
+            }
+        });
+
+        this.register("Log", (ctx, params) => {
+            console.log(`[Action:Log]`, params.payload || params.message || "No message");
+        });
+
+        this.register("OpenUrl", (ctx, params) => {
+            const url = params.payload as string;
+            if (url) {
+                console.log(`[Action:OpenUrl] Opening: ${url}`);
+                window.open(url, '_blank');
+            } else {
+                console.warn(`[Action:OpenUrl] URL is empty`);
             }
         });
     }

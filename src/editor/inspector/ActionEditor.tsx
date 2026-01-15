@@ -368,6 +368,7 @@ export function ActionEditor({
                 </option>
               )}
             </select>
+
             {currentAsset && (
               <button
                 onClick={() => navigate(`/assets-editor?assetId=${currentAsset.id}`)}
