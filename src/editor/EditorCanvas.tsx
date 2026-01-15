@@ -108,6 +108,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const draggedAssetRef = useRef<Asset | null>(draggedAsset);
     const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
     const addEntityRef = useRef(addEntity);
+    const isProcessingDropRef = useRef(false);
 
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
     const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
@@ -346,11 +347,19 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         renderer.onPointerUp = (worldX, worldY) => {
             const activeDragged = draggedAssetRef.current;
-            if (activeDragged && activeDragged.tag !== "Tile") {
+
+            // [FIX] Add lock to prevent duplicate drops (double-click/bounce) causing "Entity already exists" error
+            if (activeDragged && activeDragged.tag !== "Tile" && !isProcessingDropRef.current) {
+                isProcessingDropRef.current = true;
+
+                // Clear ghost immediately
                 if (ghostIdRef.current) {
                     renderer.remove(ghostIdRef.current);
                     ghostIdRef.current = null;
                 }
+
+                // Clear drag state to prevent further drops
+                core.setDraggedAsset(null);
 
                 const entity = assetToEntity(activeDragged, worldX, worldY);
 
@@ -358,16 +367,17 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 const textureKey = entity.texture ?? entity.name;
                 (async () => {
                     try {
-                        // Ensure texture is loaded first
+                        // Ensure texture is loaded first to fix Animation Playback issues
                         await renderer.loadTexture(textureKey, activeDragged.url, activeDragged.metadata);
                         console.log(`[EditorCanvas] Texture loaded for drag-and-drop: ${textureKey}`);
                     } catch (error) {
                         console.error(`[EditorCanvas] Failed to load texture for dropped entity:`, error);
+                    } finally {
+                        // Now add entity - synced to GameCore automatically
+                        // Lock is released after entity is added to prevent race conditions
+                        addEntityRef.current(entity);
+                        isProcessingDropRef.current = false;
                     }
-
-                    // Now add entity - this internally calls core.addEntity → createEntity
-                    // At this point, texture/animations are ready, so OnStart → PlayAnimation will work
-                    addEntityRef.current(entity);
                 })();
             }
 
