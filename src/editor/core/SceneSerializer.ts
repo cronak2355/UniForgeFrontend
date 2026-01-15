@@ -56,7 +56,7 @@ export interface SceneEventJSON {
   id: string;
   trigger: string;
   triggerParams?: Record<string, unknown>;
-  conditionLogic?: "AND" | "OR";
+  conditionLogic?: "AND" | "OR" | "BRANCH";
   conditions?: Array<{ type: string;[key: string]: unknown }>;
   action: string;
   params?: Record<string, unknown>;
@@ -289,17 +289,26 @@ export class SceneSerializer {
         }
         return { ...v, type: fixedType };
       });
-      const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => {
-        return {
-          id: `logic_${i}`,
-          type: "Logic",
-          event: ev.trigger,
-          eventParams: ev.triggerParams ?? {},
-          conditions: ev.conditions ?? [],
-          conditionLogic: ev.conditionLogic ?? "AND",
-          actions: [{ type: ev.action, ...(ev.params || {}) }],
-        };
-      });
+      let logicComponents: LogicComponent[] = [];
+
+      // [Fix] Prioritize high-fidelity components array if available
+      // This preserves complex logic (BRANCH, elseActions) not representable in flat events
+      if (e.components && e.components.length > 0) {
+        logicComponents = e.components;
+      } else {
+        // Legacy Fallback: Reconstruct from flat events list
+        logicComponents = (e.events ?? []).map((ev, i) => {
+          return {
+            id: `logic_${i}`,
+            type: "Logic",
+            event: ev.trigger,
+            eventParams: ev.triggerParams ?? {},
+            conditions: ev.conditions ?? [],
+            conditionLogic: ev.conditionLogic ?? "AND",
+            actions: [{ type: ev.action, ...(ev.params || {}) }],
+          };
+        });
+      }
 
       const entity: EditorEntity = {
         id: e.id,
