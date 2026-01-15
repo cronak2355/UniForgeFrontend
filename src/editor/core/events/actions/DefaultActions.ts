@@ -6,7 +6,7 @@ import { assetToEntity } from "../../../utils/assetToEntity";
 import type { Asset } from "../../../types/Asset";
 import type { EditorEntity } from "../../../types/Entity";
 
-type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
+type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean | { x: number; y: number } };
 type RuntimeEntity = {
     id?: string;
     variables?: VariableEntry[];
@@ -189,6 +189,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 
     if (params.direction) {
         const direction = resolveValue(ctx, params.direction as any);
+        // console.log("[Move Debug] Resolved Direction:", direction, "Type:", typeof direction);
         if (typeof direction === 'object' && direction !== null) {
             dirX = Number((direction as any).x ?? 0);
             dirY = Number((direction as any).y ?? 0);
@@ -200,6 +201,8 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         dirX = Number(x);
         dirY = Number(y);
     }
+
+    // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
 
     gameObject.x += dirX * Number(speed) * dt;
     gameObject.y += dirY * Number(speed) * dt;
@@ -565,6 +568,13 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
         if (!src.name) return 0;
         const entity = getEntity(ctx);
         const variable = entity?.variables?.find(v => v.name === src.name);
+
+        if (!variable) {
+            console.warn(`[ResolveValue] Variable not found: "${src.name}" on entity "${ctx.entityId}". Available vars:`, entity?.variables?.map(v => v.name));
+        } else {
+            // console.log(`[ResolveValue] Found var "${src.name}":`, variable.value);
+        }
+
         return variable?.value ?? 0;
     }
 

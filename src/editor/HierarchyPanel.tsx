@@ -33,7 +33,7 @@ const MenuOption = ({ label, onClick }: { label: string, onClick: () => void }) 
     </button>
 );
 
-export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect }: Props) {
+export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect, runtimeCore }: Props) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState<"scene" | "entity" | null>(null);

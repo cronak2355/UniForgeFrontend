@@ -117,7 +117,10 @@ export class GameCore {
         // 3. Register Systems
         this.pipeline.addSystem(new TransformSystem());
         this.pipeline.addSystem(new PhysicsSystem());
-        this.pipeline.addSystem(new LogicSystem(this.moduleRuntime));
+
+        const logicSystem = new LogicSystem(this.moduleRuntime);
+        logicSystem.setGameCore(this);
+        this.pipeline.addSystem(logicSystem);
 
         // 4. Setup Global Events
         this.setupEventHandlers();
@@ -176,6 +179,8 @@ export class GameCore {
             const logicData = comp.data as import("./RuntimeComponent").RuntimeComponent["data"] & { event?: string; actions?: any[]; conditions?: any[] };
             if (!logicData?.event || !mappedEvents.includes(logicData.event)) continue;
 
+            // console.log(`[GameCore] Executing Logic component '${logicData.event}' for entity ${comp.entityId} (Event: ${eventType})`);
+
             // Build action context
             const ctx = {
                 entityId: comp.entityId,
@@ -185,6 +190,7 @@ export class GameCore {
                 globals: {
                     gameCore: this,
                     entities: this.runtimeContext.entities,
+                    renderer: this.renderer,
                 }
             };
 
@@ -238,8 +244,12 @@ export class GameCore {
         }
     }
 
+    public getRenderer(): IRenderer {
+        return this.renderer;
+    }
+
     // =========================================================================
-    // Core Loop
+    // Systems & Lifecycle
     // =========================================================================
 
     update(time: number, deltaTime: number): void {
@@ -342,8 +352,10 @@ export class GameCore {
 
         // 4b. Queue Components from logic array (EditorLogicItem[])
         if (options.logic) {
+            // console.log(`[GameCore] CreateEntity ${id}: Queuing ${options.logic.length} logic items.`);
             for (const item of options.logic) {
                 if (item.kind === "component") {
+                    // console.log(`[GameCore] QueueLogicComponent: ${item.component.type} for entity ${id}, event: ${(item.component as any).event}`);
                     const runtimeComp: RuntimeComponent = {
                         entityId: id,
                         type: item.component.type,
@@ -352,6 +364,8 @@ export class GameCore {
                     this.pipeline.queueAddComponent(runtimeComp);
                 }
             }
+        } else {
+            // console.warn(`[GameCore] CreateEntity ${id}: No 'logic' options provided.`);
         }
 
         // 5. Setup Variables

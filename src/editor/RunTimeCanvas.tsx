@@ -98,6 +98,7 @@ function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
             modules: entity.modules,
             role: entity.role,
             texture: entity.texture,
+            logic: entity.logic,
         });
     });
 }
@@ -125,13 +126,28 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
     useEffect(() => {
         if (!ref.current) return;
-        if (rendererRef.current) return;
 
+        // [CRITICAL FIX] Prevent double initialization in Strict Mode
+        // If a renderer already exists from a previous mount cycle, skip
+        if (rendererRef.current) {
+            console.log("[RunTimeCanvas] Skipping duplicate initialization (Strict Mode)");
+            return;
+        }
+
+        // [Lifecycle] Strict cleanup of any existing content
+        while (ref.current.firstChild) {
+            ref.current.removeChild(ref.current.firstChild);
+        }
+
+        // console.log("[RunTimeCanvas] Creating new PhaserRenderer instance");
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
+
         const gameRuntime = new GameCore(renderer);
         gameCoreRef.current = gameRuntime;
         setGameCore(gameRuntime);
+
+        // Link references
         renderer.gameCore = gameRuntime;
         renderer.gameConfig = defaultGameConfig;
         gameRuntime.setGameConfig(defaultGameConfig);
@@ -140,18 +156,32 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         renderer.onInputState = (input) => {
             gameRuntime.setInputState(input);
         };
+
+        // Notify Parent
         if (onGameReady) {
             onGameReady(gameRuntime);
         }
+
+        // Initialize Modules
         if (!initialModulesRef.current) {
             initialModulesRef.current = core.getModules().map((mod) => JSON.parse(JSON.stringify(mod)));
         }
-        gameRuntime.setModuleLibrary(modules, (updated) => core.updateModule(updated));
+        gameRuntime.setModuleLibrary(modules, (updated: any) => core.updateModule(updated));
 
-        let active = true;
+        // [Lifecycle] Async Initialization with Abort Check
+        let isMounted = true;
 
         (async () => {
-            // Parse aspectRatio to get game dimensions
+            // 1. Small delay to ensure cleanup from previous cycle completes
+            await new Promise(resolve => setTimeout(resolve, 50));
+            if (!isMounted) {
+                console.log("[RunTimeCanvas] Aborted during initial delay");
+                renderer.destroy();
+                rendererRef.current = null;
+                return;
+            }
+
+            // 2. Parse Dimensions
             let gameWidth = 1280;
             let gameHeight = 720;
             if (aspectRatio) {
@@ -160,29 +190,47 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 gameHeight = parseInt(hStr) || 720;
             }
 
-            // Initialize renderer with fixed game size for runtime
+            // 3. Init Renderer (Async)
+            // console.log(`[RunTimeCanvas] Initializing... ${gameWidth}x${gameHeight}`);
             await renderer.init(ref.current as HTMLElement, { width: gameWidth, height: gameHeight });
-            if (!active) return;
-            rendererReadyRef.current = true;
 
-            // Enable runtime mode for Rules and TICK events
-            renderer.isRuntimeMode = true;
-
-            // Center camera on the game area
-            renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
-
-            const freshEntities = Array.from(core.getEntities().values());
-            spawnRuntimeEntities(gameRuntime, freshEntities);
-
-            if (renderer.isRuntimeMode) {
-                console.log(`[RunTimeCanvas] Initialized with ${freshEntities.length} entities`);
+            // [Lifecycle] Check after await
+            if (!isMounted) {
+                console.log("[RunTimeCanvas] Unmounted during init. Destroying.");
+                renderer.destroy();
+                return;
             }
 
-            // 렌더링 루프 콜백 설정
+            // 4. Setup State
+            rendererReadyRef.current = true;
+            renderer.isRuntimeMode = true;
+            renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
+
+            // 4.5 Load Textures (CRITICAL - must be before entity spawn)
+            // console.log(`[RunTimeCanvas] Loading ${assets.length} assets...`);
+            for (const asset of assets) {
+                if (asset.tag === "Tile") continue;
+                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
+                if (!isMounted) {
+                    console.log("[RunTimeCanvas] Aborted during texture loading");
+                    renderer.destroy();
+                    rendererRef.current = null;
+                    return;
+                }
+            }
+            // console.log("[RunTimeCanvas] Textures loaded");
+
+            // 5. Spawn Entities
+            const freshEntities = Array.from(core.getEntities().values());
+            spawnRuntimeEntities(gameRuntime, freshEntities);
+            // console.log(`[RunTimeCanvas] Ready. Entities: ${freshEntities.length}`);
+
+            // 6. Start Loop
             renderer.onUpdateCallback = (time, delta) => {
+                if (!isMounted) return;
                 gameRuntime.update(time, delta);
 
-                // FPS Calculation
+                // FPS Calc
                 frameCountRef.current++;
                 if (time > lastFpsTimeRef.current + 500) {
                     setFps(Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current)));
@@ -190,6 +238,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                     lastFpsTimeRef.current = time;
                 }
 
+                // UI Sync Logic (Simplified for brevity in update, Logic is same as before)
                 // [UI Text Sync] Runtime variable -> Phaser Text
                 // Optimized: Access RuntimeContext directly
                 const runtimeContext = gameRuntime.getRuntimeContext();
@@ -315,11 +364,16 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         })();
 
         return () => {
-            active = false;
+            isMounted = false;
+            console.log("[RunTimeCanvas] Cleanup triggered");
+
             gameRuntime.destroy && gameRuntime.destroy();
             renderer.onUpdateCallback = undefined;
             renderer.onInputState = undefined;
+
+            // Explicit destroy
             renderer.destroy();
+
             rendererRef.current = null;
             gameCoreRef.current = null;
             setGameCore(null);
@@ -509,4 +563,61 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             </div>
         </div>
     );
+}
+// Helper for UI Sync (Extracted to avoid clutter in useEffect)
+function syncUIText(gameRuntime: GameCore, core: any, setFps: any) {
+    const runtimeContext = gameRuntime.getRuntimeContext();
+    const renderer = gameRuntime.getRenderer() as PhaserRenderer; // Cast to access internal methods
+
+    const getVarValue = (entId: string, varName: string, isRuntime: boolean, entObj?: any) => {
+        if (isRuntime) {
+            return runtimeContext.getEntityVariable(entId, varName);
+        } else {
+            return entObj?.variables?.find((v: any) => v.name === varName)?.value;
+        }
+    };
+
+    for (const [id, entity] of runtimeContext.entities) {
+        const isUI = runtimeContext.getEntityVariable(id, "isUI");
+        if (isUI !== true) continue;
+
+        const uiSourceEntityId = runtimeContext.getEntityVariable(id, "uiSourceEntity");
+        let sourceId = uiSourceEntityId ? String(uiSourceEntityId) : null;
+        let isRuntimeSource = false;
+        let sourceEntity: any = null;
+
+        if (sourceId && runtimeContext.entities.has(sourceId)) {
+            sourceEntity = runtimeContext.entities.get(sourceId);
+            isRuntimeSource = true;
+        } else if (sourceId) {
+            sourceEntity = core.getGlobalEntities().get(sourceId);
+            isRuntimeSource = false;
+        }
+
+        if (!sourceEntity) continue;
+
+        const uiType = runtimeContext.getEntityVariable(id, "uiType");
+        const uiValueLink = runtimeContext.getEntityVariable(id, "uiValueVar");
+        const uiText = runtimeContext.getEntityVariable(id, "uiText");
+
+        if (uiValueLink) {
+            const val = getVarValue(sourceId!, String(uiValueLink), isRuntimeSource, sourceEntity);
+            if (val !== undefined) {
+                if (uiType === "text") {
+                    renderer.updateText(id, String(val));
+                } else if (uiType === "bar") {
+                    const maxVar = runtimeContext.getEntityVariable(id, "uiMaxVar") || "maxHp";
+                    const maxVal = getVarValue(sourceId!, String(maxVar), isRuntimeSource, sourceEntity);
+                    if (typeof maxVal === 'number' && typeof val === 'number' && maxVal > 0) {
+                        const ratio = val / maxVal;
+                        renderer.updateBar(id, ratio);
+                    }
+                }
+            }
+        } else if (uiText) {
+            if (uiType === "text") {
+                renderer.updateText(id, String(uiText));
+            }
+        }
+    }
 }

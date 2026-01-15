@@ -1173,26 +1173,9 @@ function EditorLayoutInner() {
                         background: colors.bgSecondary
                     }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={() => {
-                                    const next = mode === "dev" ? "run" : "dev";
-                                    setMode(next);
-                                    if (next === "dev") setRuntimeCore(null);
-                                }}
-                                style={{
-                                    padding: '6px 16px',
-                                    background: mode === "dev" ? colors.accent : colors.error,
-                                    color: '#fff',
-                                    borderRadius: '4px',
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
-                            >
-                                {mode === "dev" ? <><i className="fa-solid fa-play" /> Play</> : <><i className="fa-solid fa-stop" /> Stop</>}
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {/* Duplicate Play Button Removed */}
+                            </div>
                         </div>
                         <div style={{ fontSize: '12px', color: colors.textSecondary }}>
                             {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
