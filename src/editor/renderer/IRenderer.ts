@@ -274,4 +274,10 @@ export interface IRenderer {
      * 게임 오브젝트 가져오기 (위치 참조용)
      */
     getGameObject?(id: string): { x: number; y: number } | null;
+
+    /**
+     * 런타임 모드 여부
+     * EditorCanvas에서는 false, RunTimeCanvas에서는 true
+     */
+    isRuntimeMode?: boolean;
 }

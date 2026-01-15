@@ -918,8 +918,17 @@ function OperandInput({
         )}
 
         {sourceType === 'mouse' && (
-          <div className="text-xs text-gray-400 flex items-center">
-            Uses Mouse Pos
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: '100%' }}>
+            <span style={{ fontSize: 10, color: '#aaa' }}>Mode</span>
+            <select
+              value={source.mode || 'absolute'}
+              onChange={(e) => updateSource({ mode: e.target.value })}
+              style={{ ...styles.smallSelect, flex: 1 }}
+            >
+              <option value="absolute">World (Abs)</option>
+              <option value="relative">Entity (Rel)</option>
+              <option value="screen">Screen UI</option>
+            </select>
           </div>
         )}
 
