@@ -150,29 +150,7 @@ function EditorLayoutInner() {
     // Removed resize effect
     /* useEffect(() => { ... resize logic ... }, []); */
 
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizingAssetPanel) return;
-            // Calculate new height based on mouse position from bottom
-            // Main container is fullscreen, so window.innerHeight - e.clientY
-            // Clamp values
-            const newHeight = Math.max(100, Math.min(800, window.innerHeight - e.clientY));
-            setAssetPanelHeight(newHeight);
-        };
-
-        const handleMouseUp = () => {
-            setIsResizingAssetPanel(false);
-        };
-
-        if (isResizingAssetPanel) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizingAssetPanel]);
+    // Resize logic removed
 
     // Prompt on exit if dirty
     useEffect(() => {
@@ -1314,7 +1292,7 @@ function EditorLayoutInner() {
                         background: colors.bgSecondary
                     }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                             {/* Toolbar Buttons if any */}
+                            {/* Toolbar Buttons if any */}
                         </div>
                         <div style={{ fontSize: '12px', color: colors.textSecondary }}>
                             {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
@@ -1396,234 +1374,234 @@ function EditorLayoutInner() {
 
             </div>
 
-    {/* AI Wizard Modal */}
-    <AiWizardModal
-        isOpen={isAiWizardOpen}
-        onClose={() => setIsAiWizardOpen(false)}
-        onGenerate={handleAiGenerate}
-    />
+            {/* AI Wizard Modal */}
+            <AiWizardModal
+                isOpen={isAiWizardOpen}
+                onClose={() => setIsAiWizardOpen(false)}
+                onGenerate={handleAiGenerate}
+            />
 
-    {/* Save Toast */}
-    {saveToast && (
-        <div style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            background: '#2563eb',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            zIndex: 2000,
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            animation: 'fadeIn 0.3s ease-out'
-        }}>
-            <i className="fa-solid fa-check-circle"></i>
-            {saveToast}
-        </div>
-    )}
-
-    {/* Asset Library Modal */}
-    {isAssetLibraryOpen && (
-        <AssetLibraryModal
-            onClose={() => setIsAssetLibraryOpen(false)}
-            onAssetSelect={(libItem) => {
-                 // Convert library item to editor asset
-                 const newAsset: Asset = {
-                    id: libItem.id, // Use asset ID from backend
-                    tag: libItem.assetType || "Character",
-                    name: libItem.title,
-                    url: libItem.thumbnail, // Use the image URL
-                    idx: 0, // Default index
-                    metadata: libItem.metadata, // Pass the parsed metadata!
-                    description: libItem.description // Pass description for recovery
-                };
-                core.addAsset(newAsset);
-                setIsAssetLibraryOpen(false);
-            }}
-        />
-    )}
-
-    {/* Drag & Drop Modal */}
-    {dropModalFiles.length > 0 && (
-        <div
-            style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0, 0, 0, 0.65)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 2000,
-                padding: "24px",
-            }}
-            onClick={() => resetDropModal()}
-        >
-            <div
-                style={{
-                    width: "100%",
-                    maxWidth: "520px",
-                    background: colors.bgSecondary,
-                    border: `1px solid ${colors.borderColor}`,
-                    borderRadius: "10px",
-                    padding: "20px",
-                    boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
+            {/* Save Toast */}
+            {saveToast && (
                 <div style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    marginBottom: "12px",
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    background: '#2563eb',
+                    color: 'white',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 2000,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    animation: 'fadeIn 0.3s ease-out'
                 }}>
-                    {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
+                    <i className="fa-solid fa-check-circle"></i>
+                    {saveToast}
                 </div>
-                {dropModalFiles.length > 0 && (
-                    <div style={{
-                        background: colors.bgTertiary,
-                        border: `1px solid ${colors.borderColor}`,
-                        borderRadius: "8px",
-                        padding: "12px",
-                        color: colors.textSecondary,
-                        fontSize: "12px",
-                        lineHeight: 1.6,
-                        maxHeight: "150px",
-                        overflowY: "auto"
-                    }}>
-                        {dropModalFiles.length === 1 ? (
-                            <>
-                                <div>Filename: {dropModalFiles[0].name}</div>
-                                <div>Type: {dropModalFiles[0].type || "unknown"}</div>
-                                <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
-                            </>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
-                                    {dropModalFiles.length} files selected:
-                                </div>
-                                {dropModalFiles.map((f, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
-                                            {f.name}
-                                        </span>
-                                        <span>{Math.ceil(f.size / 1024)}KB</span>
+            )}
+
+            {/* Asset Library Modal */}
+            {isAssetLibraryOpen && (
+                <AssetLibraryModal
+                    onClose={() => setIsAssetLibraryOpen(false)}
+                    onAssetSelect={(libItem) => {
+                        // Convert library item to editor asset
+                        const newAsset: Asset = {
+                            id: libItem.id, // Use asset ID from backend
+                            tag: libItem.assetType || "Character",
+                            name: libItem.title,
+                            url: libItem.thumbnail, // Use the image URL
+                            idx: 0, // Default index
+                            metadata: libItem.metadata, // Pass the parsed metadata!
+                            description: libItem.description // Pass description for recovery
+                        };
+                        core.addAsset(newAsset);
+                        setIsAssetLibraryOpen(false);
+                    }}
+                />
+            )}
+
+            {/* Drag & Drop Modal */}
+            {dropModalFiles.length > 0 && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0, 0, 0, 0.65)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 2000,
+                        padding: "24px",
+                    }}
+                    onClick={() => resetDropModal()}
+                >
+                    <div
+                        style={{
+                            width: "100%",
+                            maxWidth: "520px",
+                            background: colors.bgSecondary,
+                            border: `1px solid ${colors.borderColor}`,
+                            borderRadius: "10px",
+                            padding: "20px",
+                            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: colors.textPrimary,
+                            marginBottom: "12px",
+                        }}>
+                            {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
+                        </div>
+                        {dropModalFiles.length > 0 && (
+                            <div style={{
+                                background: colors.bgTertiary,
+                                border: `1px solid ${colors.borderColor}`,
+                                borderRadius: "8px",
+                                padding: "12px",
+                                color: colors.textSecondary,
+                                fontSize: "12px",
+                                lineHeight: 1.6,
+                                maxHeight: "150px",
+                                overflowY: "auto"
+                            }}>
+                                {dropModalFiles.length === 1 ? (
+                                    <>
+                                        <div>Filename: {dropModalFiles[0].name}</div>
+                                        <div>Type: {dropModalFiles[0].type || "unknown"}</div>
+                                        <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
+                                    </>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
+                                            {dropModalFiles.length} files selected:
+                                        </div>
+                                        {dropModalFiles.map((f, i) => (
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                                                    {f.name}
+                                                </span>
+                                                <span>{Math.ceil(f.size / 1024)}KB</span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </div>
                         )}
-                    </div>
-                )}
-                <div style={{
-                    marginTop: "14px",
-                    display: "grid",
-                    gap: "10px",
-                }}>
-                    {dropModalFiles.length === 1 && (
-                        <label style={{
+                        <div style={{
+                            marginTop: "14px",
                             display: "grid",
-                            gap: "6px",
-                            fontSize: "12px",
-                            color: colors.textSecondary,
+                            gap: "10px",
                         }}>
-                            Name
-                            <input
-                                type="text"
-                                value={dropAssetName}
-                                onChange={(e) => setDropAssetName(e.target.value)}
-                                placeholder="Asset name"
+                            {dropModalFiles.length === 1 && (
+                                <label style={{
+                                    display: "grid",
+                                    gap: "6px",
+                                    fontSize: "12px",
+                                    color: colors.textSecondary,
+                                }}>
+                                    Name
+                                    <input
+                                        type="text"
+                                        value={dropAssetName}
+                                        onChange={(e) => setDropAssetName(e.target.value)}
+                                        placeholder="Asset name"
+                                        style={{
+                                            background: colors.bgPrimary,
+                                            border: `1px solid ${colors.borderColor}`,
+                                            borderRadius: "6px",
+                                            padding: "8px 10px",
+                                            color: colors.textPrimary,
+                                            fontSize: "12px",
+                                            outline: "none",
+                                        }}
+                                    />
+                                </label>
+                            )}
+                            <label style={{
+                                display: "grid",
+                                gap: "6px",
+                                fontSize: "12px",
+                                color: colors.textSecondary,
+                            }}>
+                                Tag
+                                <select
+                                    value={dropAssetTag}
+                                    onChange={(e) => setDropAssetTag(e.target.value)}
+                                    style={{
+                                        background: colors.bgPrimary,
+                                        border: `1px solid ${colors.borderColor}`,
+                                        borderRadius: "6px",
+                                        padding: "8px 10px",
+                                        color: colors.textPrimary,
+                                        fontSize: "12px",
+                                        outline: "none",
+                                    }}
+                                >
+                                    <option value="Character">Character</option>
+                                    <option value="Tile">Tile</option>
+                                </select>
+                            </label>
+                        </div>
+                        {uploadError && (
+                            <div style={{
+                                marginTop: "10px",
+                                color: "#f87171",
+                                fontSize: "12px",
+                            }}>
+                                {uploadError}
+                            </div>
+                        )}
+                        <div style={{
+                            marginTop: "16px",
+                            display: "flex",
+                            gap: "8px",
+                            justifyContent: "flex-end",
+                        }}>
+                            <button
+                                type="button"
+                                onClick={handleAddAsset}
+                                disabled={isUploadingAsset}
                                 style={{
-                                    background: colors.bgPrimary,
+                                    padding: "8px 14px",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    background: colors.bgTertiary,
                                     border: `1px solid ${colors.borderColor}`,
                                     borderRadius: "6px",
-                                    padding: "8px 10px",
                                     color: colors.textPrimary,
-                                    fontSize: "12px",
-                                    outline: "none",
+                                    cursor: "pointer",
                                 }}
-                            />
-                        </label>
-                    )}
-                    <label style={{
-                        display: "grid",
-                        gap: "6px",
-                        fontSize: "12px",
-                        color: colors.textSecondary,
-                    }}>
-                        Tag
-                        <select
-                            value={dropAssetTag}
-                            onChange={(e) => setDropAssetTag(e.target.value)}
-                            style={{
-                                background: colors.bgPrimary,
-                                border: `1px solid ${colors.borderColor}`,
-                                borderRadius: "6px",
-                                padding: "8px 10px",
-                                color: colors.textPrimary,
-                                fontSize: "12px",
-                                outline: "none",
-                            }}
-                        >
-                            <option value="Character">Character</option>
-                            <option value="Tile">Tile</option>
-                        </select>
-                    </label>
-                </div>
-                {uploadError && (
-                    <div style={{
-                        marginTop: "10px",
-                        color: "#f87171",
-                        fontSize: "12px",
-                    }}>
-                        {uploadError}
+                            >
+                                Add Asset
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => resetDropModal()}
+                                style={{
+                                    padding: "8px 14px",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    background: colors.borderAccent,
+                                    border: `1px solid ${colors.borderColor}`,
+                                    borderRadius: "6px",
+                                    color: colors.textPrimary,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
-                )}
-                <div style={{
-                    marginTop: "16px",
-                    display: "flex",
-                    gap: "8px",
-                    justifyContent: "flex-end",
-                }}>
-                    <button
-                        type="button"
-                        onClick={handleAddAsset}
-                        disabled={isUploadingAsset}
-                        style={{
-                            padding: "8px 14px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            background: colors.bgTertiary,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: "6px",
-                            color: colors.textPrimary,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Add Asset
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => resetDropModal()}
-                        style={{
-                            padding: "8px 14px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            background: colors.borderAccent,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: "6px",
-                            color: colors.textPrimary,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Close
-                    </button>
                 </div>
-            </div>
-        </div>
-    )}
+            )}
         </div>
     );
 }
