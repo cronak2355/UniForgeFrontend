@@ -1,4 +1,4 @@
-export type ModuleLiteral = number | string | boolean | null;
+export type ModuleLiteral = number | string | boolean | { x: number; y: number } | null;
 
 export type ModuleFlowType = "Instant" | "Async";
 
@@ -102,8 +102,8 @@ export interface ModuleGraph {
 export interface ModuleVariable {
   id: string;
   name: string;
-  type: "int" | "float" | "string" | "bool";
-  value: number | string | boolean | null;
+  type: "int" | "float" | "string" | "bool" | "vector2";
+  value: number | string | boolean | { x: number; y: number } | null;
 }
 
 export function createDefaultModuleGraph(): ModuleGraph {

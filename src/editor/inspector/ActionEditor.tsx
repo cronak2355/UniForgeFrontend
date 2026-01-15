@@ -133,18 +133,28 @@ export function ActionEditor({
       <div style={styles.actionParams}>
         {action.type === "Move" && (
           <>
-            <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
-            <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
-            <ParamInput label="speed" value={action.speed as number} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} />
+            <ParamInput
+              label="direction"
+              value={action.direction ?? { x: 0, y: 0 }}
+              onChange={(v) => onUpdate({ ...action, direction: v })}
+              variables={variables}
+              entities={entities}
+              listId={listId}
+              targetType="vector2"
+            />
+            <ParamInput label="speed" value={action.speed} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
           </>
         )}
 
         {action.type === "Wait" && (
           <ParamInput
             label="seconds"
-            value={action.seconds as number}
+            value={action.seconds}
             defaultValue={1}
             onChange={(v) => onUpdate({ ...action, seconds: v })}
+            variables={variables}
+            entities={entities}
+            listId={listId}
           />
         )}
 
@@ -162,18 +172,18 @@ export function ActionEditor({
                 </option>
               ))}
             </select>
-            <ParamInput label="speed" value={action.speed as number} defaultValue={80} onChange={(v) => onUpdate({ ...action, speed: v })} />
+            <ParamInput label="speed" value={action.speed} defaultValue={80} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
           </>
         )}
 
         {(action.type === "TakeDamage" || action.type === "Heal") && (
-          <ParamInput label="amount" value={action.amount as number} defaultValue={10} onChange={(v) => onUpdate({ ...action, amount: v })} />
+          <ParamInput label="amount" value={action.amount} defaultValue={10} onChange={(v) => onUpdate({ ...action, amount: v })} variables={variables} entities={entities} listId={listId} />
         )}
 
         {action.type === "Attack" && (
           <>
-            <ParamInput label="range" value={action.range as number} defaultValue={100} onChange={(v) => onUpdate({ ...action, range: v })} />
-            <ParamInput label="damage" value={action.damage as number} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} />
+            <ParamInput label="range" value={action.range} defaultValue={100} onChange={(v) => onUpdate({ ...action, range: v })} variables={variables} entities={entities} listId={listId} />
+            <ParamInput label="damage" value={action.damage} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} variables={variables} entities={entities} listId={listId} />
           </>
         )}
 
@@ -192,92 +202,90 @@ export function ActionEditor({
               </select>
             </div>
             {/* Speed */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Speed</span>
-              <input
-                type="number"
-                placeholder="500"
-                value={(action.speed as number) ?? 500}
-                onChange={(e) => onUpdate({ ...action, speed: parseFloat(e.target.value) || 500 })}
-                style={{ ...styles.textInput, flex: 1 }}
-              />
-            </div>
+            <ParamInput label="Speed" value={action.speed} defaultValue={500} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
             {/* Damage */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Damage</span>
-              <input
-                type="number"
-                placeholder="10"
-                value={(action.damage as number) ?? 10}
-                onChange={(e) => onUpdate({ ...action, damage: parseFloat(e.target.value) || 10 })}
-                style={{ ...styles.textInput, flex: 1 }}
-              />
-            </div>
+            <ParamInput label="Damage" value={action.damage} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} variables={variables} entities={entities} listId={listId} />
           </div>
         )}
 
         {action.type === "SetVar" && (
-          <>
-            <input
-              type="text"
-              placeholder="name"
-              value={(action.name as string) || ""}
-              onChange={(e) => onUpdate({ ...action, name: e.target.value })}
-              onBlur={() => {
-                const name = (action.name as string) || "";
-                if (!name || selectedVar) return;
-                onCreateVariable?.(name, action.value);
-              }}
-              list={`${listId}-vars`}
-              style={styles.textInput}
-            />
-            <datalist id={`${listId}-vars`}>
-              {variables.map((v) => (
-                <option key={v.id} value={v.name} />
-              ))}
-            </datalist>
-            {selectedVar?.type === "bool" ? (
+          <div className="flex flex-col gap-2 w-full">
+            {/* Target Variable */}
+            <div className="flex gap-1 items-center">
+              <span className="text-xs text-gray-500 w-12">Target</span>
               <select
-                value={action.value === true ? "true" : "false"}
-                onChange={(e) => onUpdate({ ...action, value: e.target.value === "true" })}
-                onBlur={() => {
-                  const name = (action.name as string) || "";
-                  if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
+                value={(action.name as string) || ""}
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  const targetVar = variables.find(v => v.name === newName);
+
+                  let updates: any = { name: newName };
+
+                  if (targetVar) {
+                    const isVectorVar = targetVar.type === 'vector2';
+                    const currentOp1 = action.operand1;
+                    const isOp1Vector = typeof currentOp1 === 'object' && currentOp1 !== null && 'x' in currentOp1;
+
+                    if (isVectorVar && !isOp1Vector) {
+                      updates.operand1 = { x: 0, y: 0 };
+                      updates.operand2 = { x: 0, y: 0 };
+                    } else if (!isVectorVar && isOp1Vector) {
+                      updates.operand1 = 0;
+                      updates.operand2 = 0;
+                    }
+                  }
+
+                  onUpdate({ ...action, ...updates });
                 }}
-                style={styles.smallSelect}
+                style={{ ...styles.selectField, flex: 1, minWidth: 0 }}
               >
-                <option value="true">true</option>
-                <option value="false">false</option>
+                <option value="" disabled>Select Variable</option>
+                {variables.map((v) => (
+                  <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
+                ))}
               </select>
-            ) : selectedVar?.type === "int" || selectedVar?.type === "float" ? (
-              <input
-                type="number"
-                placeholder="value"
-                value={action.value !== undefined ? Number(action.value) : 0}
-                onChange={(e) => onUpdate({ ...action, value: parseFloat(e.target.value) || 0 })}
-                onBlur={() => {
-                  const name = (action.name as string) || "";
-                  if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
-                }}
-                style={styles.textInput}
-              />
-            ) : (
-              <input
-                type="text"
-                placeholder="value"
-                value={action.value !== undefined ? String(action.value) : ""}
-                onChange={(e) => onUpdate({ ...action, value: e.target.value })}
-                onBlur={() => {
-                  const name = (action.name as string) || "";
-                  if (!name || selectedVar) return;
-                  onCreateVariable?.(name, action.value);
-                }}
-                style={styles.textInput}
+            </div>
+
+            {/* Operation Selector */}
+            <div className="flex gap-1 items-center">
+              <span className="text-xs text-gray-500 w-12">Op</span>
+              <select
+                value={(action.operation as string) || "Set"}
+                onChange={(e) => onUpdate({ ...action, operation: e.target.value })}
+                style={{ ...styles.smallSelect, flex: 1 }}
+              >
+                <option value="Set">=</option>
+                <option value="Add">+ (Add)</option>
+                <option value="Sub">- (Sub)</option>
+                <option value="Multiply">* (Mul)</option>
+                <option value="Divide">/ (Div)</option>
+              </select>
+            </div>
+
+            {/* Operand 1 */}
+            <OperandInput
+              label="Val 1"
+              value={action.operand1 ?? (selectedVar?.type === "vector2" ? { x: 0, y: 0 } : 0)}
+              onChange={(v) => onUpdate({ ...action, operand1: v })}
+              variables={variables}
+              entities={entities}
+              listId={listId}
+              targetType={selectedVar?.type}
+            />
+
+            {/* Operand 2 (Only if not Set) */}
+            {((action.operation || 'Set') !== "Set") && (
+              <OperandInput
+                label="Val 2"
+                value={action.operand2 ?? (selectedVar?.type === "vector2" ? { x: 0, y: 0 } : 0)}
+                onChange={(v) => onUpdate({ ...action, operand2: v })}
+                variables={variables}
+                entities={entities}
+                listId={listId}
+                targetType={selectedVar?.type}
               />
             )}
-          </>
+          </div>
         )}
 
         {action.type === "IncrementVar" && (
@@ -431,14 +439,14 @@ export function ActionEditor({
         )}
 
         {action.type === "Rotate" && (
-          <ParamInput label="speed" value={action.speed as number} defaultValue={90} onChange={(v) => onUpdate({ ...action, speed: v })} />
+          <ParamInput label="speed" value={action.speed} defaultValue={90} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
         )}
 
         {action.type === "Pulse" && (
           <>
-            <ParamInput label="speed" value={action.speed as number} defaultValue={2} onChange={(v) => onUpdate({ ...action, speed: v })} />
-            <ParamInput label="min" value={action.minScale as number} defaultValue={0.9} onChange={(v) => onUpdate({ ...action, minScale: v })} />
-            <ParamInput label="max" value={action.maxScale as number} defaultValue={1.1} onChange={(v) => onUpdate({ ...action, maxScale: v })} />
+            <ParamInput label="speed" value={action.speed} defaultValue={2} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
+            <ParamInput label="min" value={action.minScale} defaultValue={0.9} onChange={(v) => onUpdate({ ...action, minScale: v })} variables={variables} entities={entities} listId={listId} />
+            <ParamInput label="max" value={action.maxScale} defaultValue={1.1} onChange={(v) => onUpdate({ ...action, maxScale: v })} variables={variables} entities={entities} listId={listId} />
           </>
         )}
 
@@ -495,13 +503,13 @@ export function ActionEditor({
             </select>
             {spawnPositionMode === "absolute" ? (
               <>
-                <ParamInput label="x" value={action.x as number} onChange={(v) => onUpdate({ ...action, x: v })} />
-                <ParamInput label="y" value={action.y as number} onChange={(v) => onUpdate({ ...action, y: v })} />
+                <ParamInput label="x" value={action.x} onChange={(v) => onUpdate({ ...action, x: v })} variables={variables} entities={entities} listId={listId} />
+                <ParamInput label="y" value={action.y} onChange={(v) => onUpdate({ ...action, y: v })} variables={variables} entities={entities} listId={listId} />
               </>
             ) : (
               <>
-                <ParamInput label="dx" value={action.offsetX as number} onChange={(v) => onUpdate({ ...action, offsetX: v })} />
-                <ParamInput label="dy" value={action.offsetY as number} onChange={(v) => onUpdate({ ...action, offsetY: v })} />
+                <ParamInput label="dx" value={action.offsetX} onChange={(v) => onUpdate({ ...action, offsetX: v })} variables={variables} entities={entities} listId={listId} />
+                <ParamInput label="dy" value={action.offsetY} onChange={(v) => onUpdate({ ...action, offsetY: v })} variables={variables} entities={entities} listId={listId} />
               </>
             )}
             {spawnSourceType === "texture" && (
@@ -600,21 +608,8 @@ export function ActionEditor({
                 </optgroup>
               )}
             </select>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '35px' }}>크기</span>
-              <input
-                type="range"
-                min="0.5"
-                max="5"
-                step="0.5"
-                value={(action.scale as number) ?? 1}
-                onChange={(e) => onUpdate({ ...action, scale: parseFloat(e.target.value) })}
-                style={{ flex: 1 }}
-              />
-              <span style={{ color: '#fff', fontSize: '11px', minWidth: '25px' }}>
-                {(action.scale as number) ?? 1}x
-              </span>
-            </div>
+
+            <ParamInput label="Scale" value={action.scale} defaultValue={1} onChange={(v) => onUpdate({ ...action, scale: v })} variables={variables} entities={entities} listId={listId} />
           </div>
         )}
 
@@ -742,7 +737,7 @@ export function ActionEditor({
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
 
@@ -751,21 +746,168 @@ function ParamInput({
   value,
   defaultValue = 0,
   onChange,
+  variables,
+  entities,
+  listId,
+  targetType,
 }: {
   label: string;
-  value: number | undefined;
+  value: any;
   defaultValue?: number;
-  onChange: (v: number) => void;
+  onChange: (v: any) => void;
+  variables: EditorVariable[];
+  entities: { id: string; name: string }[];
+  listId: string;
+  targetType?: string;
 }) {
   return (
-    <div style={styles.paramInputContainer}>
-      <span style={styles.paramLabel}>{label}:</span>
-      <input
-        type="number"
-        value={value ?? defaultValue}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        style={styles.smallNumberInput}
-      />
+    <OperandInput
+      label={label}
+      value={value ?? defaultValue}
+      onChange={onChange}
+      variables={variables}
+      entities={entities}
+      listId={listId}
+      targetType={targetType}
+    />
+  );
+}
+
+function OperandInput({
+  label,
+  value,
+  onChange,
+  variables,
+  entities,
+  listId,
+  targetType
+}: {
+  label: string;
+  value: any; // ValueSource | number | string | ...
+  onChange: (val: any) => void;
+  variables: EditorVariable[];
+  entities: { id: string; name: string }[];
+  listId: string;
+  targetType?: string;
+}) {
+  // Normalize value to ValueSource structure if it isn't already
+  const source = (typeof value === 'object' && value !== null && 'type' in value)
+    ? value
+    : { type: 'literal', value: value };
+
+  const sourceType = source.type || 'literal';
+
+  // Decide Vector2 mode:
+  // 1. If strict `targetType` is provided, use it ('vector2' -> true, else false)
+  // 2. Fallback to inferring from value (legacy behavior)
+  const isVector2 = targetType
+    ? targetType === 'vector2'
+    : (sourceType === 'literal' && typeof source.value === 'object' && source.value !== null && 'x' in source.value);
+
+  const updateSource = (updates: any) => {
+    onChange({ ...source, ...updates });
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 4, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <span className="text-xs text-gray-500">{label}</span>
+        {/* Type Selector */}
+        <select
+          value={sourceType}
+          onChange={(e) => updateSource({ type: e.target.value })}
+          style={{ ...styles.smallSelect, width: '70px', flex: '0 0 auto' }}
+        >
+          <option value="literal">Value</option>
+          <option value="variable">Var</option>
+          <option value="property">Prop</option>
+          <option value="mouse">Mouse</option>
+        </select>
+      </div>
+
+      {/* Inputs based on Type */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+
+        {sourceType === 'literal' && (
+          <>
+            {isVector2 ? (
+              <div className="flex gap-1 items-center flex-1 min-w-0" style={{ minWidth: '100%' }}>
+                <span className="text-[10px] text-gray-500 shrink-0">X</span>
+                <input
+                  className="variable-value min-w-0"
+                  style={{ ...styles.smallNumberInput, flex: 1, width: '100%' }}
+                  value={source.value?.x ?? 0}
+                  onChange={(e) => updateSource({ value: { ...source.value, x: parseFloat(e.target.value) || 0 } })}
+                />
+                <span className="text-[10px] text-gray-500 shrink-0">Y</span>
+                <input
+                  className="variable-value min-w-0"
+                  style={{ ...styles.smallNumberInput, flex: 1, width: '100%' }}
+                  value={source.value?.y ?? 0}
+                  onChange={(e) => updateSource({ value: { ...source.value, y: parseFloat(e.target.value) || 0 } })}
+                />
+              </div>
+            ) : (
+              <div className="flex gap-1 items-center flex-1 min-w-0" style={{ width: '100%' }}>
+                <input
+                  className="variable-value"
+                  style={{ ...styles.textInput, flex: 1, width: '100%', minWidth: 0 }}
+                  placeholder="0 or text"
+                  value={(typeof source.value === 'object' && source.value !== null) ? 0 : (source.value ?? "")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const n = parseFloat(v);
+                    updateSource({ value: isNaN(n) ? v : n });
+                  }}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {sourceType === 'variable' && (
+          <select
+            className="variable-value"
+            style={{ ...styles.smallSelect, width: '100%', minWidth: 0, flex: 1 }}
+            value={source.name ?? ""}
+            onChange={(e) => updateSource({ name: e.target.value })}
+          >
+            <option value="" disabled>Select Variable</option>
+            {variables && variables.map((v) => (
+              <option key={v.id} value={v.name}>
+                {v.name} ({v.type})
+              </option>
+            ))}
+          </select>
+        )}
+
+        {sourceType === 'property' && (
+          <>
+            <select
+              style={{ ...styles.smallSelect, flex: 1, minWidth: '40%' }}
+              value={source.targetId ?? ""}
+              onChange={(e) => updateSource({ targetId: e.target.value })}
+            >
+              <option value="">(Self)</option>
+              {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <input
+              style={{ ...styles.textInput, flex: 1, minWidth: '40%' }}
+              placeholder="prop"
+              value={source.property ?? ""}
+              onChange={(e) => updateSource({ property: e.target.value })}
+            />
+          </>
+        )}
+
+        {sourceType === 'mouse' && (
+          <div className="text-xs text-gray-400 flex items-center">
+            Uses Mouse Pos
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
+

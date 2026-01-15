@@ -5,9 +5,12 @@ import { ActionRegistry, type ActionContext } from "../events/ActionRegistry";
 import { ConditionRegistry } from "../events/ConditionRegistry";
 import type { LogicComponent } from "../../types/Component";
 
+import type { GameCore } from "../GameCore";
+
 export class LogicSystem implements System {
     name = "LogicSystem";
     private moduleRuntime: ModuleRuntime;
+    private gameCore?: GameCore;
 
     // Performance monitoring
     private frameCount = 0;
@@ -17,11 +20,21 @@ export class LogicSystem implements System {
         this.moduleRuntime = moduleRuntime;
     }
 
+    setGameCore(core: GameCore) {
+        this.gameCore = core;
+    }
+
     onUpdate(context: RuntimeContext, dt: number) {
         const frameStart = performance.now();
 
         // 1. Execute Logic Components (OnUpdate/TICK)
         const logicComponents = context.getAllComponentsOfType("Logic");
+        // console.log(`[LogicSystem] Update. Components: ${logicComponents.length}`);
+
+        if (logicComponents.length === 0 && context.entities.size > 0) {
+            // console.warn(`[LogicSystem] No Logic components found! (Entities: ${context.entities.size})`);
+        }
+
         let processedCount = 0;
 
         for (const comp of logicComponents) {
@@ -46,7 +59,8 @@ export class LogicSystem implements System {
                 entityContext: context.getEntityContext(comp.entityId),
                 globals: {
                     entities: context.entities,
-                    // Note: scene and renderer are not available here; Actions requiring them will need adaptation
+                    renderer: this.gameCore?.getRenderer(),
+                    gameCore: this.gameCore,
                 }
             };
 
@@ -90,9 +104,9 @@ export class LogicSystem implements System {
         const REPORT_INTERVAL = 300;
         if (this.frameCount >= REPORT_INTERVAL) {
             const avgTime = this.accFrameTime / this.frameCount;
-            console.log(`[LogicSystem] Performance Report (Avg over ${this.frameCount} frames):`);
-            console.log(` - Avg Logic Update Time: ${avgTime.toFixed(4)} ms`);
-            console.log(` - Logic Components Executed: ${processedCount}`);
+            // console.log(`[LogicSystem] Performance Report (Avg over ${this.frameCount} frames):`);
+            // console.log(` - Avg Logic Update Time: ${avgTime.toFixed(4)} ms`);
+            // console.log(` - Logic Components Executed: ${processedCount}`);
 
             this.accFrameTime = 0;
             this.frameCount = 0;

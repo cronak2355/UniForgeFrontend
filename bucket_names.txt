@@ -1,0 +1,10 @@
+do-not-delete-ssm-diagnosis-859012633338-us-east-1-rjlrx
+generated-assets-f04385c0
+sagemaker-ap-northeast-2-859012633338
+sagemaker-studio-859012633338-sunvzjsi6h
+uni-static-assets-73743824-hyo
+uni-storage-data-73743824-hyo
+unifor-assets-20251224152246648200000002
+unifor-uploaded-assets
+uniforge-assets
+uniforge-generated-assets-f04385c0

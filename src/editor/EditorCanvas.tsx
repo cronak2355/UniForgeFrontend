@@ -175,6 +175,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 texture: ent.texture ?? ent.name,
                 variables: ent.variables,
                 components: splitLogicItems(ent.logic),
+                logic: ent.logic,
                 modules: ent.modules,
             });
         }
@@ -227,19 +228,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 renderer.initTilemap("tiles");
             }
 
-            for (const t of currentTiles) {
-                renderer.setTile(t.x, t.y, t.tile);
-            }
 
-            for (const e of currentEntities) {
-                gameCore.createEntity(e.id, e.type, e.x, e.y, {
-                    name: e.name,
-                    texture: e.texture ?? e.name,
-                    variables: e.variables,
-                    components: splitLogicItems(e.logic),
-                    modules: e.modules,
-                });
-            }
+
+            // [Refactor] Removed redundant Entity/Tile spawn loops here.
+            // The useEffect hooks (deps: [isRendererReady]) will handle population
+            // immediately after this flag is set. This prevents double-spawn race conditions.
+
             gameCore.flush(); // Sync Context immediately
 
             setIsRendererReady(true);
@@ -385,6 +379,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                                 texture: entity.texture ?? entity.name,
                                 variables: entity.variables,
                                 components: splitLogicItems(entity.logic),
+                                logic: entity.logic,
                                 modules: entity.modules,
                             });
                             gameCore.flush(); // Sync Context immediately
@@ -571,6 +566,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     texture: ent.texture ?? ent.name,
                     variables: ent.variables,
                     components: splitLogicItems(ent.logic),
+                    logic: ent.logic,
                     modules: ent.modules,
                 });
             } else {

@@ -18,9 +18,18 @@ export function VariableSection({
     if (nextType === "bool") {
       return { ...variable, type: nextType, value: false };
     }
+    if (nextType === "vector2") {
+      return { ...variable, type: nextType, value: { x: 0, y: 0 } };
+    }
     if (nextType === "string") {
       return { ...variable, type: nextType, value: String(variable.value ?? "") };
     }
+    // Handle conversion from vector2 to primitive?
+    if (typeof variable.value === 'object' && variable.value !== null) {
+      // Reset to 0 if coming from vector2
+      return { ...variable, type: nextType, value: 0 };
+    }
+
     const numeric =
       typeof variable.value === "number"
         ? variable.value
@@ -86,6 +95,7 @@ export function VariableSection({
               <option value="float">float</option>
               <option value="string">string</option>
               <option value="bool">bool</option>
+              <option value="vector2">vector2</option>
             </select>
 
             <input
@@ -105,10 +115,35 @@ export function VariableSection({
                 <option value="true">true</option>
                 <option value="false">false</option>
               </select>
+            ) : v.type === "vector2" ? (
+              <div className="flex gap-1 items-center">
+                <span className="text-xs text-gray-500">X</span>
+                <input
+                  className="variable-value w-8"
+                  value={typeof v.value === 'object' && v.value !== null ? (v.value as { x: number, y: number }).x : 0}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    const current = typeof v.value === 'object' && v.value !== null ? v.value as { x: number, y: number } : { x: 0, y: 0 };
+                    onUpdate({ ...v, value: { ...current, x: Number.isNaN(val) ? 0 : val } });
+                  }}
+                />
+                <span className="text-xs text-gray-500">Y</span>
+                <input
+                  className="variable-value w-8"
+                  value={typeof v.value === 'object' && v.value !== null ? (v.value as { x: number, y: number }).y : 0}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    const current = typeof v.value === 'object' && v.value !== null ? v.value as { x: number, y: number } : { x: 0, y: 0 };
+                    onUpdate({ ...v, value: { ...current, y: Number.isNaN(val) ? 0 : val } });
+                  }}
+                />
+              </div>
             ) : (
               <input
                 className="variable-value"
-                value={String(v.value)}
+                value={typeof v.value === 'object' && v.value !== null
+                  ? JSON.stringify(v.value)
+                  : String(v.value ?? "")}
                 onChange={e =>
                   onUpdate({ ...v, value: coerceValue(v, e.target.value) })
                 }
