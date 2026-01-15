@@ -335,8 +335,11 @@ class PhaserRenderScene extends Phaser.Scene {
                     this.cameras.main.centerOn(cx, cy);
                 }
             } catch (e) {
-                console.warn("[PhaserRenderer] Camera sync error:", e);
+                // Silent fail for camera sync
             }
+
+            // [CRITICAL FIX] Exit early for runtime mode - don't execute editor physics below
+            return;
         }
 
         // ?ㅻ낫?쒓? 珥덇린?붾릺吏€ ?딆븯?쇰㈃ ?ㅽ궢

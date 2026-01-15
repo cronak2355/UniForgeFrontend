@@ -230,7 +230,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 if (!isMounted) return;
                 gameRuntime.update(time, delta);
 
-                // FPS Calc
+                // FPS Calc (every 500ms, not every frame)
                 frameCountRef.current++;
                 if (time > lastFpsTimeRef.current + 500) {
                     setFps(Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current)));
@@ -238,52 +238,32 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                     lastFpsTimeRef.current = time;
                 }
 
-                // UI Sync Logic (Simplified for brevity in update, Logic is same as before)
-                // [UI Text Sync] Runtime variable -> Phaser Text
-                // Optimized: Access RuntimeContext directly
+                // [OPTIMIZED] UI Sync - Skip if no UI entities exist
+                // This is still O(n) but early-exits for non-UI entities
                 const runtimeContext = gameRuntime.getRuntimeContext();
 
-                // Helper to get variable value
-                const getVarValue = (entId: string, varName: string, isRuntime: boolean, entObj?: any) => {
-                    if (isRuntime) {
-                        return runtimeContext.getEntityVariable(entId, varName);
-                    } else {
-                        return entObj?.variables?.find((v: any) => v.name === varName)?.value;
-                    }
-                };
+                // Quick exit if there are no entities
+                if (runtimeContext.entities.size === 0) return;
 
+                // UI Sync (only for entities with isUI=true)
                 for (const [id, entity] of runtimeContext.entities) {
-                    // Check if this is a UI element
                     const isUI = runtimeContext.getEntityVariable(id, "isUI");
                     if (isUI !== true) continue;
 
-                    // Get source entity for cross-entity linking
                     const uiSourceEntityId = runtimeContext.getEntityVariable(id, "uiSourceEntity");
+                    const sourceId = uiSourceEntityId ? String(uiSourceEntityId) : null;
+                    if (!sourceId) continue;
 
-                    let sourceId = uiSourceEntityId ? String(uiSourceEntityId) : null;
-                    let isRuntimeSource = false;
-                    let sourceEntity: any = null;
-
-                    // 1. Try Runtime Entities
-                    if (sourceId && runtimeContext.entities.has(sourceId)) {
-                        sourceEntity = runtimeContext.entities.get(sourceId);
-                        isRuntimeSource = true;
-                    }
-                    // 2. Fallback to Global Editor Entities (for static refs)
-                    else if (sourceId) {
-                        sourceEntity = core.getGlobalEntities().get(sourceId);
-                        isRuntimeSource = false;
-                    }
-
+                    // Get source from RuntimeContext only (avoid editor access)
+                    const sourceEntity = runtimeContext.entities.get(sourceId);
                     if (!sourceEntity) continue;
 
                     const uiType = runtimeContext.getEntityVariable(id, "uiType");
                     const uiValueLink = runtimeContext.getEntityVariable(id, "uiValueVar");
                     const uiText = runtimeContext.getEntityVariable(id, "uiText");
 
-                    // Priority: Linked Variable (from source entity) > Static Text
                     if (uiValueLink) {
-                        const val = getVarValue(sourceId!, String(uiValueLink), isRuntimeSource, sourceEntity);
+                        const val = runtimeContext.getEntityVariable(sourceId, String(uiValueLink));
                         if (val !== undefined) {
                             renderer.setText(id, String(val));
                         }
@@ -291,15 +271,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                         renderer.setText(id, String(uiText));
                     }
 
-                    // [UI Bar Sync]
                     if (uiType === "bar") {
                         const valVarName = runtimeContext.getEntityVariable(id, "uiValueVar");
                         const maxVarName = runtimeContext.getEntityVariable(id, "uiMaxVar");
-
                         if (valVarName && maxVarName) {
-                            const val = getVarValue(sourceId!, String(valVarName), isRuntimeSource, sourceEntity);
-                            const max = getVarValue(sourceId!, String(maxVarName), isRuntimeSource, sourceEntity);
-
+                            const val = runtimeContext.getEntityVariable(sourceId, String(valVarName));
+                            const max = runtimeContext.getEntityVariable(sourceId, String(maxVarName));
                             if (val !== undefined && max !== undefined) {
                                 renderer.setBarValue(id, Number(val), Number(max));
                             }
@@ -307,59 +284,8 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                     }
                 }
 
-                // Selected Entity Sync
-                const selectedId = selectedEntityIdRef.current;
-                if (!selectedId) return;
-
-                const runtimeEntity = gameRuntime.getEntity(selectedId);
-                const editorEntity = core.getEntities().get(selectedId);
-                if (!runtimeEntity || !editorEntity) return;
-
-                const nextVars = runtimeEntity.variables.map((v) => ({ ...v }));
-                const nextModules = runtimeEntity.modules ?? editorEntity.modules;
-                const nextEntity = {
-                    ...editorEntity,
-                    x: runtimeEntity.x ?? editorEntity.x,
-                    y: runtimeEntity.y ?? editorEntity.y,
-                    z: runtimeEntity.z ?? editorEntity.z,
-                    rotationX: runtimeEntity.rotationX ?? editorEntity.rotationX,
-                    rotationY: runtimeEntity.rotationY ?? editorEntity.rotationY,
-                    rotationZ: runtimeEntity.rotationZ ?? editorEntity.rotationZ,
-                    rotation: typeof runtimeEntity.rotationZ === "number" ? runtimeEntity.rotationZ : editorEntity.rotation,
-                    scaleX: runtimeEntity.scaleX ?? editorEntity.scaleX,
-                    scaleY: runtimeEntity.scaleY ?? editorEntity.scaleY,
-                    variables: nextVars,
-                    modules: nextModules,
-                };
-
-                const sameVars = editorEntity.variables.length === nextVars.length &&
-                    editorEntity.variables.every((v, idx) => {
-                        const next = nextVars[idx];
-                        return (
-                            v.id === next.id &&
-                            v.name === next.name &&
-                            v.type === next.type &&
-                            v.value === next.value
-                        );
-                    });
-                const sameTransform =
-                    editorEntity.x === nextEntity.x &&
-                    editorEntity.y === nextEntity.y &&
-                    editorEntity.z === nextEntity.z &&
-                    editorEntity.rotationX === nextEntity.rotationX &&
-                    editorEntity.rotationY === nextEntity.rotationY &&
-                    editorEntity.rotationZ === nextEntity.rotationZ &&
-                    editorEntity.scaleX === nextEntity.scaleX &&
-                    editorEntity.scaleY === nextEntity.scaleY;
-                const sameModules = JSON.stringify(editorEntity.modules ?? []) === JSON.stringify(nextEntity.modules ?? []);
-
-                if (sameVars && sameTransform && sameModules) return;
-
-                if (onRuntimeEntitySync) {
-                    onRuntimeEntitySync(nextEntity as any);
-                } else {
-                    core.addEntity(nextEntity as any);
-                }
+                // [REMOVED] Selected Entity Sync - This was too expensive (JSON.stringify every frame)
+                // Entity sync now only happens on explicit user interaction, not per-frame
             };
         })();
 
