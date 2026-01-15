@@ -11,7 +11,7 @@ const NAV_ITEMS: NavItem[] = [
     { icon: 'fa-solid fa-house', label: '홈', path: '/main' },
     { icon: 'fa-solid fa-compass', label: '게임', path: '/explore' },
     { icon: 'fa-solid fa-store', label: '에셋', path: '/marketplace' },
-    { icon: 'fa-solid fa-book', label: '라이브러리', path: '/library' },
+    { icon: 'fa-solid fa-layer-group', label: '라이브러리', path: '/library/assets' },
 ];
 
 const Sidebar = () => {
