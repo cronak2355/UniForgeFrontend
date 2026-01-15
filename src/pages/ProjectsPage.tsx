@@ -216,7 +216,7 @@ export default function ProjectsPage() {
                                     key={game.gameId}
                                     onClick={() => isSelectionMode ? toggleGameSelection(game.gameId) : navigate(`/editor/${game.gameId}`)}
                                     className={`
-                                        group relative bg-[#2a2a2a] rounded-lg border transition-all cursor-pointer overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-xl
+                                        group relative bg-[#2a2a2a] rounded-lg border transition-all cursor-pointer flex flex-col hover:-translate-y-1 hover:shadow-xl
                                         ${isSelectionMode && selectedGameIds.has(game.gameId)
                                             ? 'border-blue-500 ring-2 ring-blue-500/20'
                                             : 'border-[#333] hover:border-blue-500'
@@ -236,7 +236,7 @@ export default function ProjectsPage() {
                                     )}
 
                                     {/* Thumbnail (16:9) */}
-                                    <div className="aspect-video bg-[#111] relative border-b border-[#333]">
+                                    <div className="aspect-video bg-[#111] relative border-b border-[#333] rounded-t-lg overflow-hidden">
                                         {game.thumbnailUrl ? (
                                             <img src={getCloudFrontUrl(game.thumbnailUrl)} alt={game.title} className="w-full h-full object-cover" />
                                         ) : (
