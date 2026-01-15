@@ -5,6 +5,7 @@ export interface GameSummary {
     thumbnailUrl?: string | null;
     authorId: string;
     latestVersionId?: string | null;
+    isPublic?: boolean;
     createdAt: string;
 }
 
@@ -112,7 +113,7 @@ export async function saveGameVersion(gameId: string, sceneData: any): Promise<v
     if (!res.ok) throw new Error("Failed to save game version");
 }
 
-export async function updateGameInfo(gameId: string, title?: string, description?: string, thumbnailUrl?: string): Promise<GameSummary> {
+export async function updateGameInfo(gameId: string, title?: string, description?: string, thumbnailUrl?: string, isPublic?: boolean): Promise<GameSummary> {
     const token = localStorage.getItem('token');
     const headers: HeadersInit = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -121,6 +122,7 @@ export async function updateGameInfo(gameId: string, title?: string, description
     if (title) body.title = title;
     if (description) body.description = description;
     if (thumbnailUrl) body.thumbnailUrl = thumbnailUrl;
+    if (isPublic !== undefined) body.isPublic = isPublic;
 
     const res = await fetch(`${API_BASE}/games/${gameId}`, {
         method: "PATCH",
