@@ -77,9 +77,10 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-type RunTimeCanvasProps = {
+interface RunTimeCanvasProps {
     onRuntimeEntitySync?: (entity: EditorEntity) => void;
-};
+    onGameReady?: (core: any) => void;
+}
 
 function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
     entities.forEach((entity) => {
@@ -101,7 +102,7 @@ function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
     });
 }
 
-export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
+export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanvasProps) {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
@@ -139,6 +140,9 @@ export function RunTimeCanvas({ onRuntimeEntitySync }: RunTimeCanvasProps) {
         renderer.onInputState = (input) => {
             gameRuntime.setInputState(input);
         };
+        if (onGameReady) {
+            onGameReady(gameRuntime);
+        }
         if (!initialModulesRef.current) {
             initialModulesRef.current = core.getModules().map((mod) => JSON.parse(JSON.stringify(mod)));
         }

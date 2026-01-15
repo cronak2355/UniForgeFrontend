@@ -38,15 +38,18 @@ export function ModuleSection({ entity, onUpdateEntity }: Props) {
     updateModules(modules.map((m) => (m.id === updated.id ? updated : m)));
   };
 
-  const ensureVariable = (name: string, value: unknown, explicitType?: "int" | "float" | "string" | "bool") => {
+  const ensureVariable = (name: string, value: unknown, explicitType?: "int" | "float" | "string" | "bool" | "vector2") => {
     if (!name) return;
     if ((entity.variables ?? []).some((v) => v.name === name)) return;
-    let type: "int" | "float" | "string" | "bool" = "string";
-    let nextValue: number | string | boolean = "";
+    let type: "int" | "float" | "string" | "bool" | "vector2" = "string";
+    let nextValue: number | string | boolean | { x: number; y: number } = "";
     if (explicitType) {
       type = explicitType;
     }
-    if (typeof value === "boolean") {
+    if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+      type = "vector2";
+      nextValue = value as { x: number; y: number };
+    } else if (typeof value === "boolean") {
       type = "bool";
       nextValue = value;
     } else if (typeof value === "number" && !Number.isNaN(value)) {
@@ -67,22 +70,31 @@ export function ModuleSection({ entity, onUpdateEntity }: Props) {
     });
   };
 
-  const updateVariable = (name: string, value: unknown, explicitType?: "int" | "float" | "string" | "bool") => {
+  const updateVariable = (name: string, value: unknown, explicitType?: "int" | "float" | "string" | "bool" | "vector2") => {
     if (!name) return;
     const variables = entity.variables ?? [];
     const target = variables.find((v) => v.name === name);
     if (!target) return;
-    let type: "int" | "float" | "string" | "bool" = explicitType ?? target.type ?? "string";
-    let nextValue: number | string | boolean = target.value ?? "";
-    if (typeof value === "boolean") {
+
+    // Preserve existing type if no explicit type AND value type doesn't force a change
+    let type: "int" | "float" | "string" | "bool" | "vector2" = explicitType ?? (target.type as any) ?? "string";
+    let nextValue: number | string | boolean | { x: number; y: number } = target.value ?? "";
+
+    if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+      type = "vector2";
+      nextValue = value as { x: number; y: number };
+    } else if (typeof value === "boolean") {
       type = "bool";
       nextValue = value;
     } else if (typeof value === "number" && !Number.isNaN(value)) {
-      type = Number.isInteger(value) ? "int" : "float";
+      // Only change type if not already set OR if explicitType is given
+      if (!explicitType && target.type !== "vector2") {
+        type = Number.isInteger(value) ? "int" : "float";
+      }
       nextValue = value;
     } else if (value === undefined || value === null) {
-      type = "int";
-      nextValue = 0;
+      // Keep existing type, just reset value
+      nextValue = target.type === "vector2" ? { x: 0, y: 0 } : 0;
     } else {
       nextValue = String(value);
     }
@@ -126,15 +138,15 @@ export function ModuleSection({ entity, onUpdateEntity }: Props) {
               </button>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
-      <ModuleGraphEditor
-        module={activeModule}
-        variables={entity.variables}
-        modules={libraryModules}
-        actionLabels={buildModuleActionLabels(libraryModules)}
-        onCreateVariable={ensureVariable}
-        onUpdateVariable={updateVariable}
-        onChange={(next) => handleUpdateModule(next)}
-      />
+              <ModuleGraphEditor
+                module={activeModule}
+                variables={entity.variables}
+                modules={libraryModules}
+                actionLabels={buildModuleActionLabels(libraryModules)}
+                onCreateVariable={ensureVariable}
+                onUpdateVariable={updateVariable}
+                onChange={(next) => handleUpdateModule(next)}
+              />
             </div>
           </div>
         </div>

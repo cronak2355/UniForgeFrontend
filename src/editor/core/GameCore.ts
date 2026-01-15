@@ -283,7 +283,9 @@ export class GameCore {
             name: options.name ?? `Entity_${id.slice(0, 8)}`,
             active: true,
             role: options.role,
-            modules: options.modules
+            modules: options.modules,
+            // Variables (CRITICAL: must copy from options)
+            variables: options.variables ?? [],
         };
 
         // Queue Creation

@@ -141,7 +141,9 @@ export function VariableSection({
             ) : (
               <input
                 className="variable-value"
-                value={String(v.value)}
+                value={typeof v.value === 'object' && v.value !== null
+                  ? JSON.stringify(v.value)
+                  : String(v.value ?? "")}
                 onChange={e =>
                   onUpdate({ ...v, value: coerceValue(v, e.target.value) })
                 }

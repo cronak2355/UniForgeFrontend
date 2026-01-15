@@ -173,11 +173,16 @@ export class RuntimeContext {
     // Variable Access
     // =========================================================================
 
-    public setEntityVariable(entityId: string, name: string, value: ModuleLiteral, type: string = "any") {
+    public setEntityVariable(entityId: string, name: string, value: ModuleLiteral, type?: string) {
         if (!this.entityVariables.has(entityId)) {
             this.entityVariables.set(entityId, new Map());
         }
-        this.entityVariables.get(entityId)!.set(name, { name, value, type });
+
+        // Preserve existing type if not explicitly provided
+        const existing = this.entityVariables.get(entityId)?.get(name);
+        const finalType = type ?? existing?.type ?? "any";
+
+        this.entityVariables.get(entityId)!.set(name, { name, value, type: finalType });
 
         // Sync to RuntimeEntity.variables array (for Editor Inspector Sync)
         const entity = this.entities.get(entityId);
@@ -185,13 +190,16 @@ export class RuntimeContext {
             const existingVar = entity.variables.find((v) => v.name === name);
             if (existingVar) {
                 existingVar.value = value as any;
-                existingVar.type = type as any;
+                // Only update type if explicitly provided
+                if (type !== undefined) {
+                    existingVar.type = type as any;
+                }
             } else {
                 entity.variables.push({
                     id: crypto.randomUUID(), // Assuming crypto is available or generic ID
                     name,
                     value: value as any,
-                    type: type as any
+                    type: finalType as any
                 });
             }
         }

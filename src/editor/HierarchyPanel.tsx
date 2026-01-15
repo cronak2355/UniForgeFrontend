@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { EditorEntity } from "./types/Entity";
 import { colors } from "./constants/colors";
 import type { EditorState, SceneData } from "./EditorCore";
@@ -9,9 +9,10 @@ type Props = {
     currentSceneId: string;
     selectedId: string | null;
     onSelect: (entity: EditorEntity) => void;
+    runtimeCore?: any;
 };
 
-export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect }: Props) {
+export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect, runtimeCore }: Props) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState<"scene" | "entity" | null>(null);
@@ -21,11 +22,29 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
     const [selectedValueVar, setSelectedValueVar] = useState<string>("");
     const [selectedMaxVar, setSelectedMaxVar] = useState<string>("");
 
+    // Runtime Sync
+    const [runtimeEntities, setRuntimeEntities] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!runtimeCore) return;
+
+        const sync = () => {
+            const ctx = runtimeCore.getRuntimeContext();
+            if (ctx && ctx.entities) {
+                setRuntimeEntities(Array.from(ctx.entities.values()));
+            }
+        };
+
+        sync();
+        const interval = setInterval(sync, 500);
+        return () => clearInterval(interval);
+    }, [runtimeCore]);
+
     const handleSceneClick = (sceneId: string) => {
         if (core.getCurrentSceneId() !== sceneId) {
             core.switchScene(sceneId);
         }
-        core.setSelectedEntity(null); // Always clear entity selection when clicking scene header
+        core.setSelectedEntity(null);
     };
 
     const handleAddScene = (e: React.MouseEvent) => {
@@ -57,16 +76,10 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
             if (editType === "scene") {
                 core.renameScene(editingId, editName.trim());
             } else if (editType === "entity") {
-                // We need a way to rename entity via core
-                // Ensure core has renameEntity or we modify directly
                 const entity = core.getEntities().get(editingId);
                 if (entity) {
-                    // Start: Update entity name
-                    // We can reuse addEntity to overwrite or need a specific update method
-                    // core.addEntity will overwrite if ID exists
                     const updated = { ...entity, name: editName.trim() };
                     core.addEntity(updated);
-                    // Also update selection to reflect new name if needed
                     if (core.getSelectedEntity()?.id === editingId) {
                         core.setSelectedEntity(updated);
                     }
@@ -118,6 +131,57 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         setSelectedMaxVar("");
         onSelect(barEntity);
     };
+
+    if (runtimeCore) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 12px',
+                    background: colors.error, // Red header for runtime
+                    borderBottom: `1px solid ${colors.borderColor}`,
+                    color: '#fff',
+                    fontWeight: 600,
+                    fontSize: '11px',
+                    letterSpacing: '0.5px'
+                }}>
+                    RUNTIME HIERARCHY ({runtimeEntities.length})
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                    {runtimeEntities.map(e => (
+                        <div
+                            key={e.id}
+                            onClick={() => {
+                                // Select logic if needed, might need mapping to editor entity structure
+                                // For now just simple select
+                                onSelect(e);
+                            }}
+                            style={{
+                                fontSize: '14px',
+                                background: e.id === selectedId ? 'rgba(255,255,255,0.2)' : 'transparent',
+                                borderRadius: '3px',
+                                color: e.id === selectedId ? '#fff' : colors.textPrimary,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                userSelect: 'none',
+                                padding: '4px 8px'
+                            }}
+                        >
+                            <span style={{ fontSize: '10px', marginRight: '6px', opacity: 0.7 }}>
+                                {e.type === 'container' ? '📦' : '🧊'}
+                            </span>
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {e.name}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

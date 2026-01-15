@@ -136,6 +136,7 @@ function TopBarMenu({
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
+    const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
@@ -1130,79 +1131,115 @@ function EditorLayoutInner() {
                 flex: 1,
                 overflow: 'hidden',
             }}>
-                {/* LEFT PANEL - Hierarchy */}
-                {/* LEFT PANEL - Hierarchy */}
+
+                {/* Left Sidebar */}
                 <div style={{
                     width: '280px',
-                    background: colors.bgSecondary,
-                    borderRight: `2px solid ${colors.borderColor}`,
                     display: 'flex',
                     flexDirection: 'column',
+                    borderRight: `1px solid ${colors.borderColor}`
                 }}>
-                    <HierarchyPanel
-                        core={core}
-                        scenes={scenes}
-                        currentSceneId={currentSceneId}
-                        selectedId={selectedEntity?.id ?? null}
-                        onSelect={(entity) => {
-                            core.setSelectedEntity(entity);
-                            setLocalSelectedEntity(entity);
-                        }}
-                    />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <HierarchyPanel
+                            core={core}
+                            scenes={scenes}
+                            currentSceneId={currentSceneId}
+                            selectedId={selectedEntity?.id ?? null}
+                            onSelect={(entity) => {
+                                core.setSelectedEntity(entity);
+                                setLocalSelectedEntity(entity);
+                            }}
+                            runtimeCore={mode === "run" ? runtimeCore : null}
+                        />
+                    </div>
+
                 </div>
 
-
-                {/* CENTER - Phaser Canvas */}
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    background: colors.bgPrimary,
-                    overflow: 'hidden',
-                }}>
-                    {mode === "dev" ? (
-                        <EditorCanvas
-                            key={`edit-${runSession}`}
-                            assets={assets}
-                            selected_asset={selectedAsset}
-                            draggedAsset={draggedAsset}
-                            onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
-                            addEntity={(entity) => {
-                                console.log("? [EditorLayout] new entity:", entity);
-                                core.addEntity(entity as any);
-                                core.setSelectedEntity(entity as any);
-                            }}
-                        />
-                    ) : (
-                        <RunTimeCanvas
-                            key={`run-${runSession}`}
-                            onRuntimeEntitySync={handleRuntimeEntitySync}
-                        />
-                    )}
-
-                    {/* Asset Panel (Center Bottom) */}
+                {/* Main Content */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Toolbar */}
                     <div style={{
-                        height: '280px',
-                        borderTop: `2px solid ${colors.borderAccent}`,
-                        zIndex: 10
+                        height: '40px',
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 16px',
+                        justifyContent: 'space-between',
+                        background: colors.bgSecondary
                     }}>
-                        <AssetPanelNew
-                            assets={assets}
-                            changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                            changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                            modules={modules}
-                            addModule={(module) => core.addModule(module)}
-                            updateModule={(module) => core.updateModule(module)}
-                            selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                            actionLabels={{}}
-                            onCreateVariable={handleCreateActionVariable}
-                            onUpdateVariable={handleUpdateModuleVariable}
-                            onDeleteAsset={(asset) => {
-                                // Just remove from local editor, do not delete from S3
-                                const currentAssets = Array.from(core.getAssets());
-                                core.setAssets(currentAssets.filter(a => a.id !== asset.id));
-                            }}
-                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => {
+                                    const next = mode === "dev" ? "run" : "dev";
+                                    setMode(next);
+                                    if (next === "dev") setRuntimeCore(null);
+                                }}
+                                style={{
+                                    padding: '6px 16px',
+                                    background: mode === "dev" ? colors.accent : colors.error,
+                                    color: '#fff',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                {mode === "dev" ? <><i className="fa-solid fa-play" /> Play</> : <><i className="fa-solid fa-stop" /> Stop</>}
+                            </button>
+                        </div>
+                        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
+                        </div>
+                    </div>
+
+                    {/* Canvas Area */}
+                    <div style={{ flex: 1, position: 'relative', background: '#000' }}>
+                        {mode === "dev" ? (
+                            <EditorCanvas
+                                key={`edit-${runSession}`}
+                                assets={assets}
+                                selected_asset={selectedAsset}
+                                draggedAsset={draggedAsset}
+                                onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
+                                addEntity={(entity) => {
+                                    core.addEntity(entity as any);
+                                    core.setSelectedEntity(entity as any);
+                                }}
+                            />
+                        ) : (
+                            <RunTimeCanvas
+                                key={`run-${runSession}`}
+                                onRuntimeEntitySync={handleRuntimeEntitySync}
+                                onGameReady={setRuntimeCore}
+                            />
+                        )}
+
+                        {/* Asset Panel (Center Bottom) */}
+                        <div style={{
+                            height: '280px',
+                            borderTop: `2px solid ${colors.borderAccent}`,
+                            zIndex: 10
+                        }}>
+                            <AssetPanelNew
+                                assets={assets}
+                                changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                                changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                                modules={modules}
+                                addModule={(module) => core.addModule(module)}
+                                updateModule={(module) => core.updateModule(module)}
+                                selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                                actionLabels={{}}
+                                onCreateVariable={handleCreateActionVariable}
+                                onUpdateVariable={handleUpdateModuleVariable}
+                                onDeleteAsset={(asset) => {
+                                    // Just remove from local editor, do not delete from S3
+                                    const currentAssets = Array.from(core.getAssets());
+                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -1248,6 +1285,7 @@ function EditorLayoutInner() {
                         )}
                     </div>
                 </div>
+
             </div>
 
 
