@@ -821,7 +821,35 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         scaleX: source?.scaleX ?? 1,
         scaleY: source?.scaleY ?? 1,
         scaleZ: source?.scaleZ ?? 1,
-        variables: source?.variables ? cloneJson(source.variables) : [],
+        variables: (() => {
+            const baseVars = source?.variables ? cloneJson<{ name: string; value: any; type: string }[]>(source.variables) : [];
+            const initialVars = params.initialVariables as Record<string, any> | undefined;
+
+            if (initialVars) {
+                // Apply overrides
+                for (const [key, value] of Object.entries(initialVars)) {
+                    const existing = baseVars.find(v => v.name === key);
+                    if (existing) {
+                        existing.value = value;
+                    } else {
+                        // Optional: Add disjoint variables? For now only override existing.
+                        // But if we want to support injecting new vars, we can.
+                        // For safety with Prefab structure, let's only override for now 
+                        // unless we want to allow dynamic var creation.
+                        // Let's allow dynamic creation as it's flexible.
+                        // Infer type from value
+                        const type = typeof value === "number" ? "float" : typeof value === "boolean" ? "bool" : typeof value === 'object' ? "vector2" : "string";
+                        baseVars.push({
+                            name: key,
+                            value,
+                            type,
+                            id: crypto.randomUUID() // Fake ID for runtime
+                        } as any);
+                    }
+                }
+            }
+            return baseVars;
+        })(),
         components: sourceComponents ? cloneJson(sourceComponents) : [],
         role: ((params.role as string) ?? source?.role ?? "neutral"),
         modules: source?.modules ? cloneJson(source.modules) : [],
