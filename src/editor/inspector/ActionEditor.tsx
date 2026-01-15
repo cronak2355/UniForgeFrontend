@@ -529,6 +529,137 @@ export function ActionEditor({
                 </datalist>
               </>
             )}
+
+            {/* Prefab Initial Variables Override UI */}
+            {spawnSourceType === "prefab" && spawnAssetId && (
+              (() => {
+                const prefabAsset = prefabAssets.find(a => a.id === spawnAssetId);
+                let prefabVars: EditorVariable[] = [];
+                try {
+                  if (prefabAsset?.metadata?.prefab) {
+                    const prefabData = typeof prefabAsset.metadata.prefab === 'string'
+                      ? JSON.parse(prefabAsset.metadata.prefab)
+                      : prefabAsset.metadata.prefab;
+                    prefabVars = prefabData.variables || [];
+                  }
+                } catch (e) {
+                  console.warn("Failed to parse prefab variables", e);
+                }
+
+                if (prefabVars.length === 0) return null;
+
+                const initialVariables = (action.initialVariables as Record<string, any>) || {};
+
+                return (
+                  <div style={{
+                    fontSize: 10,
+                    color: colors.textSecondary,
+                    textAlign: "left",
+                    alignItems: "flex-start",
+                    background: colors.bgTertiary,
+                    border: `1px solid ${colors.borderColor}`,
+                    borderRadius: 6,
+                    padding: "4px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    gap: 4,
+                    display: "flex",
+                    flexDirection: "column",
+                  }}>
+                    <div style={{ marginBottom: 2, fontWeight: 600 }}>Initial Variables</div>
+                    {prefabVars.map((v) => (
+                      <div
+                        key={v.id}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "30% 1fr",
+                          gap: 6,
+                          alignItems: "center",
+                          width: "100%",
+                        }}
+                      >
+                        <div style={{ minWidth: 0, color: colors.textPrimary, fontSize: 11 }}>
+                          {v.name}
+                        </div>
+                        {v.type === "bool" ? (
+                          <select
+                            value={(initialVariables[v.name] ?? v.value) === true ? "true" : "false"}
+                            onChange={(e) => {
+                              const newVal = e.target.value === "true";
+                              const nextVars = { ...initialVariables, [v.name]: newVal };
+                              // If value matches default, remove from override to save space? 
+                              // For simplicity, just set it.
+                              onUpdate({ ...action, initialVariables: nextVars });
+                            }}
+                            style={{ ...styles.smallSelect, flex: "1 1 auto", minWidth: 0 }}
+                          >
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                          </select>
+                        ) : v.type === "int" || v.type === "float" ? (
+                          <input
+                            type="number"
+                            placeholder={String(v.value)}
+                            value={initialVariables[v.name] !== undefined ? initialVariables[v.name] : ""}
+                            onChange={(e) => {
+                              const val = e.target.value === "" ? undefined : Number(e.target.value);
+                              const nextVars = { ...initialVariables };
+                              if (val === undefined) {
+                                delete nextVars[v.name];
+                              } else {
+                                nextVars[v.name] = val;
+                              }
+                              onUpdate({ ...action, initialVariables: nextVars });
+                            }}
+                            style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
+                          />
+                        ) : v.type === "vector2" ? (
+                          // Vector2 Override UI
+                          <div style={{ display: 'flex', gap: 2, minWidth: 0, flex: 1 }}>
+                            <input
+                              type="number"
+                              placeholder="x"
+                              style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                              value={((initialVariables[v.name] as any)?.x) ?? (v.value as any)?.x ?? 0}
+                              onChange={(e) => {
+                                const oldVal = (initialVariables[v.name] as any) ?? (v.value as any) ?? { x: 0, y: 0 };
+                                const nextVars = { ...initialVariables, [v.name]: { ...oldVal, x: Number(e.target.value) } };
+                                onUpdate({ ...action, initialVariables: nextVars });
+                              }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="y"
+                              style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                              value={((initialVariables[v.name] as any)?.y) ?? (v.value as any)?.y ?? 0}
+                              onChange={(e) => {
+                                const oldVal = (initialVariables[v.name] as any) ?? (v.value as any) ?? { x: 0, y: 0 };
+                                const nextVars = { ...initialVariables, [v.name]: { ...oldVal, y: Number(e.target.value) } };
+                                onUpdate({ ...action, initialVariables: nextVars });
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder={String(v.value)}
+                            value={initialVariables[v.name] !== undefined ? initialVariables[v.name] : ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const nextVars = { ...initialVariables };
+                              if (val === "") delete nextVars[v.name];
+                              else nextVars[v.name] = val;
+                              onUpdate({ ...action, initialVariables: nextVars });
+                            }}
+                            style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
           </>
         )}
 
