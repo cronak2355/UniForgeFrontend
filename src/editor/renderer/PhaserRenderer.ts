@@ -1122,8 +1122,28 @@ export class PhaserRenderer implements IRenderer {
         // 1. Handle Sprite (Direct Entity)
         if (obj instanceof Phaser.GameObjects.Sprite) {
             if (!obj.texture || obj.texture.key !== textureKey) {
+                const wasLoaded = this.scene.textures.exists(textureKey) &&
+                    this.scene.textures.get(textureKey).key !== '__MISSING';
+
                 obj.setTexture(textureKey);
-                setSize(obj);
+
+                // If texture wasn't loaded when setTexture was called, 
+                // recalculate size when it finishes loading
+                if (!wasLoaded) {
+                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    if (textureUrl) {
+                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            if (obj && !obj.scene) return; // Sprite was destroyed
+                            setSize(obj);
+                        }).catch((err: Error) => {
+                            console.error(`[updateEntityVisuals] Failed to load texture for recalculation:`, err);
+                        });
+                    } else {
+                        setSize(obj);
+                    }
+                } else {
+                    setSize(obj);
+                }
             }
             return;
         }
@@ -1135,8 +1155,27 @@ export class PhaserRenderer implements IRenderer {
 
             if (bg instanceof Phaser.GameObjects.Sprite) {
                 if (bg.texture.key !== textureKey) {
+                    const wasLoaded = this.scene.textures.exists(textureKey) &&
+                        this.scene.textures.get(textureKey).key !== '__MISSING';
+
                     bg.setTexture(textureKey);
-                    setSize(bg);
+
+                    // Recalculate size after texture loads if it wasn't loaded initially
+                    if (!wasLoaded) {
+                        const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                        if (textureUrl) {
+                            this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                                if (bg && !bg.scene) return; // Sprite was destroyed
+                                setSize(bg);
+                            }).catch((err: Error) => {
+                                console.error(`[updateEntityVisuals] Container sprite texture load failed:`, err);
+                            });
+                        } else {
+                            setSize(bg);
+                        }
+                    } else {
+                        setSize(bg);
+                    }
                 }
             } else if (bg instanceof Phaser.GameObjects.Rectangle) {
                 // Replace Rect with Sprite
@@ -1148,7 +1187,26 @@ export class PhaserRenderer implements IRenderer {
 
                 const sprite = this.scene.add.sprite(x, y, textureKey);
                 sprite.setName("bg");
-                setSize(sprite);
+
+                // Check if texture is loaded
+                const wasLoaded = this.scene.textures.exists(textureKey) &&
+                    this.scene.textures.get(textureKey).key !== '__MISSING';
+
+                if (!wasLoaded) {
+                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    if (textureUrl) {
+                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            if (sprite && !sprite.scene) return;
+                            setSize(sprite);
+                        }).catch((err: Error) => {
+                            console.error(`[updateEntityVisuals] New sprite texture load failed:`, err);
+                        });
+                    } else {
+                        setSize(sprite);
+                    }
+                } else {
+                    setSize(sprite);
+                }
 
                 obj.addAt(sprite, 0);
             }
