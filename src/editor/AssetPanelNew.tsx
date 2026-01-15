@@ -97,7 +97,6 @@ export function AssetPanelNew({
     return (
         <div style={{
             background: THEME.bg,
-            background: THEME.bg,
             // borderTop: `1px solid ${THEME.border}`, // Remove top border if in sidebar? Keep for separation
             height: "100%", // Fill container
             display: "flex",
@@ -108,75 +107,84 @@ export function AssetPanelNew({
             {/* Header / Tabs */}
             <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                padding: '0 8px', // Reduce padding
-                height: '40px',   // Reduce height slightly
+                flexDirection: 'column', // Changed to column for stacked layout
                 background: THEME.bgHeader,
                 borderBottom: `1px solid ${THEME.border}`,
-                gap: '8px',
-                overflowX: 'auto', // Enable scroll for tabs
-                scrollbarWidth: 'none', // Hide scrollbar
                 flexShrink: 0
             }}>
-                <style>{`
-                /* Hide scrollbar for Chrome/Safari */
-                .hide-scroll::-webkit-scrollbar {
-                    display: none;
-                }
-            `}</style>
+                {/* Title Row */}
                 <div style={{
+                    padding: '8px 12px',
                     fontSize: '12px',
                     fontWeight: 700,
                     color: '#fff',
-                    marginRight: '16px',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    borderBottom: `1px solid ${THEME.border}` // Separator
                 }}>
                     <i className="fa-solid fa-layer-group text-blue-500"></i>
                     Assets
                 </div>
 
-                {tabs.map((tab) => {
-                    const isActive = currentTag === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setCurrentTag(tab.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '6px 14px',
-                                fontSize: '13px',
-                                fontWeight: isActive ? 600 : 500,
-                                color: isActive ? '#fff' : THEME.textDim,
-                                background: isActive ? '#2563eb' : 'transparent', // Blue pill active
-                                border: 'none',
-                                borderRadius: '8px', // Pill shape
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                                    e.currentTarget.style.color = THEME.text;
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.color = THEME.textDim;
-                                }
-                            }}
-                        >
-                            <i className={`fa-solid ${tab.icon}`}></i>
-                            {tab.label}
-                        </button>
-                    );
-                })}
+                {/* Tabs Row (Scrollable) */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px 4px', // Adjusted padding
+                    gap: '8px',
+                    overflowX: 'auto', // Horizontal scroll
+                    scrollbarWidth: 'none',
+                    whiteSpace: 'nowrap'
+                }}>
+                    <style>{`
+                /* Hide scrollbar for Chrome/Safari */
+                .hide-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
+
+                    {tabs.map((tab) => {
+                        const isActive = currentTag === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setCurrentTag(tab.id)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '6px 14px',
+                                    fontSize: '13px',
+                                    fontWeight: isActive ? 600 : 500,
+                                    color: isActive ? '#fff' : THEME.textDim,
+                                    background: isActive ? '#2563eb' : 'transparent', // Blue pill active
+                                    border: 'none',
+                                    borderRadius: '8px', // Pill shape
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                                        e.currentTarget.style.color = THEME.text;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = 'transparent';
+                                        e.currentTarget.style.color = THEME.textDim;
+                                    }
+                                }}
+                            >
+                                <i className={`fa-solid ${tab.icon}`}></i>
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Main Content Area */}
@@ -427,11 +435,11 @@ export function AssetPanelNew({
                                     <ModuleGraphEditor
                                         key={module.id}
                                         module={module}
-                                        variables={selectedEntityVariables}
+                                        variables={selectedEntityVariables as any}
                                         modules={modules}
                                         actionLabels={actionLabels}
-                                        onCreateVariable={onCreateVariable}
-                                        onUpdateVariable={onUpdateVariable}
+                                        onCreateVariable={onCreateVariable as any}
+                                        onUpdateVariable={onUpdateVariable as any}
                                         onChange={(next) => updateModule(next)}
                                     />
                                 ))}
