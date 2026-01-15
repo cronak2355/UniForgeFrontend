@@ -137,25 +137,25 @@ export const selectField: CSSProperties = {
 };
 
 export const smallSelect: CSSProperties = {
-    flex: "1 1 90px",
+    flex: "1 1 60px",
     background: colors.bgTertiary,
     color: colors.textPrimary,
     border: `1px solid ${colors.borderColor}`,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px 4px",
-    minWidth: 70
+    minWidth: 50
 };
 
 export const textInput: CSSProperties = {
-    flex: "1 1 120px",
+    flex: "1 1 60px",
     background: colors.bgPrimary,
     border: `1px solid ${colors.borderColor}`,
     color: colors.textPrimary,
     borderRadius: "4px",
     fontSize: "10px",
     padding: "2px 4px",
-    minWidth: 90,
+    minWidth: 50,
     width: "auto"
 };
 
@@ -185,12 +185,13 @@ export const smallNumberInput: CSSProperties = {
 // ===== Condition/Action 에디터 =====
 export const conditionRow: CSSProperties = {
     display: "flex",
-    gap: "4px",
+    flexWrap: "wrap",
+    gap: "3px",
     alignItems: "center",
-    padding: "4px",
+    padding: "3px",
     background: "rgba(100,200,100,0.1)",
     borderRadius: "4px",
-    marginBottom: "4px"
+    marginBottom: "3px"
 };
 
 export const actionRow: CSSProperties = {

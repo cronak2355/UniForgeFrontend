@@ -646,6 +646,23 @@ export function ActionEditor({
           />
         )}
 
+        {action.type === "If" && (
+          <IfActionEditor
+            action={action}
+            variables={variables}
+            entities={entities}
+            modules={modules}
+            scenes={scenes}
+            assets={assets}
+            currentEntity={currentEntity}
+            availableActions={availableActions}
+            actionLabels={actionLabels}
+            onCreateVariable={onCreateVariable}
+            onUpdateModuleVariable={onUpdateModuleVariable}
+            onUpdate={onUpdate}
+          />
+        )}
+
         {action.type === "RunModule" && (
           <div style={{ flex: "1 1 100%", display: "flex", flexDirection: "column", gap: 4 }}>
             <select
@@ -910,4 +927,241 @@ function OperandInput({
     </div>
   );
 }
+
+// --- Available Condition Types for If Action ---
+const CONDITION_TYPES = [
+  { value: "VarEquals", label: "변수 = 값" },
+  { value: "VarNotEquals", label: "변수 ≠ 값" },
+  { value: "VarGreaterThan", label: "변수 > 값" },
+  { value: "VarLessThan", label: "변수 < 값" },
+  { value: "VarGreaterOrEqual", label: "변수 ≥ 값" },
+  { value: "VarLessOrEqual", label: "변수 ≤ 값" },
+  { value: "IsGrounded", label: "땅에 닿음" },
+  { value: "IsAlive", label: "HP > 0" },
+  { value: "HpBelow", label: "HP <" },
+  { value: "HpAbove", label: "HP >" },
+  { value: "InRange", label: "범위 내" },
+  { value: "OutOfRange", label: "범위 밖" },
+  { value: "InputLeft", label: "← 입력" },
+  { value: "InputRight", label: "→ 입력" },
+  { value: "InputUp", label: "↑ 입력" },
+  { value: "InputDown", label: "↓ 입력" },
+  { value: "InputJump", label: "점프 입력" },
+  { value: "InputKey", label: "키 입력" },
+  { value: "SignalFlag", label: "시그널 플래그" },
+];
+
+function IfActionEditor({
+  action,
+  variables,
+  entities,
+  modules,
+  scenes,
+  assets,
+  currentEntity,
+  availableActions,
+  actionLabels,
+  onCreateVariable,
+  onUpdateModuleVariable,
+  onUpdate,
+}: {
+  action: { type: string;[key: string]: unknown };
+  variables: EditorVariable[];
+  entities: { id: string; name: string }[];
+  modules: ModuleGraph[];
+  scenes?: { id: string; name: string }[];
+  assets?: Asset[];
+  currentEntity?: EditorEntity;
+  availableActions: string[];
+  actionLabels?: Record<string, string>;
+  onCreateVariable?: (name: string, value: unknown, type?: EditorVariable["type"]) => void;
+  onUpdateModuleVariable?: (moduleId: string, name: string, value: unknown, type?: EditorVariable["type"]) => void;
+  onUpdate: (a: { type: string;[key: string]: unknown }) => void;
+}) {
+  const condition = (action.condition as { type: string;[key: string]: unknown }) || { type: "VarEquals" };
+  const thenActions = (action.then as Array<{ type: string;[key: string]: unknown }>) || [];
+  const elseActions = (action.else as Array<{ type: string;[key: string]: unknown }>) || [];
+
+  const updateCondition = (updates: Record<string, unknown>) => {
+    onUpdate({ ...action, condition: { ...condition, ...updates } });
+  };
+
+  const updateThenActions = (newActions: Array<{ type: string;[key: string]: unknown }>) => {
+    onUpdate({ ...action, then: newActions });
+  };
+
+  const updateElseActions = (newActions: Array<{ type: string;[key: string]: unknown }>) => {
+    onUpdate({ ...action, else: newActions });
+  };
+
+  const conditionNeedsVarName = ["VarEquals", "VarNotEquals", "VarGreaterThan", "VarLessThan", "VarGreaterOrEqual", "VarLessOrEqual"].includes(condition.type);
+  const conditionNeedsValue = ["VarEquals", "VarNotEquals", "VarGreaterThan", "VarLessThan", "VarGreaterOrEqual", "VarLessOrEqual", "HpBelow", "HpAbove"].includes(condition.type);
+  const conditionNeedsRange = ["InRange", "OutOfRange"].includes(condition.type);
+  const conditionNeedsKey = ["InputKey", "SignalFlag"].includes(condition.type);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+      {/* Condition - Compact */}
+      <div style={{ background: colors.bgTertiary, borderRadius: 4, padding: 6, border: `1px solid ${colors.borderColor}` }}>
+        <div style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 4 }}>📋 조건</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <select
+            value={condition.type || "VarEquals"}
+            onChange={(e) => updateCondition({ type: e.target.value })}
+            style={{ ...styles.selectField, fontSize: 11, padding: "3px 4px" }}
+          >
+            {CONDITION_TYPES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+
+          {conditionNeedsVarName && (
+            <select
+              value={(condition.name as string) || ""}
+              onChange={(e) => updateCondition({ name: e.target.value })}
+              style={{ ...styles.selectField, fontSize: 11, padding: "3px 4px" }}
+            >
+              <option value="">변수 선택</option>
+              {variables.map((v) => (
+                <option key={v.id} value={v.name}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {conditionNeedsValue && (
+            <input
+              type="text"
+              placeholder="비교값"
+              value={(condition.value as string | number) ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                const num = parseFloat(val);
+                updateCondition({ value: isNaN(num) ? val : num });
+              }}
+              style={{ ...styles.textInput, fontSize: 11, padding: "3px 4px" }}
+            />
+          )}
+
+          {conditionNeedsRange && (
+            <div style={{ display: "flex", gap: 3 }}>
+              <select
+                value={(condition.targetRole as string) || ""}
+                onChange={(e) => updateCondition({ targetRole: e.target.value })}
+                style={{ ...styles.selectField, fontSize: 11, padding: "3px 4px", flex: 1 }}
+              >
+                <option value="">역할</option>
+                <option value="enemy">enemy</option>
+                <option value="player">player</option>
+              </select>
+              <input
+                type="number"
+                placeholder="범위"
+                value={(condition.range as number) ?? 100}
+                onChange={(e) => updateCondition({ range: parseFloat(e.target.value) || 100 })}
+                style={{ ...styles.textInput, fontSize: 11, padding: "3px 4px", width: 50 }}
+              />
+            </div>
+          )}
+
+          {conditionNeedsKey && (
+            <input
+              type="text"
+              placeholder="키"
+              value={(condition.key as string) || ""}
+              onChange={(e) => updateCondition({ key: e.target.value })}
+              style={{ ...styles.textInput, fontSize: 11, padding: "3px 4px" }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Then Branch - Compact & Scrollable */}
+      <div style={{ background: "#1a2e1a", borderRadius: 4, padding: 6, border: "1px solid #2d4a2d" }}>
+        <div style={{ fontSize: 10, color: "#8bc34a", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>✅ Then</span>
+          <button
+            onClick={() => updateThenActions([...thenActions, { type: "Log" }])}
+            style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
+          >
+            +
+          </button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 120, overflowY: "auto" }}>
+          {thenActions.map((act, idx) => (
+            <ActionEditor
+              key={idx}
+              action={act}
+              availableActions={availableActions}
+              actionLabels={actionLabels}
+              variables={variables}
+              entities={entities}
+              modules={modules}
+              scenes={scenes}
+              assets={assets}
+              currentEntity={currentEntity}
+              onCreateVariable={onCreateVariable}
+              onUpdateModuleVariable={onUpdateModuleVariable}
+              onUpdate={(updated) => {
+                const newActions = [...thenActions];
+                newActions[idx] = updated;
+                updateThenActions(newActions);
+              }}
+              onRemove={() => updateThenActions(thenActions.filter((_, i) => i !== idx))}
+              showRemove={true}
+            />
+          ))}
+          {thenActions.length === 0 && (
+            <div style={{ fontSize: 9, color: "#6b8066", fontStyle: "italic" }}>없음</div>
+          )}
+        </div>
+      </div>
+
+      {/* Else Branch - Compact & Scrollable */}
+      <div style={{ background: "#2e1a1a", borderRadius: 4, padding: 6, border: "1px solid #4a2d2d" }}>
+        <div style={{ fontSize: 10, color: "#f44336", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>❌ Else</span>
+          <button
+            onClick={() => updateElseActions([...elseActions, { type: "Log" }])}
+            style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
+          >
+            +
+          </button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 120, overflowY: "auto" }}>
+          {elseActions.map((act, idx) => (
+            <ActionEditor
+              key={idx}
+              action={act}
+              availableActions={availableActions}
+              actionLabels={actionLabels}
+              variables={variables}
+              entities={entities}
+              modules={modules}
+              scenes={scenes}
+              assets={assets}
+              currentEntity={currentEntity}
+              onCreateVariable={onCreateVariable}
+              onUpdateModuleVariable={onUpdateModuleVariable}
+              onUpdate={(updated) => {
+                const newActions = [...elseActions];
+                newActions[idx] = updated;
+                updateElseActions(newActions);
+              }}
+              onRemove={() => updateElseActions(elseActions.filter((_, i) => i !== idx))}
+              showRemove={true}
+            />
+          ))}
+          {elseActions.length === 0 && (
+            <div style={{ fontSize: 9, color: "#806666", fontStyle: "italic" }}>없음</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 

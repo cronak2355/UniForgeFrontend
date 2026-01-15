@@ -67,6 +67,29 @@ export class LogicSystem implements System {
             // Check conditions
             const conditions = logicData.conditions ?? [];
             const logic = logicData.conditionLogic ?? "AND";
+
+            if (logic === "BRANCH") {
+                let handled = false;
+                for (const c of conditions) {
+                    if (ConditionRegistry.check(c.type, ctx, c)) {
+                        for (const action of (c.then ?? [])) {
+                            const { type, ...params } = action;
+                            ActionRegistry.run(type, ctx, params);
+                        }
+                        handled = true;
+                        break;
+                    }
+                }
+                if (!handled) {
+                    for (const action of (logicData.elseActions ?? [])) {
+                        const { type, ...params } = action;
+                        ActionRegistry.run(type, ctx, params);
+                    }
+                }
+                processedCount++;
+                continue;
+            }
+
             let pass = true;
 
             if (conditions.length > 0) {
@@ -77,12 +100,14 @@ export class LogicSystem implements System {
                 }
             }
 
-            if (!pass) continue;
-
             processedCount++;
 
-            // Execute Actions
-            for (const action of logicData.actions ?? []) {
+            // Execute Actions or ElseActions based on condition result
+            const actionsToRun = pass
+                ? (logicData.actions ?? [])
+                : (logicData.elseActions ?? []);
+
+            for (const action of actionsToRun) {
                 const { type, ...params } = action;
                 ActionRegistry.run(type, ctx, params);
             }

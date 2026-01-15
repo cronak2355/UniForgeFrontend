@@ -370,6 +370,25 @@ export interface ClearSignalAction {
     entityId?: string;
 }
 
+// --- Flow Control Actions ---
+
+/** 조건부 분기 액션 내부 조건 타입 */
+export interface InlineCondition {
+    type: string;
+    [key: string]: unknown;
+}
+
+/** 플로우 액션: If-Then-Else 분기 */
+export interface IfAction {
+    type: "If";
+    /** 조건 (ConditionRegistry에 등록된 조건 타입 사용) */
+    condition: InlineCondition;
+    /** 조건이 true일 때 실행할 액션들 */
+    then: Action[];
+    /** 조건이 false일 때 실행할 액션들 (선택) */
+    else?: Action[];
+}
+
 /** 액션 유니온 타입 */
 export type Action =
     // 변수
@@ -396,7 +415,9 @@ export type Action =
     // 오디오
     | PlaySoundAction
     | StopSoundAction
-    | ClearSignalAction;
+    | ClearSignalAction
+    // 플로우 컨트롤
+    | IfAction;
 
 // ============================================================
 // ECA RULE (전체 규칙)

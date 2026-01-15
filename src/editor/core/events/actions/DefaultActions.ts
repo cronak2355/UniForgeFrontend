@@ -978,6 +978,46 @@ ActionRegistry.register("StopParticleEmitter", (ctx: ActionContext, params: Reco
     renderer.stopParticleEmitter(emitterId);
 });
 
+// --- Flow Control Actions ---
+
+import { ConditionRegistry } from "../ConditionRegistry";
+
+/**
+ * If Action: 조건에 따라 then 또는 else 분기의 액션들을 실행
+ * 
+ * 사용 예시:
+ * {
+ *   type: "If",
+ *   condition: { type: "VarEquals", name: "state", value: "attacking" },
+ *   then: [{ type: "PlayAnimation", animationName: "attack" }],
+ *   else: [{ type: "PlayAnimation", animationName: "idle" }]
+ * }
+ */
+ActionRegistry.register("If", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const condition = params.condition as { type: string;[key: string]: unknown } | undefined;
+    const thenActions = params.then as Array<{ type: string;[key: string]: unknown }> | undefined;
+    const elseActions = params.else as Array<{ type: string;[key: string]: unknown }> | undefined;
+
+    if (!condition || !condition.type) {
+        console.warn("[Action:If] Missing condition");
+        return;
+    }
+
+    // Evaluate condition using ConditionRegistry
+    const { type: condType, ...condParams } = condition;
+    const conditionResult = ConditionRegistry.check(condType, ctx, condParams);
+
+    // Execute appropriate branch
+    const actionsToRun = conditionResult ? thenActions : elseActions;
+    if (!actionsToRun || actionsToRun.length === 0) return;
+
+    for (const action of actionsToRun) {
+        const { type: actionType, ...actionParams } = action;
+        ActionRegistry.run(actionType, ctx, actionParams);
+    }
+});
+
 console.log(
-    "[DefaultActions] 18 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal, Rotate, Pulse, PlayParticle, StartParticleEmitter, StopParticleEmitter"
+    "[DefaultActions] 19 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal, Rotate, Pulse, PlayParticle, StartParticleEmitter, StopParticleEmitter, If"
 );
+

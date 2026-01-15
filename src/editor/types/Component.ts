@@ -47,16 +47,18 @@ export interface RenderComponent extends BaseComponent {
 
 /* ================= Logic ================= */
 
-export type LogicCondition = { type: string; [key: string]: unknown };
-export type LogicAction = { type: string; [key: string]: unknown };
+export type LogicCondition = { type: string; then?: LogicAction[];[key: string]: unknown };
+export type LogicAction = { type: string;[key: string]: unknown };
 
 export interface LogicComponent extends BaseComponent {
   type: "Logic";
   event: string;
   eventParams?: Record<string, unknown>;
   conditions?: LogicCondition[];
-  conditionLogic?: "AND" | "OR";
+  conditionLogic?: "AND" | "OR" | "BRANCH";
   actions: LogicAction[];
+  /** 조건 실패 시 실행할 액션들 */
+  elseActions?: LogicAction[];
 }
 
 /* ================= Signal ================= */
