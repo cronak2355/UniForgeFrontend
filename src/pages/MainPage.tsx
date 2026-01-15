@@ -1,15 +1,20 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createGame, fetchMyGames, type GameSummary } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
 import { getCloudFrontUrl } from '../utils/imageUtils';
+import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 
 const MainPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [myGames, setMyGames] = useState<GameSummary[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
+
+    // Create Modal State
+    const [createModalOpen, setCreateModalOpen] = useState(false);
 
     // Selection Mode State
     const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -86,14 +91,18 @@ const MainPage = () => {
         }
     };
 
-    const handleCreateGame = async () => {
+    const handleOpenCreateModal = () => {
+        setCreateModalOpen(true);
+    };
+
+    const handleCreateProjectSubmit = async (title: string, description: string) => {
+        if (!user?.id) return;
         try {
-            const authorId = user?.id || "1";
-            const newGame = await createGame(authorId, "Untitled Game", "New Project");
+            const newGame = await createGame(user.id, title, description);
             navigate(`/editor/${newGame.gameId}`);
         } catch (e) {
             console.error(e);
-            navigate('/editor');
+            alert("프로젝트 생성 실패");
         }
     };
 
@@ -120,7 +129,7 @@ const MainPage = () => {
                         </div>
                     ) : (
                         <button
-                            onClick={handleCreateGame}
+                            onClick={handleOpenCreateModal}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition-colors text-sm"
                         >
                             <i className="fa-solid fa-plus"></i>
@@ -145,7 +154,7 @@ const MainPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Create Game */}
                         <button
-                            onClick={handleCreateGame}
+                            onClick={handleOpenCreateModal}
                             className="group relative bg-gradient-to-br from-blue-600 to-blue-800 p-6 rounded-2xl text-left overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-blue-900/40 hover:-translate-y-1"
                         >
                             <div className="relative z-10 h-full flex flex-col">
@@ -261,7 +270,7 @@ const MainPage = () => {
                                 <h3 className="text-white font-medium mb-2">프로젝트가 없습니다</h3>
                                 <p className="text-gray-500 text-sm mb-6">새로운 아이디어를 실현해보세요</p>
                                 <button
-                                    onClick={handleCreateGame}
+                                    onClick={handleOpenCreateModal}
                                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white text-sm font-medium rounded-lg transition-colors border border-[#333]"
                                 >
                                     <i className="fa-solid fa-plus"></i>
@@ -283,6 +292,13 @@ const MainPage = () => {
                     </div>
                 </div>
             </main>
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                isOpen={createModalOpen}
+                onClose={() => setCreateModalOpen(false)}
+                onCreate={handleCreateProjectSubmit}
+            />
         </div>
     );
 };
