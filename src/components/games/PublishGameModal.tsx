@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchMyGames, updateGameInfo, GameSummary } from '../../services/gameService';
+import { fetchMyGames, updateGameInfo, GameSummary, uploadGameThumbnail } from '../../services/gameService';
 import { getCloudFrontUrl } from '../../utils/imageUtils';
 
 interface PublishGameModalProps {
@@ -20,13 +20,19 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
     // Edit Form State
     const [editTitle, setEditTitle] = useState("");
     const [editDesc, setEditDesc] = useState("");
-    const [editThumbnail, setEditThumbnail] = useState(""); // URL inputs for now
+
+    // Thumbnail State
+    const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen && user) {
             loadGames();
             setStep(1);
             setSelectedGame(null);
+            setThumbnailFile(null);
+            setThumbnailPreview(null);
         }
     }, [isOpen, user]);
 
@@ -35,8 +41,6 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
         setLoading(true);
         try {
             const games = await fetchMyGames(user.id);
-            // Filter: Optional - Maybe show all? Or filter out already public ones?
-            // For now show all, user can re-publish/update metadata
             setMyGames(games);
         } catch (e) {
             console.error("Failed to load games", e);
@@ -49,21 +53,59 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
         setSelectedGame(game);
         setEditTitle(game.title);
         setEditDesc(game.description || "");
-        setEditThumbnail(game.thumbnailUrl || "");
+
+        // Initial preview from existing URL
+        if (game.thumbnailUrl) {
+            setThumbnailPreview(getCloudFrontUrl(game.thumbnailUrl));
+        } else {
+            setThumbnailPreview(null);
+        }
+        setThumbnailFile(null);
+
         setStep(2);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setThumbnailFile(file);
+            const reader = new FileReader();
+            reader.onload = (e) => setThumbnailPreview(e.target?.result as string);
+            reader.readAsDataURL(file);
+        }
     };
 
     const handlePublish = async () => {
         if (!selectedGame) return;
         setPublishing(true);
         try {
+            // 1. Upload Thumbnail if changed
+            let finalThumbnailUrl = selectedGame.thumbnailUrl;
+            if (thumbnailFile) {
+                finalThumbnailUrl = await uploadGameThumbnail(selectedGame.gameId, thumbnailFile);
+            }
+
+            // 2. Update Info & Set Public
+            // Note: uploadGameThumbnail returns the full CloudFront URL, 
+            // updateGameInfo expects simple update. 
+            // Actually uploadGameThumbnail calls updateGameInfo internally too? 
+            // No, my implementation of uploadGameThumbnail calls updateGameInfo, 
+            // BUT here we call it again for title/desc and verify isPublic.
+            // It's redundant but safe. 
+
             const updated = await updateGameInfo(
                 selectedGame.gameId,
                 editTitle,
                 editDesc,
-                editThumbnail || undefined,
+                finalThumbnailUrl || undefined, // undefined to ignore if no change? 
+                // Wait, if finalThumbnailUrl is null/empty but was previous string, we want to keep it?
+                // logic: if thumbnailFile exists, use new URL. 
+                // if not, pass undefined to keep existing? 
+                // In updateGameInfo: if undefined, it skips update. Correct.
+
                 true // Set isPublic = true
             );
+
             onPublish(updated);
             onClose();
         } catch (e) {
@@ -149,14 +191,51 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
                                 <i className="fa-solid fa-arrow-left"></i> 프로젝트 다시 선택
                             </button>
 
-                            <div className="space-y-4">
+                            <div className="space-y-6">
+                                {/* Thumbnail Upload */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-300 mb-2">썸네일</label>
+                                    <div className="flex gap-4">
+                                        <div
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-48 h-28 bg-[#111] border border-dashed border-[#444] rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 overflow-hidden relative group transition-colors"
+                                        >
+                                            {thumbnailPreview ? (
+                                                <>
+                                                    <img src={thumbnailPreview} className="w-full h-full object-cover" alt="Preview" />
+                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <i className="fa-solid fa-pen text-white"></i>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center text-gray-500">
+                                                    <i className="fa-solid fa-image mb-1 text-xl"></i>
+                                                    <div className="text-xs">이미지 업로드</div>
+                                                </div>
+                                            )}
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileChange}
+                                                className="hidden"
+                                            />
+                                        </div>
+                                        <div className="flex-1 text-xs text-gray-500 flex flex-col justify-center">
+                                            <p className="mb-1"><span className="text-blue-400 font-semibold">Tip:</span> 게임을 잘 표현하는 이미지를 선택하세요.</p>
+                                            <p>권장 사이즈: 1920x1080 (16:9)</p>
+                                            <p>지원 형식: JPG, PNG, WEBP</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-300 mb-1">게임 제목</label>
                                     <input
                                         type="text"
                                         value={editTitle}
                                         onChange={e => setEditTitle(e.target.value)}
-                                        className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-white outline-none focus:border-blue-500"
+                                        className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-white outline-none focus:border-blue-500 transition-colors"
                                     />
                                 </div>
 
@@ -166,35 +245,9 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
                                         value={editDesc}
                                         onChange={e => setEditDesc(e.target.value)}
                                         rows={4}
-                                        className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-white outline-none focus:border-blue-500 text-sm"
+                                        className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-white outline-none focus:border-blue-500 text-sm transition-colors resize-none"
                                         placeholder="게임에 대한 설명을 입력하세요..."
                                     />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-300 mb-1">썸네일 URL (선택사항)</label>
-                                    <input
-                                        type="text"
-                                        value={editThumbnail}
-                                        onChange={e => setEditThumbnail(e.target.value)}
-                                        placeholder="https://..."
-                                        className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-white outline-none focus:border-blue-500 text-sm mb-2"
-                                    />
-                                    {/* Preview */}
-                                    <div className="w-full aspect-video bg-black border border-[#333] rounded flex items-center justify-center overflow-hidden relative group">
-                                        {editThumbnail ? (
-                                            <img src={getCloudFrontUrl(editThumbnail)} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
-                                        ) : selectedGame?.thumbnailUrl ? (
-                                            <img src={getCloudFrontUrl(selectedGame.thumbnailUrl)} alt="Original" className="w-full h-full object-cover opacity-50" title="기존 썸네일 사용" />
-                                        ) : (
-                                            <span className="text-[#444] text-sm">썸네일 없음</span>
-                                        )}
-                                        {(!editThumbnail && selectedGame?.thumbnailUrl) && (
-                                            <div className="absolute inset-0 flex items-center justify-center text-xs text-[#888] pointer-events-none">
-                                                (기존 썸네일 유지)
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -216,7 +269,7 @@ export const PublishGameModal: React.FC<PublishGameModalProps> = ({ isOpen, onCl
                             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {publishing && <i className="fa-solid fa-spinner fa-spin"></i>}
-                            게시하기
+                            {publishing ? '게시 중...' : '게시하기'}
                         </button>
                     )}
                 </div>

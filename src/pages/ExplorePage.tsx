@@ -303,7 +303,12 @@ const ExplorePage = () => {
                                     }}
                                 >
                                     <div style={{ height: '160px', overflow: 'hidden', position: 'relative' }}>
-                                        <img src={game.image} alt={game.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.currentTarget.style.display = 'none'} />
+                                        <img
+                                            src={game.image}
+                                            alt={game.title}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400"; }}
+                                        />
                                         <div style={{
                                             position: 'absolute', bottom: 0, left: 0, width: '100%', padding: '40px 16px 16px',
                                             background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)'
@@ -361,7 +366,12 @@ const ExplorePage = () => {
                         </button>
 
                         <div style={{ height: '300px', position: 'relative' }}>
-                            <img src={selectedGame.image} alt={selectedGame.title} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} onError={(e) => e.currentTarget.style.display = 'none'} />
+                            <img
+                                src={selectedGame.image}
+                                alt={selectedGame.title}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
+                                onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400"; }}
+                            />
                             <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', padding: '2rem', background: 'linear-gradient(to top, #111, transparent)' }}>
                                 <span style={{ backgroundColor: '#2563eb', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '8px', display: 'inline-block' }}>{selectedGame.type}</span>
                                 <h2 style={{ fontSize: '3rem', fontWeight: 700, margin: '8px 0 4px' }}>{selectedGame.title}</h2>
