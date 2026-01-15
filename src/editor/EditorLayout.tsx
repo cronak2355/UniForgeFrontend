@@ -136,6 +136,7 @@ function TopBarMenu({
 function EditorLayoutInner() {
     const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
+    const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
 
     // Auto-save / Load Logic
     // Auto-save / Load Logic
@@ -392,34 +393,36 @@ function EditorLayoutInner() {
 
         setIsSavingProject(true);
         try {
+            // 0. Pre-check Login
+            const user = await authService.getCurrentUser();
+            if (!user) {
+                alert("로그인이 필요합니다. (Login required to save)");
+                setIsSavingProject(false);
+                return;
+            }
+
             const sceneJson = SceneSerializer.serialize(core);
             let id = gameId;
+            let isNewGame = false;
 
-            // If ID is invalid (undefined or empty), create a new game
-            if (!id) {
-                const user = await authService.getCurrentUser();
-                if (!user) {
-                    alert("로그인이 필요합니다. (Login required to create a game)");
-                    setIsSavingProject(false);
-                    return;
-                }
+            // 1. Create or Update Game Metadata
+            if (!id || id === "undefined") {
                 const newGame = await createGame(user.id, title, description);
                 id = String(newGame.gameId);
-                navigate(`/editor/${id}`, { replace: true });
+                isNewGame = true;
+                console.log("[EditorLayout] Created new game:", id);
             } else {
                 // Update existing game info
                 await updateGameInfo(id, title, description);
+                console.log("[EditorLayout] Updated game info:", id);
             }
 
-            // Save Version (Scene Data)
-            // Use existing saveScenes or new saveGameVersion? 
-            // saveScenes calls POST /games/{id}/versions, which is what we want.
-            // Let's use the one imported or keep using logic.
-            // gameService.saveGameVersion is essentially the same as api/sceneApi.saveScenes.
-            // Let's use the new one for consistency if we imported it.
+            // 2. Save Version (CRITICAL: Save data BEFORE navigation)
+            // This ensures that even if navigation triggers a reload, the data is safe in the DB.
             await saveGameVersion(id, sceneJson);
+            console.log("[EditorLayout] Saved game version");
 
-            // Capture and Upload Thumbnail
+            // 3. Capture and Upload Thumbnail (Best Effort)
             try {
                 const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
                 if (canvasEl) {
@@ -452,20 +455,28 @@ function EditorLayoutInner() {
 
                             if (uploadRes.ok) {
                                 const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                                // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                                // Update thumbnail via updateGameInfo
                                 await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                                console.log("[EditorLayout] Thumbnail updated");
                             } else {
-                                console.error("Thumbnail upload to S3 failed:", uploadRes.status, uploadRes.statusText);
+                                console.warn("Thumbnail upload to S3 failed:", uploadRes.status);
                             }
                         }
                     }
                 }
             } catch (err) {
-                console.warn("Thumbnail upload failed:", err);
+                console.warn("Thumbnail upload failed (non-critical):", err);
+            }
+
+            // 4. Navigate if New Game (Update URL)
+            // Doing this LAST prevents race conditions where the component reloads before saving.
+            if (isNewGame) {
+                navigate(`/editor/${id}`, { replace: true });
             }
 
             alert("프로젝트가 성공적으로 저장되었습니다!");
             setIsSaveModalOpen(false);
+
         } catch (e) {
             console.error("Save failed:", e);
             alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
@@ -1135,79 +1146,98 @@ function EditorLayoutInner() {
                 flex: 1,
                 overflow: 'hidden',
             }}>
-                {/* LEFT PANEL - Hierarchy */}
-                {/* LEFT PANEL - Hierarchy */}
+
+                {/* Left Sidebar */}
                 <div style={{
                     width: '280px',
-                    background: colors.bgSecondary,
-                    borderRight: `2px solid ${colors.borderColor}`,
                     display: 'flex',
                     flexDirection: 'column',
+                    borderRight: `1px solid ${colors.borderColor}`
                 }}>
-                    <HierarchyPanel
-                        core={core}
-                        scenes={scenes}
-                        currentSceneId={currentSceneId}
-                        selectedId={selectedEntity?.id ?? null}
-                        onSelect={(entity) => {
-                            core.setSelectedEntity(entity);
-                            setLocalSelectedEntity(entity);
-                        }}
-                    />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <HierarchyPanel
+                            core={core}
+                            scenes={scenes}
+                            currentSceneId={currentSceneId}
+                            selectedId={selectedEntity?.id ?? null}
+                            onSelect={(entity) => {
+                                core.setSelectedEntity(entity);
+                                setLocalSelectedEntity(entity);
+                            }}
+                            runtimeCore={mode === "run" ? runtimeCore : null}
+                        />
+                    </div>
+
                 </div>
 
-
-                {/* CENTER - Phaser Canvas */}
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    background: colors.bgPrimary,
-                    overflow: 'hidden',
-                }}>
-                    {mode === "dev" ? (
-                        <EditorCanvas
-                            key={`edit-${runSession}`}
-                            assets={assets}
-                            selected_asset={selectedAsset}
-                            draggedAsset={draggedAsset}
-                            onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
-                            addEntity={(entity) => {
-                                console.log("? [EditorLayout] new entity:", entity);
-                                core.addEntity(entity as any);
-                                core.setSelectedEntity(entity as any);
-                            }}
-                        />
-                    ) : (
-                        <RunTimeCanvas
-                            key={`run-${runSession}`}
-                            onRuntimeEntitySync={handleRuntimeEntitySync}
-                        />
-                    )}
-
-                    {/* Asset Panel (Center Bottom) */}
+                {/* Main Content */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Toolbar */}
                     <div style={{
-                        height: '280px',
-                        borderTop: `2px solid ${colors.borderAccent}`,
-                        zIndex: 10
+                        height: '40px',
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 16px',
+                        justifyContent: 'space-between',
+                        background: colors.bgSecondary
                     }}>
-                        <AssetPanelNew
-                            assets={assets}
-                            changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                            changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                            modules={modules}
-                            addModule={(module) => core.addModule(module)}
-                            updateModule={(module) => core.updateModule(module)}
-                            selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                            actionLabels={{}}
-                            onCreateVariable={handleCreateActionVariable}
-                            onUpdateVariable={handleUpdateModuleVariable}
-                            onDeleteAsset={(asset) => {
-                                // Just remove from local editor, do not delete from S3
-                                const currentAssets = Array.from(core.getAssets());
-                                core.setAssets(currentAssets.filter(a => a.id !== asset.id));
-                            }}
-                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {/* Duplicate Play Button Removed */}
+                            </div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
+                        </div>
+                    </div>
+
+                    {/* Canvas Area */}
+                    <div style={{ flex: 1, position: 'relative', background: '#000' }}>
+                        {mode === "dev" ? (
+                            <EditorCanvas
+                                key={`edit-${runSession}`}
+                                assets={assets}
+                                selected_asset={selectedAsset}
+                                draggedAsset={draggedAsset}
+                                onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
+                                addEntity={(entity) => {
+                                    core.addEntity(entity as any);
+                                    core.setSelectedEntity(entity as any);
+                                }}
+                            />
+                        ) : (
+                            <RunTimeCanvas
+                                key={`run-${runSession}`}
+                                onRuntimeEntitySync={handleRuntimeEntitySync}
+                                onGameReady={setRuntimeCore}
+                            />
+                        )}
+
+                        {/* Asset Panel (Center Bottom) */}
+                        <div style={{
+                            height: '280px',
+                            borderTop: `2px solid ${colors.borderAccent}`,
+                            zIndex: 10
+                        }}>
+                            <AssetPanelNew
+                                assets={assets}
+                                changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                                changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                                modules={modules}
+                                addModule={(module) => core.addModule(module)}
+                                updateModule={(module) => core.updateModule(module)}
+                                selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                                actionLabels={{}}
+                                onCreateVariable={handleCreateActionVariable}
+                                onUpdateVariable={handleUpdateModuleVariable}
+                                onDeleteAsset={(asset) => {
+                                    // Just remove from local editor, do not delete from S3
+                                    const currentAssets = Array.from(core.getAssets());
+                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -1253,35 +1283,12 @@ function EditorLayoutInner() {
                         )}
                     </div>
                 </div>
+
             </div>
 
 
 
 
-            {/* AI Wizard FAB */}
-            <div style={{
-                position: 'fixed',
-                bottom: '30px',
-                right: '300px', // Left of inspector
-                zIndex: 100,
-            }}>
-                <button
-                    onClick={() => setIsAiWizardOpen(true)}
-                    style={{
-                        width: '56px', height: '56px', borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        color: 'white', border: 'none', cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '24px', transition: 'transform 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                    title="Generate AI Asset"
-                >
-                    ✨
-                </button>
-            </div>
 
             {/* AI Wizard Modal */}
             <AiWizardModal
@@ -1506,34 +1513,6 @@ function EditorLayoutInner() {
                 onGenerate={handleAiGenerate}
             />
 
-            {!isAiWizardOpen && (
-                <button
-                    onClick={() => setIsAiWizardOpen(true)}
-                    style={{
-                        position: 'fixed',
-                        bottom: '24px',
-                        right: '360px', // Moved left to avoid RightPanel (320px) overlap
-                        padding: '12px 24px',
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        color: 'white',
-                        borderRadius: '9999px',
-                        fontWeight: 'bold',
-                        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        cursor: 'pointer',
-                        zIndex: 2000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                    <span style={{ fontSize: '18px' }}>✨</span>
-                    <span>AI Generate</span>
-                </button>
-            )}
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (

@@ -265,7 +265,24 @@ export class SceneSerializer {
     });
 
     json.entities.forEach((e) => {
-      const variables = (e.variables ?? []).map((v) => ({ ...v }));
+      // Migration: Fix corrupted variable types (e.g., "any" -> detect actual type from value)
+      const variables = (e.variables ?? []).map((v) => {
+        let fixedType = v.type;
+        // If type is "any" or missing, infer from value
+        if (!fixedType || fixedType === "any") {
+          if (typeof v.value === 'object' && v.value !== null && 'x' in v.value && 'y' in v.value) {
+            fixedType = "vector2";
+            console.log(`[SceneSerializer] Migrating var '${v.name}' type 'any' -> 'vector2'`);
+          } else if (typeof v.value === "boolean") {
+            fixedType = "bool";
+          } else if (typeof v.value === "number") {
+            fixedType = Number.isInteger(v.value) ? "int" : "float";
+          } else {
+            fixedType = "string";
+          }
+        }
+        return { ...v, type: fixedType };
+      });
       const logicComponents: LogicComponent[] = (e.events ?? []).map((ev, i) => {
         return {
           id: `logic_${i}`,

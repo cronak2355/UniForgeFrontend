@@ -57,7 +57,7 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
     scaleX: 1,
     scaleY: 1,
     role: "neutral",
-    texture: asset.name,
+    texture: asset.id, // Use unique asset.id instead of asset.name to prevent same-named assets from overwriting each other
     variables: [],
     events: [],
     logic: buildLogicItems({ components: [] }),

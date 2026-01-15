@@ -6,8 +6,9 @@ import { assetToEntity } from "../../../utils/assetToEntity";
 import type { Asset } from "../../../types/Asset";
 import type { EditorEntity } from "../../../types/Entity";
 
-type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean };
+type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean | { x: number; y: number } };
 type RuntimeEntity = {
+    id?: string;
     variables?: VariableEntry[];
     x?: number;
     y?: number;
@@ -41,7 +42,7 @@ function coerceBool(value: unknown): boolean {
     return Boolean(value);
 }
 
-function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean): void {
+function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
     if (!entity) return;
     if (!entity.variables) entity.variables = [];
     const existing = entity.variables.find((v) => v.name === name);
@@ -51,6 +52,15 @@ function setVar(entity: RuntimeEntity | undefined, name: string, value: number |
             existing.value = Number.isNaN(num) ? 0 : num;
         } else if (existing.type === "bool") {
             existing.value = coerceBool(value);
+        } else if (existing.type === "vector2") {
+            // Handle vector2 type
+            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+                existing.value = { x: Number(value.x), y: Number(value.y) };
+            } else {
+                // Fallback: treat as uniform scalar
+                const num = typeof value === 'number' ? value : Number(value);
+                existing.value = { x: num, y: num };
+            }
         } else {
             existing.value = String(value);
         }
@@ -159,27 +169,43 @@ function applyDamage(
 
 // --- Movement Actions ---
 
+// --- Movement Actions ---
+
 ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unknown>) => {
     const renderer = ctx.globals?.renderer;
-    if (!renderer) return;
-    if (!isAlive(ctx)) return;
+    if (!renderer) { console.warn("[Move] No renderer"); return; }
+    if (!isAlive(ctx)) { console.warn("[Move] Not alive"); return; }
 
     const entityId = ctx.entityId;
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
     const entity = getEntity(ctx);
-    const speed =
-        getNumberVar(entity, "speed") ??
-        getNumberVar(entity, "maxSpeed") ??
-        (params.speed as number) ??
-        200;
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 200) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
-    const x = (params.x as number) ?? 0;
-    const y = (params.y as number) ?? 0;
 
-    gameObject.x += x * speed * dt;
-    gameObject.y += y * speed * dt;
+    let dirX = 0;
+    let dirY = 0;
+
+    if (params.direction) {
+        const direction = resolveValue(ctx, params.direction as any);
+        // console.log("[Move Debug] Resolved Direction:", direction, "Type:", typeof direction);
+        if (typeof direction === 'object' && direction !== null) {
+            dirX = Number((direction as any).x ?? 0);
+            dirY = Number((direction as any).y ?? 0);
+        }
+    } else {
+        // Fallback: Legacy separate x/y parameters
+        const x = resolveValue(ctx, (params.x ?? 0) as any);
+        const y = resolveValue(ctx, (params.y ?? 0) as any);
+        dirX = Number(x);
+        dirY = Number(y);
+    }
+
+    // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
+
+    gameObject.x += dirX * Number(speed) * dt;
+    gameObject.y += dirY * Number(speed) * dt;
 
     if (entity) {
         entity.x = gameObject.x;
@@ -204,14 +230,10 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
-    const targetX = params.x as number;
-    const targetY = params.y as number;
+    const targetX = Number(resolveValue(ctx, (params.x ?? 0) as any));
+    const targetY = Number(resolveValue(ctx, (params.y ?? 0) as any));
     const entity = getEntity(ctx);
-    const speed =
-        getNumberVar(entity, "speed") ??
-        getNumberVar(entity, "maxSpeed") ??
-        (params.speed as number) ??
-        100;
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 100) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetX - gameObject.x;
@@ -221,8 +243,8 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     if (distance > 5) {
         const nx = dx / distance;
         const ny = dy / distance;
-        gameObject.x += nx * speed * dt;
-        gameObject.y += ny * speed * dt;
+        gameObject.x += nx * Number(speed) * dt;
+        gameObject.y += ny * Number(speed) * dt;
         if (entity) {
             entity.x = gameObject.x;
             entity.y = gameObject.y;
@@ -265,11 +287,7 @@ ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<strin
     if (!gameObject || !targetObject) return;
 
     const entity = getEntity(ctx);
-    const speed =
-        getNumberVar(entity, "speed") ??
-        getNumberVar(entity, "maxSpeed") ??
-        (params.speed as number) ??
-        100;
+    const speed = resolveValue(ctx, params.speed ?? getNumberVar(entity, "speed") ?? 100);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetObject.x - gameObject.x;
@@ -279,8 +297,8 @@ ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<strin
     if (distance > 5) {
         const nx = dx / distance;
         const ny = dy / distance;
-        gameObject.x += nx * speed * dt;
-        gameObject.y += ny * speed * dt;
+        gameObject.x += nx * Number(speed) * dt;
+        gameObject.y += ny * Number(speed) * dt;
 
         if (entity) {
             entity.x = gameObject.x;
@@ -308,15 +326,8 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
     if (!attackerObj) return;
 
     const attackerEntity = getEntity(ctx);
-    const range =
-        getNumberVar(attackerEntity, "attackRange") ??
-        (params.range as number) ??
-        100;
-    const damage =
-        getNumberVar(attackerEntity, "attack") ??
-        getNumberVar(attackerEntity, "damage") ??
-        (params.damage as number) ??
-        10;
+    const range = resolveValue(ctx, (params.range ?? getNumberVar(attackerEntity, "attackRange") ?? 100) as any);
+    const damage = resolveValue(ctx, (params.damage ?? getNumberVar(attackerEntity, "attack") ?? 10) as any);
 
     let targetIds: string[] = [];
     let targetId = ((params.targetId as string) ?? "").trim() || undefined;
@@ -355,18 +366,13 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
             targetObj.y
         );
 
-        if (distance <= range) {
+        if (distance <= Number(range)) {
             const targetEntity = getEntityById(ctx, id);
             const hp = getNumberVar(targetEntity, "hp");
             if (hp !== undefined && hp <= 0) continue;
 
-            if (applyDamage(ctx, id, damage, renderer)) {
+            if (applyDamage(ctx, id, Number(damage), renderer)) {
                 hitSomething = true;
-
-                // 파티클 우선순위 로직:
-                // 1. 액션 파라미터 (무기 특성)
-                // 2. 타겟 엔티티 변수 (재질 특성)
-                // 3. 기본값 없음 (설정 없으면 재생 안 함)
 
                 const actionHitEffect = params.hitEffect as string;
                 const targetHitEffectVar = targetEntity?.variables?.find((v) => v.name === "hitEffect");
@@ -375,14 +381,11 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
                 let effectToPlay: string | null = null;
 
                 if (actionHitEffect) {
-                    // 1순위: 액션 설정
                     effectToPlay = actionHitEffect;
                 } else if (targetHitEffect) {
-                    // 2순위: 타겟 설정
                     effectToPlay = targetHitEffect;
                 }
 
-                // "none"이면 재생 안 함, 설정 없어도 재생 안 함
                 if (effectToPlay && effectToPlay !== "none" && typeof renderer.playParticle === 'function') {
                     renderer.playParticle(effectToPlay, targetObj.x, targetObj.y, 1);
                 }
@@ -431,20 +434,12 @@ ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<st
     }
 
     if (targetX === undefined || targetY === undefined) {
-        // No target found - silent return (common in bullet hell when no enemies exist)
         return;
     }
 
     const ownerEntity = getEntity(ctx);
-    const speed =
-        getNumberVar(ownerEntity, "projectileSpeed") ??
-        (params.speed as number) ??
-        300;
-    const damage =
-        getNumberVar(ownerEntity, "attack") ??
-        getNumberVar(ownerEntity, "damage") ??
-        (params.damage as number) ??
-        10;
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(ownerEntity, "projectileSpeed") ?? 300) as any);
+    const damage = resolveValue(ctx, (params.damage ?? getNumberVar(ownerEntity, "attack") ?? 10) as any);
 
     const dx = targetX - ownerObj.x;
     const dy = targetY - ownerObj.y;
@@ -468,7 +463,7 @@ ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string
     const entity = getEntity(ctx);
     if (!entity) return;
 
-    const amount = (params.amount as number) ?? 1;
+    const amount = Number(resolveValue(ctx, (params.amount ?? 1) as any));
     const hp = getNumberVar(entity, "hp") ?? 0;
     const maxHp = getNumberVar(entity, "maxHp") ?? hp;
     const nextHp = Math.max(0, hp - amount);
@@ -490,7 +485,7 @@ ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unkn
     const entity = getEntity(ctx);
     if (!entity) return;
 
-    const amount = (params.amount as number) ?? 10;
+    const amount = Number(resolveValue(ctx, (params.amount ?? 10) as any));
     const hp = getNumberVar(entity, "hp") ?? 0;
     const maxHp = getNumberVar(entity, "maxHp") ?? hp;
     const nextHp = Math.min(maxHp, hp + amount);
@@ -504,17 +499,194 @@ ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unkn
     });
 });
 
+// ... (omitted actions)
+
+ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return;
+
+    const entityId = ctx.entityId;
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (!gameObject) return;
+
+    const speed = Number(resolveValue(ctx, params.speed ?? 90));
+    const dt = 0.016;
+
+    if (gameObject.rotation !== undefined) {
+        gameObject.rotation += speed * (Math.PI / 180) * dt;
+        const entity = getEntity(ctx);
+        if (entity) entity.rotation = gameObject.rotation;
+    }
+});
+
+ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return;
+
+    const entityId = ctx.entityId;
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (!gameObject || !gameObject.setScale) return;
+
+    const time = Date.now() / 1000;
+    const speed = Number(resolveValue(ctx, (params.speed ?? 2) as any));
+    const min = Number(resolveValue(ctx, (params.minScale ?? 0.8) as any));
+    const max = Number(resolveValue(ctx, (params.maxScale ?? 1.2) as any));
+
+    const scale = min + (Math.sin(time * speed) + 1) * 0.5 * (max - min);
+    gameObject.setScale(scale);
+});
+
 // --- Variable Actions ---
+
+type ValueSource = {
+    type: "literal" | "variable" | "property" | "mouse";
+    value?: any;
+    name?: string;     // for variable
+    targetId?: string; // for property (entity id)
+    property?: string; // for property name
+    axis?: "x" | "y";  // for mouse
+};
+
+function resolveValue(ctx: ActionContext, source: ValueSource | number | string): any {
+    // 1. Legacy/Simple support (if source is just a primitive)
+    if (typeof source !== "object" || source === null) {
+        return source;
+    }
+
+    // 1.5. Check for plain objects without 'type' (e.g. Vector2 literals passed directly)
+    if (!('type' in source)) {
+        return source;
+    }
+
+    // 2. ValueSource object
+    const src = source as ValueSource;
+    if (src.type === "literal") {
+        return src.value;
+    }
+
+    if (src.type === "variable") {
+        if (!src.name) return 0;
+        const entity = getEntity(ctx);
+        const variable = entity?.variables?.find(v => v.name === src.name);
+
+        if (!variable) {
+            console.warn(`[ResolveValue] Variable not found: "${src.name}" on entity "${ctx.entityId}". Available vars:`, entity?.variables?.map(v => v.name));
+        } else {
+            // console.log(`[ResolveValue] Found var "${src.name}":`, variable.value);
+        }
+
+        return variable?.value ?? 0;
+    }
+
+    if (src.type === "property") {
+        const targetId = src.targetId === "self" || !src.targetId ? ctx.entityId : src.targetId;
+        const targetEntity = getEntityById(ctx, targetId);
+
+        // Special case: "variables" are not properties on runtime entity in the same way, 
+        // but let's assume property means core transforms or derived stats.
+        if (!targetEntity || !src.property) return 0;
+
+        // Check core transform
+        if (src.property in targetEntity) {
+            return (targetEntity as any)[src.property];
+        }
+
+        // Check variables as fallback (e.g. accessing another entity's HP)
+        const v = targetEntity.variables?.find(v => v.name === src.property);
+        return v?.value ?? 0;
+    }
+
+    if (src.type === "mouse") {
+        const input = ctx.input;
+        // RuntimeContext's input might not have mouse position yet in this version.
+        // Assuming we might need to extend InputState or use a global mouse provider.
+        // For now, let's assume InputState has mouseX/Y if standardized, or fallback to 0.
+        // Checking RuntimePhysics.ts InputState: { left, right, up, down, jump } - No mouse.
+        // TODO: Pass mouse position in ActionContext or InputState.
+        // For now, use eventData as a hack if passed, or default 0 to avoid crash.
+        // In the future: ctx.input.mouseX
+        return (ctx.eventData as any)?.mouseX ?? 0;
+    }
+
+    return 0;
+}
 
 ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, unknown>) => {
     const entity = getEntity(ctx);
     if (!entity) return;
 
     const varName = params.name as string;
-    const value = params.value as number | string;
     if (!varName) return;
 
-    setVar(entity, varName, value);
+    // Enhanced SetVar: Variable = Op1 [Operation] Op2
+    const operation = (params.operation as string) ?? "Set";
+    const operand1 = params.operand1 as ValueSource | number | string;
+    const operand2 = params.operand2 as ValueSource | number | string;
+
+
+    // Check if using legacy mode (simple value param)
+    if (params.value !== undefined && params.operand1 === undefined) {
+        setVar(entity, varName, params.value as number | string);
+        return;
+    }
+
+    const val1 = resolveValue(ctx, operand1 ?? 0);
+    const val2 = resolveValue(ctx, operand2 ?? 0);
+
+
+    let result: number | string | boolean | object = val1;
+
+    // If string operation, simple concat for add, ignore others
+    if (typeof val1 === "string" || typeof val2 === "string") {
+        if (operation === "Add") {
+            result = String(val1) + String(val2);
+        } else {
+            // For strings, Set is the only other valid op really
+            result = val1;
+        }
+    }
+    // If Vector2 operation (either operand is Vector2)
+    else if ((typeof val1 === 'object' && val1 !== null && 'x' in val1 && 'y' in val1) ||
+        (typeof val2 === 'object' && val2 !== null && 'x' in val2 && 'y' in val2)) {
+
+        const isVec2 = (v: any): v is { x: number, y: number } => typeof v === 'object' && v !== null && 'x' in v && 'y' in v;
+
+        // Treat scalars as uniform vectors for arithmetic
+        const v1 = isVec2(val1) ? val1 : { x: Number(val1), y: Number(val1) };
+        const v2 = isVec2(val2) ? val2 : { x: Number(val2), y: Number(val2) };
+
+        switch (operation) {
+            case "Add": result = { x: v1.x + v2.x, y: v1.y + v2.y }; break;
+            case "Sub": result = { x: v1.x - v2.x, y: v1.y - v2.y }; break;
+            case "Multiply": result = { x: v1.x * v2.x, y: v1.y * v2.y }; break;
+            case "Divide": result = { x: v1.x / (v2.x || 1), y: v1.y / (v2.y || 1) }; break;
+            case "Set": default: result = val1; break;
+        }
+    }
+    // Numeric Operation
+    else {
+        const n1 = Number(val1);
+        const n2 = Number(val2);
+
+        switch (operation) {
+            case "Add": result = n1 + n2; break;
+            case "Sub": result = n1 - n2; break;
+            case "Multiply": result = n1 * n2; break;
+            case "Divide": result = n1 / (n2 !== 0 ? n2 : 1); break;
+            case "Set": default: result = val1; break;
+        }
+    }
+
+    setVar(entity, varName, result as any);
+
+    // Sync to RuntimeContext map (for Modules/Global access)
+    const gameCore = ctx.globals?.gameCore as any;
+    if (gameCore?.getRuntimeContext) {
+        const id = entity.id ?? ctx.entityId;
+        if (id) {
+            gameCore.getRuntimeContext().setEntityVariable(id, varName, result as any);
+        }
+    }
 });
 
 // IncrementVar: Add/subtract amount from a variable (for timers, counters, etc.)
@@ -667,7 +839,7 @@ ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, un
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
-    const speed = (params.speed as number) ?? 90;
+    const speed = Number(resolveValue(ctx, (params.speed ?? 90) as any));
     const dt = 0.016;
 
     if (gameObject.rotation !== undefined) {
@@ -768,7 +940,7 @@ ActionRegistry.register("PlayParticle", (ctx: ActionContext, params: Record<stri
 
     const x = (params.x as number) ?? gameObject?.x ?? entity?.x ?? 0;
     const y = (params.y as number) ?? gameObject?.y ?? entity?.y ?? 0;
-    const scale = (params.scale as number) ?? 1;
+    const scale = Number(resolveValue(ctx, params.scale ?? 1));
 
     // 커스텀 파티클 체크 (custom: 접두어)
     if (preset.startsWith("custom:")) {

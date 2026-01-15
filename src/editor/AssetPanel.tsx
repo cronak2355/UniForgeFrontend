@@ -359,11 +359,11 @@ export function AssetPanel({
               onMouseEnter={(e) => e.currentTarget.style.background = colors.bgTertiary}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               onClick={() => {
-                const url = `/asset-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
+                const url = `/assets-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
                 navigate(url);
               }}
             >
-              <span>✏️</span> Edit Asset
+              <span>?�️</span> Edit Asset
             </div>
           </div>
         </div>
@@ -372,3 +372,4 @@ export function AssetPanel({
     </div>
   );
 }
+

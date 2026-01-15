@@ -453,9 +453,12 @@ export class EditorState implements IGameState {
             entity.z = 10;
         }
         const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
-        scene.entities.set(entity.id, normalized);
+
+        // Deep copy to prevent external mutations from affecting stored data
+        const safeCopy = JSON.parse(JSON.stringify(normalized)) as EditorEntity;
+        scene.entities.set(entity.id, safeCopy);
         if (this.selectedEntity?.id === entity.id) {
-            this.selectedEntity = normalized;
+            this.selectedEntity = safeCopy;
         }
         this.notify();
     }
