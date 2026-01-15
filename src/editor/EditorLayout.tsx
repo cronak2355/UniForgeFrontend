@@ -393,34 +393,36 @@ function EditorLayoutInner() {
 
         setIsSavingProject(true);
         try {
+            // 0. Pre-check Login
+            const user = await authService.getCurrentUser();
+            if (!user) {
+                alert("로그인이 필요합니다. (Login required to save)");
+                setIsSavingProject(false);
+                return;
+            }
+
             const sceneJson = SceneSerializer.serialize(core);
             let id = gameId;
+            let isNewGame = false;
 
-            // If ID is invalid (undefined or empty), create a new game
-            if (!id) {
-                const user = await authService.getCurrentUser();
-                if (!user) {
-                    alert("로그인이 필요합니다. (Login required to create a game)");
-                    setIsSavingProject(false);
-                    return;
-                }
+            // 1. Create or Update Game Metadata
+            if (!id || id === "undefined") {
                 const newGame = await createGame(user.id, title, description);
                 id = String(newGame.gameId);
-                navigate(`/editor/${id}`, { replace: true });
+                isNewGame = true;
+                console.log("[EditorLayout] Created new game:", id);
             } else {
                 // Update existing game info
                 await updateGameInfo(id, title, description);
+                console.log("[EditorLayout] Updated game info:", id);
             }
 
-            // Save Version (Scene Data)
-            // Use existing saveScenes or new saveGameVersion? 
-            // saveScenes calls POST /games/{id}/versions, which is what we want.
-            // Let's use the one imported or keep using logic.
-            // gameService.saveGameVersion is essentially the same as api/sceneApi.saveScenes.
-            // Let's use the new one for consistency if we imported it.
+            // 2. Save Version (CRITICAL: Save data BEFORE navigation)
+            // This ensures that even if navigation triggers a reload, the data is safe in the DB.
             await saveGameVersion(id, sceneJson);
+            console.log("[EditorLayout] Saved game version");
 
-            // Capture and Upload Thumbnail
+            // 3. Capture and Upload Thumbnail (Best Effort)
             try {
                 const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
                 if (canvasEl) {
@@ -453,20 +455,28 @@ function EditorLayoutInner() {
 
                             if (uploadRes.ok) {
                                 const thumbnailUrl = presignData.publicUrl || `https://uniforge.kr/api/games/${id}/thumbnail`;
-                                // Update thumbnail via updateGameInfo (or updateGameThumbnail)
+                                // Update thumbnail via updateGameInfo
                                 await updateGameInfo(id, undefined, undefined, thumbnailUrl);
+                                console.log("[EditorLayout] Thumbnail updated");
                             } else {
-                                console.error("Thumbnail upload to S3 failed:", uploadRes.status, uploadRes.statusText);
+                                console.warn("Thumbnail upload to S3 failed:", uploadRes.status);
                             }
                         }
                     }
                 }
             } catch (err) {
-                console.warn("Thumbnail upload failed:", err);
+                console.warn("Thumbnail upload failed (non-critical):", err);
+            }
+
+            // 4. Navigate if New Game (Update URL)
+            // Doing this LAST prevents race conditions where the component reloads before saving.
+            if (isNewGame) {
+                navigate(`/editor/${id}`, { replace: true });
             }
 
             alert("프로젝트가 성공적으로 저장되었습니다!");
             setIsSaveModalOpen(false);
+
         } catch (e) {
             console.error("Save failed:", e);
             alert("저장에 실패했습니다: " + (e instanceof Error ? e.message : String(e)));
@@ -1279,30 +1289,6 @@ function EditorLayoutInner() {
 
 
 
-            {/* AI Wizard FAB */}
-            <div style={{
-                position: 'fixed',
-                bottom: '30px',
-                right: '300px', // Left of inspector
-                zIndex: 100,
-            }}>
-                <button
-                    onClick={() => setIsAiWizardOpen(true)}
-                    style={{
-                        width: '56px', height: '56px', borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        color: 'white', border: 'none', cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '24px', transition: 'transform 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                    title="Generate AI Asset"
-                >
-                    ✨
-                </button>
-            </div>
 
             {/* AI Wizard Modal */}
             <AiWizardModal
@@ -1527,34 +1513,6 @@ function EditorLayoutInner() {
                 onGenerate={handleAiGenerate}
             />
 
-            {!isAiWizardOpen && (
-                <button
-                    onClick={() => setIsAiWizardOpen(true)}
-                    style={{
-                        position: 'fixed',
-                        bottom: '24px',
-                        right: '360px', // Moved left to avoid RightPanel (320px) overlap
-                        padding: '12px 24px',
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        color: 'white',
-                        borderRadius: '9999px',
-                        fontWeight: 'bold',
-                        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.5)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        cursor: 'pointer',
-                        zIndex: 2000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                    <span style={{ fontSize: '18px' }}>✨</span>
-                    <span>AI Generate</span>
-                </button>
-            )}
 
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
