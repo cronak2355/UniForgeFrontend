@@ -140,6 +140,34 @@ function EditorLayoutInner() {
     const [isDirty, setIsDirty] = useState(false);
     const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
 
+    // Asset Panel Resize State
+    const [assetPanelHeight, setAssetPanelHeight] = useState(280);
+    const [isResizingAssetPanel, setIsResizingAssetPanel] = useState(false);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingAssetPanel) return;
+            // Calculate new height based on mouse position from bottom
+            // Main container is fullscreen, so window.innerHeight - e.clientY
+            // Clamp values
+            const newHeight = Math.max(100, Math.min(800, window.innerHeight - e.clientY));
+            setAssetPanelHeight(newHeight);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizingAssetPanel(false);
+        };
+
+        if (isResizingAssetPanel) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizingAssetPanel]);
+
     // Prompt on exit if dirty
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1228,34 +1256,58 @@ function EditorLayoutInner() {
                     </div>
 
                     {/* Canvas Area */}
-                    <div style={{ flex: 1, position: 'relative', background: '#000' }}>
+                    <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
                         {mode === "dev" ? (
-                            <EditorCanvas
-                                key={`edit-${runSession}`}
-                                assets={assets}
-                                selected_asset={selectedAsset}
-                                draggedAsset={draggedAsset}
-                                onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
-                                addEntity={(entity) => {
-                                    core.addEntity(entity as any);
-                                    core.setSelectedEntity(entity as any);
-                                    setIsDirty(true);
-                                }}
-                            />
+                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                                <EditorCanvas
+                                    key={`edit-${runSession}`}
+                                    assets={assets}
+                                    selected_asset={selectedAsset}
+                                    draggedAsset={draggedAsset}
+                                    onExternalImageDrop={(files) => setDropModalFiles(Array.from(files))}
+                                    addEntity={(entity) => {
+                                        core.addEntity(entity as any);
+                                        core.setSelectedEntity(entity as any);
+                                        setIsDirty(true);
+                                    }}
+                                />
+                            </div>
                         ) : (
-                            <RunTimeCanvas
-                                key={`run-${runSession}`}
-                                onRuntimeEntitySync={handleRuntimeEntitySync}
-                                onGameReady={setRuntimeCore}
-                            />
+                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                                <RunTimeCanvas
+                                    key={`run-${runSession}`}
+                                    onRuntimeEntitySync={handleRuntimeEntitySync}
+                                    onGameReady={setRuntimeCore}
+                                />
+                            </div>
                         )}
 
                         {/* Asset Panel (Center Bottom) */}
+                        {/* Asset Panel (Center Bottom) */}
                         <div style={{
-                            height: '280px',
+                            height: `${assetPanelHeight}px`,
                             borderTop: `2px solid ${colors.borderAccent}`,
-                            zIndex: 10
+                            zIndex: 10,
+                            position: 'relative',
+                            flexShrink: 0
                         }}>
+                            {/* Resize Handle */}
+                            <div
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setIsResizingAssetPanel(true);
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    top: '-4px', // slightly above border for easier grab
+                                    left: 0,
+                                    right: 0,
+                                    height: '8px',
+                                    cursor: 'ns-resize',
+                                    zIndex: 20,
+                                }}
+                                className="hover:bg-blue-500/50 transition-colors"
+                            />
                             <AssetPanelNew
                                 assets={assets}
                                 changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
