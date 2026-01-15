@@ -126,7 +126,7 @@ export function AssetPanelNew({
                     borderBottom: `1px solid ${THEME.border}` // Separator
                 }}>
                     <i className="fa-solid fa-layer-group text-blue-500"></i>
-                    Assets
+                    {tabs.find(t => t.id === currentTag)?.label || "Assets"}
                 </div>
 
                 {/* Tabs Row (Scrollable) */}
@@ -145,20 +145,21 @@ export function AssetPanelNew({
                             <button
                                 key={tab.id}
                                 onClick={() => setCurrentTag(tab.id)}
+                                title={tab.label} // Tooltip
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '8px',
-                                    padding: '6px 14px',
+                                    justifyContent: 'center',
+                                    padding: '6px 10px', // Reduced padding for squares
                                     flexShrink: 0, // Prevent shrinking
-                                    fontSize: '13px',
-                                    fontWeight: isActive ? 600 : 500,
+                                    fontSize: '16px', // Larger icon
                                     color: isActive ? '#fff' : THEME.textDim,
                                     background: isActive ? '#2563eb' : 'transparent', // Blue pill active
                                     border: 'none',
                                     borderRadius: '8px', // Pill shape
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
+                                    aspectRatio: '1/1' // Make it roughly square
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
@@ -174,7 +175,6 @@ export function AssetPanelNew({
                                 }}
                             >
                                 <i className={`fa-solid ${tab.icon}`}></i>
-                                {tab.label}
                             </button>
                         );
                     })}
