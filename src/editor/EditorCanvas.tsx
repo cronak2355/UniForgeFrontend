@@ -353,34 +353,21 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 }
 
                 const entity = assetToEntity(activeDragged, worldX, worldY);
-                addEntityRef.current(entity);
 
-                // [FIX] Load texture BEFORE creating entity to ensure animations are ready when OnStart fires
+                // [FIX] Load texture BEFORE adding entity to ensure animations are ready when OnStart fires
                 const textureKey = entity.texture ?? entity.name;
                 (async () => {
                     try {
-                        // Ensure texture is loaded
+                        // Ensure texture is loaded first
                         await renderer.loadTexture(textureKey, activeDragged.url, activeDragged.metadata);
-
-                        // Now create entity - OnStart will fire with texture/animations ready
-                        gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
-                            name: entity.name,
-                            texture: textureKey,
-                            variables: entity.variables,
-                            components: splitLogicItems(entity.logic),
-                            modules: entity.modules,
-                        });
+                        console.log(`[EditorCanvas] Texture loaded for drag-and-drop: ${textureKey}`);
                     } catch (error) {
                         console.error(`[EditorCanvas] Failed to load texture for dropped entity:`, error);
-                        // Create entity anyway with placeholder
-                        gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
-                            name: entity.name,
-                            texture: textureKey,
-                            variables: entity.variables,
-                            components: splitLogicItems(entity.logic),
-                            modules: entity.modules,
-                        });
                     }
+
+                    // Now add entity - this internally calls core.addEntity → createEntity
+                    // At this point, texture/animations are ready, so OnStart → PlayAnimation will work
+                    addEntityRef.current(entity);
                 })();
             }
 
