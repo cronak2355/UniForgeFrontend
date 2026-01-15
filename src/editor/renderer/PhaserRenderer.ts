@@ -1897,115 +1897,105 @@ export class PhaserRenderer implements IRenderer {
             console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${effectiveFrameCount} frames, ${defaultFps} FPS)`);
         }
 
-        console.log(`[PhaserRenderer] Creating default anim '${defaultAnimKey}' with frames:`, framesConfig);
-
-        this.scene.anims.create({
-            key: defaultAnimKey,
-            frames: framesConfig,
-            frameRate: defaultFps,
-            repeat: -1
-        });
-        console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${effectiveFrameCount} frames, ${defaultFps} FPS)`);
-    }
-}
-
-
-
-/**
- * 罹붾쾭?ㅻ줈遺€???띿뒪泥??앹꽦 (Phaser ?꾩슜)
- */
-addCanvasTexture(key: string, canvas: HTMLCanvasElement): void {
-    if(!this.scene) return;
-
-    if(this.scene.textures.exists(key)) {
-    this.scene.textures.remove(key);
-}
-
-this.scene.textures.addCanvas(key, canvas);
     }
 
-/**
- * ???몄뒪?댁뒪 諛섑솚 (?섏쐞 ?명솚??- ?먯쭊??留덉씠洹몃젅?댁뀡)
- * @deprecated 吏곸젒 ???묎렐?€ 沅뚯옣?섏? ?딆쓬
- */
-getScene(): Phaser.Scene | null {
-    return this.scene;
-}
 
 
+    /**
+     * 罹붾쾭?ㅻ줈遺€???띿뒪泥??앹꽦 (Phaser ?꾩슜)
+     */
+    addCanvasTexture(key: string, canvas: HTMLCanvasElement): void {
+        if (!this.scene) return;
 
-// ===== IRenderer Implementation =====
+        if (this.scene.textures.exists(key)) {
+            this.scene.textures.remove(key);
+        }
 
-getGameObject(id: string): any {
-    return this.entities.get(id) ?? null;
-}
-
-getAllEntityIds(): string[] {
-    return Array.from(this.entities.keys());
-}
-
-hasEntity(id: string): boolean {
-    return this.entities.has(id);
-}
-
-update(id: string, x: number, y: number, z ?: number, rotation ?: number): void {
-    const obj = this.entities.get(id) as any;
-    if(!obj) {
-        console.warn(`[PhaserRenderer] update failed: entity ${id} not found`);
-        return;
+        this.scene.textures.addCanvas(key, canvas);
     }
+
+    /**
+     * ???몄뒪?댁뒪 諛섑솚 (?섏쐞 ?명솚??- ?먯쭊??留덉씠洹몃젅?댁뀡)
+     * @deprecated 吏곸젒 ???묎렐?€ 沅뚯옣?섏? ?딆쓬
+     */
+    getScene(): Phaser.Scene | null {
+        return this.scene;
+    }
+
+
+
+    // ===== IRenderer Implementation =====
+
+    getGameObject(id: string): any {
+        return this.entities.get(id) ?? null;
+    }
+
+    getAllEntityIds(): string[] {
+        return Array.from(this.entities.keys());
+    }
+
+    hasEntity(id: string): boolean {
+        return this.entities.has(id);
+    }
+
+    update(id: string, x: number, y: number, z?: number, rotation?: number): void {
+        const obj = this.entities.get(id) as any;
+        if (!obj) {
+            console.warn(`[PhaserRenderer] update failed: entity ${id} not found`);
+            return;
+        }
 
         // console.log(`[PhaserRenderer] update ${id} -> x=${x} y=${y}`);
 
         obj.x = x;
-    obj.y = y;
+        obj.y = y;
 
-    if(typeof z === "number" && typeof obj.setDepth === "function") {
-    const isUI = obj.getData('isUI');
-    if (isUI) {
-        obj.setDepth(Math.max(z, 100)); // Enforce UI on top
-    } else {
-        obj.setDepth(z);
-    }
-}
+        if (typeof z === "number" && typeof obj.setDepth === "function") {
+            const isUI = obj.getData('isUI');
+            if (isUI) {
+                obj.setDepth(Math.max(z, 100)); // Enforce UI on top
+            } else {
+                obj.setDepth(z);
+            }
+        }
 
-if (typeof rotation === "number") {
-    obj.rotation = rotation;
-}
+        if (typeof rotation === "number") {
+            obj.rotation = rotation;
+        }
 
-    }
-
-/**
- * 에셋 목록 업데이트 (런타임 동적 등록용)
- */
-updateAssets(assets: any[]): void {
-    if(!this.scene?.particleManager) return;
-
-    const particleAssets = assets.filter((a: any) => a.tag === 'Particle');
-    for(const asset of particleAssets) {
-        // 이미 등록된 건 내부에서 무시함
-        this.scene.particleManager.registerCustomTexture(asset.id, asset.url);
-    }
-}
-
-setScale(id: string, scaleX: number, scaleY: number, _scaleZ ?: number): void {
-    const obj = this.entities.get(id) as any;
-    if(obj && typeof obj.setScale === "function") {
-    obj.setScale(scaleX, scaleY);
-}
     }
 
-setAlpha(id: string, alpha: number): void {
-    const obj = this.entities.get(id) as any;
-    if(obj && typeof obj.setAlpha === "function") {
-    obj.setAlpha(alpha);
-}
+    /**
+     * 에셋 목록 업데이트 (런타임 동적 등록용)
+     */
+    updateAssets(assets: any[]): void {
+        if (!this.scene?.particleManager) return;
+
+        const particleAssets = assets.filter((a: any) => a.tag === 'Particle');
+        for (const asset of particleAssets) {
+            // 이미 등록된 건 내부에서 무시함
+            this.scene.particleManager.registerCustomTexture(asset.id, asset.url);
+        }
     }
 
-setTint(id: string, color: number): void {
-    const obj = this.entities.get(id) as any;
-    if(obj && typeof obj.setTint === "function") {
-    obj.setTint(color);
-}
+    setScale(id: string, scaleX: number, scaleY: number, _scaleZ?: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setScale === "function") {
+            obj.setScale(scaleX, scaleY);
+        }
+    }
+
+    setAlpha(id: string, alpha: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setAlpha === "function") {
+            obj.setAlpha(alpha);
+        }
+    }
+
+    setTint(id: string, color: number): void {
+        const obj = this.entities.get(id) as any;
+        if (obj && typeof obj.setTint === "function") {
+            obj.setTint(color);
+        }
     }
 }
