@@ -538,17 +538,26 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             const uiText = ent.variables.find((v: any) => v.name === "uiText")?.value;
             const uiColor = ent.variables.find((v: any) => v.name === "uiColor")?.value;
             const uiFontSize = ent.variables.find((v: any) => v.name === "uiFontSize")?.value;
+            const keepAspectRatio = ent.variables.find((v: any) => v.name === "keepAspectRatio")?.value;
+            const width = ent.variables.find((v: any) => v.name === "width")?.value;
+            const height = ent.variables.find((v: any) => v.name === "height")?.value;
 
             const prevIsUI = prevEnt?.variables.some((v: any) => v.name === "isUI" && v.value === true);
             const prevUiText = prevEnt?.variables.find((v: any) => v.name === "uiText")?.value;
             const prevUiColor = prevEnt?.variables.find((v: any) => v.name === "uiColor")?.value;
             const prevUiFontSize = prevEnt?.variables.find((v: any) => v.name === "uiFontSize")?.value;
+            const prevKeepAspectRatio = prevEnt?.variables.find((v: any) => v.name === "keepAspectRatio")?.value;
+            const prevWidth = prevEnt?.variables.find((v: any) => v.name === "width")?.value;
+            const prevHeight = prevEnt?.variables.find((v: any) => v.name === "height")?.value;
 
             const needsRespawn = prevEnt && (
                 isUI !== prevIsUI ||
                 uiText !== prevUiText ||
                 uiColor !== prevUiColor ||
-                uiFontSize !== prevUiFontSize
+                uiFontSize !== prevUiFontSize ||
+                keepAspectRatio !== prevKeepAspectRatio ||
+                width !== prevWidth ||
+                height !== prevHeight
             );
 
             if (gameCore.hasEntity(ent.id) && needsRespawn) {

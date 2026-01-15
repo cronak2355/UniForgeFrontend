@@ -46,6 +46,7 @@ export function RightPanel() {
     currentAssetId,
     setCurrentAssetId,
     triggerBackgroundRemoval,
+    setHasUnsavedChanges,
   } = useAssetsEditor();
   const animations = Object.entries(animationMap).map(([name, data]) => ({
     name,
@@ -330,6 +331,7 @@ export function RightPanel() {
       if (!currentAssetId) {
         setCurrentAssetId(savedId);
       }
+      setHasUnsavedChanges(false);
       alert("Saved successfully!");
     }
   };
@@ -338,6 +340,7 @@ export function RightPanel() {
     console.log("[AssetsEditor] Saving asset", { assetType, exportName });
     const savedId = await performSave();
     if (savedId) {
+      setHasUnsavedChanges(false);
       const targetPath = gameId ? `/editor/${gameId}` : '/editor';
       console.log("[AssetsEditor] Navigating to editor with new asset", { savedId, targetPath });
       navigate(`${targetPath}?newAssetId=${savedId}`);

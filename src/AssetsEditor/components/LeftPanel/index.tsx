@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function LeftPanel({ onOpenAiWizard }: Props) {
-    const { loadAIImage } = useAssetsEditor();
+    const { importLocalImage } = useAssetsEditor();
 
     return (
         <div className="left-panel-container">
@@ -22,7 +22,7 @@ export function LeftPanel({ onOpenAiWizard }: Props) {
                         style={{ display: 'none' }}
                         onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) loadAIImage(file);
+                            if (file) importLocalImage(file);
                             e.target.value = '';
                         }}
                     />
