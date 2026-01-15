@@ -15,6 +15,7 @@ import { useAuth } from './contexts/AuthContext';
 import "./App.css";
 import EditorLayout from "./editor/EditorLayout";
 import BuildPage from "./pages/BuildPage";
+import ProjectsPage from "./pages/ProjectsPage";
 import { AssetsEditorPage } from './AssetsEditor';
 import AppLayout from './components/layout/AppLayout';
 import AdminRoute from './components/auth/AdminRoute';
@@ -35,6 +36,7 @@ function AppRoutes() {
 
             {/* Authenticated Routes with AppLayout (Sidebar persists) */}
             <Route path="/main" element={isAuthenticated ? <AppLayout><MainPage /></AppLayout> : <Navigate to="/auth" replace />} />
+            <Route path="/projects" element={isAuthenticated ? <AppLayout><ProjectsPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/explore" element={isAuthenticated ? <AppLayout><ExplorePage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/assets" element={isAuthenticated ? <AppLayout><AssetsPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/assets/:assetId" element={isAuthenticated ? <AppLayout><AssetDetailPage /></AppLayout> : <Navigate to="/auth" replace />} />
