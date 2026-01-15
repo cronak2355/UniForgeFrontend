@@ -779,8 +779,6 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     const spawnY = positionMode === "absolute" ? absoluteY : (ownerY + offsetY);
 
     const sourceType = (params.sourceType as string) ?? "texture";
-    // Debug Log
-    console.log(`[SpawnEntity] Request: sourceType=${sourceType}, posMode=${positionMode}, spawnAt=(${spawnX},${spawnY})`);
 
     const prefabEntity =
         sourceType === "prefab"
@@ -790,12 +788,6 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     if (sourceType === "prefab") {
         if (!prefabEntity) {
             console.warn("[SpawnEntity] Failed to resolve prefab entity. Params:", params);
-        } else {
-            // Deep Debug for Component Loss
-            console.log(`[SpawnEntity] Resolved Prefab: ${prefabEntity.name} (${prefabEntity.id})`);
-            console.log(`   - Components: ${prefabEntity.components?.length ?? 0}`);
-            console.log(`   - Logic Items: ${prefabEntity.logic?.length ?? 0}`);
-            // console.log(`   - Full Prefab Dump:`, JSON.stringify(prefabEntity));
         }
     }
 
@@ -806,9 +798,6 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         editorTemplate?.components ??
         splitLogicItems(prefabEntity?.logic ?? editorTemplate?.logic);
 
-    if (sourceType === "prefab") {
-        console.log(`[SpawnEntity] Final Source Components Count: ${sourceComponents?.length ?? 0}`);
-    }
 
     const id = crypto.randomUUID();
     const textureAssetId = sourceType === "texture" ? ((params.sourceAssetId as string) ?? "").trim() : "";
