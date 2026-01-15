@@ -51,14 +51,9 @@ export default function ProjectsPage() {
         }
     };
 
-    const handleCreateGame = async () => {
-        if (!user?.id) return;
-        try {
-            const newGame = await createGame(user.id, "Untitled Project", "New Project");
-            navigate(`/editor/${newGame.gameId}`);
-        } catch (e) {
-            alert("프로젝트 생성 실패");
-        }
+    const handleCreateGame = () => {
+        // Don't create game immediately. Just navigate to editor with 'new' param.
+        navigate(`/editor/new`);
     };
 
     // --- Multi-Select Logic ---
@@ -166,8 +161,8 @@ export default function ProjectsPage() {
                                 onClick={handleBatchDelete}
                                 disabled={selectedGameIds.size === 0}
                                 className={`px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors ${selectedGameIds.size > 0
-                                        ? 'bg-red-600 hover:bg-red-700'
-                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                    ? 'bg-red-600 hover:bg-red-700'
+                                    : 'bg-gray-600 cursor-not-allowed opacity-50'
                                     }`}
                             >
                                 <i className="fa-solid fa-trash mr-2"></i>
@@ -217,8 +212,8 @@ export default function ProjectsPage() {
                                     {isSelectionMode && (
                                         <div className="absolute top-2 right-2 z-10">
                                             <div className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${selectedGameIds.has(game.gameId)
-                                                    ? 'bg-blue-600 border-blue-600'
-                                                    : 'bg-black/50 border-gray-400 hover:border-white'
+                                                ? 'bg-blue-600 border-blue-600'
+                                                : 'bg-black/50 border-gray-400 hover:border-white'
                                                 }`}>
                                                 {selectedGameIds.has(game.gameId) && <i className="fa-solid fa-check text-white text-xs"></i>}
                                             </div>
@@ -300,8 +295,8 @@ export default function ProjectsPage() {
                                         key={page}
                                         onClick={() => handlePageChange(page)}
                                         className={`w-8 h-8 rounded flex items-center justify-center font-medium transition-colors ${currentPage === page
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-[#333] hover:bg-[#444] text-gray-300'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-[#333] hover:bg-[#444] text-gray-300'
                                             }`}
                                     >
                                         {page}
