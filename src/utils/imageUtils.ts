@@ -1,19 +1,20 @@
+// Hardcoded for now, but ideally env var
 export const CLOUDFRONT_DOMAIN = "d3268cfwjiozkv.cloudfront.net";
-export const S3_DOMAIN = "unifor-uploaded-assets.s3.ap-northeast-2.amazonaws.com";
 
 /**
  * Converts an S3 URL to a CloudFront URL.
- * If the URL is already CloudFront or not S3, returns it as is.
+ * It detects standard S3 virtual-hosted-style URLs and replaces the origin with the CloudFront domain.
  */
 export function getCloudFrontUrl(url: string | undefined | null): string {
     if (!url) return "";
 
-    if (url.includes(S3_DOMAIN)) {
-        return url.replace(S3_DOMAIN, CLOUDFRONT_DOMAIN);
-    }
+    // Regex to match: https://[bucket].s3.[region].amazonaws.com
+    // Use a flexible pattern to catch region variations.
+    const s3Regex = /https:\/\/[^/]+\.s3\.[^/]+\.amazonaws\.com/;
 
-    // Also handle case where protocol might be http vs https or missing
-    // But usually simple string replacement is enough if the path matches.
+    if (s3Regex.test(url)) {
+        return url.replace(s3Regex, `https://${CLOUDFRONT_DOMAIN}`);
+    }
 
     return url;
 }
