@@ -157,6 +157,7 @@ export function AssetPanelNew({
                                     alignItems: 'center',
                                     gap: '8px',
                                     padding: '6px 14px',
+                                    flexShrink: 0, // Prevent shrinking
                                     fontSize: '13px',
                                     fontWeight: isActive ? 600 : 500,
                                     color: isActive ? '#fff' : THEME.textDim,
