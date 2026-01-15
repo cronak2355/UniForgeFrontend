@@ -48,6 +48,7 @@ export interface CreateEntityOptions {
     role?: string;
     modules?: ModuleGraph[];
     logic?: EditorLogicItem[];
+    events?: any[]; // Legacy support for renderer spawn
 }
 
 export class GameCore {
@@ -60,6 +61,10 @@ export class GameCore {
     private moduleRuntime: ModuleRuntime;
     private moduleLibrary: ModuleGraph[] = [];
     private onModuleUpdate?: (module: ModuleGraph) => void;
+    /*
+        private logicActionStates: Map<string, LogicActionState> = new Map();
+        private clickedEntities: Set<string> = new Set();
+    */
 
     // Game Config
     private gameConfig: GameConfig = defaultGameConfig;
@@ -301,6 +306,7 @@ export class GameCore {
             width: options.width,
             height: options.height,
             color: options.color,
+            events: options.events,
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotation); // Sync initial transform
 

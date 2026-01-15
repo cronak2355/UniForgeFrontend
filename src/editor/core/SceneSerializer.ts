@@ -31,6 +31,7 @@ export interface SceneEntityJSON {
   y: number;
   variables: SceneVariableJSON[];
   events: SceneEventJSON[];
+  components?: any[]; // Full component list for high-fidelity export
   modules?: ModuleGraph[];
 }
 
@@ -132,6 +133,7 @@ export class SceneSerializer {
       y: e.y,
       variables,
       events,
+      components, // Export ALL components to preserve data fidelity
       modules: e.modules ?? [],
     };
   }

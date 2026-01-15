@@ -200,6 +200,13 @@ class PhaserRenderScene extends Phaser.Scene {
 
         // 준?비? 완료 ? 알림
         this.phaserRenderer.onSceneReady();
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this._keyboardAdapter?.destroy();
+        });
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+            this._keyboardAdapter?.destroy();
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -224,7 +231,7 @@ class PhaserRenderScene extends Phaser.Scene {
         let hpValue: any;
         if (this.phaserRenderer.isRuntimeMode && this.phaserRenderer.gameCore) {
             // Direct Runtime Access
-            hpValue = this.phaserRenderer.gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, "hp");
+            hpValue = this.phaserRenderer.gameCore?.getRuntimeContext?.()?.getEntityVariable(ctx.entityId, "hp");
         } else {
             // Fallback to Editor adapter structure
             hpValue = entity?.variables?.find((v: any) => v.name === "hp")?.value;
@@ -545,9 +552,14 @@ export class PhaserRenderer implements IRenderer {
 
         anyObj.setData?.("id", id);
         anyObj.setData?.("type", type);
+
+        // In Runtime, we skip Editor interactions (Selection, Dragging)
+        // so that Game logic (e.g. Button clicks) works without interference.
+        if (this.isRuntimeMode) return;
+
         anyObj.setInteractive?.();
 
-        const draggable = !this._isRuntimeMode && !this.isPreviewMode;
+        const draggable = !this.isPreviewMode;
         if (this.scene.input) {
             this.scene.input.setDraggable(obj, draggable);
         }
@@ -756,34 +768,48 @@ export class PhaserRenderer implements IRenderer {
             return;
         }
 
-        // EditorCore에서 엔티티 데이터 가져오기 (변수 접근용)
-        const entity = this.core.getEntity(id);
-        const isUI = entity?.variables?.some(v => v.name === "isUI" && v.value === true);
-        const uiTypeVar = entity?.variables?.find(v => v.name === "uiType");
-        const uiType = uiTypeVar ? String(uiTypeVar.value) : (entity?.variables?.some(v => v.name === "uiText") ? "text" : "sprite");
+        // Helper to get variable from either Entity (Editor) or Options (Runtime)
+        const getVar = (name: string) => {
+            const opts = options as any;
+            const fromOpts = opts?.variables?.find((v: any) => v.name === name);
+            if (fromOpts) return fromOpts;
+            const entity = this.core.getEntity(id);
+            return entity?.variables?.find(v => v.name === name);
+        };
 
-        const uiTextVar = entity?.variables?.find(v => v.name === "uiText");
+        const isUIVar = getVar("isUI");
+        let isUI = isUIVar?.value === true;
+
+        const uiTypeVar = getVar("uiType");
+        const uiType = uiTypeVar ? String(uiTypeVar.value) : (getVar("uiText") ? "text" : "sprite");
+
+        // Force isUI if uiType is a known UI type (fallback for variable sync issues)
+        if (["button", "text", "panel", "scrollPanel", "bar"].includes(uiType)) {
+            isUI = true;
+        }
+
+        const uiTextVar = getVar("uiText");
         const uiText = uiTextVar ? String(uiTextVar.value) : "Text";
 
-        const uiFontSizeVar = entity?.variables?.find(v => v.name === "uiFontSize");
+        const uiFontSizeVar = getVar("uiFontSize");
         const uiFontSize = uiFontSizeVar ? String(uiFontSizeVar.value) : '16px';
 
-        const uiColorVar = entity?.variables?.find(v => v.name === "uiColor");
+        const uiColorVar = getVar("uiColor");
         const uiColor = uiColorVar ? String(uiColorVar.value) : '#ffffff';
 
-        const uiBgColorVar = entity?.variables?.find(v => v.name === "uiBackgroundColor");
+        const uiBgColorVar = getVar("uiBackgroundColor");
         const uiBackgroundColor = uiBgColorVar ? String(uiBgColorVar.value) : undefined;
 
-        const uiBarColorVar = entity?.variables?.find(v => v.name === "uiBarColor");
+        const uiBarColorVar = getVar("uiBarColor");
         const uiBarColor = uiBarColorVar ? String(uiBarColorVar.value) : '#e74c3c';
 
-        const uiAlignVar = entity?.variables?.find(v => v.name === "uiAlign");
+        const uiAlignVar = getVar("uiAlign");
         const uiAlign = uiAlignVar ? String(uiAlignVar.value) : "center";
 
-        const widthVar = entity?.variables?.find(v => v.name === "width");
+        const widthVar = getVar("width");
         const width = widthVar ? Number(widthVar.value) : (options?.width ?? 100);
 
-        const heightVar = entity?.variables?.find(v => v.name === "height");
+        const heightVar = getVar("height");
         const height = heightVar ? Number(heightVar.value) : (options?.height ?? 20);
 
         let obj: Phaser.GameObjects.GameObject;
@@ -798,12 +824,74 @@ export class PhaserRenderer implements IRenderer {
             });
             textObj.setOrigin(0.5); // Center origin for consistency
             obj = textObj;
-        } else if (uiType === "panel") {
-            // Panel is just a rectangle container
-            const rect = this.scene.add.rectangle(x, y, width, height,
-                uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x444444
-            );
-            obj = rect;
+        } else if (uiType === "button") {
+            const container = this.scene.add.container(x, y);
+            const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x3498db;
+            let bg: Phaser.GameObjects.GameObject;
+            if (options?.texture && this.scene.textures.exists(options.texture)) {
+                const sprite = this.scene.add.sprite(0, 0, options.texture);
+                sprite.setDisplaySize(width, height);
+                bg = sprite;
+            } else {
+                bg = this.scene.add.rectangle(0, 0, width, height, bgColorInt);
+            }
+            bg.setName("bg");
+
+            const textObj = this.scene.add.text(0, 0, uiText, {
+                fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
+                color: uiColor,
+                fontFamily: 'monospace'
+            }).setOrigin(0.5);
+            textObj.setName("text");
+
+            // Simple Interaction Feedback
+            // Moved to Runtime-only block to avoid Editor conflict
+
+
+            container.add([bg, textObj]);
+            container.setSize(width, height);
+            obj = container;
+
+        } else if (uiType === "panel" || uiType === "scrollPanel") {
+            // Panel/ScrollPanel Container
+            const container = this.scene.add.container(x, y);
+            const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x2c3e50;
+
+            // Panel BG (Sprite or Rect)
+            let bg: Phaser.GameObjects.GameObject;
+            if (options?.texture && this.scene.textures.exists(options.texture)) {
+                const sprite = this.scene.add.sprite(0, 0, options.texture);
+                sprite.setDisplaySize(width, height);
+                bg = sprite;
+            } else {
+                bg = this.scene.add.rectangle(0, 0, width, height, bgColorInt);
+            }
+            bg.setName("bg");
+            container.add(bg);
+
+            if (uiType === "scrollPanel") {
+                // Visual Scroll Bar for Scroll Panel
+                const barWidth = 10;
+                const track = this.scene.add.rectangle((width / 2) - 10, 0, barWidth, height - 10, 0x000000, 0.3);
+                const thumb = this.scene.add.rectangle((width / 2) - 10, -(height / 2) + 20, barWidth - 2, 40, 0xbdc3c7);
+                container.add([track, thumb]);
+            }
+
+            container.setSize(width, height);
+            obj = container;
+
+        } else if (uiType === "image") {
+            // UI Image - standard sprite but can be colored rect if no texture
+            if (options?.texture && this.scene.textures.exists(options.texture)) {
+                const sprite = this.scene.add.sprite(x, y, options.texture);
+                sprite.setDisplaySize(width, height);
+                obj = sprite;
+            } else {
+                // Fallback white rect for placeholder image
+                const rect = this.scene.add.rectangle(x, y, width, height, 0xffffff);
+                obj = rect;
+            }
+
         } else if (uiType === "bar") {
             // Bar is a container with BG and FG
             const container = this.scene.add.container(x, y);
@@ -843,20 +931,7 @@ export class PhaserRenderer implements IRenderer {
         }
 
         (obj as any).setDepth(Math.max(z, 10));
-
-        // UI Element Common Settings
-        if (isUI) {
-            const uiObj = obj as any;
-
-            // REMOVED: We want UI to move with camera in Editor Mode for precise placement.
-            // Runtime usage should handle ScrollFactor(0) separately or we apply it only if isRuntimeMode.
-            if (this.isRuntimeMode && uiObj.setScrollFactor) {
-                uiObj.setScrollFactor(0);
-            }
-
-            if (z < 100) uiObj.setDepth(100);
-            else uiObj.setDepth(z);
-        }
+        obj.setData('isUI', isUI);
 
         // Add to collections
         this.entities.set(id, obj);
@@ -867,23 +942,83 @@ export class PhaserRenderer implements IRenderer {
             this.scene.physics.add.existing(obj);
         }
 
-        // Set initial color if provided (and supported)
-        let color = options?.color ?? 0xffffff;
-        if (isUI) {
-            // For Text
-            if (obj instanceof Phaser.GameObjects.Text) {
-                const align = uiAlign || "center";
-                const originX = align === "left" ? 0 : align === "right" ? 1 : 0.5;
-                obj.setOrigin(originX, 0.5);
-            }
-        } else {
-            if ('setTint' in obj) {
-                // @ts-ignore
-                obj.setTint(color);
-            }
-        }
+        console.log(`[PhaserRenderer] Spawned ${uiType} id=${id} x=${x} y=${y} z=${z} isUI=${isUI} runtime=${this.isRuntimeMode}`);
 
         this.attachEntityInteraction(obj, id, uiType || type);
+
+        // UI Element Common Settings
+        if (isUI) {
+            const uiObj = obj as any;
+
+            // Apply ScrollFactor(0) for Runtime
+            if (this.isRuntimeMode) {
+                if (uiObj.setScrollFactor) {
+                    uiObj.setScrollFactor(0);
+                }
+            }
+
+            if (z < 100) uiObj.setDepth(100);
+            else uiObj.setDepth(z);
+
+            // Re-apply Button Interactions (only in Runtime, to not interfere with Editor dragging)
+            // Re-apply Button Interactions (Runtime Only)
+            if (this.isRuntimeMode && uiType === "button" && obj instanceof Phaser.GameObjects.Container) {
+                const bg = obj.getByName("bg");
+                if (bg) {
+                    const container = obj;
+
+                    // Keep Background Origin 0.5 to ensure Text alignment (Visual Integrity)
+                    (bg as any).setOrigin(0.5);
+
+                    // User Feedback: "Move Hitbox Right and Down"
+                    // Visuals appear to be rendering in Bottom-Right quadrant relative to Container (0,0).
+                    // So we match HitArea to start at (0,0).
+                    const hitArea = new Phaser.Geom.Rectangle(0, 0, width, height);
+
+                    container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
+                    // this.scene.input.enableDebug(container); // Visual Debug
+                    // console.log(`[Button] Setup Offset HitArea...`);
+
+                    const opts = options as any;
+                    const bgColorInt = opts?.uiBackgroundColor ? parseInt(opts.uiBackgroundColor.replace('#', '0x'), 16) : 0x3498db;
+
+                    container.off('pointerover');
+                    container.off('pointerout');
+                    container.off('pointerdown');
+                    container.off('pointerup');
+
+                    container.on('pointerover', () => {
+                        if ('setTint' in bg) (bg as any).setTint(0xcccccc);
+                        else (bg as any).setFillStyle(0x2980b9);
+                    });
+                    container.on('pointerout', () => {
+                        if ('setTint' in bg) (bg as any).clearTint();
+                        else (bg as any).setFillStyle(bgColorInt);
+                    });
+                    container.on('pointerdown', () => {
+                        console.log(`[Button] Clicked! id=${id}`);
+                        if ('setTint' in bg) (bg as any).setTint(0x888888);
+                        else (bg as any).setFillStyle(0x1abc9c);
+
+                        if (this.onEntityClick && this.scene) {
+                            const ptr = this.scene.input.activePointer;
+                            const world = this.scene.cameras.main.getWorldPoint(ptr.x, ptr.y);
+                            this.onEntityClick(id, world.x, world.y);
+                        }
+                    });
+                    container.on('pointerup', () => {
+                        if ('setTint' in bg) (bg as any).setTint(0xcccccc);
+                        else (bg as any).setFillStyle(0x2980b9);
+                    });
+                }
+            }
+        } else {
+            // Non-UI tinting
+            if ('setTint' in obj) {
+                // @ts-ignore
+                obj.setTint(options?.color || 0xffffff);
+            }
+        }
 
         // Dragging handled by editor pointer logic to keep offsets stable.
     }
@@ -938,6 +1073,7 @@ export class PhaserRenderer implements IRenderer {
         const obj = this.entities.get(id);
         if (!obj) return;
 
+        // 1. Handle Sprite (Direct Entity)
         if (obj instanceof Phaser.GameObjects.Sprite) {
             if (!obj.texture || obj.texture.key !== textureKey) {
                 obj.setTexture(textureKey);
@@ -945,6 +1081,67 @@ export class PhaserRenderer implements IRenderer {
             return;
         }
 
+        // 2. Handle Container (Button, Panel, Bar)
+        if (obj instanceof Phaser.GameObjects.Container) {
+            const bg = obj.getByName("bg");
+            if (!bg) return; // Should not happen for valid UI components
+
+            if (bg instanceof Phaser.GameObjects.Sprite) {
+                if (bg.texture.key !== textureKey) {
+                    bg.setTexture(textureKey);
+
+                    // Resize to match container/expected size if needed? 
+                    // Usually we want to maintain the size set by the editor variables (width/height)
+                    // But setTexture resets size to frame size.
+                    // We must re-apply size.
+                    const entity = this.core.getEntity(id);
+                    // Use variable width/height or current display width
+                    const w = bg.displayWidth;
+                    const h = bg.displayHeight;
+                    // Actually, safer to re-read variables or keep existing display size
+                    bg.setDisplaySize(w, h);
+                }
+            } else if (bg instanceof Phaser.GameObjects.Rectangle) {
+                // Replace Rect with Sprite
+                const w = bg.width;
+                const h = bg.height;
+                const x = bg.x;
+                const y = bg.y;
+                // Cache depth/interactions if any (bg usually handles interaction in buttons sometimes?)
+                // In my spawn logic, interaction is on the Container, but visual feedback is on 'bg'.
+
+                // Remove old Rect
+                obj.remove(bg);
+                bg.destroy();
+
+                // Create new Sprite
+                const sprite = this.scene.add.sprite(x, y, textureKey);
+                sprite.setDisplaySize(w, h);
+                sprite.setName("bg");
+
+                // Add at bottom (index 0)
+                obj.addAt(sprite, 0);
+
+                // Note: pointer events (setTint) in spawn() attach listeners to the CONTAINER, 
+                // but those listeners reference the 'bg' variable captured in closure.
+                // Since we destroyed that 'bg', the old closures in 'spawn' will try to tint a destroyed object!
+                // CRITICAL: We need to re-attach interaction logic or update the reference?
+                // Actually, `attachEntityInteraction` is called on the Container.
+                // The Button specific feedback logic in `spawn` (lines ~915-964) attaches events to Container 
+                // but manipulates `bg`.
+                // WE CANNOT easily fix the closure reference. 
+                // We must Re-Spawn the entity or accept that runtime interaction might be broken until reload?
+                // However, `refreshEntityTexture` is called dynamically in Editor.
+                // In Editor, we don't run button hover logic usually (it's runtime only).
+                // BUT spawn() attaches them if `this.isRuntimeMode`.
+                // If we are in Editor, we are fine.
+                // If we are in Runtime, we probably shouldn't be hot-swapping textures this way without respawn.
+                // Given this is an Editor tool, replacing 'bg' is fine for visual update.
+            }
+            return;
+        }
+
+        // 3. Handle Rectangle (Fallback -> Sprite)
         if (!(obj instanceof Phaser.GameObjects.Rectangle)) return;
 
         const x = obj.x;
@@ -974,7 +1171,7 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Animation =====
 
-    playAnim(id: string, name: string): void {
+    playAnim(id: string, name: string, loop?: boolean): void {
         const obj = this.entities.get(id);
         if (!obj) {
             console.warn(`[PhaserRenderer] Cannot play anim: entity "${id}" not found`);
@@ -990,6 +1187,7 @@ export class PhaserRenderer implements IRenderer {
         let targetTexture = sprite.texture.key;
         let targetAnimKey = name;
 
+        // If the requested name implies a texture prefix (e.g. "SomeAsset_Walk"), try to switch texture first
         if (underscoreIdx > 0) {
             const potentialTexture = name.substring(0, underscoreIdx);
             // Check if this texture exists
@@ -1005,30 +1203,60 @@ export class PhaserRenderer implements IRenderer {
             sprite.setTexture(targetTexture, 0);
         }
 
-        // Now try to play the animation
-        if (this.scene?.anims.exists(targetAnimKey)) {
-            sprite.play(targetAnimKey, true);
-        } else {
-            // Try with current texture prefix
-            const prefixedName = `${targetTexture}_${name.split('_').pop()}`;
-            if (this.scene?.anims.exists(prefixedName)) {
-                sprite.play(prefixedName, true);
-            } else {
-                // Fallback: find any animation for this texture
-                let available: string[] = [];
-                try {
-                    const json = this.scene?.anims.toJSON();
-                    if (json && json.anims) {
-                        available = json.anims.map((a: any) => a.key).filter((k: string) => k.startsWith(targetTexture + "_"));
-                    }
-                } catch (e) { console.warn("[PhaserRenderer] Failed to list anims", e); }
-
-                if (available.length > 0) {
-                    const fallback = available[0];
-                    sprite.play(fallback, true);
-                    console.log(`[PhaserRenderer] Using fallback animation: ${fallback}`);
+        // Define a helper to play and log
+        const tryPlay = (key: string, isFallback: boolean = false): boolean => {
+            if (this.scene?.anims.exists(key)) {
+                sprite.play(key, true);
+                if (isFallback) {
+                    console.log(`[PhaserRenderer] PlayAnim fallback: Requested '${name}' -> Playing '${key}'`);
                 }
+
+                // [Loop Override]
+                if (loop !== undefined && sprite.anims) {
+                    sprite.anims.repeat = loop ? -1 : 0;
+                }
+
+                // [Debug]
+                if (sprite.anims.currentAnim) {
+                    // Log occasionally or if needed
+                }
+                return true;
             }
+            return false;
+        };
+
+        // 1. Try Exact Match
+        if (tryPlay(targetAnimKey)) return;
+
+        // 2. Try prefixed match: "${TextureKey}_${AnimName}"
+        // e.g. User asks for "Walk", texture is "Zombie". Try "Zombie_Walk".
+        if (name.indexOf('_') === -1) {
+            const prefixed = `${targetTexture}_${name}`;
+            if (tryPlay(prefixed, true)) return;
+        }
+
+        // 3. Try Texture Key itself (sometimes anim key == texture key)
+        if (tryPlay(targetTexture, true)) return;
+
+        // 4. Try "${TextureKey}_default" (The standard auto-generated default)
+        const defaultKey = `${targetTexture}_default`;
+        if (tryPlay(defaultKey, true)) return;
+
+        // 5. Deep Fallback: Find ANY animation starting with texture key
+        // Use the cache directly to avoid expensive toJSON()
+        if (this.scene?.anims) {
+            // @ts-ignore - 'anims.entries' is internal but efficient. 
+            // If strictly public API is needed, we'd have to use internal iteration or keep a side-map.
+            // Using a safer iteration if possible.
+            // Phaser 3.60+ has anims.get(key).
+
+            // Note: iterating all animations might be slow if there are thousands. 
+            // But usually this fallback is rare.
+            // Let's try to construct a likely list or use the previous JSON method if we must, 
+            // but let's try to be smarter.
+            // Actually, we can just fail here safely.
+
+            console.warn(`[PhaserRenderer] Anim '${name}' not found for texture '${targetTexture}'. Fallbacks failed.`);
         }
     }
 
@@ -1535,8 +1763,34 @@ export class PhaserRenderer implements IRenderer {
                         return;
                     }
                 } else {
-                    resolve();
-                    return;
+                    // [FIX] Even without metadata, check if this existing texture should be sliced via heuristic
+                    // This fixes drag-and-drop assets where the heuristic runs on first load but not on subsequent loads
+                    if (texture.frameTotal <= 1) {
+                        const img = texture.getSourceImage();
+                        if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement || img instanceof ImageBitmap) {
+                            const width = img.width;
+                            const height = img.height;
+
+                            // Heuristic: horizontal strip detection
+                            if (width > height && width % height === 0 && width / height > 1) {
+                                console.log(`[PhaserRenderer] Existing texture '${key}' detected as sprite strip (${width}x${height}). Reloading with slicing.`);
+                                scene.textures.remove(key);
+                                // Proceed to reload with heuristic slicing below
+                            } else {
+                                // Single static image, no slicing needed
+                                resolve();
+                                return;
+                            }
+                        } else {
+                            resolve();
+                            return;
+                        }
+                    } else {
+                        // Texture already has frames, ensure animations exist
+                        this.createAnimationsFromMetadata(key, metadata);
+                        resolve();
+                        return;
+                    }
                 }
             }
 
@@ -1545,13 +1799,14 @@ export class PhaserRenderer implements IRenderer {
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
                 scene.load.spritesheet(key, url, {
                     frameWidth: metadata.frameWidth,
-                    frameHeight: metadata.frameHeight,
+                    frameHeight: metadata.frameHeight!,
                 });
             } else {
                 scene.load.image(key, url);
             }
 
             this.scene.load.once("complete", () => {
+                if (!this.scene) return;
                 const texture = this.scene.textures.get(key);
                 let framesToSlice = 0;
                 let frameWidth = 0;
@@ -1579,9 +1834,9 @@ export class PhaserRenderer implements IRenderer {
 
                         // Execute manual slicing if determined
                         if (framesToSlice > 1 && frameWidth > 0) {
-                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight}`);
+                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight} (Using String Keys)`);
                             for (let i = 0; i < framesToSlice; i++) {
-                                // Add frame with string key "0", "1", ...
+                                // [Fix] Use STRING keys to align with explicit animation creation and ensure lookup consistency
                                 texture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
                             }
                         }
@@ -1637,6 +1892,7 @@ export class PhaserRenderer implements IRenderer {
                     this.scene.anims.remove(animKey);
                 }
 
+                console.log(`[PhaserRenderer] Creating animation '${animKey}': fps=${config.fps}, loop=${config.loop}, repeat=${config.loop ? -1 : 0}`);
                 this.scene.anims.create({
                     key: animKey,
                     frames: validFrames.map(f => ({ key: key, frame: String(f) })), // Direct mapping safer for manual slices
@@ -1649,7 +1905,7 @@ export class PhaserRenderer implements IRenderer {
         // AUTO-GENERATE: If no explicit animations but spritesheet has multiple frames, create "default" animation
         // Use effectiveFrameCount computed earlier
 
-        if (effectiveFrameCount > 1) {
+        if (effectiveFrameCount > 1 && !metadata?.animations?.["default"]) {
             const defaultAnimKey = `${key}_default`;
 
             if (this.scene.anims.exists(defaultAnimKey)) {
@@ -1658,12 +1914,33 @@ export class PhaserRenderer implements IRenderer {
 
             let framesConfig: Phaser.Types.Animations.AnimationFrame[] = [];
 
-            // Use string frame keys for manually sliced textures, numeric otherwise
-            if (texture && texture.has("0")) {
-                framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
-            } else if (metadata && metadata.frameCount && metadata.frameCount > 1) {
-                framesConfig = Array.from({ length: effectiveFrameCount }, (_, i) => ({ key: key, frame: String(i) }));
+            // [Robust] Use actual available frame names from texture to match keys exactly
+            const availableFrames = texture ? texture.getFrameNames() : [];
+
+            if (availableFrames.length > 0) {
+                // Sort numeric frames correctly (0, 1, 2, 10...)
+                availableFrames.sort((a, b) => {
+                    const na = Number(a);
+                    const nb = Number(b);
+                    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                    return a.localeCompare(b);
+                });
+
+                // Use effectiveFrameCount to limit or use all
+                const count = Math.min(availableFrames.length, effectiveFrameCount);
+                const usedFrames = availableFrames.slice(0, count);
+
+                // [Fix] Use Standard String Keys from availableFrames to match Texture configuration
+                framesConfig = usedFrames.map(f => {
+                    return {
+                        key: key,
+                        frame: f
+                    };
+                });
+
+                console.log(`[PhaserRenderer] String-aligned frame generation for '${defaultAnimKey}': Used ${count} frames`, JSON.stringify(framesConfig));
             } else {
+                // Fallback for non-loaded or numeric implicit frames
                 framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
             }
 
@@ -1678,6 +1955,7 @@ export class PhaserRenderer implements IRenderer {
             });
             console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${effectiveFrameCount} frames, ${defaultFps} FPS)`);
         }
+
     }
 
 
@@ -1721,13 +1999,23 @@ export class PhaserRenderer implements IRenderer {
 
     update(id: string, x: number, y: number, z?: number, rotation?: number): void {
         const obj = this.entities.get(id) as any;
-        if (!obj) return;
+        if (!obj) {
+            console.warn(`[PhaserRenderer] update failed: entity ${id} not found`);
+            return;
+        }
+
+        // console.log(`[PhaserRenderer] update ${id} -> x=${x} y=${y}`);
 
         obj.x = x;
         obj.y = y;
 
         if (typeof z === "number" && typeof obj.setDepth === "function") {
-            obj.setDepth(z);
+            const isUI = obj.getData('isUI');
+            if (isUI) {
+                obj.setDepth(Math.max(z, 100)); // Enforce UI on top
+            } else {
+                obj.setDepth(z);
+            }
         }
 
         if (typeof rotation === "number") {

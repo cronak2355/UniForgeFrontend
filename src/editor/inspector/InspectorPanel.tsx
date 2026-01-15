@@ -4,8 +4,11 @@ import type { Asset } from "../types/Asset";
 import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
 import { VariableSection } from "./VariableSection";
+import { EventSection } from "./EventSection";
+import type { EditorEvent } from "../types/Event";
 import { ensureEntityLogic, syncLegacyFromLogic } from "../utils/entityLogic";
 import { useEditorCore } from "../../contexts/EditorCoreContext";
+import { assetService } from "../../services/assetService";
 
 interface Props {
   entity: EditorEntity | null;
@@ -13,6 +16,8 @@ interface Props {
 }
 export function InspectorPanel({ entity, onUpdateEntity }: Props) {
   const core = useEditorCore();
+  // Direct token access for AssetService
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem("access_token") : null;
   const [localEntity, setLocalEntity] = useState<EditorEntity | null>(null);
   const [tagInputValue, setTagInputValue] = useState("");
   const tagInputRef = useRef<HTMLInputElement | null>(null);
@@ -492,10 +497,89 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                   }}
                 >
                   <option value="text">Text</option>
+                  <option value="button">Button</option>
+                  <option value="image">Image</option>
                   <option value="panel">Panel</option>
+                  <option value="scrollPanel">Scroll Panel</option>
                   <option value="bar">Bar (Gauge)</option>
                 </select>
               </div>
+
+              {/* Image/Button/Panel/Bar Texture Settings */}
+              {["image", "button", "panel", "scrollPanel", "bar"].includes(String(localEntity.variables.find(v => v.name === "uiType")?.value)) && (
+                <div style={rowStyle}>
+                  <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Texture</span>
+                  <div style={{ display: 'flex', gap: '4px', flex: 2 }}>
+                    <select
+                      style={{ ...inputStyle, flex: 1 }}
+                      value={String(localEntity.variables.find(v => v.name === "texture")?.value ?? "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let vars = localEntity.variables.filter(v => v.name !== "texture");
+                        if (val) {
+                          vars.push({ id: crypto.randomUUID(), name: "texture", type: "string", value: val });
+                        }
+                        handleUpdate({ ...localEntity, variables: vars, texture: val || undefined });
+                      }}
+                    >
+                      <option value="">(None)</option>
+                      {core.getAssets().filter((a: any) => a.tag === 'Image' || a.tag === 'Sprite').map((a: any) => (
+                        <option key={a.id} value={a.name}>{a.name}</option>
+                      ))}
+                    </select>
+                    <label style={{
+                      ...buttonStyle,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 8px'
+                    }} title="Import Image from Disk">
+                      📂
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          try {
+                            // Upload via AssetService
+                            const name = file.name.split('.')[0] + "_" + Date.now().toString().slice(-4);
+                            const uploaded = await assetService.uploadAsset(
+                              file,
+                              name, // Unique name to force reload
+                              "Image",
+                              token
+                            );
+
+                            // Add to Core Assets
+                            const newAsset: Asset = {
+                              id: uploaded.id,
+                              tag: "Image",
+                              name: uploaded.name,
+                              url: uploaded.url,
+                              idx: -1,
+                              metadata: uploaded.metadata
+                            };
+                            core.addAsset(newAsset);
+
+                            // Auto-select
+                            let vars = localEntity.variables.filter(v => v.name !== "texture");
+                            vars.push({ id: crypto.randomUUID(), name: "texture", type: "string", value: newAsset.name });
+                            handleUpdate({ ...localEntity, variables: vars, texture: newAsset.name });
+
+                          } catch (err) {
+                            console.error("Failed to import image:", err);
+                            alert("Failed to import image.");
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* Text Specific Settings */}
               {(localEntity.variables.find(v => v.name === "uiType")?.value ?? "text") === "text" && (
@@ -768,6 +852,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         </div>
       </div>
 
+      {/* Components Section */}
       <div style={sectionStyle}>
         <div style={titleStyle}>Components</div>
         <ComponentSection entity={localEntity} onUpdateEntity={handleUpdate} />

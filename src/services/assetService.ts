@@ -151,11 +151,15 @@ export const assetService = {
         }
 
         // 2. Upload to S3 (Direct fetch)
-        await fetch(uploadUrl, {
+        const uploadRes = await fetch(uploadUrl, {
             method: "PUT",
             headers: { "Content-Type": contentType },
             body: file,
         });
+
+        if (!uploadRes.ok) {
+            throw new Error(`S3 Upload failed: ${uploadRes.status} ${uploadRes.statusText}`);
+        }
 
         const extractS3Key = (url: string) => {
             try {

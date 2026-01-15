@@ -25,6 +25,7 @@ const EVENT_TYPES = [
     { value: "OnDestroy", label: "OnDestroy" },
     { value: "OnSignalReceive", label: "OnSignalReceive" },
     { value: "OnCollision", label: "OnCollision" },
+    { value: "OnClick", label: "OnClick" },
 ];
 
 const ACTION_LABELS: Record<string, string> = {

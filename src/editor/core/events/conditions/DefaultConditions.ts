@@ -231,6 +231,7 @@ ConditionRegistry.register("InputDown", (ctx: ActionContext, params: Record<stri
 
     // Check keysDown state from InputSystem (just pressed this frame)
     if (ctx.input?.keysDown?.[key] === true) {
+        // console.log(`[DefaultConditions] InputDown TRUE for ${key} at frame ${ctx.globals?.scene?.game?.loop?.frame}`);
         return true;
     }
     return false;

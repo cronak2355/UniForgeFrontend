@@ -45,6 +45,7 @@ export function RightPanel() {
     activeAnimationName,
     currentAssetId,
     setCurrentAssetId,
+    triggerBackgroundRemoval,
   } = useAssetsEditor();
   const animations = Object.entries(animationMap).map(([name, data]) => ({
     name,
@@ -453,6 +454,17 @@ export function RightPanel() {
                 >
                   <span className="text-lg">🦴</span>
                   <span className="text-xs font-bold uppercase tracking-widest">Auto Rigger</span>
+                </button>
+
+                {/* Remove Background Button */}
+                <button
+                  onClick={triggerBackgroundRemoval}
+                  disabled={isLoading}
+                  className="w-full mt-2 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 hover:border-red-500/50 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                  title="Remove background from current canvas"
+                >
+                  <span className="text-lg">✂️</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Remove BG</span>
                 </button>
               </div>
 

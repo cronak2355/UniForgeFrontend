@@ -34,7 +34,7 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
         img.crossOrigin = "anonymous";
         const loaded = await new Promise<boolean>((resolve) => {
             img.onload = () => resolve(true);
-            img.onerror = (e) => {
+            img.onerror = (e: Event | string) => {
                 console.error(`Failed to load image for tile: ${asset.name}`, e);
                 resolve(false);
             };

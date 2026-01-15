@@ -49,7 +49,7 @@ class MarketplaceService {
     }
 
     async getGames(): Promise<Game[]> {
-        return apiClient.request<Game[]>('/marketplace/games');
+        return apiClient.request<Game[]>('/games/public');
     }
 
     async createAsset(data: {
