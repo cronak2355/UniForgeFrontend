@@ -5,6 +5,47 @@ import { buildLogicItems, splitLogicItems } from "../types/Logic";
 import type { LogicComponent } from "../types/Component";
 import type { ModuleGraph } from "../types/Module";
 
+// ===== URL Conversion for Unity =====
+
+/**
+ * API 호스트 URL (환경변수 또는 현재 Origin 사용)
+ */
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
+
+/**
+ * Converts a relative proxy URL to an absolute URL that Unity can access directly.
+ * - `/api/assets/s3/...` → `https://yourdomain.com/api/assets/s3/...`
+ * - Already absolute URLs are returned as-is.
+ * - Data URLs (base64) are returned as-is.
+ */
+function toAbsoluteUrl(url: string | undefined): string {
+  if (!url) return "";
+
+  // Already absolute or data URL
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+
+  // Relative URL → Absolute URL
+  if (url.startsWith("/")) {
+    return `${API_BASE_URL}${url}`;
+  }
+
+  // Fallback: return as-is
+  return url;
+}
+
+/**
+ * Converts Asset URLs to Unity-accessible absolute URLs.
+ */
+function exportAssetForUnity(asset: Asset): Asset {
+  return {
+    ...asset,
+    url: toAbsoluteUrl(asset.url),
+    imageUrl: asset.imageUrl ? toAbsoluteUrl(asset.imageUrl) : undefined,
+  };
+}
+
 export interface SceneEventJSON {
   id: string;
   trigger: string;
@@ -84,7 +125,7 @@ export class SceneSerializer {
       formatVersion: 2,
       activeSceneId: state.getCurrentSceneId(),
       scenes,
-      assets: state.getAssets(),
+      assets: state.getAssets().map(exportAssetForUnity),
       modules: state.getModules(),
     };
   }
