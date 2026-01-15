@@ -615,11 +615,11 @@ export function ActionEditor({
                           />
                         ) : v.type === "vector2" ? (
                           // Vector2 Override UI
-                          <div style={{ display: 'flex', gap: 2 }}>
+                          <div style={{ display: 'flex', gap: 2, minWidth: 0, flex: 1 }}>
                             <input
                               type="number"
                               placeholder="x"
-                              style={{ ...styles.textInput, flex: 1, minWidth: 0 }}
+                              style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
                               value={((initialVariables[v.name] as any)?.x) ?? (v.value as any)?.x ?? 0}
                               onChange={(e) => {
                                 const oldVal = (initialVariables[v.name] as any) ?? (v.value as any) ?? { x: 0, y: 0 };
@@ -630,7 +630,7 @@ export function ActionEditor({
                             <input
                               type="number"
                               placeholder="y"
-                              style={{ ...styles.textInput, flex: 1, minWidth: 0 }}
+                              style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
                               value={((initialVariables[v.name] as any)?.y) ?? (v.value as any)?.y ?? 0}
                               onChange={(e) => {
                                 const oldVal = (initialVariables[v.name] as any) ?? (v.value as any) ?? { x: 0, y: 0 };
