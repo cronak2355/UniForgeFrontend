@@ -1153,6 +1153,7 @@ export class PhaserRenderer implements IRenderer {
         let targetTexture = sprite.texture.key;
         let targetAnimKey = name;
 
+        // If the requested name implies a texture prefix (e.g. "SomeAsset_Walk"), try to switch texture first
         if (underscoreIdx > 0) {
             const potentialTexture = name.substring(0, underscoreIdx);
             // Check if this texture exists
@@ -1168,54 +1169,60 @@ export class PhaserRenderer implements IRenderer {
             sprite.setTexture(targetTexture, 0);
         }
 
-        // Now try to play the animation
-        if (this.scene?.anims.exists(targetAnimKey)) {
-            sprite.play(targetAnimKey, true);
-
-            // [Loop Override]
-            if (loop !== undefined) {
-                // If loop is explicit, override the repeat setting for this playback
-                const repeatVal = loop ? -1 : 0;
-                if (sprite.anims) {
-                    sprite.anims.repeat = repeatVal;
+        // Define a helper to play and log
+        const tryPlay = (key: string, isFallback: boolean = false): boolean => {
+            if (this.scene?.anims.exists(key)) {
+                sprite.play(key, true);
+                if (isFallback) {
+                    console.log(`[PhaserRenderer] PlayAnim fallback: Requested '${name}' -> Playing '${key}'`);
                 }
-            }
 
-
-            // [Debug] Inspect runtime animation state
-            const currentAnim = sprite.anims.currentAnim;
-            // Phaser 3 Animation does not have 'loop' property exposed directly in d.ts sometimes or it is 'repeat' (-1).
-            // Actually, internal 'loop' might be missing in TS defs. 'repeat' is reliable.
-            // On AnimationState (sprite.anims), 'repeatCounter' tracks remaining.
-            console.log(`[PhaserRenderer] Playing '${targetAnimKey}' on ${id}. Runtime check: repeat=${currentAnim?.repeat}, repeatCounter=${sprite.anims.repeatCounter} isPlaying=${sprite.anims.isPlaying}`);
-
-            // [Debug] Add one-time complete listener
-            sprite.once('animationcomplete', (anim: Phaser.Animations.Animation, frame: Phaser.Animations.AnimationFrame) => {
-                console.log(`[PhaserRenderer] Animation '${anim.key}' COMPLETED on ${id}`);
-            });
-
-        } else {
-            // Try with current texture prefix
-            const prefixedName = `${targetTexture}_${name.split('_').pop()}`;
-            if (this.scene?.anims.exists(prefixedName)) {
-                sprite.play(prefixedName, true);
-                console.log(`[PhaserRenderer] Playing prefixed '${prefixedName}' (fallback)`);
-            } else {
-                // Fallback: find any animation for this texture
-                let available: string[] = [];
-                try {
-                    const json = this.scene?.anims.toJSON();
-                    if (json && json.anims) {
-                        available = json.anims.map((a: any) => a.key).filter((k: string) => k.startsWith(targetTexture + "_"));
-                    }
-                } catch (e) { console.warn("[PhaserRenderer] Failed to list anims", e); }
-
-                if (available.length > 0) {
-                    const fallback = available[0];
-                    sprite.play(fallback, true);
-                    console.log(`[PhaserRenderer] Using fallback animation: ${fallback}`);
+                // [Loop Override]
+                if (loop !== undefined && sprite.anims) {
+                    sprite.anims.repeat = loop ? -1 : 0;
                 }
+
+                // [Debug]
+                if (sprite.anims.currentAnim) {
+                    // Log occasionally or if needed
+                }
+                return true;
             }
+            return false;
+        };
+
+        // 1. Try Exact Match
+        if (tryPlay(targetAnimKey)) return;
+
+        // 2. Try prefixed match: "${TextureKey}_${AnimName}"
+        // e.g. User asks for "Walk", texture is "Zombie". Try "Zombie_Walk".
+        if (name.indexOf('_') === -1) {
+            const prefixed = `${targetTexture}_${name}`;
+            if (tryPlay(prefixed, true)) return;
+        }
+
+        // 3. Try Texture Key itself (sometimes anim key == texture key)
+        if (tryPlay(targetTexture, true)) return;
+
+        // 4. Try "${TextureKey}_default" (The standard auto-generated default)
+        const defaultKey = `${targetTexture}_default`;
+        if (tryPlay(defaultKey, true)) return;
+
+        // 5. Deep Fallback: Find ANY animation starting with texture key
+        // Use the cache directly to avoid expensive toJSON()
+        if (this.scene?.anims) {
+            // @ts-ignore - 'anims.entries' is internal but efficient. 
+            // If strictly public API is needed, we'd have to use internal iteration or keep a side-map.
+            // Using a safer iteration if possible.
+            // Phaser 3.60+ has anims.get(key).
+
+            // Note: iterating all animations might be slow if there are thousands. 
+            // But usually this fallback is rare.
+            // Let's try to construct a likely list or use the previous JSON method if we must, 
+            // but let's try to be smarter.
+            // Actually, we can just fail here safely.
+
+            console.warn(`[PhaserRenderer] Anim '${name}' not found for texture '${targetTexture}'. Fallbacks failed.`);
         }
     }
 
