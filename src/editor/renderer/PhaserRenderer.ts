@@ -142,11 +142,21 @@ class PhaserRenderScene extends Phaser.Scene {
                 return;
             }
 
+            // [Optimized] Use RuntimeContext directly used primarily for lookups
+            // Accessing entities via RuntimeContext is O(1) or O(N) iteration without allocation
+            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+
+            // Helper to get entities for global lookup (Scene globals)
+            // We pass the raw Map to avoid reconstruction. 
+            // Warning: Consumers must handle Raw RuntimeEntity objects, not EditorEntity adapters.
+            // But ActionRegistry globals usually expect specific interfaces.
+            const globalEntities = runtimeContext ? runtimeContext.entities : this.phaserRenderer.core.getEntities();
+
             this.phaserRenderer.core.getEntities().forEach((entity) => {
                 const components = splitLogicItems(entity.logic);
                 const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
                 if (logicComponents.length === 0) return;
-                const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+
                 const input = runtimeContext?.getInput();
                 const entityCtx = runtimeContext?.getEntityContext(entity.id);
 
@@ -155,7 +165,13 @@ class PhaserRenderScene extends Phaser.Scene {
                     eventData: event.data || {},
                     input,
                     entityContext: entityCtx,
-                    globals: { scene: this, renderer: this.phaserRenderer, entities: this.phaserRenderer.gameCore?.getAllEntities?.() ?? this.phaserRenderer.core.getEntities(), gameCore: this.phaserRenderer.gameCore }
+                    // Pass the Map directly. Logic actions should handle Map<string, RuntimeEntity>
+                    globals: {
+                        scene: this,
+                        renderer: this.phaserRenderer,
+                        entities: globalEntities,
+                        gameCore: this.phaserRenderer.gameCore
+                    }
                 };
 
                 if (this.shouldSkipEntity(ctx, event)) {
@@ -201,9 +217,19 @@ class PhaserRenderScene extends Phaser.Scene {
     };
 
     private shouldSkipEntity(ctx: ActionContext, event: GameEvent): boolean {
-        const entities = ctx.globals?.entities as Map<string, { variables?: Array<{ name: string; value: unknown }> }> | undefined;
+        // Optimization: Access RuntimeEntity variables directly if possible
+        const entities = ctx.globals?.entities as Map<string, any>;
         const entity = entities?.get(ctx.entityId);
-        const hpValue = entity?.variables?.find((v) => v.name === "hp")?.value;
+
+        let hpValue: any;
+        if (this.phaserRenderer.isRuntimeMode && this.phaserRenderer.gameCore) {
+            // Direct Runtime Access
+            hpValue = this.phaserRenderer.gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, "hp");
+        } else {
+            // Fallback to Editor adapter structure
+            hpValue = entity?.variables?.find((v: any) => v.name === "hp")?.value;
+        }
+
         if (typeof hpValue === "number" && hpValue <= 0) {
             return true;
         }
@@ -258,6 +284,10 @@ class PhaserRenderScene extends Phaser.Scene {
     };
     private reusableEvent: GameEvent = { type: "TICK", data: {}, timestamp: Date.now() };
 
+    // Performance Monitoring
+    private frameCount = 0;
+    private accFrameTime = 0;
+
     // 물리 상태는 RuntimePhysics에서 관리됨
 
     update(time: number, delta: number) {
@@ -265,87 +295,89 @@ class PhaserRenderScene extends Phaser.Scene {
         this.phaserRenderer.onUpdate(time, delta);
 
         if (this.phaserRenderer.isRuntimeMode) {
-            // [Optimized Update Loop]
-            // Direct iteration with reused objects instead of EventBus.emit("TICK")
+            // [RuntimeContext Query-Based Update Loop]
+            // Uses RuntimeContext for all runtime data (entities, components, variables)
+            // EditorState is NOT accessed during runtime - full separation
 
-            // TICK 이벤트는 레거시 호환성을 위해 남겨두되, 주요 로직은 직접 처리
-            // EventBus.emit("TICK", { time, delta, dt: delta / 1000 }); // Disabled for perf
-
+            const frameStart = performance.now();
             const dt = delta / 1000;
-            const entities = this.phaserRenderer.core.getEntities();
-
-            // Prepare reused objects
-            this.reusableCtx.globals = {
-                scene: this,
-                renderer: this.phaserRenderer,
-                entities: entities, // Map ref
-                gameCore: this.phaserRenderer.gameCore
-            };
-            this.reusableEvent.data = { time, delta, dt };
 
             const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
-            const input = runtimeContext?.getInput();
+            if (!runtimeContext) return;
 
-            // Iterate entities directly
-            entities.forEach((entity) => {
-                // Optimization: inline simple alive check
-                const hpVar = entity.variables?.find((v: any) => v.name === "hp");
-                if (hpVar && (hpVar.value as number) <= 0) return;
+            const input = runtimeContext.getInput();
 
-                const components = splitLogicItems(entity.logic);
-                // Filter only OnUpdate/TICK logic to avoid checking other types needlessly
-                const updateComponents = components.filter((component): component is LogicComponent =>
-                    component.type === "Logic" && (component.event === "OnUpdate" || component.event === "TICK")
-                );
+            // Query OnUpdate/TICK components directly using event index (optimized)
+            const updateComponents = runtimeContext.getComponentsByEvent("OnUpdate");
+            const tickComponents = runtimeContext.getComponentsByEvent("TICK");
+            const logicComponents = [...updateComponents, ...tickComponents];
+            let processedComponentCount = 0;
 
-                if (updateComponents.length === 0) return;
+            for (const comp of logicComponents) {
+                const logicData = comp.data as import("../types/Component").LogicComponent | undefined;
+                if (!logicData) continue;
 
-                // Reuse Context
-                this.reusableCtx.entityId = entity.id;
+                // Check entity is alive (from RuntimeContext)
+                const entity = runtimeContext.entities.get(comp.entityId);
+                if (!entity || !entity.active) continue;
+
+                const hpVar = runtimeContext.getEntityVariable(comp.entityId, "hp");
+                if (typeof hpVar === "number" && hpVar <= 0) continue;
+
+                // Prepare context with Phaser-specific globals
+                this.reusableCtx.entityId = comp.entityId;
+                this.reusableCtx.eventData = { time, delta, dt };
                 this.reusableCtx.input = input;
-                this.reusableCtx.entityContext = runtimeContext?.getEntityContext(entity.id);
-                this.reusableCtx.eventData = this.reusableEvent.data ?? {};
+                this.reusableCtx.entityContext = runtimeContext.getEntityContext(comp.entityId);
+                this.reusableCtx.globals = {
+                    scene: this,
+                    renderer: this.phaserRenderer,
+                    entities: runtimeContext.entities,
+                    gameCore: this.phaserRenderer.gameCore
+                };
 
-                // Process Logic
-                for (const component of updateComponents) {
-                    // We know the event matches because we filtered by it, but conditions still apply
-                    if (!this.passesConditions(component, this.reusableCtx)) continue;
+                // Check conditions
+                if (!this.passesConditions(logicData, this.reusableCtx)) continue;
 
-                    for (const action of component.actions ?? []) {
-                        const { type, ...params } = action;
-                        ActionRegistry.run(type, this.reusableCtx, params);
-                    }
+                processedComponentCount++;
+
+                // Execute Actions
+                for (const action of logicData.actions ?? []) {
+                    const { type, ...params } = action;
+                    ActionRegistry.run(type, this.reusableCtx, params);
                 }
-            });
-
-            // 카메라 추적: tags에 cameraFollowRoles가 포함된 엔티티 따라가기
-            const cameraRoles = this.phaserRenderer.gameConfig?.cameraFollowRoles ?? defaultGameConfig.cameraFollowRoles;
-            const allEntities = Array.from(this.phaserRenderer.core.getEntities().values());
-
-            // tags 배열에서 찾기 (1순위: tags, 2순위: role, 3순위: 이름)
-            let playerEntity = allEntities.find(e =>
-                e.tags?.some(tag => cameraRoles.includes(tag))
-            );
-            if (!playerEntity) {
-                playerEntity = allEntities.find(e => hasRole(e.role, cameraRoles));
-            }
-            if (!playerEntity) {
-                playerEntity = allEntities.find(e =>
-                    e.name?.toLowerCase().includes('player')
-                );
             }
 
-            if (playerEntity) {
-                const playerObj = this.phaserRenderer.getGameObject(playerEntity.id) as Phaser.GameObjects.Sprite | null;
-                if (playerObj && this.cameras?.main) {
-                    // 부드러운 카메라 추적
-                    const cam = this.cameras.main;
-                    const targetX = playerObj.x - cam.width / 2;
-                    const targetY = playerObj.y - cam.height / 2;
-                    const lerp = 0.1; // 부드러움 정도
-                    cam.scrollX += (targetX - cam.scrollX) * lerp;
-                    cam.scrollY += (targetY - cam.scrollY) * lerp;
+            // [Performance Reporting - Disabled for production]
+            // Uncomment for debugging performance
+            // const frameDuration = performance.now() - frameStart;
+            // this.accFrameTime += frameDuration;
+            // this.frameCount++;
+            // if (this.frameCount >= 300) {
+            //     console.log(`[Performance] Avg Frame Time: ${(this.accFrameTime / this.frameCount).toFixed(4)} ms`);
+            //     this.accFrameTime = 0;
+            //     this.frameCount = 0;
+            // }
+
+            // Camera Sync: Find "Main Camera" and sync position
+            let cameraEntity: any = null;
+
+            // Search for Main Camera
+            for (const e of runtimeContext.entities.values()) {
+                if (e.name === "Main Camera") {
+                    cameraEntity = e;
+                    break;
                 }
+            }
+
+            try {
+                if (cameraEntity && this.cameras?.main) {
+                    const cx = Number(cameraEntity.x) || 0;
+                    const cy = Number(cameraEntity.y) || 0;
+                    this.cameras.main.centerOn(cx, cy);
+                }
+            } catch (e) {
+                console.warn("[PhaserRenderer] Camera sync error:", e);
             }
         }
 
@@ -542,6 +574,7 @@ export class PhaserRenderer implements IRenderer {
         getEntitiesByRole?(role: string): { id: string; x: number; y: number; role: string }[];
         getNearestEntityByRole?(role: string, fromX: number, fromY: number, excludeId?: string): { id: string; x: number; y: number; role: string } | undefined;
         getAllEntities?(): Map<string, any>;
+        getRuntimeContext?(): RuntimeContext;
     };
 
     /** 寃뚯엫 ?ㅼ젙 (??븷蹂?湲곕뒫 留ㅽ븨) */
@@ -684,26 +717,29 @@ export class PhaserRenderer implements IRenderer {
     // ===== Guide Frame =====
     private guideGraphics: Phaser.GameObjects.Graphics | null = null;
 
-    public setGuideFrame(width: number, height: number) {
+    public setGuideFrame(width: number, height: number, x: number = 0, y: number = 0) {
         if (!this.scene) return;
 
         // Lazy init
         if (!this.guideGraphics) {
             this.guideGraphics = this.scene.add.graphics();
             this.guideGraphics.setDepth(10000); // Top most
-            // this.guideGraphics.setScrollFactor(0); // REMOVED: In editor, we want it to move with camera
         }
 
         this.guideGraphics.clear();
 
         if (width <= 0 || height <= 0) return;
 
-        // Draw White Frame
+        // Draw White Frame Centered at (x, y)
         this.guideGraphics.lineStyle(2, 0xffffff, 1);
-        this.guideGraphics.strokeRect(0, 0, width, height);
+        this.guideGraphics.strokeRect(x - width / 2, y - height / 2, width, height);
 
-        // Optional: Label or semi-transparent fill?
-        // Just frame as requested.
+        // Optional: Crosshair center
+        this.guideGraphics.lineStyle(1, 0xffffff, 0.5);
+        this.guideGraphics.moveTo(x - 10, y);
+        this.guideGraphics.lineTo(x + 10, y);
+        this.guideGraphics.moveTo(x, y - 10);
+        this.guideGraphics.lineTo(x, y + 10);
     }
 
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====

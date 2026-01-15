@@ -32,21 +32,32 @@ export function GameUIOverlay({ gameCore, showHud = true }: Props) {
 
         const loop = () => {
             if (gameCore) {
-                // hudDisplayRoles에 포함된 역할의 엔티티 찾기
-                const hudRoles = gameCore.getGameConfig().hudDisplayRoles;
-                const entities = Array.from(gameCore.getAllEntities().values());
-                const player = entities.find(e => hasRole(e.role, hudRoles));
+                if (gameCore) {
+                    // Optimized: Access RuntimeContext directly
+                    const runtimeContext = gameCore.getRuntimeContext();
+                    const hudRoles = gameCore.getGameConfig().hudDisplayRoles;
 
-                if (player) {
-                    const getVar = (name: string, fallback: number) => {
-                        const variable = player.variables?.find((v) => v.name === name);
-                        return typeof variable?.value === "number" ? variable.value : fallback;
-                    };
-                    setHp(getVar("hp", 100));
-                    setMaxHp(getVar("maxHp", 100));
-                    setMp(getVar("mp", 50));
-                    setMaxMp(getVar("maxMp", 50));
-                    setScore(getVar("score", 0));
+                    // Find player entity without creating new array/objects
+                    let player: any = null;
+                    for (const [id, entity] of runtimeContext.entities) {
+                        if (hasRole(entity.role, hudRoles)) {
+                            player = entity;
+                            break;
+                        }
+                    }
+
+                    if (player) {
+                        const getVar = (name: string, fallback: number) => {
+                            // Check runtime variables directly
+                            const variable = runtimeContext.getEntityVariable(player.id, name);
+                            return typeof variable === "number" ? variable : fallback;
+                        };
+                        setHp(getVar("hp", 100));
+                        setMaxHp(getVar("maxHp", 100));
+                        setMp(getVar("mp", 50));
+                        setMaxMp(getVar("maxMp", 50));
+                        setScore(getVar("score", 0));
+                    }
                 }
             }
             frameId = requestAnimationFrame(loop);
