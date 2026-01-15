@@ -199,7 +199,10 @@ const MainPage = () => {
                     <div>
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xs text-gray-500 uppercase tracking-widest font-semibold">My Projects</h2>
-                            <button className="text-xs text-gray-500 hover:text-white transition-colors">
+                            <button
+                                onClick={() => navigate('/projects')}
+                                className="text-xs text-gray-500 hover:text-white transition-colors"
+                            >
                                 View All
                             </button>
                         </div>
