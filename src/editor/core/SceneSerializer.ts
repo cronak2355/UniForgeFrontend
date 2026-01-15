@@ -131,7 +131,7 @@ export class SceneSerializer {
       formatVersion: 2,
       activeSceneId: state.getCurrentSceneId(),
       scenes,
-      assets: state.getAssets(),
+      assets: state.getAssets().map(exportAssetForUnity),
       modules: state.getModules(),
     };
   }

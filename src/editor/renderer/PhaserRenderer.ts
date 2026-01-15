@@ -1,7 +1,7 @@
 ﻿import Phaser from "phaser";
 import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer";
 // EAC ?쒖뒪??import
-import { EventBus, ActionRegistry, ConditionRegistry } from "../core/events";
+import { EventBus, ActionRegistry, ConditionRegistry, type EventHandler } from "../core/events";
 import { splitLogicItems } from "../types/Logic";
 import { KeyboardAdapter } from "../core/events/adapters/KeyboardAdapter";
 import type { EditorState } from "../EditorCore";
@@ -38,6 +38,7 @@ class PhaserRenderScene extends Phaser.Scene {
     private spaceKey!: Phaser.Input.Keyboard.Key;
     private keyState: Record<string, boolean> = {};
     private keysDownState: Record<string, boolean> = {};
+    private eventHandler?: EventHandler;
 
     constructor() {
         super("PhaserRenderScene");
@@ -77,7 +78,7 @@ class PhaserRenderScene extends Phaser.Scene {
         // See: shouldSkipEntity, matchesEvent, passesConditions
 
         // EventBus handler
-        EventBus.on((event) => {
+        this.eventHandler = (event) => {
             if (event.type === "KEY_DOWN") {
                 const code = event.data?.key as string;
                 if (code) {
@@ -195,18 +196,23 @@ class PhaserRenderScene extends Phaser.Scene {
                     }
                 }
             });
-        });
+        };
+        EventBus.on(this.eventHandler);
         console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
 
         // 준?비? 완료 ? 알림
         this.phaserRenderer.onSceneReady();
 
-        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        const cleanup = () => {
             this._keyboardAdapter?.destroy();
-        });
-        this.events.once(Phaser.Scenes.Events.DESTROY, () => {
-            this._keyboardAdapter?.destroy();
-        });
+            if (this.eventHandler) {
+                EventBus.off(this.eventHandler);
+                this.eventHandler = undefined;
+            }
+        };
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+        this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
     }
 
     // -------------------------------------------------------------------------
@@ -319,6 +325,10 @@ class PhaserRenderScene extends Phaser.Scene {
                 up: this.cursors?.up.isDown || this.wasd?.W.isDown || false,
                 down: this.cursors?.down.isDown || this.wasd?.S.isDown || false,
                 jump: (this.spaceKey?.isDown === true) || (this.cursors?.up?.isDown === true) || (this.wasd?.W?.isDown === true),
+                mouseX: this.input.activePointer?.worldX ?? 0,
+                mouseY: this.input.activePointer?.worldY ?? 0,
+                mouseScreenX: this.input.activePointer?.x ?? 0,
+                mouseScreenY: this.input.activePointer?.y ?? 0,
                 keys: { ...this.keyState },
                 keysDown: { ...this.keysDownState }
             };
@@ -370,6 +380,8 @@ class PhaserRenderScene extends Phaser.Scene {
             jump: (this.spaceKey?.isDown === true) ||
                 (this.cursors?.up?.isDown === true) ||
                 (this.wasd?.W?.isDown === true),
+            mouseX: this.input.activePointer?.worldX ?? 0,
+            mouseY: this.input.activePointer?.worldY ?? 0,
             keys: { ...this.keyState },
             keysDown: { ...this.keysDownState }
         };
@@ -791,6 +803,29 @@ export class PhaserRenderer implements IRenderer {
         const heightVar = getVar("height");
         const height = heightVar ? Number(heightVar.value) : (options?.height ?? 20);
 
+        const keepAspectRatioVar = getVar("keepAspectRatio");
+        const keepAspectRatio = keepAspectRatioVar?.value === true;
+
+        // Helper to set size with aspect ratio check
+        const setSize = (sprite: Phaser.GameObjects.Sprite) => {
+            if (keepAspectRatio) {
+                const tex = sprite.texture.getSourceImage();
+                if (tex) {
+                    const ratio = tex.width / tex.height;
+                    const targetRatio = width / height;
+                    if (ratio > targetRatio) {
+                        sprite.setDisplaySize(width, width / ratio);
+                    } else {
+                        sprite.setDisplaySize(height * ratio, height);
+                    }
+                } else {
+                    sprite.setDisplaySize(width, height);
+                }
+            } else {
+                sprite.setDisplaySize(width, height);
+            }
+        };
+
         let obj: Phaser.GameObjects.GameObject;
 
         if (uiType === "text") {
@@ -809,7 +844,7 @@ export class PhaserRenderer implements IRenderer {
             let bg: Phaser.GameObjects.GameObject;
             if (options?.texture && this.scene.textures.exists(options.texture)) {
                 const sprite = this.scene.add.sprite(0, 0, options.texture);
-                sprite.setDisplaySize(width, height);
+                setSize(sprite);
                 bg = sprite;
             } else {
                 bg = this.scene.add.rectangle(0, 0, width, height, bgColorInt);
@@ -840,7 +875,7 @@ export class PhaserRenderer implements IRenderer {
             let bg: Phaser.GameObjects.GameObject;
             if (options?.texture && this.scene.textures.exists(options.texture)) {
                 const sprite = this.scene.add.sprite(0, 0, options.texture);
-                sprite.setDisplaySize(width, height);
+                setSize(sprite);
                 bg = sprite;
             } else {
                 bg = this.scene.add.rectangle(0, 0, width, height, bgColorInt);
@@ -863,7 +898,7 @@ export class PhaserRenderer implements IRenderer {
             // UI Image - standard sprite but can be colored rect if no texture
             if (options?.texture && this.scene.textures.exists(options.texture)) {
                 const sprite = this.scene.add.sprite(x, y, options.texture);
-                sprite.setDisplaySize(width, height);
+                setSize(sprite);
                 obj = sprite;
             } else {
                 // Fallback white rect for placeholder image
@@ -900,7 +935,20 @@ export class PhaserRenderer implements IRenderer {
             // Default Sprite fallthrough
             const sprite = this.scene.add.sprite(x, y, options.texture);
 
-
+            // Assume default logic applies (stretch?) or default size?
+            // Existing code:
+            // sprite.setDisplaySize(width, height); -> Wait, previous code didn't setDisplaySize for default?
+            // Ah, line 874 was empty in prev view? 
+            // In original code (viewed earlier), it just created sprite.
+            // But 'width'/'height' are derived from options?.width ?? 100.
+            // If it's a generic sprite (non-UI), using width/height forces it.
+            // Let's use setSize() here too if we want generic sprites to respect aspect ratio setting.
+            // Note: Generic sprites usually don't have 'keepAspectRatio' variable unless they are UI.
+            // But if they do, setSize handles it.
+            // Wait, existing code didn't setDisplaySize 
+            // line 872: const sprite = this.scene.add.sprite(x,y, options.texture);
+            // It did NOT set size. Using native size.
+            // But UI elements definitely need size.
 
             obj = sprite;
         } else {
@@ -1063,10 +1111,59 @@ export class PhaserRenderer implements IRenderer {
 
         if (!obj) return;
 
+        const entity = this.core.getEntity(id);
+        const keepAspectRatio = entity?.variables.find(v => v.name === "keepAspectRatio")?.value === true;
+        // Re-read dimensions from variables to be safe, or use current object size if trusted?
+        // Variables are source of truth.
+        const wVar = entity?.variables.find(v => v.name === "width");
+        const hVar = entity?.variables.find(v => v.name === "height");
+        const baseW = wVar ? Number(wVar.value) : (obj as any).width;
+        const baseH = hVar ? Number(hVar.value) : (obj as any).height;
+
+        const setSize = (sprite: Phaser.GameObjects.Sprite) => {
+            if (keepAspectRatio) {
+                const tex = sprite.texture.getSourceImage();
+                if (tex) {
+                    const ratio = tex.width / tex.height;
+                    const targetRatio = baseW / baseH;
+                    if (ratio > targetRatio) {
+                        sprite.setDisplaySize(baseW, baseW / ratio);
+                    } else {
+                        sprite.setDisplaySize(baseH * ratio, baseH);
+                    }
+                } else {
+                    sprite.setDisplaySize(baseW, baseH);
+                }
+            } else {
+                sprite.setDisplaySize(baseW, baseH);
+            }
+        };
+
         // 1. Handle Sprite (Direct Entity)
         if (obj instanceof Phaser.GameObjects.Sprite) {
             if (!obj.texture || obj.texture.key !== textureKey) {
+                const wasLoaded = this.scene.textures.exists(textureKey) &&
+                    this.scene.textures.get(textureKey).key !== '__MISSING';
+
                 obj.setTexture(textureKey);
+
+                // If texture wasn't loaded when setTexture was called, 
+                // recalculate size when it finishes loading
+                if (!wasLoaded) {
+                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    if (textureUrl) {
+                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            if (obj && !obj.scene) return; // Sprite was destroyed
+                            setSize(obj);
+                        }).catch((err: Error) => {
+                            console.error(`[updateEntityVisuals] Failed to load texture for recalculation:`, err);
+                        });
+                    } else {
+                        setSize(obj);
+                    }
+                } else {
+                    setSize(obj);
+                }
             }
             return;
         }
@@ -1074,59 +1171,64 @@ export class PhaserRenderer implements IRenderer {
         // 2. Handle Container (Button, Panel, Bar)
         if (obj instanceof Phaser.GameObjects.Container) {
             const bg = obj.getByName("bg");
-            if (!bg) return; // Should not happen for valid UI components
+            if (!bg) return;
 
             if (bg instanceof Phaser.GameObjects.Sprite) {
                 if (bg.texture.key !== textureKey) {
+                    const wasLoaded = this.scene.textures.exists(textureKey) &&
+                        this.scene.textures.get(textureKey).key !== '__MISSING';
+
                     bg.setTexture(textureKey);
 
-                    // Resize to match container/expected size if needed? 
-                    // Usually we want to maintain the size set by the editor variables (width/height)
-                    // But setTexture resets size to frame size.
-                    // We must re-apply size.
-                    const entity = this.core.getEntity(id);
-                    // Use variable width/height or current display width
-                    const w = bg.displayWidth;
-                    const h = bg.displayHeight;
-                    // Actually, safer to re-read variables or keep existing display size
-                    bg.setDisplaySize(w, h);
+                    // Recalculate size after texture loads if it wasn't loaded initially
+                    if (!wasLoaded) {
+                        const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                        if (textureUrl) {
+                            this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                                if (bg && !bg.scene) return; // Sprite was destroyed
+                                setSize(bg);
+                            }).catch((err: Error) => {
+                                console.error(`[updateEntityVisuals] Container sprite texture load failed:`, err);
+                            });
+                        } else {
+                            setSize(bg);
+                        }
+                    } else {
+                        setSize(bg);
+                    }
                 }
             } else if (bg instanceof Phaser.GameObjects.Rectangle) {
                 // Replace Rect with Sprite
-                const w = bg.width;
-                const h = bg.height;
                 const x = bg.x;
                 const y = bg.y;
-                // Cache depth/interactions if any (bg usually handles interaction in buttons sometimes?)
-                // In my spawn logic, interaction is on the Container, but visual feedback is on 'bg'.
 
-                // Remove old Rect
                 obj.remove(bg);
                 bg.destroy();
 
-                // Create new Sprite
                 const sprite = this.scene.add.sprite(x, y, textureKey);
-                sprite.setDisplaySize(w, h);
                 sprite.setName("bg");
 
-                // Add at bottom (index 0)
-                obj.addAt(sprite, 0);
+                // Check if texture is loaded
+                const wasLoaded = this.scene.textures.exists(textureKey) &&
+                    this.scene.textures.get(textureKey).key !== '__MISSING';
 
-                // Note: pointer events (setTint) in spawn() attach listeners to the CONTAINER, 
-                // but those listeners reference the 'bg' variable captured in closure.
-                // Since we destroyed that 'bg', the old closures in 'spawn' will try to tint a destroyed object!
-                // CRITICAL: We need to re-attach interaction logic or update the reference?
-                // Actually, `attachEntityInteraction` is called on the Container.
-                // The Button specific feedback logic in `spawn` (lines ~915-964) attaches events to Container 
-                // but manipulates `bg`.
-                // WE CANNOT easily fix the closure reference. 
-                // We must Re-Spawn the entity or accept that runtime interaction might be broken until reload?
-                // However, `refreshEntityTexture` is called dynamically in Editor.
-                // In Editor, we don't run button hover logic usually (it's runtime only).
-                // BUT spawn() attaches them if `this.isRuntimeMode`.
-                // If we are in Editor, we are fine.
-                // If we are in Runtime, we probably shouldn't be hot-swapping textures this way without respawn.
-                // Given this is an Editor tool, replacing 'bg' is fine for visual update.
+                if (!wasLoaded) {
+                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    if (textureUrl) {
+                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            if (sprite && !sprite.scene) return;
+                            setSize(sprite);
+                        }).catch((err: Error) => {
+                            console.error(`[updateEntityVisuals] New sprite texture load failed:`, err);
+                        });
+                    } else {
+                        setSize(sprite);
+                    }
+                } else {
+                    setSize(sprite);
+                }
+
+                obj.addAt(sprite, 0);
             }
             return;
         }
@@ -1148,7 +1250,12 @@ export class PhaserRenderer implements IRenderer {
         sprite.setRotation(rotation);
         sprite.setScale(scaleX, scaleY);
 
-        const entity = this.core.getEntity(id);
+        // For root/non-UI sprite, keepAspectRatio usually not set, but if it is?
+        // Logic mainly for UI Containers logic above. 
+        // But let's apply for consistency if entity has the variable.
+        setSize(sprite);
+
+
         if (entity?.role === "projectile" || entity?.role === "enemy" || entity?.role === "player") {
             this.scene.physics.add.existing(sprite);
         }

@@ -478,7 +478,7 @@ export function AssetPanelNew({
                             onMouseEnter={(e) => e.currentTarget.style.background = THEME.accent}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             onClick={() => {
-                                const url = `/asset-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
+                                const url = `/assets-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
                                 navigate(url);
                             }}
                         >
@@ -515,3 +515,4 @@ export function AssetPanelNew({
         </div>
     );
 }
+

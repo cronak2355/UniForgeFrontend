@@ -69,6 +69,21 @@ class AdminService {
             method: 'DELETE'
         });
     }
+
+    async cleanupLibrary(email: string): Promise<string> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/system/library-cleanup?email=${email}`, {
+            headers: {
+                ...(token && { Authorization: `Bearer ${token}` })
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to cleanup library: ${response.statusText}`);
+        }
+
+        return response.text();
+    }
 }
 
 export const adminService = new AdminService();

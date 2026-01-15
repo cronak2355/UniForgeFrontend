@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchMyGames } from '../services/gameService';
 import TopBar from '../components/common/TopBar';
@@ -46,9 +46,17 @@ const DEFAULT_GAME_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/3b82f6?text=
 export default function LibraryPage({ onClose, onSelect, isModal = false, hideGamesTab = false }: Props) {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { type } = useParams<{ type: string }>();
 
-    // Data State
-    const [activeTab, setActiveTab] = useState<'games' | 'assets'>(hideGamesTab ? 'assets' : 'games');
+    // URL Param Validation
+    const activeTab = (type === 'games' || type === 'assets') ? type : 'assets';
+
+    // Redirect if invalid type
+    useEffect(() => {
+        if (type && type !== 'games' && type !== 'assets' && !hideGamesTab) {
+            navigate('/library/assets', { replace: true });
+        }
+    }, [type, navigate, hideGamesTab]);
     const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -257,7 +265,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                     <div className="flex items-center gap-1 bg-[#1a1a1a]/50 p-1 rounded-xl border border-white/5 ml-6">
                         {!hideGamesTab && (
                             <button
-                                onClick={() => { setActiveTab('games'); setSelectedCollectionId(null); }}
+                                onClick={() => { navigate('/library/games'); setSelectedCollectionId(null); }}
                                 className={`
                                     px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
                                     ${activeTab === 'games'
@@ -270,7 +278,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                             </button>
                         )}
                         <button
-                            onClick={() => { setActiveTab('assets'); setSelectedCollectionId(null); }}
+                            onClick={() => { navigate('/library/assets'); setSelectedCollectionId(null); }}
                             className={`
                                 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
                                 ${activeTab === 'assets'

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { adminService, AdminStats, AdminUser, AdminAsset } from '../services/adminService';
 
-type TabType = 'dashboard' | 'users' | 'assets';
+type TabType = 'dashboard' | 'users' | 'assets' | 'system';
 
 export default function AdminPage() {
     const { user } = useAuth();
@@ -63,6 +63,16 @@ export default function AdminPage() {
         }
     };
 
+    const handleCleanupLibrary = async (email: string, userName?: string) => {
+        if (!confirm(`${userName ? `'${userName}' (${email})` : `'${email}'`} 사용자의 잘못된 라이브러리 데이터를 정리하시겠습니까?`)) return;
+        try {
+            const result = await adminService.cleanupLibrary(email);
+            alert(result);
+        } catch (e: any) {
+            alert('정리 실패: ' + e.message);
+        }
+    };
+
     const handleSearch = () => {
         loadData();
     };
@@ -103,6 +113,7 @@ export default function AdminPage() {
                             { id: 'dashboard', label: '대시보드', icon: 'fa-chart-line' },
                             { id: 'users', label: '사용자 관리', icon: 'fa-users' },
                             { id: 'assets', label: '에셋 관리', icon: 'fa-cube' },
+                            { id: 'system', label: '시스템 도구', icon: 'fa-tools' },
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -251,17 +262,29 @@ export default function AdminPage() {
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>{u.assetCount}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>{u.gameCount}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            {u.id !== user?.id && (
+                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                                {u.id !== user?.id && (
+                                                                    <button
+                                                                        onClick={() => handleRoleChange(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN')}
+                                                                        style={{
+                                                                            padding: '6px 12px', fontSize: '0.8rem', border: '1px solid #333',
+                                                                            backgroundColor: 'transparent', color: '#888', borderRadius: '6px', cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        {u.role === 'ADMIN' ? '권한 해제' : '관리자 부여'}
+                                                                    </button>
+                                                                )}
                                                                 <button
-                                                                    onClick={() => handleRoleChange(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN')}
+                                                                    onClick={() => handleCleanupLibrary(u.email, u.name)}
+                                                                    title="라이브러리 데이터 정리"
                                                                     style={{
-                                                                        padding: '6px 12px', fontSize: '0.8rem', border: '1px solid #333',
-                                                                        backgroundColor: 'transparent', color: '#888', borderRadius: '6px', cursor: 'pointer'
+                                                                        padding: '6px 10px', fontSize: '0.8rem', border: '1px solid #333',
+                                                                        backgroundColor: 'transparent', color: '#eab308', borderRadius: '6px', cursor: 'pointer'
                                                                     }}
                                                                 >
-                                                                    {u.role === 'ADMIN' ? '권한 해제' : '관리자 부여'}
+                                                                    <i className="fa-solid fa-broom"></i>
                                                                 </button>
-                                                            )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -356,6 +379,54 @@ export default function AdminPage() {
                                                 ))}
                                             </tbody>
                                         </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* System Tab */}
+                            {activeTab === 'system' && (
+                                <div>
+                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                                        <i className="fa-solid fa-tools" style={{ marginRight: '12px', color: '#8b5cf6' }}></i>
+                                        시스템 도구
+                                    </h1>
+
+                                    <div style={{
+                                        backgroundColor: '#0a0a0a', borderRadius: '12px',
+                                        border: '1px solid #222', padding: '1.5rem', marginBottom: '2rem'
+                                    }}>
+                                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+                                            <i className="fa-solid fa-broom" style={{ marginRight: '10px', color: '#eab308' }}></i>
+                                            데이터 정리
+                                        </h2>
+                                        <p style={{ color: '#888', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+                                            오류로 인해 생성된 잘못된 라이브러리 항목(NULL 참조)을 정리합니다.<br />
+                                            현재 로그인된 본인의 계정을 정리할 수 있습니다.
+                                        </p>
+
+                                        <button
+                                            onClick={() => user?.email && handleCleanupLibrary(user.email, user.name)}
+                                            style={{
+                                                padding: '10px 20px', backgroundColor: '#eab308', border: 'none',
+                                                borderRadius: '8px', color: 'black', fontWeight: 600, cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: '8px'
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-broom"></i>
+                                            내 라이브러리 정리하기
+                                        </button>
+                                    </div>
+
+                                    {/* Future tools can be added here */}
+                                    <div style={{
+                                        backgroundColor: '#0a0a0a', borderRadius: '12px',
+                                        border: '1px solid #222', padding: '1.5rem', opacity: 0.5
+                                    }}>
+                                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#888' }}>
+                                            <i className="fa-solid fa-hammer" style={{ marginRight: '10px' }}></i>
+                                            준비 중인 기능
+                                        </h2>
+                                        <p style={{ color: '#666' }}>추가적인 시스템 관리 도구가 여기에 표시됩니다.</p>
                                     </div>
                                 </div>
                             )}

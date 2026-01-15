@@ -21,6 +21,7 @@ import {
 } from '../services/SpriteSheetExporter';
 import { assetService } from '../../services/assetService';
 import { useSearchParams } from 'react-router-dom';
+import { detectAndSliceSpritesheet, parseSpritesheetFromMetadata } from '../services/SlicingUtils';
 
 // Revised Interface for Frame-Set Model
 export interface AnimationData {
@@ -97,6 +98,12 @@ export interface AssetsEditorContextType {
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   currentAssetMetadata: any;
+
+  // Local File Import
+  importLocalImage: (file: File) => Promise<void>;
+  loadAssetForEditing: (assetId: string) => Promise<void>;
+  hasUnsavedChanges: boolean;
+  setHasUnsavedChanges: (value: boolean) => void;
 
   featherAmount: number;
   setFeatherAmount: (amount: number) => void;
@@ -183,6 +190,7 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
 
   const [currentAssetId, setCurrentAssetId] = useState<string | null>(null);
   const [currentAssetMetadata, setCurrentAssetMetadata] = useState<any>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -827,6 +835,147 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     return tempCanvas;
   }, [pixelSize]);
 
+  // ==================== Local File Import ====================
+
+  const importLocalImage = useCallback(async (file: File) => {
+    if (!engineRef.current) return;
+
+    setIsLoading(true);
+    try {
+      const slicingResult = await detectAndSliceSpritesheet(file, pixelSize);
+
+      if (slicingResult.isSpriteSheet && slicingResult.frameCount > 1) {
+        const confirmed = window.confirm(
+          `Detected ${slicingResult.frameCount} frames in this sprite sheet. ` +
+          `Import all frames? (Cancel to import as single image)`
+        );
+
+        if (confirmed) {
+          // Import all frames
+          engineRef.current.clearAllFrames();
+
+          for (let i = 0; i < slicingResult.frames.length; i++) {
+            if (i === 0) {
+              const firstFrame = engineRef.current.getAllFrames()[0];
+              if (firstFrame) {
+                firstFrame.data.set(slicingResult.frames[i].data);
+              }
+            } else {
+              const newFrame = engineRef.current.addFrame();
+              if (newFrame) {
+                await new Promise(r => setTimeout(r, 30));
+                engineRef.current.selectFrame(i);
+                newFrame.data.set(slicingResult.frames[i].data);
+              }
+            }
+          }
+
+          engineRef.current.selectFrame(0);
+          syncFrameState();
+          updateHistoryState();
+          setHasUnsavedChanges(true);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Single frame import (or user cancelled)
+      engineRef.current.clearAllFrames();
+      const firstFrame = engineRef.current.getAllFrames()[0];
+      if (firstFrame && slicingResult.frames[0]) {
+        firstFrame.data.set(slicingResult.frames[0].data);
+      }
+
+      syncFrameState();
+      updateHistoryState();
+      setHasUnsavedChanges(true);
+
+    } catch (e) {
+      console.error("Failed to import local image:", e);
+      alert("Failed to import image: " + (e as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pixelSize, syncFrameState, updateHistoryState]);
+
+  const loadAssetForEditing = useCallback(async (assetId: string) => {
+    setIsLoading(true);
+    try {
+      const asset = await assetService.getAsset(assetId) as any;
+      const imageUrl = asset.imageUrl || asset.image;
+      if (!imageUrl) throw new Error('No image URL in asset');
+
+      const fullUrl = imageUrl.startsWith('http')
+        ? imageUrl
+        : `${window.location.origin}${imageUrl}`;
+
+      const blob = await fetch(fullUrl).then(r => r.blob());
+
+      // Parse metadata
+      let metadata;
+      try {
+        metadata = typeof asset.description === 'string'
+          ? JSON.parse(asset.description)
+          : asset.description;
+      } catch {
+        metadata = {};
+      }
+
+      // Parse spritesheet using metadata
+      const { frames, animationMap } = await parseSpritesheetFromMetadata(
+        blob,
+        metadata,
+        pixelSize
+      );
+
+      // Clear and load frames
+      if (engineRef.current) {
+        engineRef.current.clearAllFrames();
+
+        for (let i = 0; i < frames.length; i++) {
+          if (i === 0) {
+            const firstFrame = engineRef.current.getAllFrames()[0];
+            if (firstFrame) {
+              firstFrame.data.set(frames[i].data);
+            }
+          } else {
+            const newFrame = engineRef.current.addFrame();
+            if (newFrame) {
+              await new Promise(r => setTimeout(r, 30));
+              newFrame.data.set(frames[i].data);
+            }
+          }
+        }
+
+        engineRef.current.selectFrame(0);
+      }
+
+      // Restore animations
+      setAnimationMap(animationMap);
+      const firstAnim = Object.keys(animationMap)[0] || 'default';
+      setActiveAnimationName(firstAnim);
+
+      // Set FPS and loop from first animation
+      const animData = animationMap[firstAnim];
+      if (animData) {
+        setFps(animData.fps || 8);
+        setLoop(animData.loop !== false);
+      }
+
+      setCurrentAssetId(assetId);
+      setCurrentAssetMetadata(metadata);
+      setHasUnsavedChanges(false);
+      syncFrameState();
+      updateHistoryState();
+
+    } catch (error) {
+      console.error('Failed to load asset for editing:', error);
+      alert('Failed to load asset: ' + (error as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pixelSize, syncFrameState, updateHistoryState]);
+
   // ==================== Export ====================
 
   const downloadWebP = useCallback(async (filename: string) => {
@@ -1083,9 +1232,18 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     const assetId = searchParams.get('assetId');
     if (assetId && assetId !== currentAssetId) {
       console.log("[AssetsEditor] Found assetId in URL, loading:", assetId);
-      loadAsset(assetId);
+
+      // Check for unsaved changes
+      if (hasUnsavedChanges) {
+        const confirmed = window.confirm(
+          "You have unsaved changes. Loading a new asset will discard them. Continue?"
+        );
+        if (!confirmed) return;
+      }
+
+      loadAssetForEditing(assetId);
     }
-  }, [searchParams, currentAssetId, loadAsset]);
+  }, [searchParams, currentAssetId, loadAssetForEditing, hasUnsavedChanges]);
 
 
   const value: AssetsEditorContextType = {
@@ -1164,6 +1322,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     currentAssetId,
     setCurrentAssetId,
     currentAssetMetadata,
+    importLocalImage,
+    loadAssetForEditing,
+    hasUnsavedChanges,
+    setHasUnsavedChanges,
   };
 
   return (

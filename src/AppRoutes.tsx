@@ -42,7 +42,8 @@ function AppRoutes() {
             <Route path="/assets/:assetId" element={isAuthenticated ? <AppLayout><AssetDetailPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/create-asset" element={isAuthenticated ? <AppLayout><CreateAssetPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/marketplace" element={isAuthenticated ? <AppLayout><MarketplacePage /></AppLayout> : <Navigate to="/auth" replace />} />
-            <Route path="/library" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
+            <Route path="/library" element={isAuthenticated ? <Navigate to="/library/assets" replace /> : <Navigate to="/auth" replace />} />
+            <Route path="/library/:type" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/admin" element={isAuthenticated ? <AdminRoute><AppLayout><AdminPage /></AppLayout></AdminRoute> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <AppLayout><BuildPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/assets-editor" element={isAuthenticated ? <AssetsEditorPage /> : <Navigate to="/auth" replace />} />
