@@ -1834,10 +1834,10 @@ export class PhaserRenderer implements IRenderer {
 
                         // Execute manual slicing if determined
                         if (framesToSlice > 1 && frameWidth > 0) {
-                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight} (Using Integer Keys)`);
+                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight} (Using String Keys)`);
                             for (let i = 0; i < framesToSlice; i++) {
-                                // [Fix] Use INTEGER keys (i) instead of String(i) to align with Phaser's expected format for spritesheets
-                                texture.add(i, 0, i * frameWidth, 0, frameWidth, frameHeight);
+                                // [Fix] Use STRING keys to align with explicit animation creation and ensure lookup consistency
+                                texture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
                             }
                         }
                     }
@@ -1930,16 +1930,15 @@ export class PhaserRenderer implements IRenderer {
                 const count = Math.min(availableFrames.length, effectiveFrameCount);
                 const usedFrames = availableFrames.slice(0, count);
 
-                // [Fix] Convert to Number if valid, to match Integer Key expectation
+                // [Fix] Use Standard String Keys from availableFrames to match Texture configuration
                 framesConfig = usedFrames.map(f => {
-                    const num = Number(f);
                     return {
                         key: key,
-                        frame: !isNaN(num) ? num : f
+                        frame: f
                     };
                 });
 
-                console.log(`[PhaserRenderer] Integer-aligned frame generation for '${defaultAnimKey}': Used ${count} frames`, JSON.stringify(framesConfig));
+                console.log(`[PhaserRenderer] String-aligned frame generation for '${defaultAnimKey}': Used ${count} frames`, JSON.stringify(framesConfig));
             } else {
                 // Fallback for non-loaded or numeric implicit frames
                 framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
