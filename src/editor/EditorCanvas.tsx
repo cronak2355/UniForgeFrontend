@@ -194,6 +194,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         }
 
         const renderer = new PhaserRenderer(core);
+        renderer.isRuntimeMode = false; // Explicitly enforce Editor Mode
         rendererRef.current = renderer;
         const gameCore = new GameCore(renderer);
         gameCoreRef.current = gameCore;

@@ -340,6 +340,7 @@ export class GameCore {
 
         // 4. Queue Components (from options.components - legacy)
         if (options.components) {
+            // console.log(`[GameCore] CreateEntity ${id}: Processing options.components (${options.components.length})`);
             for (const c of options.components) {
                 const runtimeComp: RuntimeComponent = {
                     entityId: id,
@@ -347,6 +348,8 @@ export class GameCore {
                     data: c
                 };
                 this.pipeline.queueAddComponent(runtimeComp);
+                const actions = (c as any).actions?.map((a: any) => a.type).join(", ") || "None";
+                console.log(`[GameCore] Queued Component (Legacy List): ${c.type} for ${id}, Event: ${(c as any).event}, Actions: ${actions}`);
             }
         }
 
@@ -355,7 +358,7 @@ export class GameCore {
             // console.log(`[GameCore] CreateEntity ${id}: Queuing ${options.logic.length} logic items.`);
             for (const item of options.logic) {
                 if (item.kind === "component") {
-                    // console.log(`[GameCore] QueueLogicComponent: ${item.component.type} for entity ${id}, event: ${(item.component as any).event}`);
+                    console.log(`[GameCore] QueueLogicComponent: ${item.component.type} for entity ${id}, event: ${(item.component as any).event}`);
                     const runtimeComp: RuntimeComponent = {
                         entityId: id,
                         type: item.component.type,
@@ -384,7 +387,15 @@ export class GameCore {
         //     }
         // }
 
-        EventBus.emit("OnStart", {}, id);
+        // [FIX] Defer OnStart emission to ensure Entity is fully registered in RuntimeContext
+        // This prevents race condition where LogicSystem tries to run OnStart on a non-existent entity.
+        // [FIX] Only emit OnStart if we are in Runtime Mode (prevents Editor drag-drop from running logic)
+        if (this.renderer.isRuntimeMode) {
+            setTimeout(() => {
+                EventBus.emit("OnStart", { entityId: id }, id);
+            }, 0);
+        }
+
         return true;
     }
 
@@ -564,6 +575,7 @@ export class GameCore {
     validateIdSync() { return true; }
     destroy() {
         if (this.eventHandler) EventBus.off(this.eventHandler);
+        this.pipeline.destroy(); // Cleanup systems (LogicSystem listeners etc)
         this.runtimeContext.clearEntities();
     }
 

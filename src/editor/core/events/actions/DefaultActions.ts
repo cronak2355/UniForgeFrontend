@@ -742,7 +742,10 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
 
 ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {
     const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
-    if (!gameCore?.createEntity) return;
+    if (!gameCore?.createEntity) {
+        console.error("[SpawnEntity] gameCore.createEntity not found!", ctx.globals);
+        return;
+    }
 
     const entities = ctx.globals?.entities as Map<string, any> | undefined;
     const owner = entities?.get(ctx.entityId);
@@ -758,25 +761,54 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     const editorTemplate = renderer?.core?.getEntity?.(editorTemplateId);
 
     const positionMode = (params.positionMode as string) ?? "relative";
-    const offsetX = Number(params.offsetX ?? 0);
-    const offsetY = Number(params.offsetY ?? 0);
-    const absoluteX = Number(params.x ?? owner?.x ?? 0);
-    const absoluteY = Number(params.y ?? owner?.y ?? 0);
+    // Safe Coordinate Calculation
+    const safefloat = (val: unknown, def: number) => {
+        const num = Number(val);
+        return Number.isNaN(num) ? def : num;
+    };
 
-    const spawnX = positionMode === "absolute" ? absoluteX : (Number(owner?.x ?? 0) + offsetX);
-    const spawnY = positionMode === "absolute" ? absoluteY : (Number(owner?.y ?? 0) + offsetY);
+    const offsetX = safefloat(params.offsetX, 0);
+    const offsetY = safefloat(params.offsetY, 0);
+    const absoluteX = safefloat(params.x, safefloat(owner?.x, 0));
+    const absoluteY = safefloat(params.y, safefloat(owner?.y, 0));
+
+    const ownerX = safefloat(owner?.x, 0);
+    const ownerY = safefloat(owner?.y, 0);
+
+    const spawnX = positionMode === "absolute" ? absoluteX : (ownerX + offsetX);
+    const spawnY = positionMode === "absolute" ? absoluteY : (ownerY + offsetY);
 
     const sourceType = (params.sourceType as string) ?? "texture";
+    // Debug Log
+    console.log(`[SpawnEntity] Request: sourceType=${sourceType}, posMode=${positionMode}, spawnAt=(${spawnX},${spawnY})`);
+
     const prefabEntity =
         sourceType === "prefab"
             ? resolvePrefabEntity(params, renderer, spawnX, spawnY)
             : undefined;
+
+    if (sourceType === "prefab") {
+        if (!prefabEntity) {
+            console.warn("[SpawnEntity] Failed to resolve prefab entity. Params:", params);
+        } else {
+            // Deep Debug for Component Loss
+            console.log(`[SpawnEntity] Resolved Prefab: ${prefabEntity.name} (${prefabEntity.id})`);
+            console.log(`   - Components: ${prefabEntity.components?.length ?? 0}`);
+            console.log(`   - Logic Items: ${prefabEntity.logic?.length ?? 0}`);
+            // console.log(`   - Full Prefab Dump:`, JSON.stringify(prefabEntity));
+        }
+    }
+
     const source = prefabEntity ?? template ?? editorTemplate;
     const sourceComponents =
         prefabEntity?.components ??
         template?.components ??
         editorTemplate?.components ??
         splitLogicItems(prefabEntity?.logic ?? editorTemplate?.logic);
+
+    if (sourceType === "prefab") {
+        console.log(`[SpawnEntity] Final Source Components Count: ${sourceComponents?.length ?? 0}`);
+    }
 
     const id = crypto.randomUUID();
     const textureAssetId = sourceType === "texture" ? ((params.sourceAssetId as string) ?? "").trim() : "";
@@ -810,6 +842,7 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";
+    console.log(`[SpawnEntity] Spawning ID=${id} Type=${type} Texture=${options.texture}`);
     gameCore.createEntity(id, type, spawnX, spawnY, options);
 });
 
