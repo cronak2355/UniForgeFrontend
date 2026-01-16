@@ -225,6 +225,46 @@ ConditionRegistry.register("SignalFlag", (ctx: ActionContext, params: Record<str
     return ctx.entityContext?.signals.flags[key] === true;
 });
 
+// --- Tag Conditions ---
+
+ConditionRegistry.register("CompareTag", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const targetTag = (params.tag as string) ?? "";
+    if (!targetTag) return false;
+
+    // Collision Event Check
+    const eventData = ctx.eventData as any;
+
+    if (eventData) {
+        const myId = ctx.entityId;
+
+        // Case A: Event has direct tagA/tagB (from CollisionSystem)
+        if (eventData.entityA && eventData.entityB) {
+            if (eventData.entityA === myId) {
+                return eventData.tagB === targetTag;
+            } else if (eventData.entityB === myId) {
+                return eventData.tagA === targetTag;
+            }
+        }
+
+        // Case B: Event might have otherTag (some systems pre-process it)
+        if (eventData.otherTag) {
+            return eventData.otherTag === targetTag;
+        }
+
+        // Case C: Explicit tag property
+        if (eventData.tag === targetTag) {
+            return true;
+        }
+    }
+
+    // 2. Fallback: RaycastHit or other context that might supply 'hitTag'
+    if (ctx.globals?.hitTag === targetTag) {
+        return true;
+    }
+
+    return false;
+});
+
 ConditionRegistry.register("InputDown", (ctx: ActionContext, params: Record<string, unknown>) => {
     const key = (params.key as string) ?? "";
     if (!key) return false;

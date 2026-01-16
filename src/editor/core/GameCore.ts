@@ -47,6 +47,7 @@ export interface CreateEntityOptions {
     height?: number;
     color?: number;
     role?: string;
+    tags?: string[]; // [ADD] Entity tags for collision/filtering
     modules?: ModuleGraph[];
     logic?: EditorLogicItem[];
     events?: any[]; // Legacy support for renderer spawn
@@ -162,6 +163,8 @@ export class GameCore {
 
         const mappedEvents = eventMapping[eventType];
         if (!mappedEvents) return;
+
+        console.log(`[GameCore] executeEventLogicComponents: eventType=${eventType}, event.data=`, event.data);
 
         // For collision events, execute for both entities
         const entityIds: string[] = [];
@@ -343,9 +346,11 @@ export class GameCore {
         // 2. Physics Reg (Immediate)
         const baseWidth = options.width ?? 40;
         const baseHeight = options.height ?? 40;
+        // [FIX] Use first tag from tags array, fallback to type
+        const collisionTag = (options.tags && options.tags.length > 0) ? options.tags[0] : type;
         collisionSystem.register(
             id,
-            type,
+            collisionTag,
             {
                 x: entity.x,
                 y: entity.y,
