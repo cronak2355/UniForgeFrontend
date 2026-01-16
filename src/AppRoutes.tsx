@@ -51,6 +51,8 @@ function AppRoutes() {
             {/* Full-screen Editor Routes (no sidebar) */}
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
             <Route path="/editor/:gameId" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
+            {/* Play Mode Route */}
+            <Route path="/play/:gameId" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
         </Routes>
     );
 }

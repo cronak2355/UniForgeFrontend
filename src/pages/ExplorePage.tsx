@@ -426,7 +426,7 @@ const ExplorePage = () => {
                                         <button style={{
                                             flex: 1, backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '16px', borderRadius: '8px',
                                             fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                                        }} onClick={() => navigate(`/editor/${selectedGame.id}`)}>
+                                        }} onClick={() => navigate(`/play/${selectedGame.id}`)}>
                                             <i className="fa-solid fa-play"></i> 플레이
                                         </button>
                                         <button style={{ padding: '16px 24px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
