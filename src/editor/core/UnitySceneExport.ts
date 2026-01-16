@@ -249,10 +249,19 @@ export class UnitySceneExporter {
       if (asset.url && !asset.url.startsWith("data:")) {
         try {
           console.log(`[UnitySceneExporter] Fetching ${asset.url} for blob conversion...`);
-          // Fetch blob with credentials (cookies)
-          const res = await fetch(asset.url, {
-            credentials: 'include' // Important for session cookies
+          
+          // Try fetch without credentials first (works better with S3 presigned URLs)
+          // S3's Access-Control-Allow-Origin: * conflicts with credentials: 'include'
+          let res = await fetch(asset.url, {
+            credentials: 'omit'  // Don't send cookies - avoids CORS conflict with S3
           });
+          
+          // If omit fails and URL is our own API, try with credentials
+          if (!res.ok && asset.url.includes('/api/')) {
+            res = await fetch(asset.url, {
+              credentials: 'include'
+            });
+          }
 
           if (res.ok) {
             const blob = await res.blob();
