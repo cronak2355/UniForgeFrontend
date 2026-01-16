@@ -149,4 +149,45 @@ export class UnitySceneExporter {
       events,
     };
   }
+
+  /**
+   * Resolves authenticated Proxy URLs (/api/assets/s3/...) to actual S3 URLs
+   * by following redirects using the authenticated browser session.
+   */
+  static async resolveAssetUrls(json: UnitySceneJSON): Promise<UnitySceneJSON> {
+    console.log("[UnitySceneExporter] Resolving S3 URLs...");
+
+    // clone to avoid mutating original
+    const newJson = JSON.parse(JSON.stringify(json)) as UnitySceneJSON;
+
+    if (!newJson.assets || newJson.assets.length === 0) return newJson;
+
+    const resolvePromises = newJson.assets.map(async (asset) => {
+      // Check if it's an API proxy URL
+      if (asset.url && asset.url.includes("/api/assets/s3/")) {
+        try {
+          // Perform a HEAD request and follow redirects. 
+          // The browser uses cookies, so it's authenticated.
+          // The final response.url will be the specific S3 URL (pre-signed or public).
+          const res = await fetch(asset.url, {
+            method: "HEAD",
+            redirect: "follow",
+          });
+
+          if (res.ok && res.url && res.url !== asset.url) {
+            console.log(`[UnitySceneExporter] Resolved: ${asset.url} -> ${res.url}`);
+            asset.url = res.url;
+          } else {
+            console.warn(`[UnitySceneExporter] Failed to resolve redirect for ${asset.url}`);
+          }
+        } catch (e) {
+          console.error(`[UnitySceneExporter] Error resolving ${asset.url}`, e);
+        }
+      }
+      return asset;
+    });
+
+    await Promise.all(resolvePromises);
+    return newJson;
+  }
 }
