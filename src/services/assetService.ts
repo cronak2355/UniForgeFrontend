@@ -12,7 +12,9 @@ export const CDN_URL = import.meta.env.VITE_CDN_URL || "https://uniforge.kr";
 
 export const resolveAssetUrl = (s3Key: string) => {
     if (!s3Key) return "";
-    return `${CDN_URL}/${s3Key}`;
+    const cleanKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
+    const encodedKey = cleanKey.split('/').map(part => encodeURIComponent(part)).join('/');
+    return `${CDN_URL}/${encodedKey}`;
 };
 
 export const assetService = {
