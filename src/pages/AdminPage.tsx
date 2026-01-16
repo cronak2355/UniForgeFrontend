@@ -72,6 +72,19 @@ export default function AdminPage() {
         }
     };
 
+    const handleDeleteAllAssets = async () => {
+        const confirmMsg = prompt('정말로 모든 에셋을 삭제하시겠습니까? 돌이킬 수 없습니다. 삭제하려면 "DELETE ALL"을 입력하세요.');
+        if (confirmMsg !== 'DELETE ALL') return;
+
+        try {
+            await adminService.deleteAllAssets();
+            alert('모든 에셋이 삭제되었습니다.');
+            loadData();
+        } catch (e: any) {
+            alert('전체 삭제 실패: ' + e.message);
+        }
+    };
+
     const handleCleanupLibrary = async (email: string, userName?: string) => {
         if (!confirm(`${userName ? `'${userName}' (${email})` : `'${email}'`} 사용자의 잘못된 라이브러리 데이터를 정리하시겠습니까?`)) return;
         try {
@@ -330,143 +343,159 @@ export default function AdminPage() {
                             {/* Assets Tab */}
                             {activeTab === 'assets' && (
                                 <div>
-                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-                                        <i className="fa-solid fa-cube" style={{ marginRight: '12px', color: '#10b981' }}></i>
-                                        에셋 관리
-                                    </h1>
+                                    <i className="fa-solid fa-cube" style={{ marginRight: '12px', color: '#10b981' }}></i>
+                                    에셋 관리
+                                    <button
+                                        onClick={handleDeleteAllAssets}
+                                        style={{
+                                            marginLeft: 'auto',
+                                            padding: '8px 16px',
+                                            backgroundColor: '#ef4444',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'white',
+                                            fontSize: '0.9rem',
+                                            cursor: 'pointer',
+                                            fontWeight: 600
+                                        }}
+                                    >
+                                        <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }}></i>
+                                        에셋 전체 삭제
+                                    </button>
+                                </h1>
                                     {/* Search Bar */}
-                                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="에셋 이름 검색..."
-                                            value={searchTerm}
-                                            onChange={e => setSearchTerm(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                                            style={{
-                                                flex: 1, padding: '10px 16px', backgroundColor: '#111',
-                                                border: '1px solid #333', borderRadius: '8px', color: 'white'
-                                            }}
-                                        />
-                                        <button onClick={handleSearch} style={{
-                                            padding: '10px 20px', backgroundColor: '#2563eb', border: 'none',
-                                            borderRadius: '8px', color: 'white', cursor: 'pointer'
-                                        }}>검색</button>
-                                    </div>
-                                    {/* Assets Table */}
-                                    <div style={{ backgroundColor: '#0a0a0a', borderRadius: '12px', border: '1px solid #222', overflow: 'hidden' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr style={{ borderBottom: '1px solid #222' }}>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>에셋명</th>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>작성자</th>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>가격</th>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>공개</th>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>생성일</th>
-                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>작업</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {assets.map(a => (
-                                                    <tr key={a.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                                                        <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                            <div style={{
-                                                                width: '48px', height: '48px', borderRadius: '8px',
-                                                                backgroundColor: '#222', overflow: 'hidden'
-                                                            }}>
-                                                                {a.imageUrl ? (
-                                                                    <img src={a.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => (e.target as HTMLImageElement).src = 'https://placehold.co/48x48/1a1a1a/666?text=No'} />
-                                                                ) : (
-                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
-                                                                        <i className="fa-solid fa-cube"></i>
-                                                                    </div>
-                                                                )}
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="에셋 이름 검색..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                                    style={{
+                                        flex: 1, padding: '10px 16px', backgroundColor: '#111',
+                                        border: '1px solid #333', borderRadius: '8px', color: 'white'
+                                    }}
+                                />
+                                <button onClick={handleSearch} style={{
+                                    padding: '10px 20px', backgroundColor: '#2563eb', border: 'none',
+                                    borderRadius: '8px', color: 'white', cursor: 'pointer'
+                                }}>검색</button>
+                            </div>
+                            {/* Assets Table */}
+                            <div style={{ backgroundColor: '#0a0a0a', borderRadius: '12px', border: '1px solid #222', overflow: 'hidden' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid #222' }}>
+                                            <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>에셋명</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>작성자</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>가격</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>공개</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>생성일</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {assets.map(a => (
+                                            <tr key={a.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                                                <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{
+                                                        width: '48px', height: '48px', borderRadius: '8px',
+                                                        backgroundColor: '#222', overflow: 'hidden'
+                                                    }}>
+                                                        {a.imageUrl ? (
+                                                            <img src={a.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => (e.target as HTMLImageElement).src = 'https://placehold.co/48x48/1a1a1a/666?text=No'} />
+                                                        ) : (
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
+                                                                <i className="fa-solid fa-cube"></i>
                                                             </div>
-                                                            <span>{a.name}</span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', color: '#888' }}>{a.authorName}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            {a.price > 0 ? `₩${a.price.toLocaleString()}` : '무료'}
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <span style={{ color: a.isPublic ? '#10b981' : '#888' }}>
-                                                                {a.isPublic ? '공개' : '비공개'}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>
-                                                            {new Date(a.createdAt).toLocaleDateString()}
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <button
-                                                                onClick={() => handleDeleteAsset(a.id, a.name)}
-                                                                style={{
-                                                                    padding: '6px 12px', fontSize: '0.8rem', border: 'none',
-                                                                    backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444',
-                                                                    borderRadius: '6px', cursor: 'pointer'
-                                                                }}
-                                                            >
-                                                                <i className="fa-solid fa-trash" style={{ marginRight: '6px' }}></i>
-                                                                삭제
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                                                        )}
+                                                    </div>
+                                                    <span>{a.name}</span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', color: '#888' }}>{a.authorName}</td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                    {a.price > 0 ? `₩${a.price.toLocaleString()}` : '무료'}
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                    <span style={{ color: a.isPublic ? '#10b981' : '#888' }}>
+                                                        {a.isPublic ? '공개' : '비공개'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>
+                                                    {new Date(a.createdAt).toLocaleDateString()}
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                    <button
+                                                        onClick={() => handleDeleteAsset(a.id, a.name)}
+                                                        style={{
+                                                            padding: '6px 12px', fontSize: '0.8rem', border: 'none',
+                                                            backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444',
+                                                            borderRadius: '6px', cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        <i className="fa-solid fa-trash" style={{ marginRight: '6px' }}></i>
+                                                        삭제
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                             )}
 
-                            {/* System Tab */}
-                            {activeTab === 'system' && (
-                                <div>
-                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-                                        <i className="fa-solid fa-tools" style={{ marginRight: '12px', color: '#8b5cf6' }}></i>
-                                        시스템 도구
-                                    </h1>
+                    {/* System Tab */}
+                    {activeTab === 'system' && (
+                        <div>
+                            <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                                <i className="fa-solid fa-tools" style={{ marginRight: '12px', color: '#8b5cf6' }}></i>
+                                시스템 도구
+                            </h1>
 
-                                    <div style={{
-                                        backgroundColor: '#0a0a0a', borderRadius: '12px',
-                                        border: '1px solid #222', padding: '1.5rem', marginBottom: '2rem'
-                                    }}>
-                                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                                            <i className="fa-solid fa-broom" style={{ marginRight: '10px', color: '#eab308' }}></i>
-                                            데이터 정리
-                                        </h2>
-                                        <p style={{ color: '#888', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-                                            오류로 인해 생성된 잘못된 라이브러리 항목(NULL 참조)을 정리합니다.<br />
-                                            현재 로그인된 본인의 계정을 정리할 수 있습니다.
-                                        </p>
+                            <div style={{
+                                backgroundColor: '#0a0a0a', borderRadius: '12px',
+                                border: '1px solid #222', padding: '1.5rem', marginBottom: '2rem'
+                            }}>
+                                <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+                                    <i className="fa-solid fa-broom" style={{ marginRight: '10px', color: '#eab308' }}></i>
+                                    데이터 정리
+                                </h2>
+                                <p style={{ color: '#888', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+                                    오류로 인해 생성된 잘못된 라이브러리 항목(NULL 참조)을 정리합니다.<br />
+                                    현재 로그인된 본인의 계정을 정리할 수 있습니다.
+                                </p>
 
-                                        <button
-                                            onClick={() => user?.email && handleCleanupLibrary(user.email, user.name)}
-                                            style={{
-                                                padding: '10px 20px', backgroundColor: '#eab308', border: 'none',
-                                                borderRadius: '8px', color: 'black', fontWeight: 600, cursor: 'pointer',
-                                                display: 'flex', alignItems: 'center', gap: '8px'
-                                            }}
-                                        >
-                                            <i className="fa-solid fa-broom"></i>
-                                            내 라이브러리 정리하기
-                                        </button>
-                                    </div>
+                                <button
+                                    onClick={() => user?.email && handleCleanupLibrary(user.email, user.name)}
+                                    style={{
+                                        padding: '10px 20px', backgroundColor: '#eab308', border: 'none',
+                                        borderRadius: '8px', color: 'black', fontWeight: 600, cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '8px'
+                                    }}
+                                >
+                                    <i className="fa-solid fa-broom"></i>
+                                    내 라이브러리 정리하기
+                                </button>
+                            </div>
 
-                                    {/* Future tools can be added here */}
-                                    <div style={{
-                                        backgroundColor: '#0a0a0a', borderRadius: '12px',
-                                        border: '1px solid #222', padding: '1.5rem', opacity: 0.5
-                                    }}>
-                                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#888' }}>
-                                            <i className="fa-solid fa-hammer" style={{ marginRight: '10px' }}></i>
-                                            준비 중인 기능
-                                        </h2>
-                                        <p style={{ color: '#666' }}>추가적인 시스템 관리 도구가 여기에 표시됩니다.</p>
-                                    </div>
-                                </div>
-                            )}
-                        </>
+                            {/* Future tools can be added here */}
+                            <div style={{
+                                backgroundColor: '#0a0a0a', borderRadius: '12px',
+                                border: '1px solid #222', padding: '1.5rem', opacity: 0.5
+                            }}>
+                                <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#888' }}>
+                                    <i className="fa-solid fa-hammer" style={{ marginRight: '10px' }}></i>
+                                    준비 중인 기능
+                                </h2>
+                                <p style={{ color: '#666' }}>추가적인 시스템 관리 도구가 여기에 표시됩니다.</p>
+                            </div>
+                        </div>
                     )}
-                </main>
-            </div>
+                </>
+                    )}
+            </main>
         </div>
+        </div >
     );
 }

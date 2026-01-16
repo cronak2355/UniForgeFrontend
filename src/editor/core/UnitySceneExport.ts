@@ -63,6 +63,11 @@ export interface UnityEntityJSON {
   name: string;
   x: number;
   y: number;
+  rotation?: number; // Added
+  scaleX?: number;   // Added
+  scaleY?: number;   // Added
+  role?: string;     // Added
+  tags?: string[];   // Added
   variables: UnityVariableJSON[];
   events: UnityEventJSON[];
 }
@@ -115,31 +120,32 @@ export class UnitySceneExporter {
       (c): c is LogicComponent => c.type === "Logic"
     );
 
-    const events: UnityEventJSON[] = [];
+    const events: UnityEventJSON[] = logicComponents.map((lc, index) => ({
+      id: `ev_${lc.id.substring(0, 4)}_${index}`,
+      trigger: lc.event,
+      triggerParams: lc.eventParams,
+      conditionLogic: (lc.conditionLogic === "OR" ? "OR" : "AND") as "AND" | "OR",
+      conditions: lc.conditions,
+      action: lc.actions[0]?.type || "None",
+      params: lc.actions[0] ? { ...lc.actions[0] } : undefined,
+    }));
 
-    logicComponents.forEach((logic, logicIdx) => {
-      logic.actions.forEach((action, actionIdx) => {
-        events.push({
-          id: `ev_${logicIdx}_${actionIdx}`,
-          trigger: logic.event,
-          triggerParams: logic.eventParams ?? {},
-          conditionLogic: logic.conditionLogic ?? "AND",
-          conditions: logic.conditions ?? [],
-          action: action.type,
-          params: {
-            ...action,
-            type: undefined, // action.type 중복 제거
-          },
-        });
-      });
+    // Remove 'type' from params to avoid duplication
+    events.forEach(ev => {
+      if (ev.params) delete (ev.params as any).type;
     });
 
     return {
       id: e.id,
-      type: e.type,
+      type: e.type, // Fixed: use e.type (sprite/container) instead of e.tag
       name: e.name,
       x: e.x,
       y: e.y,
+      rotation: typeof e.rotation === 'object' ? (e.rotation as any).z || 0 : e.rotation || 0, // [Fix] Handle object rotation
+      scaleX: e.scaleX ?? 1,
+      scaleY: e.scaleY ?? 1,
+      role: e.role,
+      tags: e.tags || [],
       variables: e.variables.map((v) => ({
         id: v.id,
         name: v.name,
@@ -148,5 +154,77 @@ export class UnitySceneExporter {
       })),
       events,
     };
+  }
+
+  /**
+   * Converts all Asset URLs to Data URIs (Base64) by fetching them with credentials.
+   * This bypasses any authentication/CORS issues on the Unity side.
+   */
+  static async convertAssetsToDataUris(json: UnitySceneJSON): Promise<UnitySceneJSON> {
+    console.log("[UnitySceneExporter] Converting Assets to Data URIs...");
+
+    // clone to avoid mutating original
+    const newJson = JSON.parse(JSON.stringify(json)) as UnitySceneJSON;
+
+    // [Sanitization] Fix legacy/cached JSON format errors
+    if (newJson.entities) {
+      newJson.entities.forEach(e => {
+        // Fix Rotation Object -> Float
+        if (e.rotation && typeof e.rotation === 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          e.rotation = (e.rotation as any).z || 0;
+        }
+        // Fix Missing Scale
+        if (e.scaleX === undefined) e.scaleX = 1;
+        if (e.scaleY === undefined) e.scaleY = 1;
+
+        // Fix Entity Type (Tag -> Type)
+        if (!e.type || e.type === "sprite" || e.type === "container") {
+          // If it looks like a standard entity, try to use its asset type 'Character' etc.
+          // But simplified: map 'sprite' -> 'Neutral' or keep as is.
+          // Unity importer expects 'Character', 'Tile', 'Prop', etc. 
+          // Let's rely on role or use a default.
+          if (e.role && e.role !== "neutral") e.type = "Character"; // Heuristic
+          else e.type = "Prop";
+        }
+      });
+    }
+
+    if (!newJson.assets || newJson.assets.length === 0) return newJson;
+
+    const convertPromises = newJson.assets.map(async (asset) => {
+      // Support fetching /api/assets/..., S3 redirects, or even external
+      // Generally, convert everything that isn't already a Data URI
+      if (asset.url && !asset.url.startsWith("data:")) {
+        try {
+          console.log(`[UnitySceneExporter] Fetching ${asset.url} for blob conversion...`);
+          // Fetch blob with credentials (cookies)
+          const res = await fetch(asset.url, {
+            credentials: 'include' // Important for session cookies
+          });
+
+          if (res.ok) {
+            const blob = await res.blob();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+
+            console.log(`[UnitySceneExporter] Converted to DataURI: ${asset.url.substring(0, 30)}... (${base64.length} chars)`);
+            asset.url = base64;
+          } else {
+            console.warn(`[UnitySceneExporter] Failed to fetch asset for DataURI conversion: ${asset.url} ${res.status}`);
+          }
+        } catch (e) {
+          console.error(`[UnitySceneExporter] Error converting ${asset.url} to DataURI`, e);
+        }
+      }
+      return asset;
+    });
+
+    await Promise.all(convertPromises);
+    return newJson;
   }
 }
