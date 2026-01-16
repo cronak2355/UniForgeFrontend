@@ -24,7 +24,12 @@ class ConditionRegistryClass {
         }
 
         try {
-            return condition(ctx, params);
+            const result = condition(ctx, params);
+            // Debug: Log BRANCH condition checks
+            if (name.startsWith('Var')) {
+                console.log(`[ConditionRegistry] ${name}: name='${params.name}', value='${params.value}' => ${result}`);
+            }
+            return result;
         } catch (e) {
             console.error(`[ConditionRegistry] Error checking condition '${name}':`, e);
             return false;
