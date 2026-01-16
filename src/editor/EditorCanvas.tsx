@@ -307,6 +307,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                         queue.push({ x: x - 1, y: y });
                         queue.push({ x: x, y: y + 1 });
                         queue.push({ x: x, y: y - 1 });
+
+                        // Safety Limit
+                        if (visited.size > 5000) {
+                            console.warn("Flood fill limit reached (5000). Stopping to prevent crash.");
+                            break;
+                        }
                     }
                 };
 

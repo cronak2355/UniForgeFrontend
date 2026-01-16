@@ -1234,6 +1234,40 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                 />
                             )}
                         </div>
+                        {/* Tile Tools & Palette (Visible if Tile asset selected) */}
+                        {selectedAsset && selectedAsset.tag === "Tile" && (
+                            <div style={{
+                                height: '300px', // Fixed height for palette area ??
+                                display: 'flex',
+                                flexDirection: 'column',
+                                borderTop: `1px solid ${colors.borderColor}`,
+                                background: colors.bgSecondary
+                            }}>
+                                <div style={{
+                                    padding: '8px 12px',
+                                    fontWeight: 600,
+                                    fontSize: '12px',
+                                    borderBottom: `1px solid ${colors.borderColor}`,
+                                    color: colors.textPrimary,
+                                    background: colors.bgTertiary
+                                }}>
+                                    <i className="fa-solid fa-th" style={{ marginRight: '6px' }}></i>
+                                    타일 팔레트 (Tile Palette)
+                                </div>
+                                <div style={{ padding: '8px' }}>
+                                    <TileToolsPanel
+                                        currentTool={tilingTool}
+                                        setTool={setTilingTool}
+                                    />
+                                    <div style={{ height: '8px' }} />
+                                    <TilePalettePanel
+                                        assets={assets}
+                                        selectedTileIndex={selectedTileIndex}
+                                        onSelectTile={setSelectedTileIndex}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                     </div>
                 )}
@@ -1321,20 +1355,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                     {selectedAsset.tag !== "Prefab" && (
                                         <AssetAnimationSettings asset={selectedAsset} />
                                     )}
-                                    {selectedAsset.tag === "Tile" && (
-                                        <div style={{ marginTop: '12px', borderTop: `1px solid ${colors.borderColor}`, paddingTop: '12px' }}>
-                                            <TileToolsPanel
-                                                currentTool={tilingTool}
-                                                setTool={setTilingTool}
-                                            />
-                                            <div style={{ height: '8px' }} />
-                                            <TilePalettePanel
-                                                assets={assets}
-                                                selectedTileIndex={selectedTileIndex}
-                                                onSelectTile={setSelectedTileIndex}
-                                            />
-                                        </div>
-                                    )}
+
                                 </>
                             )}
                             {/* Prefab Inspector (when prefab asset is selected) */}

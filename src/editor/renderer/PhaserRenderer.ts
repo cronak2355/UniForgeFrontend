@@ -1136,9 +1136,12 @@ export class PhaserRenderer implements IRenderer {
                 // If texture wasn't loaded when setTexture was called, 
                 // recalculate size when it finishes loading
                 if (!wasLoaded) {
-                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                     if (textureUrl) {
-                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                        // Find asset for metadata
+                        const assets = this.core.getAssets();
+                        const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                        this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (obj && !obj.scene) return; // Sprite was destroyed
                             setSize(obj);
                         }).catch((err: Error) => {
@@ -1168,9 +1171,12 @@ export class PhaserRenderer implements IRenderer {
 
                     // Recalculate size after texture loads if it wasn't loaded initially
                     if (!wasLoaded) {
-                        const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                        const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                         if (textureUrl) {
-                            this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            // Find asset for metadata
+                            const assets = this.core.getAssets();
+                            const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                            this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                                 if (bg && !bg.scene) return; // Sprite was destroyed
                                 setSize(bg);
                             }).catch((err: Error) => {
@@ -1199,9 +1205,12 @@ export class PhaserRenderer implements IRenderer {
                     this.scene.textures.get(textureKey).key !== '__MISSING';
 
                 if (!wasLoaded) {
-                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                     if (textureUrl) {
-                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                        // Find asset for metadata
+                        const assets = this.core.getAssets();
+                        const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                        this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (sprite && !sprite.scene) return;
                             setSize(sprite);
                         }).catch((err: Error) => {
@@ -1639,6 +1648,12 @@ export class PhaserRenderer implements IRenderer {
         };
     }
 
+    private getAssetUrl(key: string): string | undefined {
+        const assets = this.core.getAssets();
+        const asset = assets.find(a => a.name === key || a.id === key);
+        return asset?.url;
+    }
+
     // ===== Coordinate Transformation =====
 
     /**
@@ -1701,7 +1716,9 @@ export class PhaserRenderer implements IRenderer {
 
         // 타일은 항상 엔티티 아래에 표시 (엔티티는 최소 depth 10)
         this.baseLayer.setDepth(-100);
+        this.baseLayer.setDepth(-100);
         this.previewLayer.setDepth(-50);
+        this.previewLayer.setAlpha(0.6); // Translucent preview
     }
 
     setTile(x: number, y: number, tileIndex: number): void {
@@ -1729,8 +1746,8 @@ export class PhaserRenderer implements IRenderer {
     setPreviewTile(x: number, y: number, tileIndex: number): void {
         if (!this.previewLayer || !this.map || !this.tileset || !this.previewLayer.layer) return;
 
-        // 湲곗〈 ?꾨━酉??쒓굅
-        this.previewLayer.fill(-1);
+        // 湲곗〈 ?꾨━酉??쒓굅 - Removed to allow multiple preview tiles (Shape Tool)
+        // this.previewLayer.fill(-1);
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;
