@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { adminService, AdminStats, AdminUser, AdminAsset } from '../services/adminService';
+import { adminService, AdminStats, AdminUser, AdminAsset, AdminGame } from '../services/adminService';
+import { getCloudFrontUrl } from '../utils/imageUtils';
 
-type TabType = 'dashboard' | 'users' | 'assets' | 'system';
+type TabType = 'dashboard' | 'users' | 'assets' | 'system' | 'games';
 
 export default function AdminPage() {
     const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function AdminPage() {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [assets, setAssets] = useState<AdminAsset[]>([]);
+    const [games, setGames] = useState<AdminGame[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -35,6 +37,13 @@ export default function AdminPage() {
             } else if (activeTab === 'assets') {
                 const assetsData = await adminService.getAssets(undefined, searchTerm || undefined);
                 setAssets(assetsData);
+            } else if (activeTab === 'games') {
+                const gamesData = await adminService.getGames();
+                // Client-side search filtering for now as API might not support it yet
+                const filtered = searchTerm
+                    ? gamesData.filter(g => g.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                    : gamesData;
+                setGames(filtered);
             }
         } catch (e: any) {
             setError(e.message || '데이터를 불러오는데 실패했습니다.');
@@ -70,6 +79,29 @@ export default function AdminPage() {
             alert(result);
         } catch (e: any) {
             alert('정리 실패: ' + e.message);
+        }
+    };
+
+    const handleDeleteGame = async (gameId: string, gameTitle: string) => {
+        if (!confirm(`정말 "${gameTitle}" 게임을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+        try {
+            await adminService.deleteGame(gameId);
+            loadData();
+        } catch (e: any) {
+            alert('삭제 실패: ' + e.message);
+        }
+    };
+
+    const handleDeleteAllGames = async () => {
+        const confirmMsg = prompt('정말로 모든 게임을 삭제하시겠습니까? 삭제하려면 "DELETE ALL"을 입력하세요.');
+        if (confirmMsg !== 'DELETE ALL') return;
+
+        try {
+            await adminService.deleteAllGames();
+            alert('모든 게임이 삭제되었습니다.');
+            loadData();
+        } catch (e: any) {
+            alert('전체 삭제 실패: ' + e.message);
         }
     };
 
@@ -114,6 +146,7 @@ export default function AdminPage() {
                             { id: 'users', label: '사용자 관리', icon: 'fa-users' },
                             { id: 'assets', label: '에셋 관리', icon: 'fa-cube' },
                             { id: 'system', label: '시스템 도구', icon: 'fa-tools' },
+                            { id: 'games', label: '게임 관리', icon: 'fa-gamepad' },
                         ].map(tab => (
                             <button
                                 key={tab.id}
