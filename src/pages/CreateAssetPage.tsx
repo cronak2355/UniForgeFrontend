@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { marketplaceService } from '../services/marketplaceService';
+import { CDN_URL } from '../services/assetService';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
@@ -231,9 +230,11 @@ const CreateAssetPage = () => {
                     });
 
                     // Update asset with PROXY URL
+                    // Update asset with PROXY URL -> CDN URL
                     // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
-                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=thumbnail`;
-                    await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+                    // const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=thumbnail`;
+                    const directUrl = `${CDN_URL}/${s3Key}`;
+                    await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
                 }
             }
             setUploadProgress(40);
@@ -289,9 +290,10 @@ const CreateAssetPage = () => {
                     isActive: true
                 });
 
-                // Update asset with PROXY URL for base image
-                const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=base`;
-                await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+                // Update asset with PROXY URL -> CDN URL
+                // const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=base`;
+                const directUrl = `${CDN_URL}/${mainS3Key}`;
+                await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
             }
 
             // Step 5: Publish the version

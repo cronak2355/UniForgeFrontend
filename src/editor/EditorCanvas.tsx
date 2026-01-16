@@ -280,13 +280,23 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     const visited = new Set<string>();
                     const startTile = getTileAt(startX, startY);
 
+                    const MAX_FILL = 2000; // Strict limit as requested
+                    const toFill: { x: number, y: number }[] = [];
+
                     // If replacing same tile with same tile, do nothing
                     if (!isErase && startTile === targetTileIdx) return;
                     // If erasing and there is nothing, do nothing
                     if (isErase && startTile === undefined) return;
 
+                    // 1. Simulation Phase
                     while (queue.length > 0) {
-                        const { x, y } = queue.pop()!;
+                        // Safety Limit Check (Transactional: Abort if exceeded)
+                        if (visited.size > MAX_FILL) {
+                            alert(`Bucket fill area too large (> ${MAX_FILL} tiles). Operation cancelled.`);
+                            return;
+                        }
+
+                        const { x, y } = queue.shift()!; // Shift for BFS (better for fill)
                         const key = `${x},${y}`;
                         if (visited.has(key)) continue;
                         visited.add(key);
@@ -294,26 +304,25 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                         const currentTile = getTileAt(x, y);
                         if (currentTile !== startTile) continue;
 
-                        if (isErase) {
-                            renderer.removeTile(x, y);
-                            core.removeTile(x, y);
-                        } else {
-                            renderer.setTile(x, y, targetTileIdx);
-                            core.setTile(x, y, targetTileIdx);
-                        }
+                        toFill.push({ x, y });
 
                         // Neighbors
                         queue.push({ x: x + 1, y: y });
                         queue.push({ x: x - 1, y: y });
                         queue.push({ x: x, y: y + 1 });
                         queue.push({ x: x, y: y - 1 });
-
-                        // Safety Limit
-                        if (visited.size > 5000) {
-                            console.warn("Flood fill limit reached (5000). Stopping to prevent crash.");
-                            break;
-                        }
                     }
+
+                    // 2. Commit Phase
+                    toFill.forEach(p => {
+                        if (isErase) {
+                            renderer.removeTile(p.x, p.y);
+                            core.removeTile(p.x, p.y);
+                        } else {
+                            renderer.setTile(p.x, p.y, targetTileIdx);
+                            core.setTile(p.x, p.y, targetTileIdx);
+                        }
+                    });
                 };
 
                 if (activeTilingType === "drawing") {
@@ -702,7 +711,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     useEffect(() => {
         const gameCore = gameCoreRef.current;
         if (!gameCore || !isRendererReady) return;
-        gameCore.setModuleLibrary(modules, (updated) => core.updateModule(updated));
+        gameCore.setModuleLibrary(modules, (updated: any) => core.updateModule(updated));
     }, [modules, isRendererReady]);
 
     useEffect(() => {

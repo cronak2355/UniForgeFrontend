@@ -84,7 +84,7 @@ export function AssetPanelNew({
     // Reordered to prioritize most used
     const tabs = [
         { id: "Character", label: "캐릭터", icon: "fa-person" },
-        { id: "Tile", label: "타일", icon: "fa-cubes" },
+        // Tile removed (Moved to dedicated Palette)
         { id: "Particle", label: "이펙트(FX)", icon: "fa-wand-magic-sparkles" },
         { id: "Prefab", label: "프리팹", icon: "fa-cube" },
         { id: "Modules", label: "로직 모듈", icon: "fa-network-wired" }
