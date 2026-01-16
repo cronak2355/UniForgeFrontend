@@ -45,7 +45,7 @@ export interface ActionGlobals {
             fromY: number,
             excludeId?: string
         ): { id: string; x: number; y: number; role: string } | undefined;
-        startModule?(entityId: string, moduleId: string): boolean;
+        startModule?(entityId: string, moduleId: string, initialVariables?: Record<string, any>): boolean;
         createEntity?(
             id: string,
             type: string,
@@ -97,6 +97,7 @@ export interface ActionContext {
             values: Record<string, number | string | boolean | null>;
         };
     };
+    scope?: Map<string, any>; // Local scope for module variables
 }
 
 export type ActionFn = (ctx: ActionContext, params: Record<string, unknown>) => void;

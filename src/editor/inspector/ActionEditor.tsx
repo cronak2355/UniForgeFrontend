@@ -826,87 +826,81 @@ export function ActionEditor({
                   flexDirection: "column",
                 }}
               >
-                {moduleVariables.map((v) => (
-                  <div
-                    key={v.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "40% 1fr",
-                      gap: 6,
-                      alignItems: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <div style={{ minWidth: 0, color: colors.textPrimary, fontSize: 11 }}>
-                      {v.name} ({v.type})
-                    </div>
-                    {v.type === "bool" ? (
-                      <select
-                        value={v.value === true ? "true" : "false"}
-                        onChange={(e) =>
-                          selectedModule &&
-                          onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value === "true", v.type)
-                        }
-                        style={{ ...styles.smallSelect, flex: "1 1 auto", minWidth: 0 }}
-                      >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
-                      </select>
-                    ) : v.type === "int" || v.type === "float" ? (
-                      <input
-                        type="number"
-                        value={typeof v.value === "number" ? v.value : Number(v.value ?? 0)}
-                        onChange={(e) =>
-                          selectedModule &&
-                          onUpdateModuleVariable?.(
-                            selectedModule.id,
-                            v.name,
-                            Number(e.target.value),
-                            v.type
-                          )
-                        }
-                        style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
-                      />
-                    ) : v.type === "vector2" ? (
-                      <div style={{ display: 'flex', gap: 2, minWidth: 0, flex: 1 }}>
-                        <input
-                          type="number"
-                          placeholder="x"
-                          style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
-                          value={((v.value as any)?.x) ?? 0}
-                          onChange={(e) => {
-                            const oldVal = (v.value as any) ?? { x: 0, y: 0 };
-                            const nextVal = { ...oldVal, x: Number(e.target.value) };
-                            selectedModule &&
-                              onUpdateModuleVariable?.(selectedModule.id, v.name, nextVal, v.type)
-                          }}
-                        />
-                        <input
-                          type="number"
-                          placeholder="y"
-                          style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
-                          value={((v.value as any)?.y) ?? 0}
-                          onChange={(e) => {
-                            const oldVal = (v.value as any) ?? { x: 0, y: 0 };
-                            const nextVal = { ...oldVal, y: Number(e.target.value) };
-                            selectedModule &&
-                              onUpdateModuleVariable?.(selectedModule.id, v.name, nextVal, v.type)
-                          }}
-                        />
+                {moduleVariables.map((v) => {
+                  const initialVariables = (action.initialVariables as Record<string, any>) || {};
+                  const currentVal = initialVariables[v.name] ?? v.value;
+
+                  const updateVar = (newVal: any) => {
+                    const nextVars = { ...initialVariables, [v.name]: newVal };
+                    onUpdate({ ...action, initialVariables: nextVars });
+                  };
+
+                  return (
+                    <div
+                      key={v.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "40% 1fr",
+                        gap: 6,
+                        alignItems: "center",
+                        width: "100%",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, color: colors.textPrimary, fontSize: 11 }}>
+                        {v.name} ({v.type})
                       </div>
-                    ) : (
-                      <input
-                        type="text"
-                        value={String(v.value ?? "")}
-                        onChange={(e) =>
-                          selectedModule &&
-                          onUpdateModuleVariable?.(selectedModule.id, v.name, e.target.value, v.type)
-                        }
-                        style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
-                      />
-                    )}
-                  </div>
-                ))}
+                      {v.type === "bool" ? (
+                        <select
+                          value={currentVal === true ? "true" : "false"}
+                          onChange={(e) => updateVar(e.target.value === "true")}
+                          style={{ ...styles.smallSelect, flex: "1 1 auto", minWidth: 0 }}
+                        >
+                          <option value="true">true</option>
+                          <option value="false">false</option>
+                        </select>
+                      ) : v.type === "int" || v.type === "float" ? (
+                        <input
+                          type="number"
+                          value={typeof currentVal === "number" ? currentVal : Number(currentVal ?? 0)}
+                          onChange={(e) => updateVar(Number(e.target.value))}
+                          style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
+                        />
+                      ) : v.type === "vector2" ? (
+                        <div style={{ display: 'flex', gap: 2, minWidth: 0, flex: 1 }}>
+                          <input
+                            type="number"
+                            placeholder="x"
+                            style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                            value={((currentVal as any)?.x) ?? 0}
+                            onChange={(e) => {
+                              const oldVal = (currentVal as any) ?? { x: 0, y: 0 };
+                              const nextVal = { ...oldVal, x: Number(e.target.value) };
+                              updateVar(nextVal);
+                            }}
+                          />
+                          <input
+                            type="number"
+                            placeholder="y"
+                            style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                            value={((currentVal as any)?.y) ?? 0}
+                            onChange={(e) => {
+                              const oldVal = (currentVal as any) ?? { x: 0, y: 0 };
+                              const nextVal = { ...oldVal, y: Number(e.target.value) };
+                              updateVar(nextVal);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={String(currentVal ?? "")}
+                          onChange={(e) => updateVar(e.target.value)}
+                          style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
