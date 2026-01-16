@@ -110,9 +110,9 @@ export const assetService = {
             })
         });
 
-        // Step E: Update Asset with the Direct CDN URL
-        // const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-        const finalAssetUrl = resolveAssetUrl(s3Key);
+        // Step E: Update Asset with the Proxy URL (Method 2)
+        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        // const finalAssetUrl = resolveAssetUrl(s3Key);
 
         try {
             await apiClient.request(`/assets/${assetId}`, {
@@ -199,8 +199,8 @@ export const assetService = {
         });
 
         // 4. Update Metadata AND Image URL
-        // const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-        const finalAssetUrl = resolveAssetUrl(s3Key);
+        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        // const finalAssetUrl = resolveAssetUrl(s3Key);
 
         const updateBody: Record<string, unknown> = {
             imageUrl: finalAssetUrl

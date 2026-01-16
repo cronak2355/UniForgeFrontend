@@ -247,11 +247,9 @@ const CreateAssetPage = () => {
                     });
 
                     // Update asset with PROXY URL
-                    // Update asset with PROXY URL -> CDN URL
-                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
-                    // const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=thumbnail`;
-                    const directUrl = `${CDN_URL}/${s3Key}`;
-                    await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
+                    // Update asset with PROXY URL (Method 2)
+                    const proxyUrl = `/api/assets/s3/${assetId}?imageType=base`;
+                    await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
                 }
             }
             setUploadProgress(40);
@@ -312,17 +310,12 @@ const CreateAssetPage = () => {
                         isActive: true
                     });
 
-                    // Update asset with PROXY URL -> CDN URL
-                    // Encode key parts to ensure URL is valid even with spaces
-                    const cleanKey = mainS3Key.startsWith('/') ? mainS3Key.slice(1) : mainS3Key;
-                    // Note: S3 keys might contain / that are separators. We should encode components if needed, 
-                    // but simple encodeURI usually suffices for full paths unless special chars exist.
-                    // Safer: split by / and encodeURIComponent each part.
-                    const encodedKey = cleanKey.split('/').map(part => encodeURIComponent(part)).join('/');
-                    const directUrl = `${CDN_URL}/${encodedKey}`;
+                    // Update asset with PROXY URL (Method 2)
+                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=base
+                    const proxyUrl = `/api/assets/s3/${assetId}?imageType=base`;
 
-                    console.log(`[CreateAssetPage] Updating Asset Image URL to: ${directUrl}`);
-                    await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
+                    console.log(`[CreateAssetPage] Updating Asset Image URL to: ${proxyUrl}`);
+                    await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
                 } else {
                     console.log("[CreateAssetPage] Main file is not an image, skipping imageUrl update.");
                 }
