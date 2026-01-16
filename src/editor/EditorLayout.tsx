@@ -4,6 +4,8 @@ import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
+import { TileToolsPanel } from "./inspector/TileToolsPanel";
+import { TilePalettePanel } from "./inspector/TilePalettePanel";
 
 import type { EditorEntity } from "./types/Entity";
 import type { Asset } from "./types/Asset";
@@ -347,6 +349,10 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     // AI Wizard State
     const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
     const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+    // Tiling Tools State
+    const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("drawing");
+    const [selectedTileIndex, setSelectedTileIndex] = useState(0);
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
@@ -1268,6 +1274,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         core.setSelectedEntity(entity as any);
                                         setIsDirty(true);
                                     }}
+                                    tilingTool={selectedAsset?.tag === "Tile" ? tilingTool : ""}
+                                    selectedTileIndex={selectedTileIndex}
                                 />
                             </div>
                         ) : (
@@ -1309,7 +1317,23 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                             {/* Asset Animation Settings (when asset is selected) */}
                             {selectedAsset && (
-                                <AssetAnimationSettings asset={selectedAsset} />
+                                <>
+                                    <AssetAnimationSettings asset={selectedAsset} />
+                                    {selectedAsset.tag === "Tile" && (
+                                        <div style={{ marginTop: '12px', borderTop: `1px solid ${colors.borderColor}`, paddingTop: '12px' }}>
+                                            <TileToolsPanel
+                                                currentTool={tilingTool}
+                                                setTool={setTilingTool}
+                                            />
+                                            <div style={{ height: '8px' }} />
+                                            <TilePalettePanel
+                                                assets={assets}
+                                                selectedTileIndex={selectedTileIndex}
+                                                onSelectTile={setSelectedTileIndex}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {/* Entity Inspector */}
                             {localSelectedEntity && (
