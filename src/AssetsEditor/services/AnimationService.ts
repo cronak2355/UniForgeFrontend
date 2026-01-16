@@ -14,6 +14,9 @@ const ANIMATION_API_URL = '/api/generate-animation-frame';
 // 기존 단일 이미지 생성 API
 const GENERATE_API_URL = '/api/AIgenerate';
 
+// 배경 제거 전용 API
+const REMOVE_BG_API_URL = '/api/remove-background';
+
 export interface GenerateOptions {
   characterDescription: string;  // 예: "blue armored knight with sword"
   presetId: string;              // 예: "walk"
@@ -328,6 +331,32 @@ export async function generateSingleImage(
     return data.image;
   } catch (error) {
     console.error("AI Generation Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * AI 배경 제거 요청
+ */
+export async function removeBackground(base64Image: string): Promise<string> {
+  try {
+    const response = await fetch(REMOVE_BG_API_URL, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        image: base64Image
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Background Removal Failed [${response.status}]: ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.image;
+  } catch (error) {
+    console.error("Background Removal Error:", error);
     throw error;
   }
 }

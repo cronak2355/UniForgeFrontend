@@ -11,7 +11,6 @@ import {
 } from 'react';
 import { PixelEngine, type RGBA, type PixelSize } from '../engine/PixelEngine';
 import type { Frame } from '../engine/FrameManager';
-import { generateAsset } from '../services/SagemakerService';
 import {
   exportSpriteSheet,
   downloadBlob,
@@ -22,6 +21,7 @@ import {
 import { assetService } from '../../services/assetService';
 import { useSearchParams } from 'react-router-dom';
 import { detectAndSliceSpritesheet, parseSpritesheetFromMetadata } from '../services/SlicingUtils';
+import { removeBackground as aiRemoveBackground } from '../services/AnimationService';
 
 // Revised Interface for Frame-Set Model
 export interface AnimationData {
@@ -601,27 +601,21 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     try {
       let processSuccess = false;
 
-      // A. Try AI Semantic Segmentation
+      // A. Try Bedrock Nova AI Background Removal
       try {
         const sourceCanvas = canvasRef.current;
         const base64Image = sourceCanvas.toDataURL('image/png').split(',')[1];
 
-        const result = await generateAsset({
-          mode: 'remove_background',
-          image: base64Image,
-          prompt: 'background removal',
-          asset_type: 'character',
-        });
+        const cleanBase64 = await aiRemoveBackground(base64Image);
 
-        if (result.success && result.image) {
-          console.log("AI Background Removal Successful");
-          const cleanBase64 = result.image;
+        if (cleanBase64) {
+          console.log("Bedrock Background Removal Successful");
           const blob = await (await fetch(`data:image/png;base64,${cleanBase64}`)).blob();
           const bitmap = await createImageBitmap(blob);
           tempCtx.drawImage(bitmap, 0, 0, w, h);
           processSuccess = true;
         } else {
-          throw new Error(result.error || "AI returned failure status");
+          throw new Error("AI returned empty result");
         }
 
       } catch (aiError) {
