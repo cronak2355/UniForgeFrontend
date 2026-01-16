@@ -177,6 +177,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 components: splitLogicItems(ent.logic),
                 logic: ent.logic,
                 modules: ent.modules,
+                z: ent.z,
+                rotationX: ent.rotationX,
+                rotationY: ent.rotationY,
+                rotationZ: ent.rotationZ,
+                scaleX: ent.scaleX,
+                scaleY: ent.scaleY,
             });
         }
         gameCore.flush(); // Sync Context immediately
