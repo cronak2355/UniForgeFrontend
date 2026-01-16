@@ -14,6 +14,8 @@ import { PartRigger } from './PartRigger';
 import { useJob } from '../context/JobContext';
 import { exportSpriteSheet } from '../services/SpriteSheetExporter';
 import { assetService } from '../../services/assetService';
+import { fetchMyGames, type GameSummary } from '../../services/gameService';
+import { authService } from '../../services/authService';
 
 
 type TabType = 'animate' | 'export';
@@ -71,6 +73,11 @@ export function RightPanel() {
   // Asset/Motion Type State (Restored for Export)
   const [assetType, setAssetType] = useState<'character' | 'object' | 'effect'>('character');
   const [motionType, setMotionType] = useState('explode');
+
+  // Project Selection State
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [myGames, setMyGames] = useState<GameSummary[]>([]);
+  const [isLoadingGames, setIsLoadingGames] = useState(false);
 
   // ==================== Animation Preview ====================
 
@@ -337,11 +344,30 @@ export function RightPanel() {
   };
 
   const handleSaveAndExit = async () => {
-    console.log("[AssetsEditor] Saving asset", { assetType, exportName });
+    // 1. Fetch games if not already loaded
+    setIsLoadingGames(true);
+    setShowProjectModal(true);
+    try {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        const games = await fetchMyGames(user.id);
+        setMyGames(games);
+      }
+    } catch (e) {
+      console.error("Failed to fetch games:", e);
+    } finally {
+      setIsLoadingGames(false);
+    }
+  };
+
+  const handleSelectProjectAndSave = async (selectedGameId: string | null) => {
+    console.log("[AssetsEditor] Saving asset to project", { selectedGameId, assetType, exportName });
     const savedId = await performSave();
     if (savedId) {
       setHasUnsavedChanges(false);
-      const targetPath = gameId ? `/editor/${gameId}` : '/editor';
+      setShowProjectModal(false);
+      // If selectedGameId is null, it means we go to the general editor or a new project flow (current behavior)
+      const targetPath = selectedGameId ? `/editor/${selectedGameId}` : '/editor';
       console.log("[AssetsEditor] Navigating to editor with new asset", { savedId, targetPath });
       navigate(`${targetPath}?newAssetId=${savedId}`);
     } else {
@@ -597,6 +623,85 @@ export function RightPanel() {
               onClose={() => setShowRigger(false)}
               onFramesGenerated={handleRigFramesGenerated}
             />
+          </div>
+        </div>
+      )}
+
+      {/* 📂 Project Selection Modal */}
+      {showProjectModal && (
+        <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+          <div className="bg-[#111] border border-white/10 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+              <h2 className="text-xl font-bold text-white tracking-tight">Save to Project</h2>
+              <button onClick={() => setShowProjectModal(false)} className="text-white/40 hover:text-white transition-colors">
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+
+            <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              <p className="text-xs text-white/40 mb-4 px-2">에셋을 추가할 프로젝트를 선택해주세요.</p>
+
+              <div className="space-y-2">
+                {/* Option: Create New Project */}
+                <button
+                  onClick={() => handleSelectProjectAndSave(null)}
+                  className="w-full p-4 bg-blue-600/10 border border-blue-500/30 hover:bg-blue-600/20 hover:border-blue-500/50 rounded-xl flex items-center gap-4 transition-all group active:scale-[0.98]"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                    <i className="fa-solid fa-plus text-lg"></i>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-bold text-blue-400">새 프로젝트 생성</div>
+                    <div className="text-[10px] text-blue-400/60 uppercase tracking-widest">Create New Project</div>
+                  </div>
+                </button>
+
+                <div className="h-px bg-white/5 my-4" />
+
+                {isLoadingGames ? (
+                  <div className="py-10 flex flex-col items-center gap-3 text-white/20">
+                    <i className="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+                    <span className="text-xs font-medium">프로젝트 목록을 불러오는 중...</span>
+                  </div>
+                ) : myGames.length === 0 ? (
+                  <div className="py-10 text-center text-white/30 text-xs italic">
+                    저장된 프로젝트가 없습니다.
+                  </div>
+                ) : (
+                  myGames.map(game => (
+                    <button
+                      key={game.gameId}
+                      onClick={() => handleSelectProjectAndSave(game.gameId)}
+                      className="w-full p-3 bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 rounded-xl flex items-center gap-4 transition-all group active:scale-[0.98]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-black/40 overflow-hidden border border-white/10 shrink-0">
+                        {game.thumbnailUrl ? (
+                          <img src={game.thumbnailUrl} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/10 italic text-[10px]">No BG</div>
+                        )}
+                      </div>
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="text-sm font-bold text-white/90 truncate">{game.title}</div>
+                        <div className="text-[10px] text-white/30 truncate">{new Date(game.createdAt).toLocaleDateString()}</div>
+                      </div>
+                      <div className="text-white/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-black/40 border-t border-white/5">
+              <button
+                onClick={() => setShowProjectModal(false)}
+                className="w-full py-3 text-xs font-bold text-white/40 hover:text-white uppercase tracking-widest transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -89,7 +89,12 @@ function EditorContent() {
       <header className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-full flex items-center gap-6 z-50">
         {/* Logo */}
         {/* Logo */}
-        <div className="flex items-center gap-2">
+        {/* Logo (Clickable to Main) */}
+        <div
+          className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity active:scale-95"
+          onClick={() => navigate('/')}
+          title="Return to Main"
+        >
           <img src="/logo.png" alt="UniForge Logo" height="28" className="h-7 w-auto object-contain" />
         </div>
 
