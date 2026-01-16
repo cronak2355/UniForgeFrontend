@@ -8,6 +8,13 @@ export interface UploadedAssetData {
     metadata?: Record<string, unknown>;
 }
 
+export const CDN_URL = import.meta.env.VITE_CDN_URL || "https://uniforge.kr";
+
+export const resolveAssetUrl = (s3Key: string) => {
+    if (!s3Key) return "";
+    return `${CDN_URL}/${s3Key}`;
+};
+
 export const assetService = {
     async uploadAsset(
         file: File | Blob,
@@ -101,8 +108,9 @@ export const assetService = {
             })
         });
 
-        // Step E: Update Asset with the Proxy URL
-        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        // Step E: Update Asset with the Direct CDN URL
+        // const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        const finalAssetUrl = resolveAssetUrl(s3Key);
 
         try {
             await apiClient.request(`/assets/${assetId}`, {
@@ -189,7 +197,8 @@ export const assetService = {
         });
 
         // 4. Update Metadata AND Image URL
-        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        // const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        const finalAssetUrl = resolveAssetUrl(s3Key);
 
         const updateBody: Record<string, unknown> = {
             imageUrl: finalAssetUrl

@@ -17,8 +17,14 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
     useEffect(() => {
         const filtered = assets.filter(a => a.tag === "Tile");
-        setTileAssets(filtered);
-    }, [assets]);
+        // Deep comparison to avoid re-renders if assets didn't change
+        const prev = JSON.stringify(tileAssets.map(a => a.id));
+        const next = JSON.stringify(filtered.map(a => a.id));
+
+        if (prev !== next) {
+            setTileAssets(filtered);
+        }
+    }, [assets]); // assets array reference changes often, but contents might be same
 
     useEffect(() => {
         if (!canvasRef.current || tileAssets.length === 0) return;

@@ -11,11 +11,11 @@ interface TileToolsPanelProps {
 export const TileToolsPanel: React.FC<TileToolsPanelProps> = ({ currentTool, setTool }) => {
 
     const tools: { id: ToolType, label: string, icon: string }[] = [
-        { id: "drawing", label: "Brush", icon: "✏️" },
-        { id: "erase", label: "Eraser", icon: "🧹" },
-        { id: "bucket", label: "Bucket", icon: "🪣" },
-        { id: "shape", label: "Shape", icon: "⬜" },
-        { id: "connected_erase", label: "Magic Eraser", icon: "✨" },
+        { id: "drawing", label: "Brush", icon: "fa-pencil" },
+        { id: "erase", label: "Eraser", icon: "fa-eraser" },
+        { id: "bucket", label: "Bucket", icon: "fa-fill-drip" },
+        { id: "shape", label: "Shape", icon: "fa-vector-square" },
+        { id: "connected_erase", label: "Magic Eraser", icon: "fa-wand-magic-sparkles" },
     ];
 
     return (
@@ -49,7 +49,7 @@ export const TileToolsPanel: React.FC<TileToolsPanelProps> = ({ currentTool, set
                             transition: "all 0.2s"
                         }}
                     >
-                        {tool.icon}
+                        <i className={`fa-solid ${tool.icon}`}></i>
                     </button>
                 );
             })}
