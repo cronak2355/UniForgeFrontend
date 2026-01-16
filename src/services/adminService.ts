@@ -85,6 +85,12 @@ class AdminService {
         });
     }
 
+    async deleteAllAssets(): Promise<{ success: boolean; message: string }> {
+        return apiClient.request('/admin/assets/all', {
+            method: 'DELETE'
+        });
+    }
+
     async cleanupLibrary(email: string): Promise<string> {
         const token = localStorage.getItem('token');
         const response = await fetch(`/api/system/library-cleanup?email=${email}`, {

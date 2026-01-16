@@ -72,6 +72,19 @@ export default function AdminPage() {
         }
     };
 
+    const handleDeleteAllAssets = async () => {
+        const confirmMsg = prompt('정말로 모든 에셋을 삭제하시겠습니까? 돌이킬 수 없습니다. 삭제하려면 "DELETE ALL"을 입력하세요.');
+        if (confirmMsg !== 'DELETE ALL') return;
+
+        try {
+            await adminService.deleteAllAssets();
+            alert('모든 에셋이 삭제되었습니다.');
+            loadData();
+        } catch (e: any) {
+            alert('전체 삭제 실패: ' + e.message);
+        }
+    };
+
     const handleCleanupLibrary = async (email: string, userName?: string) => {
         if (!confirm(`${userName ? `'${userName}' (${email})` : `'${email}'`} 사용자의 잘못된 라이브러리 데이터를 정리하시겠습니까?`)) return;
         try {
@@ -330,9 +343,26 @@ export default function AdminPage() {
                             {/* Assets Tab */}
                             {activeTab === 'assets' && (
                                 <div>
-                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center' }}>
                                         <i className="fa-solid fa-cube" style={{ marginRight: '12px', color: '#10b981' }}></i>
                                         에셋 관리
+                                        <button
+                                            onClick={handleDeleteAllAssets}
+                                            style={{
+                                                marginLeft: 'auto',
+                                                padding: '8px 16px',
+                                                backgroundColor: '#ef4444',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'white',
+                                                fontSize: '0.9rem',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }}></i>
+                                            에셋 전체 삭제
+                                        </button>
                                     </h1>
                                     {/* Search Bar */}
                                     <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -467,6 +497,6 @@ export default function AdminPage() {
                     )}
                 </main>
             </div>
-        </div>
+        </div >
     );
 }
