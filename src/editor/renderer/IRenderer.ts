@@ -34,6 +34,7 @@ export interface SpawnOptions {
     height?: number;
     color?: number;
     events?: EditorEvent[];
+    name?: string;
 }
 
 /**

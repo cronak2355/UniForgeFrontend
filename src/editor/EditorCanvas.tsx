@@ -379,10 +379,32 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 if (!ghostIdRef.current) {
                     const ghostId = `__ghost__${crypto.randomUUID()}`;
                     ghostIdRef.current = ghostId;
+
+                    // Calculate Aspect Ratio Size
+                    let ghostWidth = 40;
+                    let ghostHeight = 40;
+
+                    if (rendererRef.current) {
+                        const size = rendererRef.current.getTextureSize(activeDragged.name);
+                        if (size) {
+                            const MAX_SIZE = 64;
+                            const ratio = size.width / size.height;
+                            if (ratio >= 1) {
+                                // Wider
+                                ghostWidth = MAX_SIZE;
+                                ghostHeight = MAX_SIZE / ratio;
+                            } else {
+                                // Taller
+                                ghostHeight = MAX_SIZE;
+                                ghostWidth = MAX_SIZE * ratio;
+                            }
+                        }
+                    }
+
                     renderer.spawn(ghostId, activeDragged.tag, worldX, worldY, 9999, {
                         texture: activeDragged.name,
-                        width: 40,
-                        height: 40,
+                        width: ghostWidth,
+                        height: ghostHeight,
                         color: 0xffffff,
                     });
                 } else {

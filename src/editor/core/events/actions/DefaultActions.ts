@@ -208,6 +208,13 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         dirY = Number(y);
     }
 
+    // Normalize direction vector so speed is consistent
+    const len = Math.sqrt(dirX * dirX + dirY * dirY);
+    if (len > 0) {
+        dirX /= len;
+        dirY /= len;
+    }
+
     // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
 
     gameObject.x += dirX * Number(speed) * dt;
