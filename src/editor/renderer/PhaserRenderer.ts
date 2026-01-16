@@ -135,67 +135,10 @@ class PhaserRenderScene extends Phaser.Scene {
             // It is handled directly in the update() loop using reusable objects.
             if (event.type === "TICK") return;
 
-            // runtime only - handle other events (OnCollision, Signals, etc.)
-            if (!this.phaserRenderer.isRuntimeMode) {
-                return;
-            }
-            if (this.phaserRenderer.getAllEntityIds().length === 0) {
-                return;
-            }
-
-            // [Optimized] Use RuntimeContext directly used primarily for lookups
-            // Accessing entities via RuntimeContext is O(1) or O(N) iteration without allocation
-            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
-
-            // Helper to get entities for global lookup (Scene globals)
-            // We pass the raw Map to avoid reconstruction. 
-            // Warning: Consumers must handle Raw RuntimeEntity objects, not EditorEntity adapters.
-            // But ActionRegistry globals usually expect specific interfaces.
-            const globalEntities = runtimeContext ? runtimeContext.entities : this.phaserRenderer.core.getEntities();
-
-            this.phaserRenderer.core.getEntities().forEach((entity) => {
-                const components = splitLogicItems(entity.logic);
-                const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
-                if (logicComponents.length === 0) return;
-
-                const input = runtimeContext?.getInput();
-                const entityCtx = runtimeContext?.getEntityContext(entity.id);
-
-                const ctx: ActionContext = {
-                    entityId: entity.id,
-                    eventData: event.data || {},
-                    input,
-                    entityContext: entityCtx,
-                    // Pass the Map directly. Logic actions should handle Map<string, RuntimeEntity>
-                    globals: {
-                        scene: this,
-                        renderer: this.phaserRenderer,
-                        entities: globalEntities,
-                        gameCore: this.phaserRenderer.gameCore
-                    }
-                };
-
-                if (this.shouldSkipEntity(ctx, event)) {
-                    return;
-                }
-
-                for (const component of logicComponents) {
-                    if (!this.matchesEvent(component, event)) continue;
-                    if (!this.passesConditions(component, ctx)) continue;
-
-                    // if (event.type === "OnStart") {
-                    //     console.log("[OnStart] component triggered", {
-                    //         entityId: ctx.entityId,
-                    //         event: component.event,
-                    //     });
-                    // }
-
-                    for (const action of component.actions ?? []) {
-                        const { type, ...params } = action;
-                        ActionRegistry.run(type, ctx, params);
-                    }
-                }
-            });
+            // [DISABLED] Logic execution is now handled EXCLUSIVELY by LogicSystem via GameCore pipeline.
+            // This prevents duplicate execution (4x issue) when conditions like InputDown are used.
+            // Keeping this section disabled. LogicSystem handles OnUpdate, OnStart, OnCollision, etc.
+            // Only system-level events (AI_ATTACK, ENTITY_DIED particles) are processed above.
         };
         EventBus.on(this.eventHandler);
         console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
