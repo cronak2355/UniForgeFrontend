@@ -242,14 +242,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             const sceneEntities = Array.from(core.getEntities().values());
             const allEntities = [...globalEntities, ...sceneEntities];
 
-            console.log(`[RunTimeCanvas] === ENTITY DEBUG ===`);
-            console.log(`[RunTimeCanvas] Current Scene ID: ${core.getCurrentSceneId()}`);
-            console.log(`[RunTimeCanvas] Global Entities:`, globalEntities.map(e => e.name));
-            console.log(`[RunTimeCanvas] Scene Entities:`, sceneEntities.map(e => e.name));
-            console.log(`[RunTimeCanvas] All Scenes:`, Array.from(core.getScenes().entries()).map(([id, s]) => `${s.name} (${s.entities.size} entities)`));
-
             spawnRuntimeEntities(gameRuntime, allEntities);
-            console.log(`[RunTimeCanvas] Ready. Global: ${globalEntities.length}, Scene: ${sceneEntities.length}, Total: ${allEntities.length}`);
 
             // [FIX] Initialize camera to Main Camera entity position on startup
             const runtimeContext = gameRuntime.getRuntimeContext();
@@ -258,7 +251,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                     const cx = Number(entity.x) || 0;
                     const cy = Number(entity.y) || 0;
                     renderer.setCameraPosition(cx, cy);
-                    console.log(`[RunTimeCanvas] Camera initialized to Main Camera position: (${cx}, ${cy})`);
                     break;
                 }
             }

@@ -215,7 +215,6 @@ export class CollisionSystem {
 
                     // Enter/Stay 이벤트
                     if (!this.previousCollisions.has(pairKey)) {
-                        console.log(`[CollisionSystem] COLLISION_ENTER emitted:`, result);
                         EventBus.emit("COLLISION_ENTER", result as unknown as Record<string, unknown>);
                     } else {
                         EventBus.emit("COLLISION_STAY", result as unknown as Record<string, unknown>);
