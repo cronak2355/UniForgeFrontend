@@ -1751,6 +1751,29 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 }}
             />
 
+            {/* Global Saving Overlay */}
+            {isSavingProject && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    background: 'rgba(0,0,0,0.8)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 10000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    pointerEvents: 'all' // Block all interaction
+                }}>
+                    <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '48px', marginBottom: '12px', color: '#3b82f6' }}></i>
+                    <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>프로젝트 저장 중...</h2>
+                    <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#a1a1aa' }}>잠시만 기다려 주세요. 변경 사항을 서버에 동기화하고 있습니다.</p>
+                </div>
+            )}
         </div>
     );
 }

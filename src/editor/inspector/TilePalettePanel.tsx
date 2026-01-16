@@ -4,7 +4,8 @@ import type { Asset } from "../types/Asset";
 import { editorCore } from "../EditorCore";
 
 const TILE_SIZE = 32;
-const TILESET_COLS = 16;
+const TILESET_COLS = 9;
+const MAX_COLOR_TILES = 30;
 
 interface TilePalettePanelProps {
     assets: Asset[]; // All assets, need to filter for 'Tile' tag
@@ -94,21 +95,43 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         }
 
         const dataUrl = offCanvas.toDataURL("image/png");
-        const newAssetId = `color-${Date.now()}`;
 
-        // Add virtual asset to core
-        editorCore.addAsset({
-            id: newAssetId,
-            name: `Color ${color}`,
-            tag: "Tile",
-            url: dataUrl,
-            idx: -1,
-            metadata: { isColorTile: true, color }
-        });
+        // Find existing color tiles
+        const colorTiles = tileAssets.filter(a => a.metadata?.isColorTile);
 
-        // The auto-selection will happen via index in the next render
-        // Since it's appended to tileAssets, the new index is tileAssets.length
-        onSelectTile(tileAssets.length);
+        if (colorTiles.length >= MAX_COLOR_TILES) {
+            // Sort by ID (color-TIMESTAMP) to find the oldest
+            const oldest = [...colorTiles].sort((a, b) => a.id.localeCompare(b.id))[0];
+
+            // Replace/Update existing asset
+            const updatedAsset: Asset = {
+                ...oldest,
+                name: `Color ${color}`,
+                url: dataUrl,
+                metadata: { ...oldest.metadata, color }
+            };
+            editorCore.updateAsset(updatedAsset);
+
+            // Selection will stay at the same index if we just updated content
+            const index = tileAssets.findIndex(a => a.id === oldest.id);
+            if (index !== -1) {
+                onSelectTile(index);
+            }
+        } else {
+            const newAssetId = `color-${Date.now()}`;
+            // Add virtual asset to core
+            editorCore.addAsset({
+                id: newAssetId,
+                name: `Color ${color}`,
+                tag: "Tile",
+                url: dataUrl,
+                idx: -1,
+                metadata: { isColorTile: true, color }
+            });
+
+            // The auto-selection will happen via index in the next render
+            onSelectTile(tileAssets.length);
+        }
     };
 
     // Calculate Selection Highlight Position
@@ -135,7 +158,8 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
             <div style={{
                 flex: 1,
-                overflow: "auto",
+                overflowX: "hidden",
+                overflowY: "auto",
                 position: "relative",
                 padding: "4px"
             }}>
