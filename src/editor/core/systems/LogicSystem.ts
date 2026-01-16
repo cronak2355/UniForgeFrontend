@@ -26,8 +26,12 @@ export class LogicSystem implements System {
     }
 
     private OnStartListener?: (event: any) => void;
+    private CollisionListener?: (event: any) => void;
+    private runtimeContext?: RuntimeContext;
 
     onInit(context: RuntimeContext): void {
+        this.runtimeContext = context;
+
         // Listen for OnStart events (e.g. from SpawnEntity)
         this.OnStartListener = (event: any) => {
             if (event.type === "OnStart") {
@@ -39,12 +43,133 @@ export class LogicSystem implements System {
             }
         };
         EventBus.on(this.OnStartListener);
+
+        // Listen for COLLISION_ENTER events
+        this.CollisionListener = (event: any) => {
+            if (event.type === "COLLISION_ENTER" || event.type === "COLLISION_STAY") {
+                this.handleCollisionEvent(context, event);
+            }
+        };
+        EventBus.on(this.CollisionListener);
     }
 
     onDestroy(): void {
         if (this.OnStartListener) {
             EventBus.off(this.OnStartListener);
             this.OnStartListener = undefined;
+        }
+        if (this.CollisionListener) {
+            EventBus.off(this.CollisionListener);
+            this.CollisionListener = undefined;
+        }
+        this.runtimeContext = undefined;
+    }
+
+    private handleCollisionEvent(context: RuntimeContext, event: any) {
+        const renderer = this.gameCore?.getRenderer();
+        const isRuntime = renderer?.isRuntimeMode;
+
+        if (!isRuntime) return;
+
+        const data = event.data || event;
+        const entityA = data.entityA as string;
+        const entityB = data.entityB as string;
+        const tagA = data.tagA as string;
+        const tagB = data.tagB as string;
+
+        // Execute OnCollision logic for both entities involved
+        this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
+        this.executeCollisionLogic(context, entityB, entityA, tagB, tagA, data);
+    }
+
+    private executeCollisionLogic(
+        context: RuntimeContext,
+        entityId: string,
+        otherId: string,
+        myTag: string,
+        otherTag: string,
+        collisionData: any
+    ) {
+        const entity = context.entities.get(entityId);
+        if (!entity || !entity.active) return;
+
+        // Get OnCollision logic components for this entity
+        const logicComponents = context.getComponentsByEvent("OnCollision")
+            .filter(c => c.entityId === entityId);
+
+        for (const comp of logicComponents) {
+            const logicData = comp.data as import("../../types/Component").LogicComponent;
+
+            // Build ActionContext with collision event data
+            const ctx: ActionContext = {
+                entityId,
+                eventData: {
+                    ...collisionData,
+                    entityA: collisionData.entityA,
+                    entityB: collisionData.entityB,
+                    tagA: collisionData.tagA,
+                    tagB: collisionData.tagB,
+                    otherTag,
+                    otherId,
+                    dt: 0
+                },
+                input: context.getInput(),
+                entityContext: context.getEntityContext(entityId),
+                globals: {
+                    entities: context.entities,
+                    renderer: this.gameCore?.getRenderer(),
+                    gameCore: this.gameCore,
+                }
+            };
+
+            // Execute using the same logic as executeLogicComponent
+            const conditions = logicData.conditions ?? [];
+            const logic = logicData.conditionLogic ?? "AND";
+
+            if (logic === "BRANCH") {
+                let handled = false;
+                console.log(`[LogicSystem COLLISION BRANCH] Checking ${conditions.length} conditions for entity ${entityId}...`);
+                for (const c of conditions) {
+                    console.log(`[LogicSystem COLLISION BRANCH] Condition:`, JSON.stringify(c));
+                    if (ConditionRegistry.check(c.type, ctx, c)) {
+                        console.log(`[LogicSystem COLLISION BRANCH] Condition passed! then actions:`, c.then);
+                        for (const action of (c.then ?? [])) {
+                            const { type, ...params } = action;
+                            console.log(`[LogicSystem COLLISION BRANCH] Running action: ${type}`, params);
+                            ActionRegistry.run(type, ctx, params);
+                        }
+                        handled = true;
+                        break;
+                    }
+                }
+                if (!handled) {
+                    console.log(`[LogicSystem COLLISION BRANCH] No condition passed, running elseActions:`, logicData.elseActions);
+                    for (const action of (logicData.elseActions ?? [])) {
+                        const { type, ...params } = action;
+                        ActionRegistry.run(type, ctx, params);
+                    }
+                }
+                continue;
+            }
+
+            // AND/OR logic
+            let pass = true;
+            if (conditions.length > 0) {
+                if (logic === "OR") {
+                    pass = conditions.some(c => ConditionRegistry.check(c.type, ctx, c));
+                } else {
+                    pass = conditions.every(c => ConditionRegistry.check(c.type, ctx, c));
+                }
+            }
+
+            const actionsToRun = pass
+                ? (logicData.actions ?? [])
+                : (logicData.elseActions ?? []);
+
+            for (const action of actionsToRun) {
+                const { type, ...params } = action;
+                ActionRegistry.run(type, ctx, params);
+            }
         }
     }
 
@@ -164,10 +289,14 @@ export class LogicSystem implements System {
 
         if (logic === "BRANCH") {
             let handled = false;
+            console.log(`[LogicSystem BRANCH] Checking ${conditions.length} conditions...`);
             for (const c of conditions) {
+                console.log(`[LogicSystem BRANCH] Condition:`, JSON.stringify(c));
                 if (ConditionRegistry.check(c.type, ctx, c)) {
+                    console.log(`[LogicSystem BRANCH] Condition passed! then actions:`, c.then);
                     for (const action of (c.then ?? [])) {
                         const { type, ...params } = action;
+                        console.log(`[LogicSystem BRANCH] Running action: ${type}`, params);
                         ActionRegistry.run(type, ctx, params);
                     }
                     handled = true;
@@ -175,6 +304,7 @@ export class LogicSystem implements System {
                 }
             }
             if (!handled) {
+                console.log(`[LogicSystem BRANCH] No condition passed, running elseActions:`, logicData.elseActions);
                 for (const action of (logicData.elseActions ?? [])) {
                     const { type, ...params } = action;
                     ActionRegistry.run(type, ctx, params);
