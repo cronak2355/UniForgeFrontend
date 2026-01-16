@@ -503,7 +503,7 @@ function EditorLayoutInner() {
             }
 
             // Show Toast
-            setSaveToast("Project Saved Successfully");
+            setSaveToast("프로젝트가 성공적으로 저장되었습니다.");
             setTimeout(() => setSaveToast(null), 3000);
             setIsDirty(false);
             setIsSaveModalOpen(false);
@@ -967,15 +967,15 @@ function EditorLayoutInner() {
                     <div style={{ display: 'flex', gap: '4px' }}>
 
                         {/* File Menu */}
-                        <TopBarMenu label="file">
-                            <MenuItem label="Load Project" onClick={() => {
+                        <TopBarMenu label="파일">
+                            <MenuItem label="프로젝트 불러오기" onClick={() => {
                                 document.getElementById('hidden-load-input')?.click();
                             }} />
-                            <MenuItem label="Save Project" onClick={() => {
+                            <MenuItem label="프로젝트 저장" onClick={() => {
                                 handleSaveProject();
                             }} />
                             <MenuItem
-                                label="Export"
+                                label="내보내기 (Export)"
                                 onClick={() => {
                                     try {
                                         // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
@@ -1027,21 +1027,21 @@ function EditorLayoutInner() {
                         </TopBarMenu>
 
                         {/* Assets Menu */}
-                        <TopBarMenu label="assets">
-                            <MenuItem label="Import Asset" onClick={() => { alert("Import Asset - Coming Soon"); }} />
-                            <MenuItem label="Asset Library" onClick={() => { setIsAssetLibraryOpen(true); }} />
+                        <TopBarMenu label="에셋">
+                            <MenuItem label="에셋 가져오기 (준비중)" onClick={() => { alert("Import Asset - Coming Soon"); }} />
+                            <MenuItem label="에셋 라이브러리" onClick={() => { setIsAssetLibraryOpen(true); }} />
                         </TopBarMenu>
 
                         {/* UI Menu */}
 
                         {/* Edit Menu */}
-                        <TopBarMenu label="edit">
-                            <MenuItem label="Undo (Ctrl+Z)" onClick={() => core.undo()} />
-                            <MenuItem label="Redo (Ctrl+Y)" onClick={() => core.redo()} />
-                            <MenuItem label="Cut (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
-                            <MenuItem label="Copy (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
-                            <MenuItem label="Paste (Ctrl+V)" onClick={() => core.paste()} />
-                            <MenuItem label="Delete (Del)" onClick={() => {
+                        <TopBarMenu label="편집">
+                            <MenuItem label="실행 취소 (Ctrl+Z)" onClick={() => core.undo()} />
+                            <MenuItem label="다시 하기 (Ctrl+Y)" onClick={() => core.redo()} />
+                            <MenuItem label="잘라내기 (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
+                            <MenuItem label="복사 (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
+                            <MenuItem label="붙여넣기 (Ctrl+V)" onClick={() => core.paste()} />
+                            <MenuItem label="삭제 (Del)" onClick={() => {
                                 const selected = core.getSelectedEntity();
                                 if (selected) core.removeEntity(selected.id);
                             }} />
@@ -1135,7 +1135,7 @@ function EditorLayoutInner() {
                             }}
                         >
                             <i className="fa-solid fa-list-ul" style={{ marginRight: '6px' }}></i>
-                            Hierarchy
+                            계층 구조 (Hierarchy)
                         </button>
                         <button
                             onClick={() => setActiveLeftTab("assets")}
@@ -1152,7 +1152,7 @@ function EditorLayoutInner() {
                             }}
                         >
                             <i className="fa-solid fa-layer-group" style={{ marginRight: '6px' }}></i>
-                            Assets
+                            에셋 (Assets)
                         </button>
                     </div>
 
@@ -1207,7 +1207,7 @@ function EditorLayoutInner() {
                             {/* Toolbar Buttons if any */}
                         </div>
                         <div style={{ fontSize: '12px', color: colors.textSecondary }}>
-                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
+                            {mode === "dev" ? "에디터 모드 (EDITOR MODE)" : "런타임 모드 (RUNTIME MODE)"}
                         </div>
                     </div>
 
@@ -1261,7 +1261,7 @@ function EditorLayoutInner() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px',
                     }}>
-                        Inspector
+                        속성 (Inspector)
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                         {/* Asset Animation Settings (when asset is selected) */}
@@ -1370,7 +1370,7 @@ function EditorLayoutInner() {
                             color: colors.textPrimary,
                             marginBottom: "12px",
                         }}>
-                            {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
+                            {dropModalFiles.length > 1 ? "에셋 일괄 업로드" : "에셋 가져오기"}
                         </div>
                         {dropModalFiles.length > 0 && (
                             <div style={{
@@ -1419,12 +1419,12 @@ function EditorLayoutInner() {
                                     fontSize: "12px",
                                     color: colors.textSecondary,
                                 }}>
-                                    Name
+                                    이름
                                     <input
                                         type="text"
                                         value={dropAssetName}
                                         onChange={(e) => setDropAssetName(e.target.value)}
-                                        placeholder="Asset name"
+                                        placeholder="에셋 이름 입력"
                                         style={{
                                             background: colors.bgPrimary,
                                             border: `1px solid ${colors.borderColor}`,
@@ -1443,7 +1443,7 @@ function EditorLayoutInner() {
                                 fontSize: "12px",
                                 color: colors.textSecondary,
                             }}>
-                                Tag
+                                태그 (분류)
                                 <select
                                     value={dropAssetTag}
                                     onChange={(e) => setDropAssetTag(e.target.value)}
@@ -1457,8 +1457,8 @@ function EditorLayoutInner() {
                                         outline: "none",
                                     }}
                                 >
-                                    <option value="Character">Character</option>
-                                    <option value="Tile">Tile</option>
+                                    <option value="Character">캐릭터 (Character)</option>
+                                    <option value="Tile">타일 (Tile)</option>
                                 </select>
                             </label>
                         </div>
@@ -1492,7 +1492,7 @@ function EditorLayoutInner() {
                                     cursor: "pointer",
                                 }}
                             >
-                                Add Asset
+                                에셋 추가
                             </button>
                             <button
                                 type="button"
@@ -1508,7 +1508,7 @@ function EditorLayoutInner() {
                                     cursor: "pointer",
                                 }}
                             >
-                                Close
+                                닫기
                             </button>
                         </div>
                     </div>

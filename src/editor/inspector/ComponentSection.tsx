@@ -20,12 +20,12 @@ type Props = {
 };
 
 const EVENT_TYPES = [
-    { value: "OnStart", label: "OnStart" },
-    { value: "OnUpdate", label: "OnUpdate" },
-    { value: "OnDestroy", label: "OnDestroy" },
-    { value: "OnSignalReceive", label: "OnSignalReceive" },
-    { value: "OnCollision", label: "OnCollision" },
-    { value: "OnClick", label: "OnClick" },
+    { value: "OnStart", label: "시작 시 (OnStart)" },
+    { value: "OnUpdate", label: "매 프레임 (OnUpdate)" },
+    { value: "OnDestroy", label: "파괴될 때 (OnDestroy)" },
+    { value: "OnSignalReceive", label: "신호 수신 시 (OnSignalReceive)" },
+    { value: "OnCollision", label: "충돌 시 (OnCollision)" },
+    { value: "OnClick", label: "클릭 시 (OnClick)" },
 ];
 
 const ACTION_LABELS: Record<string, string> = {
@@ -53,16 +53,16 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const CONDITION_TYPES = [
-    { value: "IsGrounded", label: "State: Grounded" },
-    { value: "IsAlive", label: "State: Alive" },
-    { value: "VarEquals", label: "==" },
-    { value: "VarNotEquals", label: "!=" },
-    { value: "VarGreaterThan", label: ">" },
-    { value: "VarGreaterOrEqual", label: ">=" },
-    { value: "VarLessThan", label: "<" },
-    { value: "VarLessOrEqual", label: "<=" },
-    { value: "InputKey", label: "Input (Hold)" },
-    { value: "InputDown", label: "Input (Down)" },
+    { value: "IsGrounded", label: "상태: 땅에 닿음 (Grounded)" },
+    { value: "IsAlive", label: "상태: 생존 (Alive)" },
+    { value: "VarEquals", label: "같음 (==)" },
+    { value: "VarNotEquals", label: "다름 (!=)" },
+    { value: "VarGreaterThan", label: "큼 (>)" },
+    { value: "VarGreaterOrEqual", label: "크거나 같음 (>=)" },
+    { value: "VarLessThan", label: "작음 (<)" },
+    { value: "VarLessOrEqual", label: "작거나 같음 (<=)" },
+    { value: "InputKey", label: "키 입력 중 (Hold)" },
+    { value: "InputDown", label: "키 누름 (Down)" },
 ];
 
 const INPUT_KEY_OPTIONS = [
@@ -347,10 +347,10 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     return (
         <div style={styles.sectionContainer}>
             <div style={styles.sectionHeader}>
-                <div style={styles.sectionTitle}>Components ({logicComponents.length})</div>
+                <div style={styles.sectionTitle}>구성 요소 (Components) ({logicComponents.length})</div>
                 <div style={styles.headerButtons}>
                     <button onClick={handleAddComponent} style={styles.addButton}>
-                        + Add Component
+                        + 요소 추가
                     </button>
                 </div>
             </div>
@@ -377,7 +377,7 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                 ))}
                 {logicComponents.length === 0 && (
                     <div style={styles.emptyState}>
-                        No components yet. Add one to define logic.
+                        등록된 구성 요소가 없습니다. 로직을 정의하려면 추가하세요.
                     </div>
                 )}
             </div>
@@ -447,17 +447,17 @@ const RuleItem = memo(function RuleItem({
         <div style={styles.ruleItemContainer}>
             <div style={styles.ruleItemHeader} onClick={() => setExpanded(!expanded)}>
                 <span style={styles.ruleItemTitle}>
-                    {expanded ? "▼" : "▶"} Component #{index + 1}: {rule.event}
+                    {expanded ? "▼" : "▶"} 구성 요소 #{index + 1}: {rule.event}
                 </span>
                 <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={styles.removeButton}>
-                    Remove
+                    삭제
                 </button>
             </div>
 
             {expanded && (
                 <div style={styles.ruleItemBody}>
                     <div>
-                        <label style={styles.label}>Event</label>
+                        <label style={styles.label}>이벤트 (Event)</label>
                         <select value={rule.event} onChange={(e) => handleEventChange(e.target.value)} style={styles.selectField}>
                             {EVENT_TYPES.map((et) => (
                                 <option key={et.value} value={et.value}>
@@ -469,7 +469,7 @@ const RuleItem = memo(function RuleItem({
 
                     <div>
                         <div style={styles.sectionHeader}>
-                            <label style={styles.label}>Conditions ({rule.conditions?.length || 0})</label>
+                            <label style={styles.label}>조건 목록 ({rule.conditions?.length || 0})</label>
                             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 <select
                                     value={rule.conditionLogic ?? "AND"}
@@ -480,7 +480,7 @@ const RuleItem = memo(function RuleItem({
                                     <option value="OR">OR</option>
                                     <option value="BRANCH">BRANCH</option>
                                 </select>
-                                <button onClick={handleAddCondition} style={styles.smallAddButton}>+ Add</button>
+                                <button onClick={handleAddCondition} style={styles.smallAddButton}>+ 추가</button>
                             </div>
                         </div>
 
@@ -516,7 +516,7 @@ const RuleItem = memo(function RuleItem({
                         <div>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                                 <label style={{ fontSize: "10px", color: colors.textSecondary }}>
-                                    Actions ({rule.actions.length})
+                                    실행 동작 ({rule.actions.length})
                                 </label>
                                 <button
                                     onClick={handleAddAction}
@@ -528,7 +528,7 @@ const RuleItem = memo(function RuleItem({
                                         fontSize: "10px",
                                     }}
                                 >
-                                    + Add
+                                    + 추가
                                 </button>
                             </div>
                             {rule.actions.map((action, i) => (
@@ -574,7 +574,7 @@ const RuleItem = memo(function RuleItem({
                         <div style={{ background: "rgba(200,100,100,0.05)", borderRadius: 4, padding: 4, border: "1px solid rgba(200,100,100,0.2)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                                 <label style={{ fontSize: "10px", color: "#f44336" }}>
-                                    ❌ Else ({rule.elseActions?.length || 0})
+                                    ❌ 그 외 동작 (Else) ({rule.elseActions?.length || 0})
                                 </label>
                                 <button
                                     onClick={() => {
@@ -592,7 +592,7 @@ const RuleItem = memo(function RuleItem({
                                         fontSize: "10px",
                                     }}
                                 >
-                                    + Add
+                                    + 추가
                                 </button>
                             </div>
                             {(rule.elseActions || []).map((action, i) => (
@@ -751,12 +751,12 @@ function ConditionEditor({
             {showActions && (
                 <div style={{ marginLeft: 16, borderLeft: "2px solid #666", paddingLeft: 8, paddingBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, color: colors.textSecondary }}>Then Actions ({thenActions.length})</span>
+                        <span style={{ fontSize: 10, color: colors.textSecondary }}>추가 동작 ({thenActions.length})</span>
                         <button
                             onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Log" }])}
                             style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
                         >
-                            + Add Action
+                            + 동작 추가
                         </button>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -783,7 +783,7 @@ function ConditionEditor({
                                 showRemove={true}
                             />
                         ))}
-                        {thenActions.length === 0 && <div style={{ fontSize: 9, color: "#666" }}>No actions attached</div>}
+                        {thenActions.length === 0 && <div style={{ fontSize: 9, color: "#666" }}>동작 없음</div>}
                     </div>
                 </div>
             )}

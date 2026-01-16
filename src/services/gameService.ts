@@ -177,19 +177,11 @@ export async function uploadGameThumbnail(gameId: string, file: File): Promise<s
         })
     });
 
-    // 4. Update Game with CloudFront URL
-    const CLOUDFRONT_DOMAIN = "d3268cfwjiozkv.cloudfront.net"; // Hardcoded or import if possible. Let's reuse import if easiest, but for now safe to hardcode or import.
-    // Actually importing from utils is better.
-    const finalUrl = `https://${CLOUDFRONT_DOMAIN}/${s3Key}`;
+    // 4. Update Game with Proxy URL
+    // Use the backend proxy endpoint we just created
+    const finalUrl = `/api/games/s3/${encodeURIComponent(gameId)}?imageType=thumbnail`;
 
-    // We do NOT update the game here automatically? 
-    // The plan said "Update Game Entity". 
-    // Yes, we should probably update it here or let the caller do it.
-    // The caller (PublishModal) might want to update title/desc too.
-    // So let's just return the keys/url and let the caller update the game info?
-    // OR, update it here to be safe.
-    // Let's update it here.
-
+    // Update the game entity with this local proxy URL
     await updateGameInfo(gameId, undefined, undefined, finalUrl);
 
     return finalUrl;

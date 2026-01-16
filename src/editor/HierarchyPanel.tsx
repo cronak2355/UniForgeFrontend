@@ -214,7 +214,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                     fontSize: '11px',
                     letterSpacing: '0.5px'
                 }}>
-                    RUNTIME HIERARCHY ({runtimeEntities.length})
+                    런타임 계층 구조 ({runtimeEntities.length})
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
                     {runtimeEntities.map(e => (
@@ -269,7 +269,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px',
                 }}>
-                    Hierarchy
+                    계층 구조 (Hierarchy)
                 </span>
                 <div style={{ display: 'flex', gap: '4px', position: 'relative' }}>
                     {/* Template Menu Button */}
@@ -306,12 +306,12 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                             flexDirection: 'column',
                             gap: '2px'
                         }}>
-                            <MenuOption onClick={() => createUIEntity("text")} label="📝 Text" />
-                            <MenuOption onClick={() => createUIEntity("button")} label="🔘 Button" />
-                            <MenuOption onClick={() => createUIEntity("panel")} label="🔲 Panel" />
-                            <MenuOption onClick={() => createUIEntity("scrollPanel")} label="📜 Scroll Panel" />
-                            <MenuOption onClick={() => createUIEntity("image")} label="🖼️ Image" />
-                            <MenuOption onClick={() => createUIEntity("bar")} label="📊 Bar" />
+                            <MenuOption onClick={() => createUIEntity("text")} label="📝 텍스트 (Text)" />
+                            <MenuOption onClick={() => createUIEntity("button")} label="🔘 버튼 (Button)" />
+                            <MenuOption onClick={() => createUIEntity("panel")} label="🔲 패널 (Panel)" />
+                            <MenuOption onClick={() => createUIEntity("scrollPanel")} label="📜 스크롤 패널 (Scroll Panel)" />
+                            <MenuOption onClick={() => createUIEntity("image")} label="🖼️ 이미지 (Image)" />
+                            <MenuOption onClick={() => createUIEntity("bar")} label="📊 바 (Bar)" />
                         </div>
                     )}
                     <button

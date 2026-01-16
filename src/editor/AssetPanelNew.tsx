@@ -83,11 +83,11 @@ export function AssetPanelNew({
     // Default Categories + Modules
     // Reordered to prioritize most used
     const tabs = [
-        { id: "Character", label: "Characters", icon: "fa-person" },
-        { id: "Tile", label: "Tiles", icon: "fa-cubes" },
-        { id: "Particle", label: "FX", icon: "fa-wand-magic-sparkles" },
-        { id: "Prefab", label: "Prefabs", icon: "fa-cube" },
-        { id: "Modules", label: "Logic Modules", icon: "fa-network-wired" }
+        { id: "Character", label: "캐릭터", icon: "fa-person" },
+        { id: "Tile", label: "타일", icon: "fa-cubes" },
+        { id: "Particle", label: "이펙트(FX)", icon: "fa-wand-magic-sparkles" },
+        { id: "Prefab", label: "프리팹", icon: "fa-cube" },
+        { id: "Modules", label: "로직 모듈", icon: "fa-network-wired" }
     ];
 
     const handleTileClick = (asset: Asset) => {
@@ -126,7 +126,7 @@ export function AssetPanelNew({
                     borderBottom: `1px solid ${THEME.border}` // Separator
                 }}>
                     <i className="fa-solid fa-layer-group text-blue-500"></i>
-                    {tabs.find(t => t.id === currentTag)?.label || "Assets"}
+                    {tabs.find(t => t.id === currentTag)?.label || "에셋"}
                 </div>
 
                 {/* Tabs Row (Scrollable) */}
@@ -189,7 +189,7 @@ export function AssetPanelNew({
                     assets.filter((asset) => asset.tag === currentTag).length === 0 ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: THEME.textDim, gap: '12px' }}>
                             <i className="fa-solid fa-folder-open" style={{ fontSize: '32px', opacity: 0.3 }}></i>
-                            <p>No assets found in this category</p>
+                            <p>이 카테고리에 에셋이 없습니다.</p>
                         </div>
                     ) : (
                         <div
@@ -310,7 +310,7 @@ export function AssetPanelNew({
                                 setActiveModuleId(next.id);
                             }}
                         >
-                            <i className="fa-solid fa-plus"></i> New Logic Module
+                            <i className="fa-solid fa-plus"></i> 새 로직 모듈 만들기
                         </button>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
@@ -350,7 +350,7 @@ export function AssetPanelNew({
                                         onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.color = THEME.textDim; }}
                                         onClick={() => setActiveModuleId(module.id)}
                                     >
-                                        Edit
+                                        편집
                                     </button>
                                 </div>
                             ))}
@@ -402,7 +402,7 @@ export function AssetPanelNew({
                         >
                             <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <i className="fa-solid fa-pen-to-square text-blue-500"></i>
-                                Editor: {modules.find((m) => m.id === activeModuleId)?.name ?? "Module"}
+                                에디터: {modules.find((m) => m.id === activeModuleId)?.name ?? "모듈"}
                             </div>
                             <button
                                 style={{
@@ -482,7 +482,7 @@ export function AssetPanelNew({
                                 navigate(url);
                             }}
                         >
-                            <i className="fa-solid fa-pencil"></i> Edit Asset
+                            <i className="fa-solid fa-pencil"></i> 에셋 편집
                         </div>
                         {/* Future actions here */}
                         <div
@@ -506,7 +506,7 @@ export function AssetPanelNew({
                                 setContextMenu(null);
                             }}
                         >
-                            <i className="fa-solid fa-trash"></i> Delete
+                            <i className="fa-solid fa-trash"></i> 삭제
                         </div>
                     </div>
                 </div>
