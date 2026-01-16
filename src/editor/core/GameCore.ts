@@ -47,6 +47,7 @@ export interface CreateEntityOptions {
     height?: number;
     color?: number;
     role?: string;
+    tags?: string[]; // [ADD] Entity tags for collision/filtering
     modules?: ModuleGraph[];
     logic?: EditorLogicItem[];
     events?: any[]; // Legacy support for renderer spawn
@@ -340,20 +341,26 @@ export class GameCore {
             this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
         }
 
-        // 2. Physics Reg (Immediate)
-        const baseWidth = options.width ?? 40;
-        const baseHeight = options.height ?? 40;
-        collisionSystem.register(
-            id,
-            type,
-            {
-                x: entity.x,
-                y: entity.y,
-                width: baseWidth * entity.scaleX,
-                height: baseHeight * entity.scaleY,
-            },
-            { isSolid: true }
-        );
+        // 2. Physics Reg (Immediate) - Skip for cameras and global entities
+        const isCamera = entity.name?.toLowerCase().includes("camera");
+        const isGlobalEntity = id.startsWith("global-");
+        if (!isCamera && !isGlobalEntity) {
+            const baseWidth = options.width ?? 40;
+            const baseHeight = options.height ?? 40;
+            // [FIX] Use first tag from tags array, fallback to type
+            const collisionTag = (options.tags && options.tags.length > 0) ? options.tags[0] : type;
+            collisionSystem.register(
+                id,
+                collisionTag,
+                {
+                    x: entity.x,
+                    y: entity.y,
+                    width: baseWidth * entity.scaleX,
+                    height: baseHeight * entity.scaleY,
+                },
+                { isSolid: true }
+            );
+        }
 
         // 3. Queue Logic Data
         this.pipeline.queueCreateEntity(entity);

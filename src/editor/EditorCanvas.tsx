@@ -188,6 +188,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 components: splitLogicItems(ent.logic),
                 logic: ent.logic,
                 modules: ent.modules,
+                tags: ent.tags, // [ADD] Pass entity tags
                 z: ent.z,
                 rotationX: ent.rotationX,
                 rotationY: ent.rotationY,
@@ -553,6 +554,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                                 components: splitLogicItems(entity.logic),
                                 logic: entity.logic,
                                 modules: entity.modules,
+                                tags: entity.tags, // [ADD] Pass entity tags
                             });
                             gameCore.flush(); // Sync Context immediately
                         }
@@ -740,6 +742,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     components: splitLogicItems(ent.logic),
                     logic: ent.logic,
                     modules: ent.modules,
+                    tags: ent.tags, // [ADD] Pass entity tags
                 });
             } else {
                 gameCore.setEntityTransform(ent.id, {
