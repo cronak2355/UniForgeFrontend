@@ -32,6 +32,7 @@ import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal";
 import { saveGameVersion, updateGameInfo } from "../services/gameService";
 import { AiWizardModal } from "../AssetsEditor/components/AiWizardModal";
 import { generateSingleImage } from "../AssetsEditor/services/AnimationService";
+import { ComponentHelper } from "./inspector/ComponentHelper";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -350,6 +351,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     // AI Wizard State
     const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
     const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+    const [isComponentHelperOpen, setIsComponentHelperOpen] = useState(false);
+    const [isComponentHelperHover, setIsComponentHelperHover] = useState(false);
 
     // Tiling Tools State
     const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("drawing");
@@ -823,6 +826,14 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         setDropAssetTag("Character");
         setIsUploadingAsset(false);
         setUploadError("");
+    };
+
+    const handleInspectorUpdate = (updatedEntity: EditorEntity) => {
+        const normalized = syncLegacyFromLogic(updatedEntity);
+        core.addEntity(normalized as any);
+        core.setSelectedEntity(normalized as any);
+        setLocalSelectedEntity(normalized);
+        setIsDirty(true);
     };
 
     // Auto-Load Asset from URL (when returning from Asset Editor)
@@ -1301,7 +1312,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         core.setSelectedEntity(entity as any);
                                         setIsDirty(true);
                                     }}
-                                    tilingTool={activeLeftTab === "assets" ? tilingTool : ""}
+                                    tilingTool={tilingTool}
                                     selectedTileIndex={selectedTileIndex}
                                 />
                             </div>
@@ -1318,58 +1329,80 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 </div>
 
                 {/* RIGHT PANEL - Inspector */}
-                {!isPlayMode && (
+                <div style={{
+                    width: '280px',
+                    background: colors.bgSecondary,
+                    borderLeft: `2px solid ${colors.borderColor}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
+                }}>
                     <div style={{
-                        width: '280px',
-                        background: colors.bgSecondary,
-                        borderLeft: `2px solid ${colors.borderColor}`,
+                        height: '32px',
                         display: 'flex',
-                        flexDirection: 'column',
+                        alignItems: 'center',
+                        padding: '0 12px',
+                        background: colors.bgTertiary,
+                        borderBottom: `1px solid ${colors.borderColor}`,
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: colors.accentLight,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
                     }}>
-                        <div style={{
-                            height: '32px',
+                        속성 (Inspector)
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {selectedAsset && selectedAsset.tag !== "Prefab" && (
+                            <AssetAnimationSettings asset={selectedAsset} />
+                        )}
+                        {selectedAsset && selectedAsset.tag === "Prefab" && (
+                            <PrefabInspector asset={selectedAsset} />
+                        )}
+                        {localSelectedEntity && !selectedAsset && (
+                            <InspectorPanel
+                                entity={localSelectedEntity}
+                                onUpdateEntity={handleInspectorUpdate}
+                            />
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        aria-label="Add inspector item"
+                        onClick={() => setIsComponentHelperOpen(true)}
+                        style={{
+                            position: 'absolute',
+                            right: '24px',
+                            bottom: '22px',
+                            width: isComponentHelperHover ? '160px' : '44px',
+                            height: '44px',
+                            borderRadius: '999px',
+                            border: `1px solid ${colors.borderColor}`,
+                            background: colors.accent,
+                            color: colors.textPrimary,
+                            fontSize: '24px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            boxShadow: '0 8px 16px rgba(0,0,0,0.35)',
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
                             padding: '0 12px',
-                            background: colors.bgTertiary,
-                            borderBottom: `1px solid ${colors.borderColor}`,
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: colors.accentLight,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                        }}>
-                            속성 (Inspector)
-                        </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                            {selectedAsset && (
-                                <>
-                                    {selectedAsset.tag !== "Prefab" && (
-                                        <AssetAnimationSettings asset={selectedAsset} />
-                                    )}
-
-                                </>
-                            )}
-                            {/* Prefab Inspector (when prefab asset is selected) */}
-                            {selectedAsset && selectedAsset.tag === "Prefab" && (
-                                <PrefabInspector asset={selectedAsset} />
-                            )}
-                            {/* Entity Inspector (only when no asset is selected) */}
-                            {localSelectedEntity && !selectedAsset && (
-                                <InspectorPanel
-                                    entity={localSelectedEntity}
-                                    onUpdateEntity={(updatedEntity) => {
-                                        const normalized = syncLegacyFromLogic(updatedEntity);
-                                        core.updateEntityAnywhere(normalized as any);
-                                        core.setSelectedEntity(normalized as any);
-                                        setLocalSelectedEntity(normalized);
-                                        setIsDirty(true);
-                                    }}
-                                />
-                            )}
-                        </div>
-                    </div>
-                )}
+                            transition: 'width 0.2s ease',
+                            overflow: 'hidden',
+                        }}
+                        onMouseEnter={() => setIsComponentHelperHover(true)}
+                        onMouseLeave={() => setIsComponentHelperHover(false)}
+                    >
+                        <span>+</span>
+                        {isComponentHelperHover && (
+                            <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                컴포넌트 마술사
+                            </span>
+                        )}
+                    </button>
+                </div>
 
                 {/* Play Mode Overlay */}
                 {isPlayMode && (
@@ -1400,6 +1433,13 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     </div>
                 )}
             </div>
+
+            <ComponentHelper
+                isOpen={isComponentHelperOpen}
+                onClose={() => setIsComponentHelperOpen(false)}
+                entity={localSelectedEntity}
+                onUpdateEntity={handleInspectorUpdate}
+            />
 
             {/* AI Wizard Modal */}
             <AiWizardModal
