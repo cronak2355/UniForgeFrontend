@@ -114,6 +114,10 @@ const AssetDetailPage = () => {
                                 src={asset.imageUrl || asset.image || "/placeholder-asset.png"}
                                 alt={asset.name}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                    e.currentTarget.src = "/placeholder-asset.png";
+                                    e.currentTarget.onerror = null; // Prevent infinite loop
+                                }}
                             />
                         </div>
 

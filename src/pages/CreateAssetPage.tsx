@@ -1,3 +1,5 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { marketplaceService } from '../services/marketplaceService';
 import { CDN_URL } from '../services/assetService';
@@ -282,18 +284,33 @@ const CreateAssetPage = () => {
             }
 
             if (mainS3Key) {
-                await marketplaceService.registerImageResource({
-                    ownerType: "ASSET",
-                    ownerId: assetId,
-                    imageType: "base",
-                    s3Key: mainS3Key,
-                    isActive: true
-                });
+                const isImageFile = file.type.startsWith('image/');
+                console.log(`[CreateAssetPage] Main File Type: ${file.type}, isImage: ${isImageFile}, Key: ${mainS3Key}`);
 
-                // Update asset with PROXY URL -> CDN URL
-                // const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=base`;
-                const directUrl = `${CDN_URL}/${mainS3Key}`;
-                await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
+                // Only register as "base" image if it IS an image
+                if (isImageFile) {
+                    await marketplaceService.registerImageResource({
+                        ownerType: "ASSET",
+                        ownerId: assetId,
+                        imageType: "base",
+                        s3Key: mainS3Key,
+                        isActive: true
+                    });
+
+                    // Update asset with PROXY URL -> CDN URL
+                    // Encode key parts to ensure URL is valid even with spaces
+                    const cleanKey = mainS3Key.startsWith('/') ? mainS3Key.slice(1) : mainS3Key;
+                    // Note: S3 keys might contain / that are separators. We should encode components if needed, 
+                    // but simple encodeURI usually suffices for full paths unless special chars exist.
+                    // Safer: split by / and encodeURIComponent each part.
+                    const encodedKey = cleanKey.split('/').map(part => encodeURIComponent(part)).join('/');
+                    const directUrl = `${CDN_URL}/${encodedKey}`;
+
+                    console.log(`[CreateAssetPage] Updating Asset Image URL to: ${directUrl}`);
+                    await marketplaceService.updateAsset(assetId, { imageUrl: directUrl });
+                } else {
+                    console.log("[CreateAssetPage] Main file is not an image, skipping imageUrl update.");
+                }
             }
 
             // Step 5: Publish the version

@@ -133,6 +133,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     }, [tilingTool]);
 
     useEffect(() => {
+        selectedTileIndexRef.current = selectedTileIndex || 0;
+    }, [selectedTileIndex]);
+
+    useEffect(() => {
         addEntityRef.current = addEntity;
     }, [addEntity]);
 
@@ -262,10 +266,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             isPointerDownRef.current = true;
             lastPointerRef.current = { x: worldX, y: worldY };
 
-            const selectedAsset = selectedAssetRef.current;
+            // FIX: Use tilingTypeRef and selectedTileIndexRef instead of checking selectedAsset
             const activeTilingType = tilingTypeRef.current;
             const activeDragged = draggedAssetRef.current;
-            if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0 && activeTilingType) {
+            const currentTileIndex = selectedTileIndexRef.current;
+
+            // Check if we are in Tiling Mode
+            if (activeTilingType) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
 
@@ -326,13 +333,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 };
 
                 if (activeTilingType === "drawing") {
-                    renderer.setTile(tx, ty, selectedAsset.idx);
-                    core.setTile(tx, ty, selectedAsset.idx);
+                    renderer.setTile(tx, ty, currentTileIndex);
+                    core.setTile(tx, ty, currentTileIndex);
                 } else if (activeTilingType === "erase") {
                     renderer.removeTile(tx, ty);
                     core.removeTile(tx, ty);
                 } else if (activeTilingType === "bucket") {
-                    floodFill(tx, ty, selectedAsset.idx, false);
+                    floodFill(tx, ty, currentTileIndex, false);
                 } else if (activeTilingType === "connected_erase") {
                     floodFill(tx, ty, 0, true);
                 } else if (activeTilingType === "shape") {
@@ -357,9 +364,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             const prev = lastPointerRef.current;
             lastPointerRef.current = { x: worldX, y: worldY };
 
-            const selectedAsset = selectedAssetRef.current;
+            // FIX: Use tilingTypeRef and selectedTileIndexRef
             const activeTilingType = tilingTypeRef.current;
+            const currentTileIndex = selectedTileIndexRef.current;
             const activeDragged = draggedAssetRef.current;
+
             if (activeDragged && activeDragged.tag !== "Tile") {
                 if (!ghostIdRef.current) {
                     const ghostId = `__ghost__${crypto.randomUUID()}`;
@@ -376,15 +385,15 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 return;
             }
 
-            if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0) {
+            if (activeTilingType) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
                 if (activeTilingType === "drawing") {
                     if (isPointerDownRef.current) {
-                        renderer.setTile(tx, ty, selectedAsset.idx);
-                        core.setTile(tx, ty, selectedAsset.idx);
+                        renderer.setTile(tx, ty, currentTileIndex);
+                        core.setTile(tx, ty, currentTileIndex);
                     } else {
-                        renderer.setPreviewTile(tx, ty, selectedAsset.idx);
+                        renderer.setPreviewTile(tx, ty, currentTileIndex);
                     }
                 } else if (activeTilingType === "erase" && isPointerDownRef.current) {
                     renderer.removeTile(tx, ty);
@@ -400,7 +409,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
                     for (let x = minX; x <= maxX; x++) {
                         for (let y = minY; y <= maxY; y++) {
-                            renderer.setPreviewTile(x, y, selectedAsset.idx);
+                            renderer.setPreviewTile(x, y, currentTileIndex);
                         }
                     }
                 } else {
@@ -430,10 +439,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         renderer.onPointerUp = (worldX, worldY) => {
             const activeDragged = draggedAssetRef.current;
             const activeTilingType = tilingTypeRef.current;
-            const selectedAsset = selectedAssetRef.current;
+            const currentTileIndex = selectedTileIndexRef.current;
 
             // Shape Commit
-            if (activeTilingType === "shape" && shapeStartRef.current && selectedAsset?.tag === "Tile") {
+            if (activeTilingType === "shape" && shapeStartRef.current) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
                 const start = shapeStartRef.current;
@@ -444,8 +453,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
                 for (let x = minX; x <= maxX; x++) {
                     for (let y = minY; y <= maxY; y++) {
-                        renderer.setTile(x, y, selectedAsset.idx);
-                        core.setTile(x, y, selectedAsset.idx);
+                        renderer.setTile(x, y, currentTileIndex);
+                        core.setTile(x, y, currentTileIndex);
                     }
                 }
                 shapeStartRef.current = null;
@@ -454,7 +463,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 return;
             }
             // Clear bucket/others just in case
-            if (activeTilingType && selectedAsset?.tag === "Tile") {
+            if (activeTilingType) {
                 isPointerDownRef.current = false;
                 return;
             }
