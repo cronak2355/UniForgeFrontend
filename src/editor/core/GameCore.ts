@@ -151,12 +151,12 @@ export class GameCore {
         const entityId = event.entityId ?? event.data?.entityA ?? event.data?.entityId;
 
         // Map EventBus event types to Logic component event types
+        // NOTE: OnStart is handled by LogicSystem directly, not here (to avoid duplicate execution)
         const eventMapping: Record<string, string[]> = {
             "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
             "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
             "COLLISION_EXIT": ["OnCollisionExit"],
             "ENTITY_DIED": ["OnDestroy"],
-            "OnStart": ["OnStart"],
         };
 
         const mappedEvents = eventMapping[eventType];
