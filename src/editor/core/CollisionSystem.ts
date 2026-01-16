@@ -128,6 +128,11 @@ export class CollisionSystem {
      * AABB 충돌 검사
      */
     private checkAABB(a: AABB, b: AABB): boolean {
+        // Safety check for undefined positions
+        if (a.x === undefined || a.y === undefined || b.x === undefined || b.y === undefined) {
+            return false;
+        }
+
         const halfWidthA = a.width / 2;
         const halfHeightA = a.height / 2;
         const halfWidthB = b.width / 2;
@@ -210,6 +215,7 @@ export class CollisionSystem {
 
                     // Enter/Stay 이벤트
                     if (!this.previousCollisions.has(pairKey)) {
+                        console.log(`[CollisionSystem] COLLISION_ENTER emitted:`, result);
                         EventBus.emit("COLLISION_ENTER", result as unknown as Record<string, unknown>);
                     } else {
                         EventBus.emit("COLLISION_STAY", result as unknown as Record<string, unknown>);

@@ -5,6 +5,7 @@ import { splitLogicItems } from "../../../types/Logic";
 import { assetToEntity } from "../../../utils/assetToEntity";
 import type { Asset } from "../../../types/Asset";
 import type { EditorEntity } from "../../../types/Entity";
+import { collisionSystem } from "../../CollisionSystem";
 
 type VariableEntry = { id: string; name: string; type: string; value: number | string | boolean | { x: number; y: number } };
 type RuntimeEntity = {
@@ -224,6 +225,9 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         entity.x = gameObject.x;
         entity.y = gameObject.y;
     }
+
+    // [FIX] Sync collider position for collision detection
+    collisionSystem.updatePosition(entityId, gameObject.x, gameObject.y);
 });
 
 ActionRegistry.register("Jump", (_ctx: ActionContext, _params: Record<string, unknown>) => {

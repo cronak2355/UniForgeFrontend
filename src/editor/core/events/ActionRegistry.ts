@@ -54,6 +54,7 @@ export interface ActionGlobals {
             options?: Record<string, unknown>
         ): boolean;
     };
+    hitTag?: string;
 }
 
 export interface ActionContext {

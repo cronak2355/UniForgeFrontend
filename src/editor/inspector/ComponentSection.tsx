@@ -71,6 +71,7 @@ export const CONDITION_TYPES = [
     { value: "VarLessOrEqual", label: "작거나 같음 (<=)" },
     { value: "InputKey", label: "키 입력 중 (Hold)" },
     { value: "InputDown", label: "키 누름 (Down)" },
+    { value: "CompareTag", label: "태그 비교 (CompareTag)" },
 ];
 
 export const INPUT_KEY_OPTIONS = [
@@ -496,6 +497,7 @@ const RuleItem = memo(function RuleItem({
                             <ConditionEditor
                                 key={i}
                                 condition={cond}
+                                eventType={rule.event}
                                 variables={variables}
                                 showActions={rule.conditionLogic === "BRANCH"}
                                 availableActions={availableActions}
@@ -640,6 +642,7 @@ const RuleItem = memo(function RuleItem({
 
 function ConditionEditor({
     condition,
+    eventType,
     variables,
     onUpdate,
     onRemove,
@@ -655,6 +658,7 @@ function ConditionEditor({
     onUpdateModuleVariable,
 }: {
     condition: { type: string; then?: Array<{ type: string;[key: string]: unknown }>;[key: string]: unknown };
+    eventType?: string;
     variables: EditorVariable[];
     onUpdate: (c: { type: string;[key: string]: unknown }) => void;
     onRemove: () => void;
@@ -671,12 +675,19 @@ function ConditionEditor({
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
-    const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive";
+    const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
     const thenActions = condition.then || [];
 
     const updateThenActions = (newActions: any[]) => {
         onUpdate({ ...condition, then: newActions });
     };
+
+    const filteredConditionTypes = CONDITION_TYPES.filter(type => {
+        if (type.value === "CompareTag") {
+            return eventType === "OnCollision" || eventType === "OnTriggerEnter";
+        }
+        return true;
+    });
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -708,10 +719,10 @@ function ConditionEditor({
                     }}
                     style={styles.smallSelect}
                 >
-                    {!CONDITION_TYPES.some((op) => op.value === condition.type) && (
+                    {!filteredConditionTypes.some((op) => op.value === condition.type) && (
                         <option value={condition.type}>{condition.type}</option>
                     )}
-                    {CONDITION_TYPES.map((op) => (
+                    {filteredConditionTypes.map((op) => (
                         <option key={op.value} value={op.value}>
                             {op.label}
                         </option>
@@ -732,7 +743,17 @@ function ConditionEditor({
                     </select>
                 )}
 
-                {!isValueFreeCondition && (
+                {condition.type === "CompareTag" && (
+                    <input
+                        type="text"
+                        placeholder="Tag (e.g. Player)"
+                        value={(condition.tag as string) || ""}
+                        onChange={(e) => onUpdate({ ...condition, tag: e.target.value })}
+                        style={styles.textInput}
+                    />
+                )}
+
+                {!isValueFreeCondition && condition.type !== "CompareTag" && (
                     selectedVar?.type === "bool" ? (
                         <select
                             value={condition.value === true ? "true" : "false"}
