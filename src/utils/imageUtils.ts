@@ -1,5 +1,6 @@
 // Hardcoded for now, but ideally env var
 // CloudFront Domain (from Terraform)
+// CACHE TEST: 2026-01-16 22:15 KST - Remove this line after verification
 export const CLOUDFRONT_DOMAIN = "d2h4arewwuma9h.cloudfront.net";
 
 /**
