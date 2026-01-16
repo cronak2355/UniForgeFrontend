@@ -1301,7 +1301,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         core.setSelectedEntity(entity as any);
                                         setIsDirty(true);
                                     }}
-                                    tilingTool={selectedAsset?.tag === "Tile" ? tilingTool : ""}
+                                    tilingTool={activeLeftTab === "assets" ? tilingTool : ""}
                                     selectedTileIndex={selectedTileIndex}
                                 />
                             </div>
