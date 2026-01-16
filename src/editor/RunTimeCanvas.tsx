@@ -221,7 +221,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             // console.log(`[RunTimeCanvas] Loading ${assets.length} assets...`);
             for (const asset of assets) {
                 if (asset.tag === "Tile") continue;
+                // [FIX] Load texture with both name AND id keys to handle entity.texture being asset.id
                 await renderer.loadTexture(asset.name, asset.url, asset.metadata);
+                // Also load with asset.id as key (entities use asset.id as texture key)
+                if (asset.id !== asset.name) {
+                    await renderer.loadTexture(asset.id, asset.url, asset.metadata);
+                }
                 if (!isMounted) {
                     console.log("[RunTimeCanvas] Aborted during texture loading");
                     renderer.destroy();
@@ -244,6 +249,18 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
             spawnRuntimeEntities(gameRuntime, allEntities);
             console.log(`[RunTimeCanvas] Ready. Global: ${globalEntities.length}, Scene: ${sceneEntities.length}, Total: ${allEntities.length}`);
+
+            // [FIX] Initialize camera to Main Camera entity position on startup
+            const runtimeContext = gameRuntime.getRuntimeContext();
+            for (const entity of runtimeContext.entities.values()) {
+                if (entity.name === "Main Camera") {
+                    const cx = Number(entity.x) || 0;
+                    const cy = Number(entity.y) || 0;
+                    renderer.setCameraPosition(cx, cy);
+                    console.log(`[RunTimeCanvas] Camera initialized to Main Camera position: (${cx}, ${cy})`);
+                    break;
+                }
+            }
 
             // 6. Start Loop
             renderer.onUpdateCallback = (time, delta) => {
