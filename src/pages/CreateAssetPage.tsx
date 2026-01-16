@@ -140,6 +140,21 @@ const CreateAssetPage = () => {
         }));
     };
 
+    // Helper to map Korean labels to System Tags
+    const resolveAssetType = (label: string) => {
+        const map: Record<string, string> = {
+            '캐릭터': 'Character',
+            '배경/타일': 'Tile',
+            '무기/장비': 'Item',
+            '오브젝트': 'Prop',
+            'VFX': 'Effect',
+            'UI': 'UI',
+            '사운드': 'Sound',
+            '기타': 'Etc'
+        };
+        return map[label] || label;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -193,7 +208,7 @@ const CreateAssetPage = () => {
                     description: finalDescription || null,
                     isPublic: formData.isPublic,
                     tags: formData.tags.join(','), // Assuming backend handles CSV or array? Check type.
-                    assetType: formData.assetType,
+                    assetType: resolveAssetType(formData.assetType),
                 } as any);
             } else {
                 // CREATE Mode
@@ -204,7 +219,7 @@ const CreateAssetPage = () => {
                     description: finalDescription || null,
                     isPublic: formData.isPublic,
                     tags: formData.tags.join(','),
-                    assetType: formData.assetType
+                    assetType: resolveAssetType(formData.assetType)
                 });
                 assetId = asset.id;
             }

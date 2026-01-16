@@ -1475,6 +1475,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                 style={{ width: "100%", padding: 8, background: colors.bgSecondary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}
                             >
                                 <option value="Character">Character</option>
+                                <option value="Tile">Tile (Background)</option>
                                 <option value="Prop">Prop</option>
                                 <option value="Background">Background</option>
                                 <option value="Effect">Effect</option>
