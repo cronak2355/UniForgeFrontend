@@ -474,7 +474,10 @@ export function ModuleGraphEditor({
               ) : (
                 moduleVariables.map((v) => (
                   <div key={v.id}>
-                    {v.name} ({v.type}): {String(v.value)}
+                    {v.name} ({v.type}):{" "}
+                    {typeof v.value === "object" && v.value !== null && "x" in v.value
+                      ? `(${(v.value as any).x}, ${(v.value as any).y})`
+                      : String(v.value)}
                   </div>
                 ))
               )}
