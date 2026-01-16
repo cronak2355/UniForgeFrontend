@@ -214,12 +214,29 @@ export class RuntimeContext {
     // Input & System Hooks
     // =========================================================================
 
+    /** Track if keysDown has been consumed this frame */
+    private keysDownConsumed = false;
+
     setInput(next: InputState): void {
+        // Reset consumption flag when new input arrives (new frame)
+        this.keysDownConsumed = false;
         this.input = { ...next };
     }
 
     getInput(): InputState {
-        return { ...this.input };
+        const result = { ...this.input };
+
+        // Clear keysDown after first consumption to prevent multiple triggers
+        if (!this.keysDownConsumed && this.input.keysDown) {
+            this.keysDownConsumed = true;
+            // Clear keysDown from stored state so subsequent calls in same frame get empty
+            this.input = { ...this.input, keysDown: {} };
+        } else {
+            // Subsequent calls get empty keysDown
+            result.keysDown = {};
+        }
+
+        return result;
     }
 
     setGroundTags(tags: string[]): void {
