@@ -5,6 +5,8 @@ import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
 import { PrefabInspector } from "./inspector/PrefabInspector";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
+import { TileToolsPanel } from "./inspector/TileToolsPanel";
+import { TilePalettePanel } from "./inspector/TilePalettePanel";
 
 import type { EditorEntity } from "./types/Entity";
 import type { Asset } from "./types/Asset";
@@ -348,6 +350,10 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     // AI Wizard State
     const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
     const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+    // Tiling Tools State
+    const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("drawing");
+    const [selectedTileIndex, setSelectedTileIndex] = useState(0);
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
@@ -1269,6 +1275,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         core.setSelectedEntity(entity as any);
                                         setIsDirty(true);
                                     }}
+                                    tilingTool={selectedAsset?.tag === "Tile" ? tilingTool : ""}
+                                    selectedTileIndex={selectedTileIndex}
                                 />
                             </div>
                         ) : (
@@ -1308,9 +1316,26 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             속성 (Inspector)
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                            {/* Asset Animation Settings (when asset is selected, non-prefab) */}
-                            {selectedAsset && selectedAsset.tag !== "Prefab" && (
-                                <AssetAnimationSettings asset={selectedAsset} />
+                            {selectedAsset && (
+                                <>
+                                    {selectedAsset.tag !== "Prefab" && (
+                                        <AssetAnimationSettings asset={selectedAsset} />
+                                    )}
+                                    {selectedAsset.tag === "Tile" && (
+                                        <div style={{ marginTop: '12px', borderTop: `1px solid ${colors.borderColor}`, paddingTop: '12px' }}>
+                                            <TileToolsPanel
+                                                currentTool={tilingTool}
+                                                setTool={setTilingTool}
+                                            />
+                                            <div style={{ height: '8px' }} />
+                                            <TilePalettePanel
+                                                assets={assets}
+                                                selectedTileIndex={selectedTileIndex}
+                                                onSelectTile={setSelectedTileIndex}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {/* Prefab Inspector (when prefab asset is selected) */}
                             {selectedAsset && selectedAsset.tag === "Prefab" && (
@@ -1396,9 +1421,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
                 <AssetLibraryModal
-                    isOpen={isAssetLibraryOpen}
                     onClose={() => setIsAssetLibraryOpen(false)}
-                    onSelectAsset={(libItem) => {
+                    onAssetSelect={(libItem) => {
                         // Convert library item to editor asset
                         const newAsset: Asset = {
                             id: libItem.id, // Use asset ID from backend
@@ -1495,7 +1519,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             <SaveGameModal
                 isOpen={isSaveModalOpen}
                 onClose={() => setIsSaveModalOpen(false)}
-                currentTitle={"My Game"}
+                initialTitle={"My Game"}
                 onSave={async (title, description) => {
                     handleSaveProject();
                 }}

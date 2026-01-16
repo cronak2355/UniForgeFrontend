@@ -58,7 +58,7 @@ export class CameraMode extends EditorMode {
 }
 
 export class TilingMode extends EditorMode {
-    public curTilingType: string = ""
+    public curTilingType: "drawing" | "erase" | "bucket" | "shape" | "connected_erase" | "" = "";
     private isDrag: boolean = false;
     private prevX: number = 0;
     private prevY: number = 0;
@@ -68,6 +68,9 @@ export class TilingMode extends EditorMode {
     public preview!: Phaser.Tilemaps.TilemapLayer;
     public base!: Phaser.Tilemaps.TilemapLayer;
 
+    // Shape Tool State
+    private shapeStart: { x: number; y: number } | null = null;
+
     onPointerDown(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
         this.isDrag = true;
         const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
@@ -76,92 +79,192 @@ export class TilingMode extends EditorMode {
 
         this.prevX = p.x;
         this.prevY = p.y;
+
         if (!tilePos) return;
         const logicalX = tilePos.x - es.tileOffsetX;
         const logicalY = tilePos.y - es.tileOffsetY;
-        if (this.curTilingType == "drawing") {
+
+        if (this.curTilingType === "drawing") {
             this.base.putTileAt(this.tile, tilePos.x, tilePos.y);
             es.editorCore?.setTile(logicalX, logicalY, this.tile);
-        } else if (this.curTilingType == "erase") {
+        } else if (this.curTilingType === "erase") {
             this.base.removeTileAt(tilePos.x, tilePos.y);
             es.editorCore?.removeTile(logicalX, logicalY);
+        } else if (this.curTilingType === "bucket") {
+            this.floodFill(es, tilePos.x, tilePos.y, this.tile);
+        } else if (this.curTilingType === "connected_erase") {
+            // Magic Eraser: Fill with -1 (remove)
+            this.floodFill(es, tilePos.x, tilePos.y, -1, true); // true = match target tile only
+        } else if (this.curTilingType === "shape") {
+            this.shapeStart = { x: tilePos.x, y: tilePos.y };
         }
     }
+
     onPointerMove(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
         const es = scene as EditorScene;
-        if (!es.ready)
-            return;
+        if (!es.ready) return;
         const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
         const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
+
+        // Clear preview first
         if (this.preview) {
+            // Only clear if not in shape mode or if needed
+            // For shape mode, we redraw the shape every frame
             try { this.preview.fill(-1); } catch { /* ignore */ }
         }
+
+        // Camera Pan Support (Middle Mouse or Space+Drag logic could be added here, 
+        // but for now we assume '' mode is pan)
+        if (this.curTilingType === "" && this.isDrag) {
+            const cam = scene.cameras.main;
+            const moveX = Number.isFinite(p.movementX) ? p.movementX : (p.x - this.prevX);
+            const moveY = Number.isFinite(p.movementY) ? p.movementY : (p.y - this.prevY);
+            cam.scrollX -= moveX / cam.zoom;
+            cam.scrollY -= moveY / cam.zoom;
+            this.prevX = p.x;
+            this.prevY = p.y;
+            return;
+        }
+
+        if (!tilePos) return;
+
+        // Tool Logic
         switch (this.curTilingType) {
-            case "": {
-                if (!this.isDrag)
-                    return;
-                const cam = scene.cameras.main;
-                const moveX = Number.isFinite(p.movementX) ? p.movementX : (p.x - this.prevX);
-                const moveY = Number.isFinite(p.movementY) ? p.movementY : (p.y - this.prevY);
-                const x = moveX / (cam.zoom);
-                const y = moveY / (cam.zoom);
-
-                cam.scrollX -= x;
-                cam.scrollY -= y;
-
-                this.prevX = p.x;
-                this.prevY = p.y;
-                break;
-            }
             case "drawing":
-
-                if (!tilePos)
-                    return;
                 if (this.isDrag) {
-                    this.lastX = tilePos.x
-                    this.lastY = tilePos.y
+                    this.lastX = tilePos.x;
+                    this.lastY = tilePos.y;
                     this.base.putTileAt(this.tile, this.lastX, this.lastY);
                     es.editorCore?.setTile(this.lastX - es.tileOffsetX, this.lastY - es.tileOffsetY, this.tile);
-                }
-                else {
-                    if (!Number.isInteger(this.lastX) && !Number.isInteger(this.lastY)) {
-                        //초기값설정해주기
-                        this.lastX = tilePos.x
-                        this.lastY = tilePos.y
-                        this.preview.putTileAt(this.tile, this.lastX, this.lastY);
-                        return;
-                    }
-                    //마지막좌표를 고려해 이전 위치를 지우고 위치를 새로 만듦.
-                    if (this.lastX != tilePos.x || this.lastY != tilePos.y) {
-                        this.lastX = tilePos.x
-                        this.lastY = tilePos.y
-                        this.preview.putTileAt(this.tile, this.lastX, this.lastY);
-                    }
+                } else {
+                    // Cursor Preview
+                    this.preview.putTileAt(this.tile, tilePos.x, tilePos.y);
                 }
                 break;
             case "erase":
                 if (this.isDrag) {
-                    if (!tilePos)
-                        return;
-                    this.lastX = tilePos.x
-                    this.lastY = tilePos.y
+                    this.lastX = tilePos.x;
+                    this.lastY = tilePos.y;
                     this.base.removeTileAt(this.lastX, this.lastY);
                     es.editorCore?.removeTile(this.lastX - es.tileOffsetX, this.lastY - es.tileOffsetY);
                 }
+                // Erase preview? Red box? For now just nothing or simple highlight
                 break;
-            default:
+            case "shape":
+                if (this.isDrag && this.shapeStart) {
+                    // Draw Rectangle Preview
+                    const startX = Math.min(this.shapeStart.x, tilePos.x);
+                    const startY = Math.min(this.shapeStart.y, tilePos.y);
+                    const endX = Math.max(this.shapeStart.x, tilePos.x);
+                    const endY = Math.max(this.shapeStart.y, tilePos.y);
+
+                    for (let y = startY; y <= endY; y++) {
+                        for (let x = startX; x <= endX; x++) {
+                            this.preview.putTileAt(this.tile, x, y);
+                        }
+                    }
+                } else {
+                    this.preview.putTileAt(this.tile, tilePos.x, tilePos.y);
+                }
+                break;
+            case "bucket":
+            case "connected_erase":
+                // Just show cursor preview
+                if (this.curTilingType === "bucket") {
+                    this.preview.putTileAt(this.tile, tilePos.x, tilePos.y);
+                }
                 break;
         }
+
+        this.prevX = p.x;
+        this.prevY = p.y;
     }
-    onPointerUp(_scene: Phaser.Scene, _p: Phaser.Input.Pointer) {
+
+    onPointerUp(scene: Phaser.Scene, p: Phaser.Input.Pointer) {
+        const es = scene as EditorScene;
+        if (this.curTilingType === "shape" && this.isDrag && this.shapeStart) {
+            const worldPoint = scene.cameras.main.getWorldPoint(p.x, p.y);
+            const tilePos = es.worldToTileXY(worldPoint.x, worldPoint.y);
+            if (tilePos) {
+                const startX = Math.min(this.shapeStart.x, tilePos.x);
+                const startY = Math.min(this.shapeStart.y, tilePos.y);
+                const endX = Math.max(this.shapeStart.x, tilePos.x);
+                const endY = Math.max(this.shapeStart.y, tilePos.y);
+
+                for (let y = startY; y <= endY; y++) {
+                    for (let x = startX; x <= endX; x++) {
+                        this.base.putTileAt(this.tile, x, y);
+                        es.editorCore?.setTile(x - es.tileOffsetX, y - es.tileOffsetY, this.tile);
+                    }
+                }
+            }
+        }
+
         this.isDrag = false;
+        this.shapeStart = null;
         this.prevX = 0;
         this.prevY = 0;
     }
+
     onScroll(scene: Phaser.Scene, deltaY: number) {
         const dy = Math.exp(deltaY * -(1 / 1000));
-        const zoom = Math.min(Math.max(scene.cameras.main.zoom * dy, 0.1), 10)
-        scene.cameras.main.setZoom(zoom)
+        const zoom = Math.min(Math.max(scene.cameras.main.zoom * dy, 0.1), 10);
+        scene.cameras.main.setZoom(zoom);
+    }
+
+    private floodFill(scene: EditorScene, startX: number, startY: number, fillTile: number, matchExact: boolean = false) {
+        const layer = this.base;
+        const targetTileObj = layer.getTileAt(startX, startY);
+        const targetIndex = targetTileObj ? targetTileObj.index : -1;
+
+        if (targetIndex === fillTile) return;
+
+        const queue: { x: number, y: number }[] = [{ x: startX, y: startY }];
+        const visited = new Set<string>();
+
+        // Safety Break (limit iterations)
+        let iter = 0;
+        const maxIter = 5000;
+
+        while (queue.length > 0 && iter < maxIter) {
+            iter++;
+            const { x, y } = queue.shift()!;
+            const key = `${x},${y}`;
+            if (visited.has(key)) continue;
+
+            // Check Bounds (Visual bounds - reasonable limit)
+            // Or just check if TileMap has tile? 
+            // Phaser Tilemap is dynamic, but lets verify boundaries if needed.
+            // For now, infinite canvas style, BUT we should rely on "has tile" for connected erase
+
+            const currentTileObj = layer.getTileAt(x, y);
+            const currentIndex = currentTileObj ? currentTileObj.index : -1;
+
+            if (matchExact) {
+                // Connected Erase: Must match targetIndex exactly
+                if (currentIndex !== targetIndex) continue;
+            } else {
+                // Bucket Fill: Must match targetIndex (which might be -1/empty)
+                if (currentIndex !== targetIndex) continue;
+            }
+
+            // Apply Change
+            if (fillTile === -1) {
+                layer.removeTileAt(x, y);
+                scene.editorCore?.removeTile(x - scene.tileOffsetX, y - scene.tileOffsetY);
+            } else {
+                layer.putTileAt(fillTile, x, y);
+                scene.editorCore?.setTile(x - scene.tileOffsetX, y - scene.tileOffsetY, fillTile);
+            }
+
+            visited.add(key);
+
+            // Neighbors
+            queue.push({ x: x + 1, y: y });
+            queue.push({ x: x - 1, y: y });
+            queue.push({ x: x, y: y + 1 });
+            queue.push({ x: x, y: y - 1 });
+        }
     }
 }
 

@@ -20,6 +20,8 @@ type Props = {
     draggedAsset: Asset | null;
     onExternalImageDrop?: (files: FileList) => void;
     onSelectEntity?: (entity: EditorEntity) => void;
+    tilingTool?: "" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase";
+    selectedTileIndex?: number;
 };
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
@@ -85,7 +87,7 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop, tilingTool = "", selectedTileIndex = 0 }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const { tiles, entities, modules, aspectRatio, currentSceneId } = useEditorCoreSnapshot();
@@ -106,12 +108,17 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     const tileSignatureRef = useRef<string>("");
     const selectedAssetRef = useRef<Asset | null>(selected_asset);
     const draggedAssetRef = useRef<Asset | null>(draggedAsset);
-    const tilingTypeRef = useRef<"" | "drawing" | "erase">("");
+
+    // Use props for tiling now
+    const tilingTypeRef = useRef<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">(tilingTool);
+    const selectedTileIndexRef = useRef<number>(selectedTileIndex);
+    const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
+
     const addEntityRef = useRef(addEntity);
     const isProcessingDropRef = useRef(false);
 
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
-    const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
+    // const [tilingType, setTilingType] = useState<"" | "drawing" | "erase">("");
 
     useEffect(() => {
         selectedAssetRef.current = selected_asset;
@@ -122,8 +129,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
     }, [draggedAsset]);
 
     useEffect(() => {
-        tilingTypeRef.current = tilingType;
-    }, [tilingType]);
+        tilingTypeRef.current = tilingTool;
+    }, [tilingTool]);
 
     useEffect(() => {
         addEntityRef.current = addEntity;
@@ -261,12 +268,61 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             if (selectedAsset?.tag === "Tile" && selectedAsset.idx >= 0 && activeTilingType) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
+
+                // Helper: Get tile at (x,y)
+                const getTileAt = (x: number, y: number) => {
+                    return tilesRef.current.find(t => t.x === x && t.y === y)?.tile;
+                };
+
+                // Helper: Flood Fill Algorithm
+                const floodFill = (startX: number, startY: number, targetTileIdx: number, isErase: boolean) => {
+                    const queue: { x: number, y: number }[] = [{ x: startX, y: startY }];
+                    const visited = new Set<string>();
+                    const startTile = getTileAt(startX, startY);
+
+                    // If replacing same tile with same tile, do nothing
+                    if (!isErase && startTile === targetTileIdx) return;
+                    // If erasing and there is nothing, do nothing
+                    if (isErase && startTile === undefined) return;
+
+                    while (queue.length > 0) {
+                        const { x, y } = queue.pop()!;
+                        const key = `${x},${y}`;
+                        if (visited.has(key)) continue;
+                        visited.add(key);
+
+                        const currentTile = getTileAt(x, y);
+                        if (currentTile !== startTile) continue;
+
+                        if (isErase) {
+                            renderer.removeTile(x, y);
+                            core.removeTile(x, y);
+                        } else {
+                            renderer.setTile(x, y, targetTileIdx);
+                            core.setTile(x, y, targetTileIdx);
+                        }
+
+                        // Neighbors
+                        queue.push({ x: x + 1, y: y });
+                        queue.push({ x: x - 1, y: y });
+                        queue.push({ x: x, y: y + 1 });
+                        queue.push({ x: x, y: y - 1 });
+                    }
+                };
+
                 if (activeTilingType === "drawing") {
                     renderer.setTile(tx, ty, selectedAsset.idx);
                     core.setTile(tx, ty, selectedAsset.idx);
                 } else if (activeTilingType === "erase") {
                     renderer.removeTile(tx, ty);
                     core.removeTile(tx, ty);
+                } else if (activeTilingType === "bucket") {
+                    floodFill(tx, ty, selectedAsset.idx, false);
+                } else if (activeTilingType === "connected_erase") {
+                    floodFill(tx, ty, 0, true);
+                } else if (activeTilingType === "shape") {
+                    // Start Shape Draw
+                    shapeStartRef.current = { x: tx, y: ty };
                 }
                 return;
             }
@@ -318,6 +374,20 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 } else if (activeTilingType === "erase" && isPointerDownRef.current) {
                     renderer.removeTile(tx, ty);
                     core.removeTile(tx, ty);
+                } else if (activeTilingType === "shape" && shapeStartRef.current) {
+                    // Preview Shape
+                    renderer.clearPreviewTile();
+                    const start = shapeStartRef.current;
+                    const minX = Math.min(start.x, tx);
+                    const maxX = Math.max(start.x, tx);
+                    const minY = Math.min(start.y, ty);
+                    const maxY = Math.max(start.y, ty);
+
+                    for (let x = minX; x <= maxX; x++) {
+                        for (let y = minY; y <= maxY; y++) {
+                            renderer.setPreviewTile(x, y, selectedAsset.idx);
+                        }
+                    }
                 } else {
                     renderer.clearPreviewTile();
                 }
@@ -344,6 +414,36 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         renderer.onPointerUp = (worldX, worldY) => {
             const activeDragged = draggedAssetRef.current;
+            const activeTilingType = tilingTypeRef.current;
+            const selectedAsset = selectedAssetRef.current;
+
+            // Shape Commit
+            if (activeTilingType === "shape" && shapeStartRef.current && selectedAsset?.tag === "Tile") {
+                const tx = Math.floor(worldX / TILE_SIZE);
+                const ty = Math.floor(worldY / TILE_SIZE);
+                const start = shapeStartRef.current;
+                const minX = Math.min(start.x, tx);
+                const maxX = Math.max(start.x, tx);
+                const minY = Math.min(start.y, ty);
+                const maxY = Math.max(start.y, ty);
+
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        renderer.setTile(x, y, selectedAsset.idx);
+                        core.setTile(x, y, selectedAsset.idx);
+                    }
+                }
+                shapeStartRef.current = null;
+                renderer.clearPreviewTile();
+                isPointerDownRef.current = false;
+                return;
+            }
+            // Clear bucket/others just in case
+            if (activeTilingType && selectedAsset?.tag === "Tile") {
+                isPointerDownRef.current = false;
+                return;
+            }
+
 
             // [FIX] Add lock to prevent duplicate drops (double-click/bounce) causing "Entity already exists" error
             if (activeDragged && activeDragged.tag !== "Tile" && !isProcessingDropRef.current) {
@@ -686,45 +786,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     <option value="720x1280">720x1280 (9:16)</option>
                     <option value="1080x1920">1080x1920 (9:16)</option>
                 </select>
-
-                {selected_asset?.tag === "Tile" && (
-                    <div style={{
-                        display: 'flex',
-                        gap: '4px',
-                        marginLeft: '8px',
-                        paddingLeft: '8px',
-                        borderLeft: `1px solid ${colors.borderColor}`,
-                    }}>
-                        <button
-                            onClick={() => setTilingType((prev) => (prev === "drawing" ? "" : "drawing"))}
-                            style={{
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                                background: tilingType === "drawing" ? colors.borderAccent : colors.bgTertiary,
-                                border: `1px solid ${colors.borderColor}`,
-                                borderRadius: '4px',
-                                color: colors.textPrimary,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            그리기
-                        </button>
-                        <button
-                            onClick={() => setTilingType((prev) => (prev === "erase" ? "" : "erase"))}
-                            style={{
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                                background: tilingType === "erase" ? '#da3633' : colors.bgTertiary,
-                                border: `1px solid ${colors.borderColor}`,
-                                borderRadius: '4px',
-                                color: colors.textPrimary,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            지우기
-                        </button>
-                    </div>
-                )}
             </div>
 
             {/* Phaser Canvas Container */}
@@ -746,7 +807,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     const files = e.dataTransfer?.files;
                     if (!files || files.length === 0) return;
 
-                    // Simple check: at least one valid image
                     const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
                     let hasImage = false;
                     for (let i = 0; i < files.length; i++) {
@@ -766,6 +826,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 <div ref={ref} style={{ width: '100%', height: '100%' }} />
                 <GameUIOverlay gameCore={gameCore} showHud={false} />
             </div>
-        </div >
+        </div>
     );
 }
