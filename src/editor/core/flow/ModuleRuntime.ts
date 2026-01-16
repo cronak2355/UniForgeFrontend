@@ -286,24 +286,12 @@ export class ModuleRuntime {
         const waitState = state as WaitNodeState;
         if (waitState.resolved) {
           waitState.resolved = false;
-          console.log("[ModuleRuntime] Wait node resolved", {
-            nodeId: node.id,
-            seconds,
-          });
           return "done";
         }
         if (waitState.timerId === undefined) {
-          console.log("[ModuleRuntime] Waiting", {
-            nodeId: node.id,
-            seconds,
-          });
           waitState.timerId = setTimeout(() => {
             waitState.resolved = true;
             waitState.timerId = undefined;
-            console.log("[ModuleRuntime] Wait timeout fired", {
-              nodeId: node.id,
-              seconds,
-            });
           }, seconds * 1000);
         }
         return "waiting";

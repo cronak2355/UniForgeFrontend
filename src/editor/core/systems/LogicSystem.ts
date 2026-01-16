@@ -75,7 +75,7 @@ export class LogicSystem implements System {
         }
 
         if (componentsToRun.length > 0) {
-            console.log(`[LogicSystem] Handling OnStart for ${specificEntityId ?? "all"}. Found ${componentsToRun.length} components.`);
+            // OnStart logging removed for performance
         }
 
         for (const comp of componentsToRun) {

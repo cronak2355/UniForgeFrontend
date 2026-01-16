@@ -151,8 +151,7 @@ function applyDamage(
     let hp = getNumberVar(target, "hp");
     let maxHp = getNumberVar(target, "maxHp");
     if (hp === undefined && maxHp === undefined) {
-        // [Fix] Auto-initialize HP if missing so Attack works by default
-        console.log(`[Action] Initializing default HP (100) for entity ${targetId}`);
+        // Auto-initialize HP if missing so Attack works by default
         hp = 100;
         maxHp = 100;
         setVar(target, "maxHp", 100);
@@ -231,7 +230,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 });
 
 ActionRegistry.register("Jump", (_ctx: ActionContext, _params: Record<string, unknown>) => {
-    console.log("[Action] Jump: handled by runtime physics");
+    // Jump: handled by runtime physics
 });
 
 ActionRegistry.register("Wait", (_ctx: ActionContext, _params: Record<string, unknown>) => {
@@ -590,19 +589,12 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
             const val = ctx.scope.get(src.name);
             // console.log(`[ResolveValue] Found in scope: ${src.name} =`, val);
             return val;
-        } else {
-            console.warn(`[ResolveValue] "${src.name}" NOT found in scope. Scope keys:`, ctx.scope ? Array.from(ctx.scope.keys()) : "undefined");
         }
 
         const entity = getEntity(ctx);
         const variable = entity?.variables?.find(v => v.name === src.name);
 
-        if (!variable) {
-            console.warn(`[ResolveValue] Variable not found: "${src.name}" on entity "${ctx.entityId}". Available vars:`, entity?.variables?.map(v => v.name));
-        } else {
-            // console.log(`[ResolveValue] Found var "${src.name}":`, variable.value);
-        }
-
+        // Fallback to entity variable (no logging for performance)
         return variable?.value ?? 0;
     }
 
@@ -762,8 +754,6 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     // Extract variable overrides from initialVariables property
     const overrides = (params.initialVariables as Record<string, any>) ?? {};
 
-    console.log(`[RunModule] Starting Module "${moduleId}" on "${ctx.entityId}" with overrides:`, overrides);
-
     gameCore.startModule(ctx.entityId, moduleId, overrides);
 });
 
@@ -886,7 +876,6 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";
-    console.log(`[SpawnEntity] Spawning ID=${id} Type=${type} Texture=${options.texture}`);
     gameCore.createEntity(id, type, spawnX, spawnY, options);
 });
 

@@ -107,7 +107,6 @@ class ActionRegistryClass {
     private actions = new Map<string, ActionFn>();
 
     constructor() {
-        console.log("[ActionRegistry] init");
         this.registerDefaults();
     }
 
@@ -124,17 +123,8 @@ class ActionRegistryClass {
             const loopParam = params.loop;
             const loop = typeof loopParam === 'boolean' ? loopParam : undefined;
 
-            console.log(`[ActionRegistry] PlayAnimation request:`, { entityId: ctx.entityId, animName, loop, params, hasRenderer: !!ctx.globals?.renderer, hasPlayAnim: !!ctx.globals?.renderer?.playAnim });
-
             if (animName && ctx.globals?.renderer?.playAnim) {
                 ctx.globals.renderer.playAnim(ctx.entityId, animName, loop);
-                console.log(`[ActionRegistry] PlayAnimation executed: ${ctx.entityId} -> ${animName} (loop=${loop})`);
-            } else {
-                console.warn(`[ActionRegistry] PlayAnimation failed: missing name or renderer method`, {
-                    animName,
-                    hasRenderer: !!ctx.globals?.renderer,
-                    hasPlayAnim: !!ctx.globals?.renderer?.playAnim
-                });
             }
         });
 
@@ -145,7 +135,6 @@ class ActionRegistryClass {
         this.register("OpenUrl", (ctx, params) => {
             const url = params.payload as string;
             if (url) {
-                console.log(`[Action:OpenUrl] Opening: ${url}`);
                 window.open(url, '_blank');
             } else {
                 console.warn(`[Action:OpenUrl] URL is empty`);
