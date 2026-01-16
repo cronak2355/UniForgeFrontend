@@ -99,6 +99,7 @@ function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
             role: entity.role,
             texture: entity.texture,
             logic: entity.logic,
+            tags: entity.tags, // [FIX] Pass entity tags for collision
         });
     });
 }
