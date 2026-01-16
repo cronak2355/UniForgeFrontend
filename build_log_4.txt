@@ -1,0 +1,28 @@
+
+> frontend@0.0.0 build
+> vite build
+
+[36mvite v7.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 168 modules transformed.
+rendering chunks...
+[33m[plugin vite:reporter] 
+(!) C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/services/gameService.ts is dynamically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/MainPage.tsx but also statically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/components/games/PublishGameModal.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/editor/EditorLayout.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/ExplorePage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/MainPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/ProjectsPage.tsx, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/services/marketplaceService.ts is dynamically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx but also statically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/AssetDetailPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/CreateAssetPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/MarketplacePage.tsx, dynamic import will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/services/libraryService.ts is dynamically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx, C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/LibraryPage.tsx but also statically imported by C:/Users/danmu/Desktop/Uniforge/UniForgeFrontend/src/pages/AssetDetailPage.tsx, dynamic import will not move module into another chunk.
+[39m
+computing gzip size...
+[2mdist/[22m[32mindex.html                      [39m[1m[2m    1.13 kB[22m[1m[22m[2m │ gzip:   0.67 kB[22m
+[2mdist/[22m[35massets/index-CilcpnZE.css       [39m[1m[2m   99.35 kB[22m[1m[22m[2m │ gzip:  17.10 kB[22m
+[2mdist/[22m[36massets/userService-x5jQxm-e.js  [39m[1m[2m    0.53 kB[22m[1m[22m[2m │ gzip:   0.35 kB[22m
+[2mdist/[22m[36massets/index-C0-LCRrV.js        [39m[1m[33m1,933.65 kB[39m[22m[2m │ gzip: 539.12 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 8.62s[39m

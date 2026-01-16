@@ -938,173 +938,174 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
         }}>
             {/* ===== UNIFIED TOP BAR ===== */}
-            <div style={{
-                height: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 16px',
-                background: colors.bgSecondary,
-                borderBottom: `1px solid ${colors.borderColor}`,
-                justifyContent: 'space-between',
-            }}>
-                {/* Left Group: Logo + Menus */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                    {/* Logo (Refactored) */}
-                    <div
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                        onClick={() => {
-                            if (isDirty) {
-                                if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
-                            }
-                            navigate('/projects');
-                        }}
-                    >
-                        <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
-                        <span style={{
-                            fontSize: '18px',
-                            fontWeight: 700,
-                            color: 'white',
-                            letterSpacing: '-0.5px',
-                        }}>
-                            Uniforge<span style={{ color: '#3b82f6' }}>.</span>
-                        </span>
-                    </div>
+            {!isPlayMode && (
+                <div style={{
+                    height: '48px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 16px',
+                    background: colors.bgSecondary,
+                    borderBottom: `1px solid ${colors.borderColor}`,
+                    justifyContent: 'space-between',
+                }}>
+                    {/* Left Group: Logo + Menus */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                        {/* Logo (Refactored) */}
+                        <div
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                            onClick={() => {
+                                if (isDirty) {
+                                    if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
+                                }
+                                navigate('/projects');
+                            }}
+                        >
+                            <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
+                            <span style={{
+                                fontSize: '18px',
+                                fontWeight: 700,
+                                color: 'white',
+                                letterSpacing: '-0.5px',
+                            }}>
+                                Uniforge<span style={{ color: '#3b82f6' }}>.</span>
+                            </span>
+                        </div>
 
-                    {/* Menus */}
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                        {/* Menus */}
+                        <div style={{ display: 'flex', gap: '4px' }}>
 
-                        {/* File Menu */}
-                        <TopBarMenu label="파일">
-                            <MenuItem label="프로젝트 불러오기" onClick={() => {
-                                document.getElementById('hidden-load-input')?.click();
-                            }} />
-                            <MenuItem label="프로젝트 저장" onClick={() => {
-                                handleSaveProject();
-                            }} />
-                            <MenuItem
-                                label="내보내기 (Export)"
-                                onClick={() => {
-                                    try {
-                                        // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
-                                        const sceneJson = SceneSerializer.serialize(core);
+                            {/* File Menu */}
+                            <TopBarMenu label="파일">
+                                <MenuItem label="프로젝트 불러오기" onClick={() => {
+                                    document.getElementById('hidden-load-input')?.click();
+                                }} />
+                                <MenuItem label="프로젝트 저장" onClick={() => {
+                                    handleSaveProject();
+                                }} />
+                                <MenuItem
+                                    label="내보내기 (Export)"
+                                    onClick={() => {
+                                        try {
+                                            // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
+                                            const sceneJson = SceneSerializer.serialize(core);
 
-                                        // 2. BuildPage에서 읽을 수 있도록 sessionStorage에 저장
-                                        sessionStorage.setItem(
-                                            "UNITY_BUILD_SCENE_JSON",
-                                            JSON.stringify(sceneJson)
-                                        );
+                                            // 2. BuildPage에서 읽을 수 있도록 sessionStorage에 저장
+                                            sessionStorage.setItem(
+                                                "UNITY_BUILD_SCENE_JSON",
+                                                JSON.stringify(sceneJson)
+                                            );
 
-                                        console.log("✅ Export Scene JSON saved", sceneJson);
+                                            console.log("✅ Export Scene JSON saved", sceneJson);
 
-                                        // 3. Build 페이지로 이동
-                                        navigate("/build");
-                                    } catch (e) {
-                                        console.error("❌ Export failed", e);
-                                        alert("빌드 데이터를 생성하는 중 오류가 발생했습니다.");
-                                    }
-                                }}
-                            />
-                            {/* Hidden Input for Load */}
-                            <div style={{ display: 'none' }}>
-                                <input
-                                    id="hidden-load-input"
-                                    type="file"
-                                    accept=".json"
-                                    onChange={(e) => {
-
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const reader = new FileReader();
-                                        reader.onload = (evt) => {
-                                            const text = evt.target?.result as string;
-                                            try {
-                                                const json = JSON.parse(text);
-                                                core.clear(); // Clear existing
-                                                SceneSerializer.deserialize(json, core);
-                                            } catch (err) {
-                                                console.error("Failed to load JSON", err);
-                                                alert("Failed to load project file.");
-                                            }
-                                        };
-                                        reader.readAsText(file);
-                                        e.target.value = "";
+                                            // 3. Build 페이지로 이동
+                                            navigate("/build");
+                                        } catch (e) {
+                                            console.error("❌ Export failed", e);
+                                            alert("빌드 데이터를 생성하는 중 오류가 발생했습니다.");
+                                        }
                                     }}
                                 />
-                            </div>
-                        </TopBarMenu>
+                                {/* Hidden Input for Load */}
+                                <div style={{ display: 'none' }}>
+                                    <input
+                                        id="hidden-load-input"
+                                        type="file"
+                                        accept=".json"
+                                        onChange={(e) => {
 
-                        {/* Assets Menu */}
-                        <TopBarMenu label="에셋">
-                            <MenuItem label="에셋 가져오기 (준비중)" onClick={() => { alert("Import Asset - Coming Soon"); }} />
-                            <MenuItem label="에셋 라이브러리" onClick={() => { setIsAssetLibraryOpen(true); }} />
-                        </TopBarMenu>
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            const reader = new FileReader();
+                                            reader.onload = (evt) => {
+                                                const text = evt.target?.result as string;
+                                                try {
+                                                    const json = JSON.parse(text);
+                                                    core.clear(); // Clear existing
+                                                    SceneSerializer.deserialize(json, core);
+                                                } catch (err) {
+                                                    console.error("Failed to load JSON", err);
+                                                    alert("Failed to load project file.");
+                                                }
+                                            };
+                                            reader.readAsText(file);
+                                            e.target.value = "";
+                                        }}
+                                    />
+                                </div>
+                            </TopBarMenu>
 
-                        {/* UI Menu */}
+                            {/* Assets Menu */}
+                            <TopBarMenu label="에셋">
+                                <MenuItem label="에셋 가져오기 (준비중)" onClick={() => { alert("Import Asset - Coming Soon"); }} />
+                                <MenuItem label="에셋 라이브러리" onClick={() => { setIsAssetLibraryOpen(true); }} />
+                            </TopBarMenu>
 
-                        {/* Edit Menu */}
-                        <TopBarMenu label="편집">
-                            <MenuItem label="실행 취소 (Ctrl+Z)" onClick={() => core.undo()} />
-                            <MenuItem label="다시 하기 (Ctrl+Y)" onClick={() => core.redo()} />
-                            <MenuItem label="잘라내기 (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
-                            <MenuItem label="복사 (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
-                            <MenuItem label="붙여넣기 (Ctrl+V)" onClick={() => core.paste()} />
-                            <MenuItem label="삭제 (Del)" onClick={() => {
-                                const selected = core.getSelectedEntity();
-                                if (selected) core.removeEntity(selected.id);
-                            }} />
-                        </TopBarMenu>
+                            {/* UI Menu */}
+
+                            {/* Edit Menu */}
+                            <TopBarMenu label="편집">
+                                <MenuItem label="실행 취소 (Ctrl+Z)" onClick={() => core.undo()} />
+                                <MenuItem label="다시 하기 (Ctrl+Y)" onClick={() => core.redo()} />
+                                <MenuItem label="잘라내기 (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
+                                <MenuItem label="복사 (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
+                                <MenuItem label="붙여넣기 (Ctrl+V)" onClick={() => core.paste()} />
+                                <MenuItem label="삭제 (Del)" onClick={() => {
+                                    const selected = core.getSelectedEntity();
+                                    if (selected) core.removeEntity(selected.id);
+                                }} />
+                            </TopBarMenu>
+
+                        </div>
+                    </div>
+
+                    {/* Right Group: Play Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                            title="Pause"
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: colors.borderAccent,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px'
+                            }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16" />
+                                <rect x="14" y="4" width="4" height="16" />
+                            </svg>
+                        </button>
+                        <button
+                            title={mode === "dev" ? "Play" : "Stop"}
+                            onClick={() => {
+                                setMode((prev) => (prev === "dev" ? "run" : "dev"));
+                            }}
+
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px',
+                                color: mode === "run" ? "#ef4444" : colors.borderAccent
+                            }}
+                        >
+                            {mode === "dev" ? (
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 5V19L19 12L8 5Z" />
+                                </svg>
+                            ) : (
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="5" y="5" width="14" height="14" />
+                                </svg>
+                            )}
+                        </button>
 
                     </div>
                 </div>
-
-                {/* Right Group: Play Controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                        title="Pause"
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: colors.borderAccent,
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '4px'
-                        }}
-                    >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="4" width="4" height="16" />
-                            <rect x="14" y="4" width="4" height="16" />
-                        </svg>
-                    </button>
-                    <button
-                        title={mode === "dev" ? "Play" : "Stop"}
-                        onClick={() => {
-                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
-                        }}
-
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '4px',
-                            color: mode === "run" ? "#ef4444" : colors.borderAccent
-                        }}
-                    >
-                        {mode === "dev" ? (
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M8 5V19L19 12L8 5Z" />
-                            </svg>
-                        ) : (
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="5" y="5" width="14" height="14" />
-                            </svg>
-                        )}
-                    </button>
-
-                </div>
-            </div>
             )}
 
             {/* Play Mode Overlay */}
