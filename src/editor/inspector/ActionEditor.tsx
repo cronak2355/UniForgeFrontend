@@ -867,6 +867,33 @@ export function ActionEditor({
                         }
                         style={{ ...styles.textInput, flex: "1 1 auto", width: "100%", marginBottom: 0 }}
                       />
+                    ) : v.type === "vector2" ? (
+                      <div style={{ display: 'flex', gap: 2, minWidth: 0, flex: 1 }}>
+                        <input
+                          type="number"
+                          placeholder="x"
+                          style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                          value={((v.value as any)?.x) ?? 0}
+                          onChange={(e) => {
+                            const oldVal = (v.value as any) ?? { x: 0, y: 0 };
+                            const nextVal = { ...oldVal, x: Number(e.target.value) };
+                            selectedModule &&
+                              onUpdateModuleVariable?.(selectedModule.id, v.name, nextVal, v.type)
+                          }}
+                        />
+                        <input
+                          type="number"
+                          placeholder="y"
+                          style={{ ...styles.textInput, flex: 1, minWidth: 20, padding: "2px" }}
+                          value={((v.value as any)?.y) ?? 0}
+                          onChange={(e) => {
+                            const oldVal = (v.value as any) ?? { x: 0, y: 0 };
+                            const nextVal = { ...oldVal, y: Number(e.target.value) };
+                            selectedModule &&
+                              onUpdateModuleVariable?.(selectedModule.id, v.name, nextVal, v.type)
+                          }}
+                        />
+                      </div>
                     ) : (
                       <input
                         type="text"
