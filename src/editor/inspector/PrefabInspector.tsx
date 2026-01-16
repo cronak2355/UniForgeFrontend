@@ -1,5 +1,5 @@
 // src/editor/inspector/PrefabInspector.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Asset } from '../types/Asset';
 import type { EditorEntity } from '../types/Entity';
 import type { EditorVariable } from '../types/Variable';
@@ -36,12 +36,30 @@ export function PrefabInspector({ asset }: Props) {
 
     const [localEntity, setLocalEntity] = useState<EditorEntity | null>(parsePrefabData);
     const [isDirty, setIsDirty] = useState(false);
+    const [tagInputValue, setTagInputValue] = useState("");
+    const tagInputRef = useRef<HTMLInputElement | null>(null);
 
     // Sync state when asset changes
     useEffect(() => {
         setLocalEntity(parsePrefabData());
         setIsDirty(false);
     }, [asset.id]);
+
+    useEffect(() => {
+        if (!localEntity) {
+            setTagInputValue("");
+            return;
+        }
+        const nextValue = (localEntity.tags ?? []).join(", ");
+        if (
+            typeof document !== "undefined" &&
+            tagInputRef.current &&
+            document.activeElement === tagInputRef.current
+        ) {
+            return;
+        }
+        setTagInputValue(nextValue);
+    }, [localEntity?.id, (localEntity?.tags ?? []).join(",")]);
 
     const handleUpdate = (updated: EditorEntity) => {
         const normalized = syncLegacyFromLogic(updated);
@@ -91,6 +109,17 @@ export function PrefabInspector({ asset }: Props) {
 
     const variables = localEntity.variables ?? [];
 
+    const commitTagInput = () => {
+        if (!localEntity) return;
+        const tags = tagInputValue
+            .split(',')
+            .map((t) => t.trim().toLowerCase())
+            .filter((t) => t.length > 0);
+        const joined = tags.join(", ");
+        setTagInputValue(joined);
+        handleUpdate({ ...localEntity, tags });
+    };
+
     const handleAddVariable = () => {
         const nextVar: EditorVariable = {
             id: crypto.randomUUID(),
@@ -131,6 +160,19 @@ export function PrefabInspector({ asset }: Props) {
         borderRadius: '4px',
         width: '100%',
         fontSize: '12px',
+    };
+
+    const labelStyle = {
+        color: '#aaa',
+        fontSize: '12px',
+        marginRight: '8px',
+        width: '20px',
+    };
+
+    const rowStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        marginBottom: '8px',
     };
 
     const buttonStyle = {
@@ -202,6 +244,55 @@ export function PrefabInspector({ asset }: Props) {
                             </option>
                         ))}
                 </select>
+            </div>
+
+            {/* Tags */}
+            <div style={sectionStyle}>
+                <div style={titleStyle}>Tags</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={rowStyle}>
+                        <span style={{ ...labelStyle, width: 'auto', marginRight: '12px' }}>Input</span>
+                        <input
+                            ref={tagInputRef}
+                            type="text"
+                            placeholder="player, enemy, ui (comma separated)"
+                            style={{ ...inputStyle, width: '100%', flex: 1 }}
+                            value={tagInputValue}
+                            onChange={(e) => {
+                                setTagInputValue(e.target.value);
+                            }}
+                            onBlur={commitTagInput}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    commitTagInput();
+                                }
+                            }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {(localEntity.tags ?? []).map((tag, idx) => (
+                            <span
+                                key={idx}
+                                style={{
+                                    background: tag === 'player' ? '#27ae60' : tag === 'enemy' ? '#c0392b' : '#3498db',
+                                    color: '#fff',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                }}
+                                onClick={() => {
+                                    const newTags = (localEntity.tags ?? []).filter((_, i) => i !== idx);
+                                    handleUpdate({ ...localEntity, tags: newTags });
+                                }}
+                                title="Click to remove"
+                            >
+                                {tag} x
+                            </span>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             {/* Variables Section */}
