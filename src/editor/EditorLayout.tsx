@@ -1507,6 +1507,18 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                             core.addAsset({
                                                 id: res.id,
                                                 tag: res.tag,
+                                                // Use ID as name for Phaser cache key safety if name has special chars
+                                                // But we want to display the real name in the UI.
+                                                // EditorCore likely uses 'name' for display and 'id' for logic?
+                                                // Actually, PhaserRenderer uses asset.url to load. 
+                                                // If 'name' is used as key, let's keep it but maybe ensuring unique keys?
+                                                // Let's verify if core.addAsset uses name as key.
+                                                // To be safe, let's pass the original name for UI but ensure URL is safe.
+                                                // The issue "Failed to process file" might be Phaser failing to parse the URL even if encoded?
+                                                // Or maybe a race condition.
+                                                // Let's explicitly decode/encode checks. 
+                                                // Wait, if we use res.url it SHOULD be fine. 
+                                                // Converting name to safe string might help if name is used as key.
                                                 name: res.name,
                                                 url: res.url,
                                                 idx: -1,
