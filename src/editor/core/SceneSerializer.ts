@@ -76,6 +76,13 @@ export interface SceneEntityJSON {
   texture?: string;
   x: number;
   y: number;
+  // Unity 호환 Transform 필드
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+  // Unity 호환 Metadata 필드
+  role?: string;
+  tags?: string[];
   variables: SceneVariableJSON[];
   events: SceneEventJSON[];
   components?: any[]; // Full component list for high-fidelity export
@@ -178,6 +185,13 @@ export class SceneSerializer {
       texture: e.texture,
       x: e.x,
       y: e.y,
+      // Unity 호환 Transform 필드
+      rotation: e.rotation ?? 0,
+      scaleX: e.scaleX ?? 1,
+      scaleY: e.scaleY ?? 1,
+      // Unity 호환 Metadata 필드
+      role: e.role ?? "neutral",
+      tags: (e as any).tags ?? [],
       variables,
       events,
       components, // Export ALL components to preserve data fidelity
