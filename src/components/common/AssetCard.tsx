@@ -1,4 +1,5 @@
 import React from 'react';
+import { getCloudFrontUrl } from '../../utils/imageUtils';
 
 interface AssetCardProps {
     id: string;
@@ -44,7 +45,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
             {/* Thumbnail */}
             <div className="aspect-video w-full relative overflow-hidden bg-[#111]">
                 <img
-                    src={image}
+                    src={getCloudFrontUrl(image)}
                     alt={title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
