@@ -76,6 +76,7 @@ export interface SceneEntityJSON {
   texture?: string;
   x: number;
   y: number;
+  z?: number;
   // Unity 호환 Transform 필드
   rotation?: number;
   scaleX?: number;
@@ -185,6 +186,7 @@ export class SceneSerializer {
       texture: e.texture,
       x: e.x,
       y: e.y,
+      z: e.z ?? 0,
       // Unity 호환 Transform 필드
       rotation: e.rotation ?? 0,
       scaleX: e.scaleX ?? 1,
@@ -330,13 +332,14 @@ export class SceneSerializer {
         name: e.name,
         x: e.x,
         y: e.y,
-        z: 0,
-        rotation: 0,
-        scaleX: 1,
-        scaleY: 1,
-        role: "neutral",
+        z: (e as any).z ?? 0,
+        rotation: e.rotation ?? 0,
+        scaleX: e.scaleX ?? 1,
+        scaleY: e.scaleY ?? 1,
+        role: e.role ?? "neutral",
         texture: e.texture ?? e.name,
         variables: variables as any[],
+        tags: e.tags ?? [],
         events: [],
         logic: buildLogicItems({
           components: logicComponents,
