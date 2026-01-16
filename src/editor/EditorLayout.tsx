@@ -2,6 +2,7 @@
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
+import { PrefabInspector } from "./inspector/PrefabInspector";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
 import { TileToolsPanel } from "./inspector/TileToolsPanel";
@@ -1315,10 +1316,11 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             속성 (Inspector)
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                            {/* Asset Animation Settings (when asset is selected) */}
                             {selectedAsset && (
                                 <>
-                                    <AssetAnimationSettings asset={selectedAsset} />
+                                    {selectedAsset.tag !== "Prefab" && (
+                                        <AssetAnimationSettings asset={selectedAsset} />
+                                    )}
                                     {selectedAsset.tag === "Tile" && (
                                         <div style={{ marginTop: '12px', borderTop: `1px solid ${colors.borderColor}`, paddingTop: '12px' }}>
                                             <TileToolsPanel
@@ -1335,8 +1337,12 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                     )}
                                 </>
                             )}
-                            {/* Entity Inspector */}
-                            {localSelectedEntity && (
+                            {/* Prefab Inspector (when prefab asset is selected) */}
+                            {selectedAsset && selectedAsset.tag === "Prefab" && (
+                                <PrefabInspector asset={selectedAsset} />
+                            )}
+                            {/* Entity Inspector (only when no asset is selected) */}
+                            {localSelectedEntity && !selectedAsset && (
                                 <InspectorPanel
                                     entity={localSelectedEntity}
                                     onUpdateEntity={(updatedEntity) => {
@@ -1415,9 +1421,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             {/* Asset Library Modal */}
             {isAssetLibraryOpen && (
                 <AssetLibraryModal
-                    isOpen={isAssetLibraryOpen}
                     onClose={() => setIsAssetLibraryOpen(false)}
-                    onSelectAsset={(libItem) => {
+                    onAssetSelect={(libItem) => {
                         // Convert library item to editor asset
                         const newAsset: Asset = {
                             id: libItem.id, // Use asset ID from backend
@@ -1514,7 +1519,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             <SaveGameModal
                 isOpen={isSaveModalOpen}
                 onClose={() => setIsSaveModalOpen(false)}
-                currentTitle={"My Game"}
+                initialTitle={"My Game"}
                 onSave={async (title, description) => {
                     handleSaveProject();
                 }}

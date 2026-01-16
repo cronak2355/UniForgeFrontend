@@ -57,7 +57,7 @@ export class ModuleRuntime {
     this.hooks = hooks;
   }
 
-  startModule(entityId: string, module: ModuleGraph): ModuleInstance | null {
+  startModule(entityId: string, module: ModuleGraph, initialVariables?: Record<string, any>): ModuleInstance | null {
     const entry = module.nodes.find((n) => n.id === module.entryNodeId && n.kind === "Entry");
     if (!entry) {
       console.error("[ModuleRuntime] Missing entry node", { entityId, moduleId: module.id });
@@ -83,6 +83,8 @@ export class ModuleRuntime {
       return null;
     }
 
+    const entity = this.hooks.getEntity(entityId);
+
     const instance: ModuleInstance = {
       id: crypto.randomUUID(),
       entityId,
@@ -93,7 +95,22 @@ export class ModuleRuntime {
       nodeState: {},
       valueSnapshots: new Map(),
       moduleVariables: new Map(
-        (module.variables ?? []).map((v) => [v.name, (v.value as ModuleLiteral) ?? null])
+        (module.variables ?? []).map((v) => {
+          // 1. Explicit Override
+          const override = initialVariables?.[v.name];
+          if (override !== undefined) {
+            return [v.name, override as ModuleLiteral];
+          }
+
+          // 2. Entity Variable (Implicit Binding)
+          const entityVar = entity?.variables?.find(ev => ev.name === v.name);
+          if (entityVar) {
+            return [v.name, entityVar.value as ModuleLiteral];
+          }
+
+          // 3. Modue Default
+          return [v.name, (v.value as ModuleLiteral) ?? null];
+        })
       ),
     };
     this.instances.push(instance);
@@ -204,16 +221,17 @@ export class ModuleRuntime {
     return null;
   }
 
-    private executeFlow(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
-      const flowType = node.blockType === "Wait" ? "Async" : node.flowType;
-      if (flowType === "Instant") {
-        return this.executeInstant(instance, node, dt) ? "done" : "failed";
-      }
-      return this.executeAsync(instance, node, dt);
+  private executeFlow(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
+    const flowType = node.blockType === "Wait" ? "Async" : node.flowType;
+    if (flowType === "Instant") {
+      return this.executeInstant(instance, node, dt) ? "done" : "failed";
     }
+    return this.executeAsync(instance, node, dt);
+  }
 
   private executeInstant(instance: ModuleInstance, node: ModuleFlowNode, dt: number): boolean {
     const ctx = this.hooks.getActionContext(instance.entityId, dt);
+    ctx.scope = instance.moduleVariables;
     switch (node.blockType) {
       case "SetVariable": {
         const target = String(node.params.target ?? "").trim();
@@ -257,6 +275,7 @@ export class ModuleRuntime {
   private executeAsync(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
     const state = this.getNodeState(instance, node.id);
     const ctx = this.hooks.getActionContext(instance.entityId, dt);
+    ctx.scope = instance.moduleVariables;
 
     switch (node.blockType) {
       case "Wait": {

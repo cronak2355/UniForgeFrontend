@@ -406,6 +406,10 @@ export class EditorState implements IGameState {
 
     setSelectedEntity(entity: EditorEntity | null) {
         this.selectedEntity = entity;
+        // 엔티티 선택 시 에셋 선택 해제 (프리팹 인스펙터 닫기)
+        if (entity !== null) {
+            this.selectedAsset = null;
+        }
         this.notify();
     }
 

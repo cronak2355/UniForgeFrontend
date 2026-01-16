@@ -335,6 +335,10 @@ export class GameCore {
             events: options.events,
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotation); // Sync initial transform
+        // [FIX] Only apply scale if it differs from default (1,1) to avoid overriding setDisplaySize
+        if (entity.scaleX !== 1 || entity.scaleY !== 1) {
+            this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        }
 
         // 2. Physics Reg (Immediate)
         const baseWidth = options.width ?? 40;
@@ -416,7 +420,7 @@ export class GameCore {
      * Start a module for an entity by module ID or name.
      * Called by RunModule action.
      */
-    startModule(entityId: string, moduleIdOrName: string): boolean {
+    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>): boolean {
         // Find the module from moduleLibrary
         const module = this.moduleLibrary.find(
             (m) => m.id === moduleIdOrName || m.name === moduleIdOrName
@@ -426,7 +430,7 @@ export class GameCore {
             return false;
         }
 
-        this.moduleRuntime.startModule(entityId, module);
+        this.moduleRuntime.startModule(entityId, module, initialVariables);
         return true;
     }
 
