@@ -221,7 +221,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             // console.log(`[RunTimeCanvas] Loading ${assets.length} assets...`);
             for (const asset of assets) {
                 if (asset.tag === "Tile") continue;
+                // [FIX] Load texture with both name AND id keys to handle entity.texture being asset.id
                 await renderer.loadTexture(asset.name, asset.url, asset.metadata);
+                // Also load with asset.id as key (entities use asset.id as texture key)
+                if (asset.id !== asset.name) {
+                    await renderer.loadTexture(asset.id, asset.url, asset.metadata);
+                }
                 if (!isMounted) {
                     console.log("[RunTimeCanvas] Aborted during texture loading");
                     renderer.destroy();

@@ -319,6 +319,10 @@ export class GameCore {
             events: options.events,
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotation); // Sync initial transform
+        // [FIX] Only apply scale if it differs from default (1,1) to avoid overriding setDisplaySize
+        if (entity.scaleX !== 1 || entity.scaleY !== 1) {
+            this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        }
 
         // 2. Physics Reg (Immediate)
         const baseWidth = options.width ?? 40;
