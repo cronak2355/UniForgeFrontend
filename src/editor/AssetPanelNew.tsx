@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { getCloudFrontUrl } from "../utils/imageUtils";
 import { useNavigate, useParams } from "react-router-dom";
 import type { Asset } from "./types/Asset";
 import type { ModuleGraph } from "./types/Module";
@@ -255,7 +256,7 @@ export function AssetPanelNew({
                                     >
                                         <div style={{ flex: 1, width: '100%', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', overflow: 'hidden' }}>
                                             <img
-                                                src={asset.url}
+                                                src={getCloudFrontUrl(asset.url)}
                                                 alt={asset.name}
                                                 draggable={false}
                                                 style={{
