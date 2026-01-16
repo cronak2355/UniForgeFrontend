@@ -2,8 +2,11 @@
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
+import { PrefabInspector } from "./inspector/PrefabInspector";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
+import { TileToolsPanel } from "./inspector/TileToolsPanel";
+import { TilePalettePanel } from "./inspector/TilePalettePanel";
 
 import type { EditorEntity } from "./types/Entity";
 import type { Asset } from "./types/Asset";
@@ -34,10 +37,10 @@ import { ComponentHelper } from "./inspector/ComponentHelper";
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
 
-export default function EditorLayout() {
+export default function EditorLayout({ isPlayMode = false }: { isPlayMode?: boolean }) {
     return (
         <EditorCoreProvider>
-            <EditorLayoutInner />
+            <EditorLayoutInner isPlayMode={isPlayMode} />
         </EditorCoreProvider>
     );
 }
@@ -134,7 +137,7 @@ function TopBarMenu({
 
 // function cloneEntityForPaste... Removed (logic moved to EditorCore)
 
-function EditorLayoutInner() {
+function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     const { gameId } = useParams<{ gameId: string }>();
     const { core, assets, entities, modules, selectedAsset, draggedAsset, selectedEntity, scenes, currentSceneId } = useEditorCoreSnapshot();
     const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
@@ -319,6 +322,13 @@ function EditorLayoutInner() {
         } catch { return []; }
     }); // Persistent state
 
+    // Force Play Mode if isPlayMode prop is true
+    useEffect(() => {
+        if (isPlayMode) {
+            setMode("run");
+        }
+    }, [isPlayMode]);
+
     // Persist recent assets
     useEffect(() => {
         localStorage.setItem("editor_recent_assets", JSON.stringify(recentAssets));
@@ -343,6 +353,10 @@ function EditorLayoutInner() {
     const [isGeneratingAi, setIsGeneratingAi] = useState(false);
     const [isComponentHelperOpen, setIsComponentHelperOpen] = useState(false);
     const [isComponentHelperHover, setIsComponentHelperHover] = useState(false);
+
+    // Tiling Tools State
+    const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("drawing");
+    const [selectedTileIndex, setSelectedTileIndex] = useState(0);
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
@@ -506,7 +520,7 @@ function EditorLayoutInner() {
             }
 
             // Show Toast
-            setSaveToast("Project Saved Successfully");
+            setSaveToast("프로젝트가 성공적으로 저장되었습니다.");
             setTimeout(() => setSaveToast(null), 3000);
             setIsDirty(false);
             setIsSaveModalOpen(false);
@@ -786,7 +800,8 @@ function EditorLayoutInner() {
                 core.setSelectedEntity(preferred as any);
                 setLocalSelectedEntity(preferred as any);
             }
-            setRunSession((v) => v + 1);
+            // [REMOVED] setRunSession causes RunTimeCanvas to unmount/remount via key change
+            // setRunSession((v) => v + 1);
         } else if (prevMode === "run") {
             if (entityBackupRef.current) {
                 entityBackupRef.current.forEach((backupEntity, id) => {
@@ -941,262 +956,204 @@ function EditorLayoutInner() {
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
         }}>
             {/* ===== UNIFIED TOP BAR ===== */}
-            <div style={{
-                height: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 16px',
-                background: colors.bgSecondary,
-                borderBottom: `1px solid ${colors.borderColor}`,
-                justifyContent: 'space-between',
-            }}>
-                {/* Left Group: Logo + Menus */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                    {/* Logo (Refactored) */}
-                    <div
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                        onClick={() => {
-                            if (isDirty) {
-                                if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
-                            }
-                            navigate('/projects');
-                        }}
-                    >
-                        <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
-                        <span style={{
-                            fontSize: '18px',
-                            fontWeight: 700,
-                            color: 'white',
-                            letterSpacing: '-0.5px',
-                        }}>
-                            Uniforge<span style={{ color: '#3b82f6' }}>.</span>
-                        </span>
-                    </div>
+            {!isPlayMode && (
+                <div style={{
+                    height: '48px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 16px',
+                    background: colors.bgSecondary,
+                    borderBottom: `1px solid ${colors.borderColor}`,
+                    justifyContent: 'space-between',
+                }}>
+                    {/* Left Group: Logo + Menus */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                        {/* Logo (Refactored) */}
+                        <div
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                            onClick={() => {
+                                if (isDirty) {
+                                    if (!confirm("저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?")) return;
+                                }
+                                navigate('/projects');
+                            }}
+                        >
+                            <i className="fa-solid fa-cube" style={{ fontSize: '18px', color: '#3b82f6' }}></i>
+                            <span style={{
+                                fontSize: '18px',
+                                fontWeight: 700,
+                                color: 'white',
+                                letterSpacing: '-0.5px',
+                            }}>
+                                Uniforge<span style={{ color: '#3b82f6' }}>.</span>
+                            </span>
+                        </div>
 
-                    {/* Menus */}
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                        {/* Menus */}
+                        <div style={{ display: 'flex', gap: '4px' }}>
 
-                        {/* File Menu */}
-                        <TopBarMenu label="file">
-                            <MenuItem label="Load Project" onClick={() => {
-                                document.getElementById('hidden-load-input')?.click();
-                            }} />
-                            <MenuItem label="Save Project" onClick={() => {
-                                handleSaveProject();
-                            }} />
-                            <MenuItem
-                                label="Export"
-                                onClick={() => {
-                                    try {
-                                        // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
-                                        const sceneJson = SceneSerializer.serialize(core);
+                            {/* File Menu */}
+                            <TopBarMenu label="파일">
+                                <MenuItem label="프로젝트 불러오기" onClick={() => {
+                                    document.getElementById('hidden-load-input')?.click();
+                                }} />
+                                <MenuItem label="프로젝트 저장" onClick={() => {
+                                    handleSaveProject();
+                                }} />
+                                <MenuItem
+                                    label="내보내기 (Export)"
+                                    onClick={() => {
+                                        try {
+                                            // 1. 현재 에디터 상태를 GameDataJSON으로 직렬화
+                                            const sceneJson = SceneSerializer.serialize(core);
 
-                                        // 2. BuildPage에서 읽을 수 있도록 sessionStorage에 저장
-                                        sessionStorage.setItem(
-                                            "UNITY_BUILD_SCENE_JSON",
-                                            JSON.stringify(sceneJson)
-                                        );
+                                            // 2. BuildPage에서 읽을 수 있도록 sessionStorage에 저장
+                                            sessionStorage.setItem(
+                                                "UNITY_BUILD_SCENE_JSON",
+                                                JSON.stringify(sceneJson)
+                                            );
 
-                                        console.log("✅ Export Scene JSON saved", sceneJson);
+                                            console.log("✅ Export Scene JSON saved", sceneJson);
 
-                                        // 3. Build 페이지로 이동
-                                        navigate("/build");
-                                    } catch (e) {
-                                        console.error("❌ Export failed", e);
-                                        alert("빌드 데이터를 생성하는 중 오류가 발생했습니다.");
-                                    }
-                                }}
-                            />
-                            {/* Hidden Input for Load */}
-                            <div style={{ display: 'none' }}>
-                                <input
-                                    id="hidden-load-input"
-                                    type="file"
-                                    accept=".json"
-                                    onChange={(e) => {
-
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const reader = new FileReader();
-                                        reader.onload = (evt) => {
-                                            const text = evt.target?.result as string;
-                                            try {
-                                                const json = JSON.parse(text);
-                                                core.clear(); // Clear existing
-                                                SceneSerializer.deserialize(json, core);
-                                            } catch (err) {
-                                                console.error("Failed to load JSON", err);
-                                                alert("Failed to load project file.");
-                                            }
-                                        };
-                                        reader.readAsText(file);
-                                        e.target.value = "";
+                                            // 3. Build 페이지로 이동
+                                            navigate("/build");
+                                        } catch (e) {
+                                            console.error("❌ Export failed", e);
+                                            alert("빌드 데이터를 생성하는 중 오류가 발생했습니다.");
+                                        }
                                     }}
                                 />
-                            </div>
-                        </TopBarMenu>
+                                {/* Hidden Input for Load */}
+                                <div style={{ display: 'none' }}>
+                                    <input
+                                        id="hidden-load-input"
+                                        type="file"
+                                        accept=".json"
+                                        onChange={(e) => {
 
-                        {/* Assets Menu */}
-                        <TopBarMenu label="assets">
-                            <MenuItem label="Import Asset" onClick={() => { alert("Import Asset - Coming Soon"); }} />
-                            <MenuItem label="Asset Library" onClick={() => { setIsAssetLibraryOpen(true); }} />
-                        </TopBarMenu>
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            const reader = new FileReader();
+                                            reader.onload = (evt) => {
+                                                const text = evt.target?.result as string;
+                                                try {
+                                                    const json = JSON.parse(text);
+                                                    core.clear(); // Clear existing
+                                                    SceneSerializer.deserialize(json, core);
+                                                } catch (err) {
+                                                    console.error("Failed to load JSON", err);
+                                                    alert("Failed to load project file.");
+                                                }
+                                            };
+                                            reader.readAsText(file);
+                                            e.target.value = "";
+                                        }}
+                                    />
+                                </div>
+                            </TopBarMenu>
 
-                        {/* UI Menu */}
-                        <TopBarMenu label="ui">
-                            <MenuItem label="Add Text" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Text",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 100,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "text" },
-                                        { id: crypto.randomUUID(), name: "uiText", type: "string", value: "New Text" },
-                                        { id: crypto.randomUUID(), name: "uiFontSize", type: "float", value: 16 },
-                                        { id: crypto.randomUUID(), name: "uiColor", type: "string", value: "#ffffff" }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                            <MenuItem label="Add Panel" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Panel",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 90,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "panel" },
-                                        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#444444" },
-                                        { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
-                                        { id: crypto.randomUUID(), name: "height", type: "float", value: 100 }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                            <MenuItem label="Add Bar" onClick={() => {
-                                const id = crypto.randomUUID();
-                                const newEntity: EditorEntity = {
-                                    id,
-                                    name: "New Bar",
-                                    type: "sprite",
-                                    x: 400,
-                                    y: 300,
-                                    z: 100,
-                                    rotation: 0,
-                                    scaleX: 1,
-                                    scaleY: 1,
-                                    role: "neutral",
-                                    logic: buildLogicItems({ components: [] }),
-                                    components: [],
-                                    variables: [
-                                        { id: crypto.randomUUID(), name: "isUI", type: "bool", value: true },
-                                        { id: crypto.randomUUID(), name: "uiType", type: "string", value: "bar" },
-                                        { id: crypto.randomUUID(), name: "uiBarColor", type: "string", value: "#e74c3c" },
-                                        { id: crypto.randomUUID(), name: "uiBackgroundColor", type: "string", value: "#2c3e50" },
-                                        { id: crypto.randomUUID(), name: "uiValueVar", type: "string", value: "hp" },
-                                        { id: crypto.randomUUID(), name: "uiMaxVar", type: "string", value: "maxHp" },
-                                        { id: crypto.randomUUID(), name: "width", type: "float", value: 200 },
-                                        { id: crypto.randomUUID(), name: "height", type: "float", value: 20 }
-                                    ],
-                                    events: [],
-                                };
-                                core.addEntity(newEntity);
-                                core.setSelectedEntity(newEntity);
-                                setLocalSelectedEntity(newEntity);
-                            }} />
-                        </TopBarMenu>
+                            {/* Assets Menu */}
+                            <TopBarMenu label="에셋">
+                                <MenuItem label="에셋 가져오기 (준비중)" onClick={() => { alert("Import Asset - Coming Soon"); }} />
+                                <MenuItem label="에셋 라이브러리" onClick={() => { setIsAssetLibraryOpen(true); }} />
+                            </TopBarMenu>
 
-                        {/* Edit Menu */}
-                        <TopBarMenu label="edit">
-                            <MenuItem label="Undo (Ctrl+Z)" onClick={() => core.undo()} />
-                            <MenuItem label="Redo (Ctrl+Y)" onClick={() => core.redo()} />
-                            <MenuItem label="Cut (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
-                            <MenuItem label="Copy (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
-                            <MenuItem label="Paste (Ctrl+V)" onClick={() => core.paste()} />
-                            <MenuItem label="Delete (Del)" onClick={() => {
-                                const selected = core.getSelectedEntity();
-                                if (selected) core.removeEntity(selected.id);
-                            }} />
-                        </TopBarMenu>
+                            {/* UI Menu */}
+
+                            {/* Edit Menu */}
+                            <TopBarMenu label="편집">
+                                <MenuItem label="실행 취소 (Ctrl+Z)" onClick={() => core.undo()} />
+                                <MenuItem label="다시 하기 (Ctrl+Y)" onClick={() => core.redo()} />
+                                <MenuItem label="잘라내기 (Ctrl+X)" onClick={() => core.cut(core.getSelectedEntity())} />
+                                <MenuItem label="복사 (Ctrl+C)" onClick={() => core.copy(core.getSelectedEntity())} />
+                                <MenuItem label="붙여넣기 (Ctrl+V)" onClick={() => core.paste()} />
+                                <MenuItem label="삭제 (Del)" onClick={() => {
+                                    const selected = core.getSelectedEntity();
+                                    if (selected) core.removeEntity(selected.id);
+                                }} />
+                            </TopBarMenu>
+
+                        </div>
+                    </div>
+
+                    {/* Right Group: Play Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                            title="Pause"
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: colors.borderAccent,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px'
+                            }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16" />
+                                <rect x="14" y="4" width="4" height="16" />
+                            </svg>
+                        </button>
+                        <button
+                            title={mode === "dev" ? "Play" : "Stop"}
+                            onClick={() => {
+                                setMode((prev) => (prev === "dev" ? "run" : "dev"));
+                            }}
+
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px',
+                                color: mode === "run" ? "#ef4444" : colors.borderAccent
+                            }}
+                        >
+                            {mode === "dev" ? (
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 5V19L19 12L8 5Z" />
+                                </svg>
+                            ) : (
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="5" y="5" width="14" height="14" />
+                                </svg>
+                            )}
+                        </button>
 
                     </div>
                 </div>
+            )}
 
-                {/* Right Group: Play Controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Play Mode Overlay */}
+            {isPlayMode && (
+                <div style={{
+                    position: 'absolute',
+                    top: '20px',
+                    right: '20px',
+                    zIndex: 1000
+                }}>
                     <button
-                        title="Pause"
+                        onClick={() => navigate(-1)}
                         style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: colors.borderAccent,
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '4px'
-                        }}
-                    >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="4" width="4" height="16" />
-                            <rect x="14" y="4" width="4" height="16" />
-                        </svg>
-                    </button>
-                    <button
-                        title={mode === "dev" ? "Play" : "Stop"}
-                        onClick={() => {
-                            setMode((prev) => (prev === "dev" ? "run" : "dev"));
-                        }}
-
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
+                            padding: '10px 20px',
+                            backgroundColor: 'rgba(0,0,0,0.7)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            borderRadius: '8px',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            padding: '4px',
-                            color: mode === "run" ? "#ef4444" : colors.borderAccent
+                            gap: '8px',
+                            backdropFilter: 'blur(4px)'
                         }}
                     >
-                        {mode === "dev" ? (
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M8 5V19L19 12L8 5Z" />
-                            </svg>
-                        ) : (
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="5" y="5" width="14" height="14" />
-                            </svg>
-                        )}
+                        <i className="fa-solid fa-arrow-left"></i>
+                        나가기 (Exit)
                     </button>
-
                 </div>
-            </div>
+            )}
 
             {/* ===== MAIN EDITOR AREA (Refactored) ===== */}
             <div style={{
@@ -1206,109 +1163,139 @@ function EditorLayoutInner() {
             }}>
 
                 {/* LEFT SIDEBAR (Tabs: Hierarchy / Assets) */}
-                <div style={{
-                    width: '320px', // Slightly wider for Assets
-                    display: 'flex',
-                    flexDirection: 'column',
-                    borderRight: `1px solid ${colors.borderColor}`,
-                    background: colors.bgSecondary
-                }}>
-                    {/* Sidebar Tabs */}
+                {!isPlayMode && (
                     <div style={{
+                        width: '320px', // Slightly wider for Assets
                         display: 'flex',
-                        borderBottom: `1px solid ${colors.borderColor}`,
-                        background: colors.bgTertiary
+                        flexDirection: 'column',
+                        borderRight: `1px solid ${colors.borderColor}`,
+                        background: colors.bgSecondary
                     }}>
-                        <button
-                            onClick={() => setActiveLeftTab("hierarchy")}
-                            style={{
-                                flex: 1,
-                                padding: '10px',
-                                border: 'none',
-                                background: activeLeftTab === "hierarchy" ? colors.bgSecondary : 'transparent',
-                                color: activeLeftTab === "hierarchy" ? colors.textPrimary : colors.textSecondary,
-                                fontWeight: 600,
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                borderBottom: activeLeftTab === "hierarchy" ? `2px solid ${colors.accent}` : 'none'
-                            }}
-                        >
-                            <i className="fa-solid fa-list-ul" style={{ marginRight: '6px' }}></i>
-                            Hierarchy
-                        </button>
-                        <button
-                            onClick={() => setActiveLeftTab("assets")}
-                            style={{
-                                flex: 1,
-                                padding: '10px',
-                                border: 'none',
-                                background: activeLeftTab === "assets" ? colors.bgSecondary : 'transparent',
-                                color: activeLeftTab === "assets" ? colors.textPrimary : colors.textSecondary,
-                                fontWeight: 600,
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                borderBottom: activeLeftTab === "assets" ? `2px solid ${colors.accent}` : 'none'
-                            }}
-                        >
-                            <i className="fa-solid fa-layer-group" style={{ marginRight: '6px' }}></i>
-                            Assets
-                        </button>
-                    </div>
+                        {/* Sidebar Tabs */}
+                        <div style={{
+                            display: 'flex',
+                            borderBottom: `1px solid ${colors.borderColor}`,
+                            background: colors.bgTertiary
+                        }}>
+                            <button
+                                onClick={() => setActiveLeftTab("hierarchy")}
+                                style={{
+                                    flex: 1,
+                                    padding: '10px',
+                                    border: 'none',
+                                    background: activeLeftTab === "hierarchy" ? colors.bgSecondary : 'transparent',
+                                    color: activeLeftTab === "hierarchy" ? colors.textPrimary : colors.textSecondary,
+                                    fontWeight: 600,
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    borderBottom: activeLeftTab === "hierarchy" ? `2px solid ${colors.accent}` : 'none'
+                                }}
+                            >
+                                <i className="fa-solid fa-list-ul" style={{ marginRight: '6px' }}></i>
+                                계층 구조 (Hierarchy)
+                            </button>
+                            <button
+                                onClick={() => setActiveLeftTab("assets")}
+                                style={{
+                                    flex: 1,
+                                    padding: '10px',
+                                    border: 'none',
+                                    background: activeLeftTab === "assets" ? colors.bgSecondary : 'transparent',
+                                    color: activeLeftTab === "assets" ? colors.textPrimary : colors.textSecondary,
+                                    fontWeight: 600,
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    borderBottom: activeLeftTab === "assets" ? `2px solid ${colors.accent}` : 'none'
+                                }}
+                            >
+                                <i className="fa-solid fa-layer-group" style={{ marginRight: '6px' }}></i>
+                                에셋 (Assets)
+                            </button>
+                        </div>
 
-                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        {activeLeftTab === "hierarchy" ? (
-                            <HierarchyPanel
-                                core={core}
-                                scenes={scenes}
-                                currentSceneId={currentSceneId}
-                                selectedId={selectedEntity?.id ?? null}
-                                onSelect={(entity) => {
-                                    core.setSelectedEntity(entity);
-                                    setLocalSelectedEntity(entity);
-                                }}
-                                runtimeCore={mode === "run" ? runtimeCore : null}
-                            />
-                        ) : (
-                            <AssetPanelNew
-                                assets={assets}
-                                changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
-                                changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
-                                modules={modules}
-                                addModule={(module) => core.addModule(module)}
-                                updateModule={(module) => core.updateModule(module)}
-                                selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
-                                actionLabels={{}}
-                                onCreateVariable={handleCreateActionVariable}
-                                onUpdateVariable={handleUpdateModuleVariable}
-                                onDeleteAsset={(asset) => {
-                                    const currentAssets = Array.from(core.getAssets());
-                                    core.setAssets(currentAssets.filter(a => a.id !== asset.id));
-                                }}
-                            />
+                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            {activeLeftTab === "hierarchy" ? (
+                                <HierarchyPanel
+                                    core={core}
+                                    scenes={scenes}
+                                    currentSceneId={currentSceneId}
+                                    selectedId={selectedEntity?.id ?? null}
+                                    onSelect={(entity) => {
+                                        core.setSelectedEntity(entity);
+                                        setLocalSelectedEntity(entity);
+                                    }}
+                                    runtimeCore={mode === "run" ? runtimeCore : null}
+                                />
+                            ) : (
+                                <AssetPanelNew
+                                    assets={assets}
+                                    changeSelectedAsset={(a) => changeSelectedAssetHandler(a)}
+                                    changeDraggedAsset={(a) => changeDraggedAssetHandler(a)}
+                                    modules={modules}
+                                    addModule={(module) => core.addModule(module)}
+                                    updateModule={(module) => core.updateModule(module)}
+                                    selectedEntityVariables={(localSelectedEntity ?? selectedEntity)?.variables ?? []}
+                                    actionLabels={{}}
+                                    onCreateVariable={handleCreateActionVariable}
+                                    onUpdateVariable={handleUpdateModuleVariable}
+                                    onDeleteAsset={(asset) => {
+                                        const currentAssets = Array.from(core.getAssets());
+                                        core.setAssets(currentAssets.filter(a => a.id !== asset.id));
+                                    }}
+                                />
+                            )}
+                        </div>
+                        {/* Tile Tools & Palette (Always Visible in Assets Tab) */}
+                        {activeLeftTab === "assets" && (
+                            <div style={{
+                                height: '320px', // Increased fixed height for better visibility
+                                display: 'flex',
+                                flexDirection: 'column',
+                                borderTop: `1px solid ${colors.borderColor}`,
+                                background: colors.bgSecondary
+                            }}>
+                                {/* Header removed as requested */}
+                                <div style={{ padding: '8px', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    <TileToolsPanel
+                                        currentTool={tilingTool}
+                                        setTool={setTilingTool}
+                                    />
+                                    <div style={{ height: '8px', flexShrink: 0 }} />
+                                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                        <TilePalettePanel
+                                            assets={assets}
+                                            selectedTileIndex={selectedTileIndex}
+                                            onSelectTile={setSelectedTileIndex}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         )}
-                    </div>
 
-                </div>
+                    </div>
+                )}
 
                 {/* CENTER: Canvas */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    {/* Toolbar */}
-                    <div style={{
-                        height: '40px',
-                        borderBottom: `1px solid ${colors.borderColor}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 16px',
-                        justifyContent: 'space-between',
-                        background: colors.bgSecondary
-                    }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            {/* Toolbar Buttons if any */}
+                    {/* Top Toolbar - Hide in Play Mode */}
+                    {!isPlayMode && (
+                        <div style={{
+                            height: '40px',
+                            borderBottom: `1px solid ${colors.borderColor}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0 16px',
+                            justifyContent: 'space-between',
+                            background: colors.bgSecondary
+                        }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {/* Toolbar Buttons if any */}
+                            </div>
+                            <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+                                {mode === "dev" ? "에디터 모드 (EDITOR MODE)" : "런타임 모드 (RUNTIME MODE)"}
+                            </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
-                            {mode === "dev" ? "EDITOR MODE" : "RUNTIME MODE"}
-                        </div>
-                    </div>
+                    )}
 
                     {/* Canvas Area - FULL HEIGHT */}
                     <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
@@ -1325,6 +1312,8 @@ function EditorLayoutInner() {
                                         core.setSelectedEntity(entity as any);
                                         setIsDirty(true);
                                     }}
+                                    tilingTool={activeLeftTab === "assets" ? tilingTool : ""}
+                                    selectedTileIndex={selectedTileIndex}
                                 />
                             </div>
                         ) : (
@@ -1361,21 +1350,21 @@ function EditorLayoutInner() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px',
                     }}>
-                        Inspector
+                        속성 (Inspector)
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                        {/* Asset Animation Settings (when asset is selected) */}
-                        {selectedAsset && (
+                        {selectedAsset && selectedAsset.tag !== "Prefab" && (
                             <AssetAnimationSettings asset={selectedAsset} />
                         )}
-                        {/* Entity Inspector */}
-                        {localSelectedEntity && (
+                        {selectedAsset && selectedAsset.tag === "Prefab" && (
+                            <PrefabInspector asset={selectedAsset} />
+                        )}
+                        {localSelectedEntity && !selectedAsset && (
                             <InspectorPanel
                                 entity={localSelectedEntity}
                                 onUpdateEntity={handleInspectorUpdate}
-                            /> // 여기에있던 코드 위로 옮겼어요
+                            />
                         )}
-                        
                     </div>
                     <button
                         type="button"
@@ -1415,6 +1404,34 @@ function EditorLayoutInner() {
                     </button>
                 </div>
 
+                {/* Play Mode Overlay */}
+                {isPlayMode && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 1000
+                    }}>
+                        <button
+                            onClick={() => navigate(-1)}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: 'rgba(0,0,0,0.7)',
+                                color: 'white',
+                                border: '1px solid rgba(255,255,255,0.3)',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                backdropFilter: 'blur(4px)'
+                            }}
+                        >
+                            <i className="fa-solid fa-arrow-left"></i>
+                            나가기 (Exit)
+                        </button>
+                    </div>
+                )}
             </div>
 
             <ComponentHelper
@@ -1475,183 +1492,105 @@ function EditorLayoutInner() {
                 />
             )}
 
-            {/* Drag & Drop Modal */}
-            {dropModalFiles.length > 0 && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0, 0, 0, 0.65)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 2000,
-                        padding: "24px",
-                    }}
-                    onClick={() => resetDropModal()}
-                >
-                    <div
-                        style={{
-                            width: "100%",
-                            maxWidth: "520px",
-                            background: colors.bgSecondary,
-                            border: `1px solid ${colors.borderColor}`,
-                            borderRadius: "10px",
-                            padding: "20px",
-                            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: colors.textPrimary,
-                            marginBottom: "12px",
-                        }}>
-                            {dropModalFiles.length > 1 ? "Bulk Upload Assets" : "Import Asset"}
+            {/* Drag & Drop Modal - Only in Dev Mode */}
+            {!isPlayMode && dropModalFiles.length > 0 && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{ background: colors.bgPrimary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}>
+                        <h3>Add Asset</h3>
+                        <div style={{ marginBottom: 16 }}>
+                            <label style={{ display: "block", marginBottom: 8, fontSize: 13, color: colors.textSecondary }}>Asset Name</label>
+                            <input
+                                type="text"
+                                value={dropAssetName}
+                                onChange={(e) => setDropAssetName(e.target.value)}
+                                style={{ width: "100%", padding: 8, background: colors.bgSecondary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}
+                                autoFocus
+                            />
                         </div>
-                        {dropModalFiles.length > 0 && (
-                            <div style={{
-                                background: colors.bgTertiary,
-                                border: `1px solid ${colors.borderColor}`,
-                                borderRadius: "8px",
-                                padding: "12px",
-                                color: colors.textSecondary,
-                                fontSize: "12px",
-                                lineHeight: 1.6,
-                                maxHeight: "150px",
-                                overflowY: "auto"
-                            }}>
-                                {dropModalFiles.length === 1 ? (
-                                    <>
-                                        <div>Filename: {dropModalFiles[0].name}</div>
-                                        <div>Type: {dropModalFiles[0].type || "unknown"}</div>
-                                        <div>Size: {Math.ceil(dropModalFiles[0].size / 1024)} KB</div>
-                                    </>
-                                ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div style={{ fontWeight: 600, color: colors.textPrimary, marginBottom: '4px' }}>
-                                            {dropModalFiles.length} files selected:
-                                        </div>
-                                        {dropModalFiles.map((f, i) => (
-                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
-                                                    {f.name}
-                                                </span>
-                                                <span>{Math.ceil(f.size / 1024)}KB</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        <div style={{
-                            marginTop: "14px",
-                            display: "grid",
-                            gap: "10px",
-                        }}>
-                            {dropModalFiles.length === 1 && (
-                                <label style={{
-                                    display: "grid",
-                                    gap: "6px",
-                                    fontSize: "12px",
-                                    color: colors.textSecondary,
-                                }}>
-                                    Name
-                                    <input
-                                        type="text"
-                                        value={dropAssetName}
-                                        onChange={(e) => setDropAssetName(e.target.value)}
-                                        placeholder="Asset name"
-                                        style={{
-                                            background: colors.bgPrimary,
-                                            border: `1px solid ${colors.borderColor}`,
-                                            borderRadius: "6px",
-                                            padding: "8px 10px",
-                                            color: colors.textPrimary,
-                                            fontSize: "12px",
-                                            outline: "none",
-                                        }}
-                                    />
-                                </label>
-                            )}
-                            <label style={{
-                                display: "grid",
-                                gap: "6px",
-                                fontSize: "12px",
-                                color: colors.textSecondary,
-                            }}>
-                                Tag
-                                <select
-                                    value={dropAssetTag}
-                                    onChange={(e) => setDropAssetTag(e.target.value)}
-                                    style={{
-                                        background: colors.bgPrimary,
-                                        border: `1px solid ${colors.borderColor}`,
-                                        borderRadius: "6px",
-                                        padding: "8px 10px",
-                                        color: colors.textPrimary,
-                                        fontSize: "12px",
-                                        outline: "none",
-                                    }}
-                                >
-                                    <option value="Character">Character</option>
-                                    <option value="Tile">Tile</option>
-                                </select>
-                            </label>
-                        </div>
-                        {uploadError && (
-                            <div style={{
-                                marginTop: "10px",
-                                color: "#f87171",
-                                fontSize: "12px",
-                            }}>
-                                {uploadError}
-                            </div>
-                        )}
-                        <div style={{
-                            marginTop: "16px",
-                            display: "flex",
-                            gap: "8px",
-                            justifyContent: "flex-end",
-                        }}>
-                            <button
-                                type="button"
-                                onClick={handleAddAsset}
-                                disabled={isUploadingAsset}
-                                style={{
-                                    padding: "8px 14px",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    background: colors.bgTertiary,
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: "6px",
-                                    color: colors.textPrimary,
-                                    cursor: "pointer",
-                                }}
+                        <div style={{ marginBottom: 24 }}>
+                            <label style={{ display: "block", marginBottom: 8, fontSize: 13, color: colors.textSecondary }}>Type (Tag)</label>
+                            <select
+                                value={dropAssetTag}
+                                onChange={(e) => setDropAssetTag(e.target.value)}
+                                style={{ width: "100%", padding: 8, background: colors.bgSecondary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}
                             >
-                                Add Asset
+                                <option value="Character">Character</option>
+                                <option value="Tile">Tile (Background)</option>
+                                <option value="Prop">Prop</option>
+                                <option value="Background">Background</option>
+                                <option value="Effect">Effect</option>
+                                <option value="UI">UI</option>
+                                <option value="Sound">Sound</option>
+                            </select>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                            <button
+                                onClick={() => setDropModalFiles([])}
+                                style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${colors.borderColor}`, color: colors.textPrimary, cursor: "pointer" }}
+                            >
+                                Cancel
                             </button>
                             <button
-                                type="button"
-                                onClick={() => resetDropModal()}
-                                style={{
-                                    padding: "8px 14px",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    background: colors.borderAccent,
-                                    border: `1px solid ${colors.borderColor}`,
-                                    borderRadius: "6px",
-                                    color: colors.textPrimary,
-                                    cursor: "pointer",
+                                onClick={() => {
+                                    const file = dropModalFiles[0];
+                                    if (file) {
+                                        const token = localStorage.getItem("token");
+                                        setIsUploadingAsset(true);
+                                        assetService.uploadAsset(
+                                            file,
+                                            dropAssetName || file.name,
+                                            dropAssetTag,
+                                            token,
+                                            {}, // metadata
+                                            false // isPublic
+                                        ).then((res) => {
+                                            core.addAsset({
+                                                id: res.id,
+                                                tag: res.tag,
+                                                // Use ID as name for Phaser cache key safety if name has special chars
+                                                // But we want to display the real name in the UI.
+                                                // EditorCore likely uses 'name' for display and 'id' for logic?
+                                                // Actually, PhaserRenderer uses asset.url to load. 
+                                                // If 'name' is used as key, let's keep it but maybe ensuring unique keys?
+                                                // Let's verify if core.addAsset uses name as key.
+                                                // To be safe, let's pass the original name for UI but ensure URL is safe.
+                                                // The issue "Failed to process file" might be Phaser failing to parse the URL even if encoded?
+                                                // Or maybe a race condition.
+                                                // Let's explicitly decode/encode checks. 
+                                                // Wait, if we use res.url it SHOULD be fine. 
+                                                // Converting name to safe string might help if name is used as key.
+                                                name: res.name,
+                                                url: res.url,
+                                                idx: -1,
+                                                metadata: {}
+                                            });
+                                            setDropModalFiles([]);
+                                        }).catch(err => {
+                                            console.error(err);
+                                            alert("Upload failed");
+                                        }).finally(() => {
+                                            setIsUploadingAsset(false);
+                                        });
+                                    }
                                 }}
+                                style={{ padding: "8px 16px", background: colors.accent, border: "none", color: "white", cursor: "pointer" }}
                             >
-                                Close
+                                Add Asset
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            <SaveGameModal
+                isOpen={isSaveModalOpen}
+                onClose={() => setIsSaveModalOpen(false)}
+                initialTitle={"My Game"}
+                onSave={async (title, description) => {
+                    handleSaveProject();
+                }}
+            />
+
         </div>
     );
 }

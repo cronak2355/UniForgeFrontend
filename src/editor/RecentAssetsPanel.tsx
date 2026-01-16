@@ -1,4 +1,5 @@
 import type { Asset } from "./types/Asset";
+import { getCloudFrontUrl } from "../utils/imageUtils";
 import { colors } from "./constants/colors";
 import { useRef } from "react";
 
@@ -102,7 +103,7 @@ export function RecentAssetsPanel({ assets, changeDraggedAsset, onSelectAsset }:
                             onClick={() => onSelectAsset(asset)}
                         >
                             <img
-                                src={asset.url}
+                                src={getCloudFrontUrl(asset.url)}
                                 alt={asset.name}
                                 style={{
                                     maxWidth: '80%',

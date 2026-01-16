@@ -54,7 +54,7 @@ export function VariableSection({
     <div>
       {/* 헤더 */}
       <div className="variable-header">
-        <span className="inspector-section-title">Variables</span>
+        <span className="inspector-section-title">변수 목록 (Variables)</span>
         <button
           onClick={onAdd}
           className="variable-add"
@@ -91,11 +91,11 @@ export function VariableSection({
               value={v.type}
               onChange={(e) => onUpdate(coerceType(v, e.target.value as EditorVariable["type"]))}
             >
-              <option value="int">int</option>
-              <option value="float">float</option>
-              <option value="string">string</option>
-              <option value="bool">bool</option>
-              <option value="vector2">vector2</option>
+              <option value="int">정수 (int)</option>
+              <option value="float">실수 (float)</option>
+              <option value="string">문자열 (string)</option>
+              <option value="bool">논리 (bool)</option>
+              <option value="vector2">좌표 (vector2)</option>
             </select>
 
             <input

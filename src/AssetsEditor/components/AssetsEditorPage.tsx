@@ -17,7 +17,7 @@ import { EditorEntity } from '../../editor/types/Entity'; // Type import
 
 // Floating Glass Layout
 function EditorContent() {
-  const { pixelSize, loadAIImage } = useAssetsEditor(); // loadAIImage is all we need to load into canvas
+  const { pixelSize, loadAIImage, triggerBackgroundRemoval } = useAssetsEditor(); // loadAIImage is all we need to load into canvas
   const { registerApplyHandler, unregisterApplyHandler } = useJob();
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,12 +35,11 @@ function EditorContent() {
       const blob = await res.blob();
 
       // Load directly into Editor Canvas
-      loadAIImage(blob);
+      await loadAIImage(blob);
 
-      // Optional: Upload asset or just let user save it?
-      // For consistency with EditorLayout, we might want to upload it too, 
-      // BUT in Pixel Editor, we usually work on a canvas then save. 
-      // Let's just load it to canvas for now as 'loadAIImage' does.
+      // Auto Remove Background (AI Assets Only)
+      console.log("Auto-triggering background removal...");
+      await triggerBackgroundRemoval();
 
     } catch (e) {
       console.error("AI Generation Failed:", e);

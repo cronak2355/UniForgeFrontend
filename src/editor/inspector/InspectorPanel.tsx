@@ -54,7 +54,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
         color: colors.textSecondary,
         fontSize: '13px',
       }}>
-        Select an entity to inspect.
+        대상을 선택하여 속성을 확인하세요.
       </div>
     );
   }
@@ -231,10 +231,10 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       {/* Transform Section */}
       <div style={sectionStyle}>
-        <div style={titleStyle}>Transform</div>
+        <div style={titleStyle}>위치 및 크기 (Transform)</div>
         <div style={transformGridStyle}>
           <div style={transformGroupStyle}>
-            <div style={groupTitleStyle}>Position</div>
+            <div style={groupTitleStyle}>위치 (Position)</div>
             <div style={rowStyle}>
               <span style={labelStyle}>X</span>
               <input
@@ -264,7 +264,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             </div>
           </div>
           <div style={transformGroupStyle}>
-            <div style={groupTitleStyle}>Rotation</div>
+            <div style={groupTitleStyle}>회전 (Rotation)</div>
             <div style={rowStyle}>
               <span style={labelStyle}>RX</span>
               <input
@@ -294,7 +294,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             </div>
           </div>
           <div style={transformGroupStyle}>
-            <div style={groupTitleStyle}>Scale</div>
+            <div style={groupTitleStyle}>크기 (Scale)</div>
             <div style={rowStyle}>
               <span style={labelStyle}>SX</span>
               <input
@@ -319,7 +319,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       {/* Tags Section */}
       <div style={sectionStyle}>
-        <div style={titleStyle}>Tags</div>
+        <div style={titleStyle}>태그 (Tags)</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={rowStyle}>
             <span style={{ ...labelStyle, width: 'auto', marginRight: '12px' }}>🏷️</span>
@@ -368,7 +368,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       {/* Effects Section - 피격/사망 이펙트 설정 */}
       <div style={sectionStyle}>
-        <div style={titleStyle}>⚔️ Effects</div>
+        <div style={titleStyle}>⚔️ 이펙트 (Effects)</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
           <datalist id="particle-presets">
@@ -426,7 +426,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
       </div>
 
       <div style={sectionStyle}>
-        <div style={titleStyle}>Prefab</div>
+        <div style={titleStyle}>프리팹 (Prefab)</div>
         <button
           style={buttonStyle}
           onClick={() => {
@@ -434,7 +434,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
             core.addAsset(prefabAsset);
           }}
         >
-          Register Prefab
+          프리팹으로 등록
         </button>
       </div>
 
@@ -450,11 +450,11 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       {/* UI Settings Section */}
       <div style={sectionStyle}>
-        <div style={titleStyle}>UI Settings</div>
+        <div style={titleStyle}>UI 설정 (UI Settings)</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {/* isUI Checkbox */}
           <div style={rowStyle}>
-            <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Is UI Element</span>
+            <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>UI 요소 여부</span>
             <input
               type="checkbox"
               checked={localEntity.variables.some(v => v.name === "isUI" && v.value === true)}
@@ -473,7 +473,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
           {localEntity.variables.some(v => v.name === "isUI" && v.value === true) && (
             <>
               <div style={rowStyle}>
-                <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>UI Type</span>
+                <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>UI 종류</span>
                 <select
                   style={{ ...inputStyle, width: '120px' }}
                   value={String(localEntity.variables.find(v => v.name === "uiType")?.value ?? "text")}
@@ -496,19 +496,19 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                     handleUpdate({ ...localEntity, variables: nextVars });
                   }}
                 >
-                  <option value="text">Text</option>
-                  <option value="button">Button</option>
-                  <option value="image">Image</option>
-                  <option value="panel">Panel</option>
-                  <option value="scrollPanel">Scroll Panel</option>
-                  <option value="bar">Bar (Gauge)</option>
+                  <option value="text">텍스트 (Text)</option>
+                  <option value="button">버튼 (Button)</option>
+                  <option value="image">이미지 (Image)</option>
+                  <option value="panel">패널 (Panel)</option>
+                  <option value="scrollPanel">스크롤 패널 (Scroll Panel)</option>
+                  <option value="bar">바/게이지 (Bar)</option>
                 </select>
               </div>
 
               {/* Image/Button/Panel/Bar Texture Settings */}
               {["image", "button", "panel", "scrollPanel", "bar"].includes(String(localEntity.variables.find(v => v.name === "uiType")?.value)) && (
                 <div style={rowStyle}>
-                  <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Texture</span>
+                  <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>이미지 (Texture)</span>
                   <div style={{ display: 'flex', gap: '4px', flex: 2 }}>
                     <select
                       style={{ ...inputStyle, flex: 1 }}
@@ -585,7 +585,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               {(localEntity.variables.find(v => v.name === "uiType")?.value ?? "text") === "text" && (
                 <>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Content</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>텍스트 내용</span>
                     <input type="text" style={{ ...inputStyle, width: '120px' }}
                       value={String(localEntity.variables.find(v => v.name === "uiText")?.value ?? "")}
                       onChange={(e) => {
@@ -596,7 +596,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                       }} />
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Source Entity</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>연결 대상</span>
                     <select
                       style={{ ...inputStyle, width: '120px' }}
                       value={String(localEntity.variables.find(v => v.name === "uiSourceEntity")?.value ?? "")}
@@ -625,7 +625,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                     </select>
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Link Var</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>연결 변수</span>
                     <select
                       style={{ ...inputStyle, width: '120px' }}
                       value={String(localEntity.variables.find(v => v.name === "uiValueVar")?.value ?? "")}
@@ -655,7 +655,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                     </select>
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Size</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>글자 크기</span>
                     <input type="number" style={inputStyle}
                       value={Number(localEntity.variables.find(v => v.name === "uiFontSize")?.value ?? 16)}
                       onChange={(e) => {
@@ -666,7 +666,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                       }} />
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Alignment</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>정렬</span>
                     <select
                       style={{ ...inputStyle, width: '120px' }}
                       value={String(localEntity.variables.find(v => v.name === "uiAlign")?.value ?? "center")}
@@ -683,7 +683,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                     </select>
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Color</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>글자 색상</span>
                     <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
                       value={String(localEntity.variables.find(v => v.name === "uiColor")?.value ?? "#ffffff")}
                       onChange={(e) => {
@@ -700,7 +700,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               {["panel", "bar"].includes(String(localEntity.variables.find(v => v.name === "uiType")?.value)) && (
                 <>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>BG Color</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>배경색</span>
                     <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
                       value={String(localEntity.variables.find(v => v.name === "uiBackgroundColor")?.value ?? "#444444")}
                       onChange={(e) => {
@@ -711,7 +711,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                       }} />
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Width</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>너비</span>
                     <input type="number" style={inputStyle}
                       value={Number(localEntity.variables.find(v => v.name === "width")?.value ?? 100)}
                       onChange={(e) => {
@@ -722,7 +722,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                       }} />
                   </div>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Height</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>높이</span>
                     <input type="number" style={inputStyle}
                       value={Number(localEntity.variables.find(v => v.name === "height")?.value ?? 100)}
                       onChange={(e) => {
@@ -739,7 +739,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
               {String(localEntity.variables.find(v => v.name === "uiType")?.value) === "bar" && (
                 <>
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Bar Color</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>게이지 색상</span>
                     <input type="color" style={{ ...inputStyle, width: '40px', padding: 0 }}
                       value={String(localEntity.variables.find(v => v.name === "uiBarColor")?.value ?? "#e74c3c")}
                       onChange={(e) => {
@@ -751,7 +751,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                   </div>
                   {/* Unified Value Picker: Entity.Variable format */}
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Value</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>현재값</span>
                     <select
                       style={{ ...inputStyle, width: '140px' }}
                       value={(() => {
@@ -797,7 +797,7 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                   </div>
                   {/* Unified Max Picker: Entity.Variable format */}
                   <div style={rowStyle}>
-                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>Max</span>
+                    <span style={{ ...labelStyle, width: 'auto', flex: 1 }}>최대값</span>
                     <select
                       style={{ ...inputStyle, width: '140px' }}
                       value={(() => {

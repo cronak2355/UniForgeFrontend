@@ -1,0 +1,105 @@
+﻿
+> frontend@0.0.0 build
+> vite build
+
+[36mvite v7.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m??[39m 31 modules transformed.
+node.exe : [31m??[39m
+ Build failed in 701ms
+위치 줄:1 문자:1
++ & "C:\Program Files\
+nodejs/node.exe" "C:\P
+rogram Files\nodejs/no
+de_mo ...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: ([31m??[39   
+ m Build failed in    
+ 701ms:String) []    ,
+ RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+[31merror during buil
+d:
+[31m[vite:esbuild] Tr
+ansform failed with 1 
+error:
+C:/Users/danmu/Desktop
+/Uniforge/UniForgeFron
+tend/src/editor/Editor
+Layout.tsx:1108:13: ER
+ROR: The character "}"
+ is not valid inside a
+ JSX element[31m
+file: [36mC:/Users/da
+nmu/Desktop/Uniforge/U
+niForgeFrontend/src/ed
+itor/EditorLayout.tsx:
+1108:13[31m
+[33m
+[33mThe character "}"
+ is not valid inside a
+ JSX element[33m
+1106 |                
+  </div>
+1107 |              </
+div>
+1108 |              )}
+     |               ^
+1109 |  
+1110 |              {/
+* Play Mode Overlay */
+}
+[31m
+    at failureErrorWit
+hLog (C:\Users\danmu\D
+esktop\Uniforge\UniFor
+geFrontend\node_module
+s\esbuild\lib\main.js:
+1467:15)
+    at C:\Users\danmu\
+Desktop\Uniforge\UniFo
+rgeFrontend\node_modul
+es\esbuild\lib\main.js
+:736:50
+    at responseCallbac
+ks.<computed> (C:\User
+s\danmu\Desktop\Unifor
+ge\UniForgeFrontend\no
+de_modules\esbuild\lib
+\main.js:603:9)
+    at handleIncomingP
+acket (C:\Users\danmu\
+Desktop\Uniforge\UniFo
+rgeFrontend\node_modul
+es\esbuild\lib\main.js
+:658:12)
+    at Socket.readFrom
+Stdout (C:\Users\danmu
+\Desktop\Uniforge\UniF
+orgeFrontend\node_modu
+les\esbuild\lib\main.j
+s:581:7)
+    at Socket.emit (no
+de:events:508:28)
+    at addChunk (node:
+internal/streams/reada
+ble:559:12)
+    at readableAddChun
+kPushByteMode (node:in
+ternal/streams/readabl
+e:510:3)
+    at Readable.push (
+node:internal/streams/
+readable:390:5)
+    at Pipe.onStreamRe
+ad (node:internal/stre
+am_base_commons:189:23
+)[39m

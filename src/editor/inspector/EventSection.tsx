@@ -78,7 +78,7 @@ export function EventSection({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <span style={{ color: '#ddd', fontSize: '14px', fontWeight: 600 }}>Events</span>
+        <span style={{ color: '#ddd', fontSize: '14px', fontWeight: 600 }}>이벤트 (Events)</span>
         <button
           onClick={onAdd}
           style={{
@@ -100,7 +100,7 @@ export function EventSection({
           <div key={e.id} style={itemStyle}>
             <button style={removeBtnStyle} onClick={() => onRemove(e.id)}>×</button>
             <div style={rowStyle}>
-              <span style={labelStyle}>Trigger</span>
+              <span style={labelStyle}>트리거</span>
               <select
                 style={inputStyle}
                 value={e.trigger}
@@ -115,7 +115,7 @@ export function EventSection({
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Action</span>
+              <span style={labelStyle}>동작</span>
               <select
                 style={inputStyle}
                 value={e.action}
@@ -130,17 +130,17 @@ export function EventSection({
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Payload</span>
+              <span style={labelStyle}>값/옵션</span>
               <input
                 style={inputStyle}
-                placeholder="Message, URL, etc."
+                placeholder="메시지, URL 등 입력"
                 value={e.payload || ""}
                 onChange={ev => onUpdate({ ...e, payload: ev.target.value })}
               />
             </div>
           </div>
         ))}
-        {events.length === 0 && <div style={{ color: '#666', fontSize: '12px', fontStyle: 'italic' }}>No events defined.</div>}
+        {events.length === 0 && <div style={{ color: '#666', fontSize: '12px', fontStyle: 'italic' }}>설정된 이벤트가 없습니다.</div>}
       </div>
     </div>
   )

@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { marketplaceService } from '../services/marketplaceService';
+import { CDN_URL } from '../services/assetService';
 
 const CreateAssetPage = () => {
     const navigate = useNavigate();
@@ -139,6 +140,21 @@ const CreateAssetPage = () => {
         }));
     };
 
+    // Helper to map Korean labels to System Tags
+    const resolveAssetType = (label: string) => {
+        const map: Record<string, string> = {
+            '캐릭터': 'Character',
+            '배경/타일': 'Tile',
+            '무기/장비': 'Item',
+            '오브젝트': 'Prop',
+            'VFX': 'Effect',
+            'UI': 'UI',
+            '사운드': 'Sound',
+            '기타': 'Etc'
+        };
+        return map[label] || label;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -192,7 +208,7 @@ const CreateAssetPage = () => {
                     description: finalDescription || null,
                     isPublic: formData.isPublic,
                     tags: formData.tags.join(','), // Assuming backend handles CSV or array? Check type.
-                    assetType: formData.assetType,
+                    assetType: resolveAssetType(formData.assetType),
                 } as any);
             } else {
                 // CREATE Mode
@@ -203,7 +219,7 @@ const CreateAssetPage = () => {
                     description: finalDescription || null,
                     isPublic: formData.isPublic,
                     tags: formData.tags.join(','),
-                    assetType: formData.assetType
+                    assetType: resolveAssetType(formData.assetType)
                 });
                 assetId = asset.id;
             }
@@ -231,8 +247,8 @@ const CreateAssetPage = () => {
                     });
 
                     // Update asset with PROXY URL
-                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=thumbnail
-                    const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=thumbnail`;
+                    // Update asset with PROXY URL (Method 2)
+                    const proxyUrl = `/api/assets/s3/${assetId}?imageType=base`;
                     await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
                 }
             }
@@ -281,17 +297,28 @@ const CreateAssetPage = () => {
             }
 
             if (mainS3Key) {
-                await marketplaceService.registerImageResource({
-                    ownerType: "ASSET",
-                    ownerId: assetId,
-                    imageType: "base",
-                    s3Key: mainS3Key,
-                    isActive: true
-                });
+                const isImageFile = file.type.startsWith('image/');
+                console.log(`[CreateAssetPage] Main File Type: ${file.type}, isImage: ${isImageFile}, Key: ${mainS3Key}`);
 
-                // Update asset with PROXY URL for base image
-                const proxyUrl = `https://uniforge.kr/api/assets/s3/${assetId}?imageType=base`;
-                await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+                // Only register as "base" image if it IS an image
+                if (isImageFile) {
+                    await marketplaceService.registerImageResource({
+                        ownerType: "ASSET",
+                        ownerId: assetId,
+                        imageType: "base",
+                        s3Key: mainS3Key,
+                        isActive: true
+                    });
+
+                    // Update asset with PROXY URL (Method 2)
+                    // The backend proxy endpoint: /api/assets/s3/:id?imageType=base
+                    const proxyUrl = `/api/assets/s3/${assetId}?imageType=base`;
+
+                    console.log(`[CreateAssetPage] Updating Asset Image URL to: ${proxyUrl}`);
+                    await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+                } else {
+                    console.log("[CreateAssetPage] Main file is not an image, skipping imageUrl update.");
+                }
             }
 
             // Step 5: Publish the version

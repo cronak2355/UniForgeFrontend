@@ -5,6 +5,8 @@ import { marketplaceService, Asset, AssetVersion } from '../services/marketplace
 import { libraryService } from '../services/libraryService';
 import GlobalHeader from '../components/GlobalHeader';
 
+import { getCloudFrontUrl } from '../utils/imageUtils';
+
 const AssetDetailPage = () => {
     const { assetId } = useParams<{ assetId: string }>();
     const navigate = useNavigate();
@@ -111,9 +113,13 @@ const AssetDetailPage = () => {
                             border: '1px solid #333'
                         }}>
                             <img
-                                src={asset.imageUrl || asset.image || "/placeholder-asset.png"}
+                                src={getCloudFrontUrl(asset.imageUrl || asset.image) || "/placeholder-asset.png"}
                                 alt={asset.name}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                    e.currentTarget.src = "/placeholder-asset.png";
+                                    e.currentTarget.onerror = null; // Prevent infinite loop
+                                }}
                             />
                         </div>
 

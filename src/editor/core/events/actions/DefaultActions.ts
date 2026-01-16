@@ -573,6 +573,16 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
 
     if (src.type === "variable") {
         if (!src.name) return 0;
+
+        // 1. Check Module/Local Scope
+        if (ctx.scope?.has(src.name)) {
+            const val = ctx.scope.get(src.name);
+            // console.log(`[ResolveValue] Found in scope: ${src.name} =`, val);
+            return val;
+        } else {
+            console.warn(`[ResolveValue] "${src.name}" NOT found in scope. Scope keys:`, ctx.scope ? Array.from(ctx.scope.keys()) : "undefined");
+        }
+
         const entity = getEntity(ctx);
         const variable = entity?.variables?.find(v => v.name === src.name);
 
@@ -733,11 +743,17 @@ ActionRegistry.register("IncrementVar", (ctx: ActionContext, params: Record<stri
 });
 
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string) => boolean } | undefined;
+    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>) => boolean } | undefined;
     if (!gameCore?.startModule) return;
     const moduleId = (params.moduleId as string) ?? (params.moduleName as string) ?? (params.name as string);
     if (!moduleId) return;
-    gameCore.startModule(ctx.entityId, moduleId);
+
+    // Extract variable overrides from initialVariables property
+    const overrides = (params.initialVariables as Record<string, any>) ?? {};
+
+    console.log(`[RunModule] Starting Module "${moduleId}" on "${ctx.entityId}" with overrides:`, overrides);
+
+    gameCore.startModule(ctx.entityId, moduleId, overrides);
 });
 
 ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {

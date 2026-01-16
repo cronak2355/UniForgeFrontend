@@ -135,67 +135,10 @@ class PhaserRenderScene extends Phaser.Scene {
             // It is handled directly in the update() loop using reusable objects.
             if (event.type === "TICK") return;
 
-            // runtime only - handle other events (OnCollision, Signals, etc.)
-            if (!this.phaserRenderer.isRuntimeMode) {
-                return;
-            }
-            if (this.phaserRenderer.getAllEntityIds().length === 0) {
-                return;
-            }
-
-            // [Optimized] Use RuntimeContext directly used primarily for lookups
-            // Accessing entities via RuntimeContext is O(1) or O(N) iteration without allocation
-            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
-
-            // Helper to get entities for global lookup (Scene globals)
-            // We pass the raw Map to avoid reconstruction. 
-            // Warning: Consumers must handle Raw RuntimeEntity objects, not EditorEntity adapters.
-            // But ActionRegistry globals usually expect specific interfaces.
-            const globalEntities = runtimeContext ? runtimeContext.entities : this.phaserRenderer.core.getEntities();
-
-            this.phaserRenderer.core.getEntities().forEach((entity) => {
-                const components = splitLogicItems(entity.logic);
-                const logicComponents = components.filter((component): component is LogicComponent => component.type === "Logic");
-                if (logicComponents.length === 0) return;
-
-                const input = runtimeContext?.getInput();
-                const entityCtx = runtimeContext?.getEntityContext(entity.id);
-
-                const ctx: ActionContext = {
-                    entityId: entity.id,
-                    eventData: event.data || {},
-                    input,
-                    entityContext: entityCtx,
-                    // Pass the Map directly. Logic actions should handle Map<string, RuntimeEntity>
-                    globals: {
-                        scene: this,
-                        renderer: this.phaserRenderer,
-                        entities: globalEntities,
-                        gameCore: this.phaserRenderer.gameCore
-                    }
-                };
-
-                if (this.shouldSkipEntity(ctx, event)) {
-                    return;
-                }
-
-                for (const component of logicComponents) {
-                    if (!this.matchesEvent(component, event)) continue;
-                    if (!this.passesConditions(component, ctx)) continue;
-
-                    // if (event.type === "OnStart") {
-                    //     console.log("[OnStart] component triggered", {
-                    //         entityId: ctx.entityId,
-                    //         event: component.event,
-                    //     });
-                    // }
-
-                    for (const action of component.actions ?? []) {
-                        const { type, ...params } = action;
-                        ActionRegistry.run(type, ctx, params);
-                    }
-                }
-            });
+            // [DISABLED] Logic execution is now handled EXCLUSIVELY by LogicSystem via GameCore pipeline.
+            // This prevents duplicate execution (4x issue) when conditions like InputDown are used.
+            // Keeping this section disabled. LogicSystem handles OnUpdate, OnStart, OnCollision, etc.
+            // Only system-level events (AI_ATTACK, ENTITY_DIED particles) are processed above.
         };
         EventBus.on(this.eventHandler);
         console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
@@ -645,6 +588,9 @@ export class PhaserRenderer implements IRenderer {
             // console.warn("[PhaserRenderer] Skipping GameCore update. Runtime:", this.isRuntimeMode, "Core:", !!this.gameCore);
         }
 
+        // Update UI Bars dynamically
+        this.updateBars();
+
         if (this.onUpdateCallback) {
             this.onUpdateCallback(time, delta);
         }
@@ -733,11 +679,12 @@ export class PhaserRenderer implements IRenderer {
 
         if (width <= 0 || height <= 0) return;
 
-        // Draw White Frame Centered at (x, y)
+        // Draw White Frame with Top-Left at (x, y)
+        // This matches Phaser's default origin for rectangles/containers
         this.guideGraphics.lineStyle(2, 0xffffff, 1);
-        this.guideGraphics.strokeRect(x - width / 2, y - height / 2, width, height);
+        this.guideGraphics.strokeRect(x, y, width, height);
 
-        // Optional: Crosshair center
+        // Optional: Crosshair at top-left corner (origin point)
         this.guideGraphics.lineStyle(1, 0xffffff, 0.5);
         this.guideGraphics.moveTo(x - 10, y);
         this.guideGraphics.lineTo(x + 10, y);
@@ -764,9 +711,23 @@ export class PhaserRenderer implements IRenderer {
             const opts = options as any;
             const fromOpts = opts?.variables?.find((v: any) => v.name === name);
             if (fromOpts) return fromOpts;
-            const entity = this.core.getEntity(id);
+            const entity = this.core.getEntity(id) || this.core.getGlobalEntity(id);
             return entity?.variables?.find(v => v.name === name);
         };
+
+        // Check if entity should be rendered (skip data-only entities like GameState)
+        const isRenderableVar = getVar("isRenderable");
+        if (isRenderableVar?.value === false) {
+            console.log(`[PhaserRenderer] Skipping non-renderable entity: ${id}`);
+            return;
+        }
+
+        // Skip GameState entity (data container, should not render)
+        const entityName = options?.name || this.core.getEntity(id)?.name || this.core.getGlobalEntity(id)?.name;
+        if (entityName === "GameState") {
+            console.log(`[PhaserRenderer] Skipping GameState entity (data-only)`);
+            return;
+        }
 
         const isUIVar = getVar("isUI");
         let isUI = isUIVar?.value === true;
@@ -826,20 +787,47 @@ export class PhaserRenderer implements IRenderer {
             }
         };
 
+        // [UI COORDINATE TRANSFORMATION]
+        // Editor: UI at world coords, Main Camera at (cx, cy) → screen offset = (x-cx, y-cy)
+        // Runtime: UI should appear at same screen offset, but camera is at (gameWidth/2, gameHeight/2)
+        // Therefore: runtime world pos = (x - cx) + (gameWidth/2, gameHeight/2)
+        let uiX = x;
+        let uiY = y;
+
+        if (isUI && this.isRuntimeMode && this.scene?.cameras?.main) {
+            // Find Main Camera entity to get editor camera position
+            const mainCamera = this.core.getEntities().get('Main Camera') ||
+                Array.from(this.core.getEntities().values()).find(e => e.name === 'Main Camera');
+
+            if (mainCamera) {
+                const cam = this.scene.cameras.main;
+                const editorCamX = mainCamera.x || 0;
+                const editorCamY = mainCamera.y || 0;
+
+                // Calculate screen offset from editor camera
+                const screenOffsetX = x - editorCamX;
+                const screenOffsetY = y - editorCamY;
+
+                // Apply same screen offset from runtime camera center
+                uiX = cam.centerX + screenOffsetX;
+                uiY = cam.centerY + screenOffsetY;
+            }
+        }
+
         let obj: Phaser.GameObjects.GameObject;
 
         if (uiType === "text") {
-            const textObj = this.scene.add.text(x, y, uiText, {
+            const textObj = this.scene.add.text(uiX, uiY, uiText, {
                 fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
                 color: uiColor,
                 fontFamily: 'monospace',
                 backgroundColor: uiBackgroundColor,
                 padding: { x: 4, y: 2 }
             });
-            textObj.setOrigin(0.5); // Center origin for consistency
+            textObj.setOrigin(0.5);
             obj = textObj;
         } else if (uiType === "button") {
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
             const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x3498db;
             let bg: Phaser.GameObjects.GameObject;
             if (options?.texture && this.scene.textures.exists(options.texture)) {
@@ -851,24 +839,20 @@ export class PhaserRenderer implements IRenderer {
             }
             bg.setName("bg");
 
-            const textObj = this.scene.add.text(0, 0, uiText, {
+            const label = this.scene.add.text(0, 0, uiText, {
                 fontSize: uiFontSize.includes('px') ? uiFontSize : `${uiFontSize}px`,
                 color: uiColor,
-                fontFamily: 'monospace'
-            }).setOrigin(0.5);
-            textObj.setName("text");
-
-            // Simple Interaction Feedback
-            // Moved to Runtime-only block to avoid Editor conflict
-
-
-            container.add([bg, textObj]);
+                fontFamily: 'monospace',
+            });
+            label.setOrigin(0.5);
+            label.setName("label");
+            container.add([bg, label]);
             container.setSize(width, height);
             obj = container;
 
         } else if (uiType === "panel" || uiType === "scrollPanel") {
             // Panel/ScrollPanel Container
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
             const bgColorInt = uiBackgroundColor ? parseInt(uiBackgroundColor.replace('#', '0x'), 16) : 0x2c3e50;
 
             // Panel BG (Sprite or Rect)
@@ -897,18 +881,18 @@ export class PhaserRenderer implements IRenderer {
         } else if (uiType === "image") {
             // UI Image - standard sprite but can be colored rect if no texture
             if (options?.texture && this.scene.textures.exists(options.texture)) {
-                const sprite = this.scene.add.sprite(x, y, options.texture);
+                const sprite = this.scene.add.sprite(uiX, uiY, options.texture);
                 setSize(sprite);
                 obj = sprite;
             } else {
                 // Fallback white rect for placeholder image
-                const rect = this.scene.add.rectangle(x, y, width, height, 0xffffff);
+                const rect = this.scene.add.rectangle(uiX, uiY, width, height, 0xffffff);
                 obj = rect;
             }
 
         } else if (uiType === "bar") {
             // Bar is a container with BG and FG
-            const container = this.scene.add.container(x, y);
+            const container = this.scene.add.container(uiX, uiY);
 
             // Background
             const bg = this.scene.add.rectangle(0, 0, width, height,
@@ -977,7 +961,9 @@ export class PhaserRenderer implements IRenderer {
         if (isUI) {
             const uiObj = obj as any;
 
-            // Apply ScrollFactor(0) for Runtime
+            // Apply ScrollFactor(0) for Runtime mode only
+            // Editor mode: UI moves with camera (scrollFactor=1, default)
+            // Runtime mode: UI fixed to screen (scrollFactor=0)
             if (this.isRuntimeMode) {
                 if (uiObj.setScrollFactor) {
                     uiObj.setScrollFactor(0);
@@ -1121,21 +1107,31 @@ export class PhaserRenderer implements IRenderer {
         const baseH = hVar ? Number(hVar.value) : (obj as any).height;
 
         const setSize = (sprite: Phaser.GameObjects.Sprite) => {
-            if (keepAspectRatio) {
-                const tex = sprite.texture.getSourceImage();
-                if (tex) {
-                    const ratio = tex.width / tex.height;
-                    const targetRatio = baseW / baseH;
-                    if (ratio > targetRatio) {
-                        sprite.setDisplaySize(baseW, baseW / ratio);
+            // [FIX] Only enforce display size if variables EXPLICITLY specify width/height.
+            // Otherwise, respect the entity's current transform scale (set by GameCore).
+            if (wVar || hVar || keepAspectRatio) {
+                if (keepAspectRatio) {
+                    const tex = sprite.texture.getSourceImage();
+                    if (tex) {
+                        const ratio = tex.width / tex.height;
+                        const targetRatio = baseW / baseH;
+                        if (ratio > targetRatio) {
+                            sprite.setDisplaySize(baseW, baseW / ratio);
+                        } else {
+                            sprite.setDisplaySize(baseH * ratio, baseH);
+                        }
                     } else {
-                        sprite.setDisplaySize(baseH * ratio, baseH);
+                        sprite.setDisplaySize(baseW, baseH);
                     }
                 } else {
                     sprite.setDisplaySize(baseW, baseH);
                 }
             } else {
-                sprite.setDisplaySize(baseW, baseH);
+                // If no explicit size variables, DO NOT reset display size.
+                // Phaser's setTexture automatically resets frame size, but we want to KEEP scale.
+                // GameCore has already applied scaleX/scaleY.
+                // If we setDisplaySize(w, h) using native w/h, we force scale to 1.
+                // So we do nothing here, letting GameCore's scale prevail.
             }
         };
 
@@ -1150,9 +1146,12 @@ export class PhaserRenderer implements IRenderer {
                 // If texture wasn't loaded when setTexture was called, 
                 // recalculate size when it finishes loading
                 if (!wasLoaded) {
-                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                     if (textureUrl) {
-                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                        // Find asset for metadata
+                        const assets = this.core.getAssets();
+                        const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                        this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (obj && !obj.scene) return; // Sprite was destroyed
                             setSize(obj);
                         }).catch((err: Error) => {
@@ -1182,9 +1181,12 @@ export class PhaserRenderer implements IRenderer {
 
                     // Recalculate size after texture loads if it wasn't loaded initially
                     if (!wasLoaded) {
-                        const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                        const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                         if (textureUrl) {
-                            this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                            // Find asset for metadata
+                            const assets = this.core.getAssets();
+                            const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                            this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                                 if (bg && !bg.scene) return; // Sprite was destroyed
                                 setSize(bg);
                             }).catch((err: Error) => {
@@ -1213,9 +1215,12 @@ export class PhaserRenderer implements IRenderer {
                     this.scene.textures.get(textureKey).key !== '__MISSING';
 
                 if (!wasLoaded) {
-                    const textureUrl = entity?.texture ? this.getAssetUrl?.(entity.texture) : undefined;
+                    const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
                     if (textureUrl) {
-                        this.loadTexture(textureKey, textureUrl, entity?.metadata).then(() => {
+                        // Find asset for metadata
+                        const assets = this.core.getAssets();
+                        const asset = assets.find(a => a.name === entity?.texture || a.id === entity?.texture);
+                        this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (sprite && !sprite.scene) return;
                             setSize(sprite);
                         }).catch((err: Error) => {
@@ -1386,6 +1391,52 @@ export class PhaserRenderer implements IRenderer {
                 const fullWidth = bg.width;
                 fg.width = fullWidth * ratio;
             }
+        }
+    }
+
+    private updateBars(): void {
+        if (!this.scene) return;
+
+        // Get entities from the appropriate source (Runtime or Editor)
+        const entities = this.isRuntimeMode && this.gameCore?.getRuntimeContext
+            ? this.gameCore.getRuntimeContext()?.entities
+            : this.core.getEntities();
+
+        if (!entities) return;
+
+        // Iterate all entities and update bars
+        for (const [id, entity] of entities) {
+            // Check if this is a bar UI element
+            const isUI = entity.variables?.find((v: any) => v.name === "isUI")?.value === true;
+            const uiType = entity.variables?.find((v: any) => v.name === "uiType")?.value;
+
+            if (!isUI || uiType !== "bar") continue;
+
+            // Get bar configuration
+            const sourceEntityId = String(entity.variables?.find((v: any) => v.name === "uiSourceEntity")?.value || "");
+            const valueVarName = String(entity.variables?.find((v: any) => v.name === "uiValueVar")?.value || "");
+            const maxVarName = String(entity.variables?.find((v: any) => v.name === "uiMaxVar")?.value || "");
+
+            if (!sourceEntityId || !valueVarName || !maxVarName) continue;
+
+            // Resolve source entity (check both global and scene entities)
+            let sourceEntity: any = null;
+            if (this.isRuntimeMode && this.gameCore?.getRuntimeContext) {
+                const ctx = this.gameCore.getRuntimeContext();
+                sourceEntity = ctx?.entities.get(sourceEntityId);
+            } else {
+                sourceEntity = this.core.getGlobalEntities().get(sourceEntityId)
+                    || this.core.getEntities().get(sourceEntityId);
+            }
+
+            if (!sourceEntity) continue;
+
+            // Get current and max values
+            const currentValue = sourceEntity.variables?.find((v: any) => v.name === valueVarName)?.value ?? 0;
+            const maxValue = sourceEntity.variables?.find((v: any) => v.name === maxVarName)?.value ?? 1;
+
+            // Update the bar visual
+            this.setBarValue(id, Number(currentValue), Number(maxValue));
         }
     }
 
@@ -1607,6 +1658,12 @@ export class PhaserRenderer implements IRenderer {
         };
     }
 
+    private getAssetUrl(key: string): string | undefined {
+        const assets = this.core.getAssets();
+        const asset = assets.find(a => a.name === key || a.id === key);
+        return asset?.url;
+    }
+
     // ===== Coordinate Transformation =====
 
     /**
@@ -1669,7 +1726,9 @@ export class PhaserRenderer implements IRenderer {
 
         // 타일은 항상 엔티티 아래에 표시 (엔티티는 최소 depth 10)
         this.baseLayer.setDepth(-100);
+        this.baseLayer.setDepth(-100);
         this.previewLayer.setDepth(-50);
+        this.previewLayer.setAlpha(0.6); // Translucent preview
     }
 
     setTile(x: number, y: number, tileIndex: number): void {
@@ -1697,8 +1756,8 @@ export class PhaserRenderer implements IRenderer {
     setPreviewTile(x: number, y: number, tileIndex: number): void {
         if (!this.previewLayer || !this.map || !this.tileset || !this.previewLayer.layer) return;
 
-        // 湲곗〈 ?꾨━酉??쒓굅
-        this.previewLayer.fill(-1);
+        // 湲곗〈 ?꾨━酉??쒓굅 - Removed to allow multiple preview tiles (Shape Tool)
+        // this.previewLayer.fill(-1);
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;

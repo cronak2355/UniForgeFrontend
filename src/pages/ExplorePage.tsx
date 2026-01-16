@@ -55,7 +55,7 @@ const ExplorePage = () => {
                 description: g.description,
                 author: "Unknown", // TODO: Fetch from authorId
                 authorId: g.authorId,
-                image: getCloudFrontUrl(g.thumbnailUrl) || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400",
+                image: getCloudFrontUrl(g.thumbnailUrl) || "",
                 likes: 0,
                 players: "0",
                 type: "기타", // Default genre
@@ -302,8 +302,34 @@ const ExplorePage = () => {
                                         e.currentTarget.style.borderColor = '#222';
                                     }}
                                 >
-                                    <div style={{ height: '160px', overflow: 'hidden', position: 'relative' }}>
-                                        <img src={game.image} alt={game.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.currentTarget.style.display = 'none'} />
+                                    {/* Thumbnail rendering logic */}
+                                    <div style={{ height: '160px', overflow: 'hidden', position: 'relative', backgroundColor: '#111' }}>
+                                        {game.image ? (
+                                            <img
+                                                src={game.image}
+                                                alt={game.title}
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none';
+                                                    if (e.currentTarget.parentElement) {
+                                                        const placeholder = document.createElement('div');
+                                                        placeholder.style.width = '100%';
+                                                        placeholder.style.height = '100%';
+                                                        placeholder.style.display = 'flex';
+                                                        placeholder.style.alignItems = 'center';
+                                                        placeholder.style.justifyContent = 'center';
+                                                        placeholder.style.color = '#444';
+                                                        placeholder.innerHTML = '<i class="fa-solid fa-gamepad" style="font-size: 2rem;"></i>';
+                                                        e.currentTarget.parentElement.appendChild(placeholder);
+                                                    }
+                                                }}
+                                            />
+                                        ) : (
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444' }}>
+                                                <i className="fa-solid fa-gamepad" style={{ fontSize: '2rem' }}></i>
+                                            </div>
+                                        )}
+
                                         <div style={{
                                             position: 'absolute', bottom: 0, left: 0, width: '100%', padding: '40px 16px 16px',
                                             background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)'
@@ -360,8 +386,32 @@ const ExplorePage = () => {
                             <i className="fa-solid fa-xmark"></i>
                         </button>
 
-                        <div style={{ height: '300px', position: 'relative' }}>
-                            <img src={selectedGame.image} alt={selectedGame.title} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} onError={(e) => e.currentTarget.style.display = 'none'} />
+                        <div style={{ height: '300px', position: 'relative', backgroundColor: '#000' }}>
+                            {selectedGame.image ? (
+                                <img
+                                    src={selectedGame.image}
+                                    alt={selectedGame.title}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        if (e.currentTarget.parentElement) {
+                                            const placeholder = document.createElement('div');
+                                            placeholder.style.width = '100%';
+                                            placeholder.style.height = '100%';
+                                            placeholder.style.display = 'flex';
+                                            placeholder.style.alignItems = 'center';
+                                            placeholder.style.justifyContent = 'center';
+                                            placeholder.style.color = '#444';
+                                            placeholder.innerHTML = '<i class="fa-solid fa-gamepad" style="font-size: 4rem;"></i>';
+                                            e.currentTarget.parentElement.appendChild(placeholder);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444' }}>
+                                    <i className="fa-solid fa-gamepad" style={{ fontSize: '4rem' }}></i>
+                                </div>
+                            )}
                             <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', padding: '2rem', background: 'linear-gradient(to top, #111, transparent)' }}>
                                 <span style={{ backgroundColor: '#2563eb', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '8px', display: 'inline-block' }}>{selectedGame.type}</span>
                                 <h2 style={{ fontSize: '3rem', fontWeight: 700, margin: '8px 0 4px' }}>{selectedGame.title}</h2>
@@ -376,7 +426,7 @@ const ExplorePage = () => {
                                         <button style={{
                                             flex: 1, backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '16px', borderRadius: '8px',
                                             fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                                        }} onClick={() => navigate(`/editor/${selectedGame.id}`)}>
+                                        }} onClick={() => navigate(`/play/${selectedGame.id}`)}>
                                             <i className="fa-solid fa-play"></i> 플레이
                                         </button>
                                         <button style={{ padding: '16px 24px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -238,7 +238,19 @@ export default function ProjectsPage() {
                                     {/* Thumbnail (16:9) */}
                                     <div className="aspect-video bg-[#111] relative border-b border-[#333] rounded-t-lg overflow-hidden">
                                         {game.thumbnailUrl ? (
-                                            <img src={getCloudFrontUrl(game.thumbnailUrl)} alt={game.title} className="w-full h-full object-cover" />
+                                            <img
+                                                src={getCloudFrontUrl(game.thumbnailUrl)}
+                                                alt={game.title}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null; // Prevent infinite loop
+                                                    e.currentTarget.parentElement!.innerHTML = `
+                                                        <div class="w-full h-full flex items-center justify-center text-gray-600">
+                                                            <i class="fa-solid fa-image text-4xl"></i>
+                                                        </div>
+                                                    `;
+                                                }}
+                                            />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-gray-600">
                                                 <i className="fa-solid fa-image text-4xl"></i>

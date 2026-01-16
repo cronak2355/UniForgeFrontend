@@ -11,6 +11,7 @@ import type { EditorVariable } from "../types/Variable";
 import type { InputState } from "./RuntimePhysics";
 import { EventBus } from "./events/EventBus";
 import { ActionRegistry } from "./events/ActionRegistry";
+import { ConditionRegistry } from "./events/ConditionRegistry";
 import { RuntimeContext } from "./RuntimeContext";
 import { ExecutionPipeline } from "./ExecutionPipeline";
 import { RuntimeEntity } from "./RuntimeEntity";
@@ -151,12 +152,12 @@ export class GameCore {
         const entityId = event.entityId ?? event.data?.entityA ?? event.data?.entityId;
 
         // Map EventBus event types to Logic component event types
+        // NOTE: OnStart is handled by LogicSystem directly, not here (to avoid duplicate execution)
         const eventMapping: Record<string, string[]> = {
             "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
             "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
             "COLLISION_EXIT": ["OnCollisionExit"],
             "ENTITY_DIED": ["OnDestroy"],
-            "OnStart": ["OnStart"],
         };
 
         const mappedEvents = eventMapping[eventType];
@@ -193,6 +194,21 @@ export class GameCore {
                     renderer: this.renderer,
                 }
             };
+
+            // Check conditions before executing
+            const conditions = logicData.conditions ?? [];
+            const logic = (logicData as any).conditionLogic ?? "AND";
+
+            let pass = true;
+            if (conditions.length > 0) {
+                if (logic === "OR") {
+                    pass = conditions.some((c: any) => ConditionRegistry.check(c.type, ctx, c));
+                } else {
+                    pass = conditions.every((c: any) => ConditionRegistry.check(c.type, ctx, c));
+                }
+            }
+
+            if (!pass) continue;
 
             // Execute actions
             for (const action of logicData.actions ?? []) {
@@ -319,6 +335,10 @@ export class GameCore {
             events: options.events,
         });
         this.renderer.update(id, entity.x, entity.y, entity.z, entity.rotation); // Sync initial transform
+        // [FIX] Only apply scale if it differs from default (1,1) to avoid overriding setDisplaySize
+        if (entity.scaleX !== 1 || entity.scaleY !== 1) {
+            this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
+        }
 
         // 2. Physics Reg (Immediate)
         const baseWidth = options.width ?? 40;
@@ -400,7 +420,7 @@ export class GameCore {
      * Start a module for an entity by module ID or name.
      * Called by RunModule action.
      */
-    startModule(entityId: string, moduleIdOrName: string): boolean {
+    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>): boolean {
         // Find the module from moduleLibrary
         const module = this.moduleLibrary.find(
             (m) => m.id === moduleIdOrName || m.name === moduleIdOrName
@@ -410,7 +430,7 @@ export class GameCore {
             return false;
         }
 
-        this.moduleRuntime.startModule(entityId, module);
+        this.moduleRuntime.startModule(entityId, module, initialVariables);
         return true;
     }
 

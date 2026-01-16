@@ -406,6 +406,10 @@ export class EditorState implements IGameState {
 
     setSelectedEntity(entity: EditorEntity | null) {
         this.selectedEntity = entity;
+        // 엔티티 선택 시 에셋 선택 해제 (프리팹 인스펙터 닫기)
+        if (entity !== null) {
+            this.selectedAsset = null;
+        }
         this.notify();
     }
 
@@ -461,6 +465,49 @@ export class EditorState implements IGameState {
             this.selectedEntity = safeCopy;
         }
         this.notify();
+    }
+
+    /**
+     * Update an entity wherever it exists (in any scene or global entities).
+     * This prevents entities from being duplicated across scenes.
+     */
+    updateEntityAnywhere(entity: EditorEntity) {
+        this.snapshot();
+        const normalized = syncLegacyFromLogic(ensureEntityLogic(entity));
+        const safeCopy = JSON.parse(JSON.stringify(normalized)) as EditorEntity;
+
+        // Check if entity exists in global entities
+        if (this.globalEntities.has(entity.id)) {
+            this.globalEntities.set(entity.id, safeCopy);
+            if (this.selectedEntity?.id === entity.id) {
+                this.selectedEntity = safeCopy;
+            }
+            this.notify();
+            return;
+        }
+
+        // Search all scenes for the entity
+        for (const [sceneId, scene] of this.scenes) {
+            if (scene.entities.has(entity.id)) {
+                scene.entities.set(entity.id, safeCopy);
+                if (this.selectedEntity?.id === entity.id) {
+                    this.selectedEntity = safeCopy;
+                }
+                this.notify();
+                return;
+            }
+        }
+
+        // If entity doesn't exist anywhere, add it to the current scene
+        console.warn(`[EditorCore] Entity ${entity.id} not found in any scene, adding to current scene`);
+        const scene = this.getCurrentScene();
+        if (scene) {
+            scene.entities.set(entity.id, safeCopy);
+            if (this.selectedEntity?.id === entity.id) {
+                this.selectedEntity = safeCopy;
+            }
+            this.notify();
+        }
     }
 
     updateEntityPosition(id: string, x: number, y: number) {
