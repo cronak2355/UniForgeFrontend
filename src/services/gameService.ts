@@ -162,7 +162,8 @@ export async function uploadGameThumbnail(gameId: string, file: File): Promise<s
     if (!uploadRes.ok) throw new Error("Failed to upload image to S3");
 
     // 3. Register Image Resource (Optional for now but good practice)
-    await fetch(`${API_BASE}/images`, {
+    // 3. Register Image Resource
+    const regRes = await fetch(`${API_BASE}/images`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -172,10 +173,14 @@ export async function uploadGameThumbnail(gameId: string, file: File): Promise<s
             ownerType: "GAME",
             ownerId: gameId,
             imageType: "thumbnail",
-            s3Key: s3Key,
-            isActive: true
+            s3Key: s3Key
         })
     });
+
+    if (!regRes.ok) {
+        console.error("Failed to register image resource", await regRes.text());
+        throw new Error("Failed to register image resource");
+    }
 
     // 4. Update Game with Proxy URL
     // Use the backend proxy endpoint we just created
