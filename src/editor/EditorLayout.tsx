@@ -1492,45 +1492,192 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 />
             )}
 
-            {/* Drag & Drop Modal - Only in Dev Mode */}
+            {/* Drag & Drop Modal - New Modern Design */}
             {!isPlayMode && dropModalFiles.length > 0 && (
-                <div className="modal-overlay">
-                    <div className="modal-content" style={{ background: colors.bgPrimary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}>
-                        <h3>Add Asset</h3>
-                        <div style={{ marginBottom: 16 }}>
-                            <label style={{ display: "block", marginBottom: 8, fontSize: 13, color: colors.textSecondary }}>Asset Name</label>
-                            <input
-                                type="text"
-                                value={dropAssetName}
-                                onChange={(e) => setDropAssetName(e.target.value)}
-                                style={{ width: "100%", padding: 8, background: colors.bgSecondary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}
-                                autoFocus
-                            />
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 2000,
+                    background: 'rgba(0,0,0,0.75)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <div style={{
+                        width: '420px',
+                        background: '#18181b', // Zero-dark
+                        border: '1px solid #27272a',
+                        borderRadius: '16px',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '16px 20px',
+                            borderBottom: '1px solid #27272a',
+                            background: '#27272a', // Slightly lighter header
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px'
+                        }}>
+                            <div style={{
+                                width: '32px', height: '32px', borderRadius: '8px',
+                                background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'white', fontSize: '14px',
+                                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)'
+                            }}>
+                                <i className="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f4f4f5' }}>
+                                새 에셋 추가 (Import Asset)
+                            </h3>
                         </div>
-                        <div style={{ marginBottom: 24 }}>
-                            <label style={{ display: "block", marginBottom: 8, fontSize: 13, color: colors.textSecondary }}>Type (Tag)</label>
-                            <select
-                                value={dropAssetTag}
-                                onChange={(e) => setDropAssetTag(e.target.value)}
-                                style={{ width: "100%", padding: 8, background: colors.bgSecondary, border: `1px solid ${colors.borderColor}`, color: colors.textPrimary }}
-                            >
-                                <option value="Character">Character</option>
-                                <option value="Tile">Tile (Background)</option>
-                                <option value="Prop">Prop</option>
-                                <option value="Background">Background</option>
-                                <option value="Effect">Effect</option>
-                                <option value="UI">UI</option>
-                                <option value="Sound">Sound</option>
-                            </select>
+
+                        {/* Preview Area */}
+                        <div style={{
+                            padding: '24px',
+                            background: '#09090b', // Deep dark for preview
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            minHeight: '180px',
+                            borderBottom: '1px solid #27272a'
+                        }}>
+                            {dropModalFiles[0] && (dropModalFiles[0].type.startsWith('image/') ? (
+                                <img
+                                    src={URL.createObjectURL(dropModalFiles[0])}
+                                    alt="Preview"
+                                    style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '160px',
+                                        borderRadius: '8px',
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+                                        objectFit: 'contain'
+                                    }}
+                                />
+                            ) : (
+                                <div style={{ textAlign: 'center', color: '#71717a' }}>
+                                    <i className="fa-solid fa-file-code" style={{ fontSize: '48px', marginBottom: '12px', color: '#52525b' }}></i>
+                                    <p style={{ fontSize: '13px' }}>{dropModalFiles[0].name}</p>
+                                </div>
+                            ))}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+
+                        {/* Form Area */}
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#71717a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Asset Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={dropAssetName}
+                                    onChange={(e) => setDropAssetName(e.target.value)}
+                                    placeholder="Enter asset name..."
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 14px',
+                                        background: '#27272a',
+                                        border: '1px solid #3f3f46',
+                                        borderRadius: '8px',
+                                        color: '#e4e4e7',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        transition: 'all 0.2s',
+                                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)'
+                                    }}
+                                    onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.background = '#3f3f46'; }}
+                                    onBlur={(e) => { e.target.style.borderColor = '#3f3f46'; e.target.style.background = '#27272a'; }}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#f4f4f5', marginBottom: '12px' }}>
+                                    카테고리 (타입)
+                                </label>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {[
+                                        { label: "캐릭터", value: "Character" },
+                                        { label: "배경/타일", value: "Tile" },
+                                        { label: "무기/장비", value: "Item" },
+                                        { label: "오브젝트", value: "Prop" },
+                                        { label: "VFX", value: "Effect" },
+                                        { label: "UI", value: "UI" },
+                                        { label: "사운드", value: "Sound" },
+                                        { label: "기타", value: "Default" }
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setDropAssetTag(opt.value)}
+                                            style={{
+                                                padding: '8px 16px',
+                                                borderRadius: '9999px',
+                                                fontSize: '13px',
+                                                fontWeight: 500,
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                background: dropAssetTag === opt.value ? '#3b82f6' : '#27272a',
+                                                color: dropAssetTag === opt.value ? 'white' : '#a1a1aa',
+                                                boxShadow: dropAssetTag === opt.value ? '0 4px 6px -1px rgba(59, 130, 246, 0.4)' : 'inset 0 1px 2px rgba(0,0,0,0.2)'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (dropAssetTag !== opt.value) {
+                                                    e.currentTarget.style.background = '#3f3f46';
+                                                    e.currentTarget.style.color = '#e4e4e7';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (dropAssetTag !== opt.value) {
+                                                    e.currentTarget.style.background = '#27272a';
+                                                    e.currentTarget.style.color = '#a1a1aa';
+                                                }
+                                            }}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{
+                            padding: '16px 24px',
+                            borderTop: '1px solid #27272a',
+                            background: '#18181b', // Footer matches body
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '12px'
+                        }}>
                             <button
-                                onClick={() => setDropModalFiles([])}
-                                style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${colors.borderColor}`, color: colors.textPrimary, cursor: "pointer" }}
+                                onClick={() => {
+                                    setDropModalFiles([]);
+                                    setDropAssetName("");
+                                }}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: 'transparent',
+                                    border: '1px solid #3f3f46',
+                                    borderRadius: '8px',
+                                    color: '#a1a1aa',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = '#27272a'; e.currentTarget.style.color = '#e4e4e7'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a1a1aa'; }}
                             >
-                                Cancel
+                                취소 (Cancel)
                             </button>
                             <button
+                                disabled={isUploadingAsset}
                                 onClick={() => {
                                     const file = dropModalFiles[0];
                                     if (file) {
@@ -1547,18 +1694,6 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                             core.addAsset({
                                                 id: res.id,
                                                 tag: res.tag,
-                                                // Use ID as name for Phaser cache key safety if name has special chars
-                                                // But we want to display the real name in the UI.
-                                                // EditorCore likely uses 'name' for display and 'id' for logic?
-                                                // Actually, PhaserRenderer uses asset.url to load. 
-                                                // If 'name' is used as key, let's keep it but maybe ensuring unique keys?
-                                                // Let's verify if core.addAsset uses name as key.
-                                                // To be safe, let's pass the original name for UI but ensure URL is safe.
-                                                // The issue "Failed to process file" might be Phaser failing to parse the URL even if encoded?
-                                                // Or maybe a race condition.
-                                                // Let's explicitly decode/encode checks. 
-                                                // Wait, if we use res.url it SHOULD be fine. 
-                                                // Converting name to safe string might help if name is used as key.
                                                 name: res.name,
                                                 url: res.url,
                                                 idx: -1,
@@ -1567,15 +1702,40 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                             setDropModalFiles([]);
                                         }).catch(err => {
                                             console.error(err);
-                                            alert("Upload failed");
+                                            alert("Upload failed: " + err.message);
                                         }).finally(() => {
                                             setIsUploadingAsset(false);
                                         });
                                     }
                                 }}
-                                style={{ padding: "8px 16px", background: colors.accent, border: "none", color: "white", cursor: "pointer" }}
+                                style={{
+                                    padding: '10px 24px',
+                                    background: isUploadingAsset ? '#2563eb' : '#3b82f6',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    cursor: isUploadingAsset ? 'not-allowed' : 'pointer',
+                                    opacity: isUploadingAsset ? 0.7 : 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    transition: 'background 0.2s',
+                                    boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.4)'
+                                }}
+                                onMouseEnter={(e) => { if (!isUploadingAsset) e.currentTarget.style.background = '#2563eb'; }}
+                                onMouseLeave={(e) => { if (!isUploadingAsset) e.currentTarget.style.background = '#3b82f6'; }}
                             >
-                                Add Asset
+                                {isUploadingAsset ? (
+                                    <>
+                                        <i className="fa-solid fa-circle-notch fa-spin"></i> Uploading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fa-solid fa-check"></i> 추가하기 (Add)
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
