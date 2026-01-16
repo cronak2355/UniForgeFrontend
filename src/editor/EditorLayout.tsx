@@ -29,6 +29,7 @@ import { SaveGameModal } from "../AssetsEditor/components/SaveGameModal";
 import { saveGameVersion, updateGameInfo } from "../services/gameService";
 import { AiWizardModal } from "../AssetsEditor/components/AiWizardModal";
 import { generateSingleImage } from "../AssetsEditor/services/AnimationService";
+import { ComponentHelper } from "./inspector/ComponentHelper";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -340,6 +341,8 @@ function EditorLayoutInner() {
     // AI Wizard State
     const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
     const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+    const [isComponentHelperOpen, setIsComponentHelperOpen] = useState(false);
+    const [isComponentHelperHover, setIsComponentHelperHover] = useState(false);
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
@@ -808,6 +811,14 @@ function EditorLayoutInner() {
         setDropAssetTag("Character");
         setIsUploadingAsset(false);
         setUploadError("");
+    };
+
+    const handleInspectorUpdate = (updatedEntity: EditorEntity) => {
+        const normalized = syncLegacyFromLogic(updatedEntity);
+        core.addEntity(normalized as any);
+        core.setSelectedEntity(normalized as any);
+        setLocalSelectedEntity(normalized);
+        setIsDirty(true);
     };
 
     // Auto-Load Asset from URL (when returning from Asset Editor)
@@ -1335,6 +1346,7 @@ function EditorLayoutInner() {
                     borderLeft: `2px solid ${colors.borderColor}`,
                     display: 'flex',
                     flexDirection: 'column',
+                    position: 'relative',
                 }}>
                     <div style={{
                         height: '32px',
@@ -1360,19 +1372,57 @@ function EditorLayoutInner() {
                         {localSelectedEntity && (
                             <InspectorPanel
                                 entity={localSelectedEntity}
-                                onUpdateEntity={(updatedEntity) => {
-                                    const normalized = syncLegacyFromLogic(updatedEntity);
-                                    core.addEntity(normalized as any);
-                                    core.setSelectedEntity(normalized as any);
-                                    setLocalSelectedEntity(normalized);
-                                    setIsDirty(true);
-                                }}
-                            />
+                                onUpdateEntity={handleInspectorUpdate}
+                            /> // 여기에있던 코드 위로 옮겼어요
                         )}
+                        
                     </div>
+                    <button
+                        type="button"
+                        aria-label="Add inspector item"
+                        onClick={() => setIsComponentHelperOpen(true)}
+                        style={{
+                            position: 'absolute',
+                            right: '24px',
+                            bottom: '22px',
+                            width: isComponentHelperHover ? '160px' : '44px',
+                            height: '44px',
+                            borderRadius: '999px',
+                            border: `1px solid ${colors.borderColor}`,
+                            background: colors.accent,
+                            color: colors.textPrimary,
+                            fontSize: '24px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            boxShadow: '0 8px 16px rgba(0,0,0,0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            padding: '0 12px',
+                            transition: 'width 0.2s ease',
+                            overflow: 'hidden',
+                        }}
+                        onMouseEnter={() => setIsComponentHelperHover(true)}
+                        onMouseLeave={() => setIsComponentHelperHover(false)}
+                    >
+                        <span>+</span>
+                        {isComponentHelperHover && (
+                            <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                컴포넌트 마술사
+                            </span>
+                        )}
+                    </button>
                 </div>
 
             </div>
+
+            <ComponentHelper
+                isOpen={isComponentHelperOpen}
+                onClose={() => setIsComponentHelperOpen(false)}
+                entity={localSelectedEntity}
+                onUpdateEntity={handleInspectorUpdate}
+            />
 
             {/* AI Wizard Modal */}
             <AiWizardModal

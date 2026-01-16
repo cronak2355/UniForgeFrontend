@@ -19,7 +19,7 @@ type Props = {
     onUpdateEntity: (entity: EditorEntity) => void;
 };
 
-const EVENT_TYPES = [
+export const EVENT_TYPES = [
     { value: "OnStart", label: "OnStart" },
     { value: "OnUpdate", label: "OnUpdate" },
     { value: "OnDestroy", label: "OnDestroy" },
@@ -28,31 +28,39 @@ const EVENT_TYPES = [
     { value: "OnClick", label: "OnClick" },
 ];
 
-const ACTION_LABELS: Record<string, string> = {
-    Move: "Move",
-    Jump: "Jump",
-    Wait: "Wait",
-    MoveToward: "MoveToward",
-    ChaseTarget: "ChaseTarget",
-    Attack: "Attack",
-    FireProjectile: "FireProjectile",
-    TakeDamage: "TakeDamage",
-    Heal: "Heal",
-    SetVar: "SetVar",
-    Enable: "Enable",
-    ChangeScene: "ChangeScene",
-    Rotate: "Rotate",
-    Pulse: "Pulse",
-    ShowDialogue: "ShowDialogue",
-    PlaySound: "PlaySound",
-    EmitEventSignal: "EmitEventSignal",
-    ClearSignal: "ClearSignal",
-    RunModule: "RunModule",
-    SpawnEntity: "Spawn Entity",
-    PlayAnimation: "Play Animation",
+export const ACTION_LABELS: Record<string, string> = {
+    Move: "이동",
+    Jump: "점프",
+    Wait: "대기",
+    MoveToward: "목표이동",
+    ChaseTarget: "추적24시",
+    Attack: "공격",
+    FireProjectile: "발사체 발사",
+    TakeDamage: "피해 입기",
+    Heal: "회복",
+    SetVar: "변수 설정",
+    Enable: "활성",
+    ChangeScene: "씬 전환",
+    Log: "로그",
+    Rotate: "회전",
+    Pulse: "펄스",
+    ShowDialogue: "대화 표시",
+    PlaySound: "사운드 재생",
+    EmitEventSignal: "이벤트 신호 보내기",
+    ClearSignal: "신호 해제",
+    IncrementVar: "변수 증가",
+    Disable: "비활성",
+    PlayParticle: "파티클 생성",
+    StartParticleEmitter: "파티클 이미터 시작",
+    StopParticleEmitter: "파티클 이미터 종료",
+    If: "조건문",
+    RunModule: "모듈 실행",
+    OpenUrl: "url 열기",
+    SpawnEntity: "엔티티 생성",
+    PlayAnimation: "애니메이션 동작",
 };
 
-const CONDITION_TYPES = [
+export const CONDITION_TYPES = [
     { value: "IsGrounded", label: "State: Grounded" },
     { value: "IsAlive", label: "State: Alive" },
     { value: "VarEquals", label: "==" },
@@ -65,7 +73,7 @@ const CONDITION_TYPES = [
     { value: "InputDown", label: "Input (Down)" },
 ];
 
-const INPUT_KEY_OPTIONS = [
+export const INPUT_KEY_OPTIONS = [
     { value: "ArrowLeft", label: "ArrowLeft" },
     { value: "ArrowRight", label: "ArrowRight" },
     { value: "ArrowUp", label: "ArrowUp" },
