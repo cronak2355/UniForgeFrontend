@@ -1107,21 +1107,31 @@ export class PhaserRenderer implements IRenderer {
         const baseH = hVar ? Number(hVar.value) : (obj as any).height;
 
         const setSize = (sprite: Phaser.GameObjects.Sprite) => {
-            if (keepAspectRatio) {
-                const tex = sprite.texture.getSourceImage();
-                if (tex) {
-                    const ratio = tex.width / tex.height;
-                    const targetRatio = baseW / baseH;
-                    if (ratio > targetRatio) {
-                        sprite.setDisplaySize(baseW, baseW / ratio);
+            // [FIX] Only enforce display size if variables EXPLICITLY specify width/height.
+            // Otherwise, respect the entity's current transform scale (set by GameCore).
+            if (wVar || hVar || keepAspectRatio) {
+                if (keepAspectRatio) {
+                    const tex = sprite.texture.getSourceImage();
+                    if (tex) {
+                        const ratio = tex.width / tex.height;
+                        const targetRatio = baseW / baseH;
+                        if (ratio > targetRatio) {
+                            sprite.setDisplaySize(baseW, baseW / ratio);
+                        } else {
+                            sprite.setDisplaySize(baseH * ratio, baseH);
+                        }
                     } else {
-                        sprite.setDisplaySize(baseH * ratio, baseH);
+                        sprite.setDisplaySize(baseW, baseH);
                     }
                 } else {
                     sprite.setDisplaySize(baseW, baseH);
                 }
             } else {
-                sprite.setDisplaySize(baseW, baseH);
+                // If no explicit size variables, DO NOT reset display size.
+                // Phaser's setTexture automatically resets frame size, but we want to KEEP scale.
+                // GameCore has already applied scaleX/scaleY.
+                // If we setDisplaySize(w, h) using native w/h, we force scale to 1.
+                // So we do nothing here, letting GameCore's scale prevail.
             }
         };
 
