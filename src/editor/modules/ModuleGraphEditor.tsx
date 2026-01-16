@@ -560,7 +560,7 @@ export function ModuleGraphEditor({
                 left: node.x,
                 top: node.y,
                 width: NODE_WIDTH,
-                height: nodeHeight,
+                minHeight: nodeHeight,
                 background: colors.bgSecondary,
                 border: `1px solid ${colors.borderColor}`,
                 borderRadius: 8,
