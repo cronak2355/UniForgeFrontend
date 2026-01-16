@@ -427,7 +427,7 @@ export class PhaserRenderer implements IRenderer {
     // ===== Interaction Callbacks =====
     onEntityClick?: (id: string, worldX: number, worldY: number) => void;
     onPointerDown?: (worldX: number, worldY: number, worldZ: number) => void;
-    onPointerMove?: (worldX: number, worldY: number, worldZ: number) => void;
+    onPointerMove?: (worldX: number, worldY: number, worldZ: number, isInside: boolean) => void;
     onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
     onScroll?: (deltaY: number, screenX: number, screenY: number) => void;
     onUpdateCallback?: (time: number, delta: number) => void;
@@ -1866,7 +1866,7 @@ export class PhaserRenderer implements IRenderer {
             const result = getWorldPos(e.clientX, e.clientY);
             if (result && this.onPointerMove) {
                 const { world } = result;
-                this.onPointerMove(world.x, world.y, world.z);
+                this.onPointerMove(world.x, world.y, world.z, result.inside);
             }
         };
 

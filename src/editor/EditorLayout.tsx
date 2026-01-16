@@ -355,7 +355,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     const [isComponentHelperHover, setIsComponentHelperHover] = useState(false);
 
     // Tiling Tools State
-    const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("drawing");
+    const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("");
     const [selectedTileIndex, setSelectedTileIndex] = useState(0);
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {

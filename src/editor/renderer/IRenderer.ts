@@ -227,7 +227,7 @@ export interface IRenderer {
     /**
      * 포인터 이동 시 호출 (월드 좌표)
      */
-    onPointerMove?: (worldX: number, worldY: number, worldZ: number) => void;
+    onPointerMove?: (worldX: number, worldY: number, worldZ: number, isInside: boolean) => void;
 
     /**
      * 포인터 업 시 호출 (월드 좌표)
