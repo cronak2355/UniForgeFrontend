@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { colors } from "../constants/colors";
 import type { Asset } from "../types/Asset";
+import { editorCore } from "../EditorCore";
 
 const TILE_SIZE = 32;
 const TILESET_COLS = 16;
@@ -78,6 +79,38 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         }
     };
 
+    const handleAddColorTile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const color = e.target.value;
+        if (!color) return;
+
+        // Create a 32x32 colored tile via Canvas
+        const offCanvas = document.createElement("canvas");
+        offCanvas.width = TILE_SIZE;
+        offCanvas.height = TILE_SIZE;
+        const ctx = offCanvas.getContext("2d");
+        if (ctx) {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        }
+
+        const dataUrl = offCanvas.toDataURL("image/png");
+        const newAssetId = `color-${Date.now()}`;
+
+        // Add virtual asset to core
+        editorCore.addAsset({
+            id: newAssetId,
+            name: `Color ${color}`,
+            tag: "Tile",
+            url: dataUrl,
+            idx: -1,
+            metadata: { isColorTile: true, color }
+        });
+
+        // The auto-selection will happen via index in the next render
+        // Since it's appended to tileAssets, the new index is tileAssets.length
+        onSelectTile(tileAssets.length);
+    };
+
     // Calculate Selection Highlight Position
     const selX = (selectedTileIndex % TILESET_COLS) * TILE_SIZE;
     const selY = Math.floor(selectedTileIndex / TILESET_COLS) * TILE_SIZE;
@@ -126,6 +159,39 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
                         }} />
                     )}
                 </div>
+            </div>
+
+            {/* Color Picker Footer */}
+            <div style={{
+                padding: "8px",
+                borderTop: `1px solid ${colors.borderColor}`,
+                background: colors.bgSecondary,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+            }}>
+                <div style={{ position: 'relative', width: '24px', height: '24px', borderRadius: '4px', overflow: 'hidden', border: `1px solid ${colors.borderColor}` }}>
+                    <input
+                        type="color"
+                        onChange={handleAddColorTile}
+                        style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            left: '-5px',
+                            width: '40px',
+                            height: '40px',
+                            cursor: 'pointer',
+                            border: 'none',
+                            padding: 0,
+                            background: 'none'
+                        }}
+                        title="Add Color Tile"
+                    />
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: '#fff', fontSize: '10px' }}>
+                        <i className="fa-solid fa-plus"></i>
+                    </div>
+                </div>
+                <span style={{ fontSize: '11px', color: colors.textSecondary }}>Add Custom Color</span>
             </div>
         </div>
     );

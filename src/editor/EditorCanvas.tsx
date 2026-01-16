@@ -366,7 +366,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             cameraDragRef.current = true;
         };
 
-        renderer.onPointerMove = (worldX, worldY) => {
+        renderer.onPointerMove = (worldX: number, worldY: number, _worldZ: number, isInside: boolean) => {
             const prev = lastPointerRef.current;
             lastPointerRef.current = { x: worldX, y: worldY };
 
@@ -375,6 +375,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             const currentTileIndex = selectedTileIndexRef.current;
             const activeDragged = draggedAssetRef.current;
 
+            // 1. Clear preview if mouse is outside or if we have a dragged object
+            if (!isInside || activeDragged) {
+                renderer.clearPreviewTile();
+            }
+
+            // 2. Handling Dragged Entity (Non-Tile)
             if (activeDragged && activeDragged.tag !== "Tile") {
                 if (!ghostIdRef.current) {
                     const ghostId = `__ghost__${crypto.randomUUID()}`;
@@ -413,19 +419,30 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 return;
             }
 
-            if (activeTilingType) {
+            // 3. Tiling Brush Previews (Only if mouse is inside)
+            if (activeTilingType && isInside) {
                 const tx = Math.floor(worldX / TILE_SIZE);
                 const ty = Math.floor(worldY / TILE_SIZE);
+
                 if (activeTilingType === "drawing") {
                     if (isPointerDownRef.current) {
+                        renderer.clearPreviewTile();
                         renderer.setTile(tx, ty, currentTileIndex);
                         core.setTile(tx, ty, currentTileIndex);
                     } else {
+                        renderer.clearPreviewTile();
                         renderer.setPreviewTile(tx, ty, currentTileIndex);
                     }
-                } else if (activeTilingType === "erase" && isPointerDownRef.current) {
-                    renderer.removeTile(tx, ty);
-                    core.removeTile(tx, ty);
+                } else if (activeTilingType === "erase") {
+                    if (isPointerDownRef.current) {
+                        renderer.clearPreviewTile();
+                        renderer.removeTile(tx, ty);
+                        core.removeTile(tx, ty);
+                    } else {
+                        // Show eraser preview (red tile or similar)
+                        renderer.clearPreviewTile();
+                        renderer.setPreviewTile(tx, ty, -1); // Use -1 or special "erase" visual
+                    }
                 } else if (activeTilingType === "shape" && shapeStartRef.current) {
                     // Preview Shape
                     renderer.clearPreviewTile();
@@ -446,6 +463,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 return;
             }
 
+            // 4. Dragging Existing Entities
             if (dragEntityIdRef.current && isPointerDownRef.current) {
                 const id = dragEntityIdRef.current;
                 const offset = dragOffsetRef.current;
@@ -456,6 +474,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 return;
             }
 
+            // 5. Camera Panning
             if (cameraDragRef.current && prev) {
                 const dx = (worldX - prev.x) / 2;
                 const dy = (worldY - prev.y) / 2;
