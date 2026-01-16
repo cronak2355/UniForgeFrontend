@@ -72,6 +72,8 @@ export function ModuleGraphEditor({
   const [newVarName, setNewVarName] = useState("");
   const [newVarType, setNewVarType] = useState<EditorVariable["type"]>("int");
   const [newVarValue, setNewVarValue] = useState("0");
+  const [newVarX, setNewVarX] = useState("0");
+  const [newVarY, setNewVarY] = useState("0");
   const moduleVariables = module.variables ?? [];
   const combinedVariables = useMemo(() => {
     const moduleVars = moduleVariables.map((v) => ({
@@ -88,16 +90,19 @@ export function ModuleGraphEditor({
   const syncModuleVariable = (name: string, value: unknown, explicitType?: EditorVariable["type"]) => {
     if (!name) return;
     let nextType: EditorVariable["type"] = explicitType ?? "string";
-    let nextValue: number | string | boolean = "";
-    if (typeof value === "boolean") {
+    let nextValue: number | string | boolean | { x: number; y: number } = "";
+    if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
+      nextType = "vector2";
+      nextValue = value as { x: number; y: number };
+    } else if (typeof value === "boolean") {
       nextType = "bool";
       nextValue = value;
     } else if (typeof value === "number" && !Number.isNaN(value)) {
       nextType = nextType === "int" || nextType === "float" ? nextType : (Number.isInteger(value) ? "int" : "float");
       nextValue = value;
     } else if (value === undefined || value === null) {
-      nextType = "int";
-      nextValue = 0;
+      nextType = explicitType ?? "int";
+      nextValue = nextType === "vector2" ? { x: 0, y: 0 } : 0;
     } else {
       nextValue = String(value);
     }
@@ -382,7 +387,7 @@ export function ModuleGraphEditor({
 
   const edges = useMemo(() => module.edges, [module.edges]);
 
-    return (
+  return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
       <div style={{ width: 180, padding: "12px", borderRight: `1px solid ${colors.borderColor}` }}>
         <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>Nodes</div>
@@ -408,13 +413,31 @@ export function ModuleGraphEditor({
               <option value="float">float</option>
               <option value="string">string</option>
               <option value="bool">bool</option>
+              <option value="vector2">vector2</option>
             </select>
-            <input
-              placeholder="value"
-              value={newVarValue}
-              onChange={(e) => setNewVarValue(e.target.value)}
-              style={sidebarInput}
-            />
+            {newVarType === "vector2" ? (
+              <div style={{ display: "flex", gap: 4 }}>
+                <input
+                  placeholder="X"
+                  value={newVarX}
+                  onChange={(e) => setNewVarX(e.target.value)}
+                  style={{ ...sidebarInput, width: "50%" }}
+                />
+                <input
+                  placeholder="Y"
+                  value={newVarY}
+                  onChange={(e) => setNewVarY(e.target.value)}
+                  style={{ ...sidebarInput, width: "50%" }}
+                />
+              </div>
+            ) : (
+              <input
+                placeholder="value"
+                value={newVarValue}
+                onChange={(e) => setNewVarValue(e.target.value)}
+                style={sidebarInput}
+              />
+            )}
             <button
               style={paletteButton}
               onClick={() => {
@@ -426,6 +449,10 @@ export function ModuleGraphEditor({
                   value = Number.isNaN(num) ? 0 : num;
                 } else if (newVarType === "bool") {
                   value = newVarValue.toLowerCase() === "true" || newVarValue === "1";
+                } else if (newVarType === "vector2") {
+                  const x = Number(newVarX) || 0;
+                  const y = Number(newVarY) || 0;
+                  value = { x, y };
                 }
                 const entityVarExists = variables.some((v) => v.name === name);
                 syncModuleVariable(name, value, newVarType);
@@ -435,6 +462,8 @@ export function ModuleGraphEditor({
                 }
                 setNewVarName("");
                 setNewVarValue("0");
+                setNewVarX("0");
+                setNewVarY("0");
               }}
             >
               + Add Variable
