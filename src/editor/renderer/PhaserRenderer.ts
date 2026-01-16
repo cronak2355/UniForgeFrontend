@@ -692,6 +692,14 @@ export class PhaserRenderer implements IRenderer {
         this.guideGraphics.lineTo(x, y + 10);
     }
 
+    public getTextureSize(key: string): { width: number, height: number } | null {
+        if (!this.scene || !this.scene.textures) return null;
+        if (!this.scene.textures.exists(key)) return null;
+        const frame = this.scene.textures.getFrame(key);
+        if (!frame) return null;
+        return { width: frame.width, height: frame.height };
+    }
+
     // ===== Entity Management - ID ?숆린??蹂댁옣 =====
 
     spawn(id: string, type: string, x: number, y: number, z: number = 10, options?: SpawnOptions): void {
@@ -759,10 +767,25 @@ export class PhaserRenderer implements IRenderer {
         const uiAlign = uiAlignVar ? String(uiAlignVar.value) : "center";
 
         const widthVar = getVar("width");
-        const width = widthVar ? Number(widthVar.value) : (options?.width ?? 100);
+        let width = widthVar ? Number(widthVar.value) : (options?.width); // Undefined if not set
 
         const heightVar = getVar("height");
-        const height = heightVar ? Number(heightVar.value) : (options?.height ?? 20);
+        let height = heightVar ? Number(heightVar.value) : (options?.height); // Undefined if not set
+
+        // Resolve Native Size if width/height are missing
+        const textureKey = options?.texture || this.core.getEntity(id)?.texture || this.core.getGlobalEntity(id)?.texture;
+
+        if ((width === undefined || height === undefined) && textureKey) {
+            const native = this.getTextureSize(textureKey);
+            if (native) {
+                if (width === undefined) width = native.width;
+                if (height === undefined) height = native.height;
+            }
+        }
+
+        // Final Fallbacks
+        if (width === undefined) width = 100;
+        if (height === undefined) height = width; // Square fallback if only width exists, or 100 if neither
 
         const keepAspectRatioVar = getVar("keepAspectRatio");
         const keepAspectRatio = keepAspectRatioVar?.value === true;
@@ -773,17 +796,17 @@ export class PhaserRenderer implements IRenderer {
                 const tex = sprite.texture.getSourceImage();
                 if (tex) {
                     const ratio = tex.width / tex.height;
-                    const targetRatio = width / height;
+                    const targetRatio = (width as number) / (height as number);
                     if (ratio > targetRatio) {
-                        sprite.setDisplaySize(width, width / ratio);
+                        sprite.setDisplaySize(width as number, (width as number) / ratio);
                     } else {
-                        sprite.setDisplaySize(height * ratio, height);
+                        sprite.setDisplaySize((height as number) * ratio, height as number);
                     }
                 } else {
-                    sprite.setDisplaySize(width, height);
+                    sprite.setDisplaySize(width as number, height as number);
                 }
             } else {
-                sprite.setDisplaySize(width, height);
+                sprite.setDisplaySize(width as number, height as number);
             }
         };
 
