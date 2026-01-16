@@ -1234,37 +1234,29 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                 />
                             )}
                         </div>
-                        {/* Tile Tools & Palette (Visible if Tile asset selected) */}
-                        {selectedAsset && selectedAsset.tag === "Tile" && (
+                        {/* Tile Tools & Palette (Always Visible in Assets Tab) */}
+                        {activeLeftTab === "assets" && (
                             <div style={{
-                                height: '300px', // Fixed height for palette area ??
+                                height: '320px', // Increased fixed height for better visibility
                                 display: 'flex',
                                 flexDirection: 'column',
                                 borderTop: `1px solid ${colors.borderColor}`,
                                 background: colors.bgSecondary
                             }}>
-                                <div style={{
-                                    padding: '8px 12px',
-                                    fontWeight: 600,
-                                    fontSize: '12px',
-                                    borderBottom: `1px solid ${colors.borderColor}`,
-                                    color: colors.textPrimary,
-                                    background: colors.bgTertiary
-                                }}>
-                                    <i className="fa-solid fa-th" style={{ marginRight: '6px' }}></i>
-                                    타일 팔레트 (Tile Palette)
-                                </div>
-                                <div style={{ padding: '8px' }}>
+                                {/* Header removed as requested */}
+                                <div style={{ padding: '8px', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                     <TileToolsPanel
                                         currentTool={tilingTool}
                                         setTool={setTilingTool}
                                     />
-                                    <div style={{ height: '8px' }} />
-                                    <TilePalettePanel
-                                        assets={assets}
-                                        selectedTileIndex={selectedTileIndex}
-                                        onSelectTile={setSelectedTileIndex}
-                                    />
+                                    <div style={{ height: '8px', flexShrink: 0 }} />
+                                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                        <TilePalettePanel
+                                            assets={assets}
+                                            selectedTileIndex={selectedTileIndex}
+                                            onSelectTile={setSelectedTileIndex}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
