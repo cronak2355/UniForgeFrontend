@@ -500,7 +500,7 @@ function UnityBuildPanel({ sceneJson }: { sceneJson: any }) {
 
         // [Fix] Resolve S3 URLs (which need auth) to public/pre-signed URLs before sending to Unity
         // Unity client is not authenticated, so it needs public URLs.
-        const finalJson = await UnitySceneExporter.resolveAssetUrls(sceneJson);
+        const finalJson = await UnitySceneExporter.convertAssetsToDataUris(sceneJson);
 
         await sendToUnity(finalJson);
     };
