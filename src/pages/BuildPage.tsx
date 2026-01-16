@@ -498,9 +498,43 @@ function UnityBuildPanel({ sceneJson }: { sceneJson: any }) {
             return;
         }
 
+        // Debug: Log logic components before sending
+        console.log("[Unity Export] Raw sceneJson:", sceneJson);
+
+        // Check if using GameDataJSON format (has scenes array)
+        if (sceneJson.formatVersion && sceneJson.scenes) {
+            console.log(`[Unity Export] GameDataJSON format v${sceneJson.formatVersion}`);
+            sceneJson.scenes.forEach((scene: any, sceneIdx: number) => {
+                console.log(`[Unity Export] Scene ${sceneIdx}: ${scene.name} (${scene.entities?.length || 0} entities)`);
+                scene.entities?.forEach((entity: any) => {
+                    const hasComponents = entity.components && entity.components.length > 0;
+                    const hasEvents = entity.events && entity.events.length > 0;
+                    if (hasComponents || hasEvents) {
+                        console.log(`[Unity Export] Entity "${entity.name}" logic:`, {
+                            components: entity.components?.length || 0,
+                            events: entity.events?.length || 0,
+                            componentDetails: entity.components,
+                        });
+                    }
+                });
+            });
+        } else {
+            // Legacy format
+            sceneJson.entities?.forEach((entity: any) => {
+                if (entity.events?.length > 0 || entity.components?.length > 0) {
+                    console.log(`[Unity Export] Entity "${entity.name}" logic:`, {
+                        events: entity.events?.length || 0,
+                        components: entity.components?.length || 0,
+                    });
+                }
+            });
+        }
+
         // [Fix] Resolve S3 URLs (which need auth) to public/pre-signed URLs before sending to Unity
         // Unity client is not authenticated, so it needs public URLs.
         const finalJson = await UnitySceneExporter.convertAssetsToDataUris(sceneJson);
+
+        console.log("[Unity Export] Final JSON to send:", finalJson);
 
         await sendToUnity(finalJson);
     };
