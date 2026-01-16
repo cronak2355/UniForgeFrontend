@@ -613,15 +613,16 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             case "1080x1920": w = 1080; h = 1920; break;
             default: w = 0; h = 0; break;
         }
-        let cx = 0;
-        let cy = 0;
+        // Find Main Camera and use its position as the CENTER of the guide frame
         const mainCamera = entities.find(e => e.name === "Main Camera");
-        if (mainCamera) {
-            cx = mainCamera.x;
-            cy = mainCamera.y;
-        }
+        const camX = mainCamera?.x ?? 0;
+        const camY = mainCamera?.y ?? 0;
 
-        renderer.setGuideFrame(w, h, cx, cy);
+        // Calculate top-left corner so that Main Camera is at the center
+        const frameX = camX - w / 2;
+        const frameY = camY - h / 2;
+
+        renderer.setGuideFrame(w, h, frameX, frameY);
     }, [aspectRatio, isRendererReady, entities]);
 
     // Entry Style Colors
