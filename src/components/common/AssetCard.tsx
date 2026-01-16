@@ -48,6 +48,11 @@ const AssetCard: React.FC<AssetCardProps> = ({
                     alt={title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
+                    onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-gray-600');
+                        e.currentTarget.parentElement!.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
+                    }}
                 />
 
                 {/* Overlay Gradient */}
