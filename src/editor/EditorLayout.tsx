@@ -2,6 +2,7 @@
 import { HierarchyPanel } from "./HierarchyPanel";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { AssetAnimationSettings } from "./inspector/AssetAnimationSettings";
+import { PrefabInspector } from "./inspector/PrefabInspector";
 import { RecentAssetsPanel } from "./RecentAssetsPanel";
 import { AssetPanelNew } from "./AssetPanelNew";
 
@@ -1307,12 +1308,16 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             속성 (Inspector)
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                            {/* Asset Animation Settings (when asset is selected) */}
-                            {selectedAsset && (
+                            {/* Asset Animation Settings (when asset is selected, non-prefab) */}
+                            {selectedAsset && selectedAsset.tag !== "Prefab" && (
                                 <AssetAnimationSettings asset={selectedAsset} />
                             )}
-                            {/* Entity Inspector */}
-                            {localSelectedEntity && (
+                            {/* Prefab Inspector (when prefab asset is selected) */}
+                            {selectedAsset && selectedAsset.tag === "Prefab" && (
+                                <PrefabInspector asset={selectedAsset} />
+                            )}
+                            {/* Entity Inspector (only when no asset is selected) */}
+                            {localSelectedEntity && !selectedAsset && (
                                 <InspectorPanel
                                     entity={localSelectedEntity}
                                     onUpdateEntity={(updatedEntity) => {
