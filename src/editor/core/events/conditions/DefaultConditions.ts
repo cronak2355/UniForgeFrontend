@@ -134,9 +134,7 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
 ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const compareValue = Number(params.value);
-    const entityVars = getEntityVariables(ctx);
-    const variable = entityVars.find((v) => v.name === varName);
-    console.log(`[VarGreaterThan] varName='${varName}', compareValue=${compareValue}, entityVars=`, entityVars.map(v => `${v.name}=${v.value}`), 'found=', variable);
+    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
     if (!variable) return false;
     const val = Number(variable.value);
     if (isNaN(val)) return false;
