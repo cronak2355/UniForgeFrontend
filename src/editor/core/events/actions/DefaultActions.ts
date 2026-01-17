@@ -375,64 +375,7 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
     }
 });
 
-ActionRegistry.register("FireProjectile", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
-    if (!renderer) return;
 
-    const ownerId = ctx.entityId;
-    const ownerObj = renderer.getGameObject?.(ownerId);
-    if (!ownerObj) return;
-
-    let targetX = params.targetX as number | undefined;
-    let targetY = params.targetY as number | undefined;
-
-    // Priority 1: targetId (specific entity)
-    if (params.targetId) {
-        const targetObj = renderer.getGameObject?.(params.targetId as string);
-        if (targetObj) {
-            targetX = targetObj.x;
-            targetY = targetObj.y;
-        }
-    }
-
-    // Priority 2: targetRole (find nearest entity with that role)
-    if (targetX === undefined || targetY === undefined) {
-        const targetRole = params.targetRole as string | undefined;
-        if (targetRole) {
-            const gameCore = ctx.globals?.gameCore;
-            if (gameCore?.getNearestEntityByRole) {
-                const nearest = gameCore.getNearestEntityByRole(targetRole, ownerObj.x, ownerObj.y, ownerId);
-                if (nearest) {
-                    targetX = nearest.x;
-                    targetY = nearest.y;
-                }
-            }
-        }
-    }
-
-    if (targetX === undefined || targetY === undefined) {
-        return;
-    }
-
-    const ownerEntity = getEntity(ctx);
-    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(ownerEntity, "projectileSpeed") ?? 300) as any);
-    const damage = resolveValue(ctx, (params.damage ?? getNumberVar(ownerEntity, "attack") ?? 10) as any);
-
-    const dx = targetX - ownerObj.x;
-    const dy = targetY - ownerObj.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const nx = dx / distance;
-    const ny = dy / distance;
-
-    EventBus.emit("SPAWN_PROJECTILE", {
-        ownerId,
-        x: ownerObj.x,
-        y: ownerObj.y,
-        velX: nx * speed,
-        velY: ny * speed,
-        damage,
-    });
-});
 
 // --- Status Actions ---
 
@@ -458,23 +401,7 @@ ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string
     }
 });
 
-ActionRegistry.register("Heal", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const entity = getEntity(ctx);
-    if (!entity) return;
 
-    const amount = Number(resolveValue(ctx, (params.amount ?? 10) as any));
-    const hp = getNumberVar(entity, "hp") ?? 0;
-    const maxHp = getNumberVar(entity, "maxHp") ?? hp;
-    const nextHp = Math.min(maxHp, hp + amount);
-    setVar(entity, "hp", nextHp);
-
-    EventBus.emit("HP_CHANGED", {
-        entityId: ctx.entityId,
-        hp: nextHp,
-        maxHp,
-        healed: amount,
-    });
-});
 
 // ... (omitted actions)
 
@@ -690,26 +617,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     }
 });
 
-// IncrementVar: Add/subtract amount from a variable (for timers, counters, etc.)
-ActionRegistry.register("IncrementVar", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const entity = getEntity(ctx);
-    if (!entity) return;
 
-    const varName = params.name as string;
-    if (!varName) return;
-
-    // Get current value
-    const currentVar = entity.variables?.find(v => v.name === varName);
-    const currentValue = typeof currentVar?.value === "number" ? currentVar.value : 0;
-
-    // Get amount (default to deltaTime for timer usage)
-    const dt = (ctx.eventData.dt as number) ?? 0.016;
-    const amount = (params.amount as number) ?? dt;
-
-    // Calculate new value
-    const newValue = currentValue + amount;
-    setVar(entity, varName, newValue);
-});
 
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
     const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>) => boolean } | undefined;
@@ -847,20 +755,7 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
 
 // --- Entity Control Actions ---
 
-ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer as any;
-    if (!renderer) return;
 
-    const targetId = (params.targetId as string) ?? ctx.entityId;
-    const enabled = (params.enabled as boolean) ?? true;
-    const gameObject = renderer.getGameObject?.(targetId);
-
-    if (gameObject) {
-        gameObject.setVisible(enabled);
-        gameObject.setActive(enabled);
-        EventBus.emit(enabled ? "ENTITY_ENABLED" : "ENTITY_DISABLED", { entityId: targetId });
-    }
-});
 
 // --- Scene Actions ---
 
@@ -938,13 +833,7 @@ ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unk
     }
 });
 
-ActionRegistry.register("ClearSignal", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const key = params.key as string;
-    if (!key) return;
-    if (!ctx.entityContext?.signals) return;
-    ctx.entityContext.signals.flags[key] = false;
-    ctx.entityContext.signals.values[key] = null;
-});
+
 
 // Disable Action: Remove entity from game
 ActionRegistry.register("Disable", (ctx: ActionContext) => {

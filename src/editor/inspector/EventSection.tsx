@@ -9,8 +9,7 @@ const TRIGGERS: TriggerType[] = [
 ];
 
 const ACTIONS: ActionType[] = [
-  "Log",
-  "OpenUrl",
+
   "ShowText",
   "SetVariable",
   "ChangeMap",

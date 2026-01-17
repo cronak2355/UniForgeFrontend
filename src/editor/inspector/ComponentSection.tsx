@@ -34,24 +34,21 @@ export const ACTION_LABELS: Record<string, string> = {
     Wait: "대기",
     MoveToward: "목표이동",
     Attack: "공격",
-    FireProjectile: "발사체 발사",
     TakeDamage: "피해 입기",
-    Heal: "회복",
     SetVar: "변수 설정",
-    Enable: "활성",
     ChangeScene: "씬 전환",
-    Log: "로그",
+
+
     Rotate: "회전",
     Pulse: "펄스",
     ShowDialogue: "대화 표시",
     PlaySound: "사운드 재생",
     EmitEventSignal: "이벤트 신호 보내기",
-    IncrementVar: "변수 증가",
     Disable: "비활성",
     PlayParticle: "파티클 생성",
     If: "조건문",
     RunModule: "모듈 실행",
-    OpenUrl: "url 열기",
+
     SpawnEntity: "엔티티 생성",
     PlayAnimation: "애니메이션 동작",
 };
@@ -813,7 +810,7 @@ function ConditionEditor({
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                         <span style={{ fontSize: 10, color: colors.textSecondary }}>추가 동작 ({thenActions.length})</span>
                         <button
-                            onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Log" }])}
+                            onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Wait" }])}
                             style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
                         >
                             + 동작 추가

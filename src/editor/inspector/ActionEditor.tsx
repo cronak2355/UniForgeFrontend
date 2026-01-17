@@ -173,7 +173,7 @@ export function ActionEditor({
           />
         )}
 
-        {(action.type === "TakeDamage" || action.type === "Heal") && (
+        {action.type === "TakeDamage" && (
           <ParamInput label="amount" value={action.amount} defaultValue={10} onChange={(v) => onUpdate({ ...action, amount: v })} variables={variables} entities={entities} listId={listId} />
         )}
 
@@ -184,26 +184,7 @@ export function ActionEditor({
           </>
         )}
 
-        {action.type === "FireProjectile" && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
-            {/* Target Role */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#aaa', fontSize: '11px', minWidth: '50px' }}>Target</span>
-              <select
-                value={(action.targetRole as string) || "enemy"}
-                onChange={(e) => onUpdate({ ...action, targetRole: e.target.value })}
-                style={{ ...styles.smallSelect, flex: 1 }}
-              >
-                <option value="enemy">🎯 enemy (가장 가까운 적)</option>
-                <option value="player">👤 player</option>
-              </select>
-            </div>
-            {/* Speed */}
-            <ParamInput label="Speed" value={action.speed} defaultValue={500} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
-            {/* Damage */}
-            <ParamInput label="Damage" value={action.damage} defaultValue={10} onChange={(v) => onUpdate({ ...action, damage: v })} variables={variables} entities={entities} listId={listId} />
-          </div>
-        )}
+
 
         {action.type === "SetVar" && (
           <div className="flex flex-col gap-2 w-full">
@@ -285,27 +266,7 @@ export function ActionEditor({
           </div>
         )}
 
-        {action.type === "IncrementVar" && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-            <input
-              type="text"
-              placeholder="variable name"
-              value={(action.name as string) || ""}
-              onChange={(e) => onUpdate({ ...action, name: e.target.value })}
-              list={`${listId}-vars`}
-              style={{ ...styles.textInput, flex: 1 }}
-            />
-            <span style={{ color: '#aaa', fontSize: '11px' }}>+</span>
-            <input
-              type="number"
-              placeholder="dt"
-              title="증가량 (비우면 deltaTime 사용)"
-              value={(action.amount as number) ?? ""}
-              onChange={(e) => onUpdate({ ...action, amount: e.target.value ? parseFloat(e.target.value) : undefined })}
-              style={{ ...styles.textInput, width: '60px' }}
-            />
-          </div>
-        )}
+
 
         {action.type === "Attack" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -395,15 +356,7 @@ export function ActionEditor({
           </div>
         )}
 
-        {action.type === "ClearSignal" && (
-          <input
-            type="text"
-            placeholder="signalKey"
-            value={(action.key as string) || ""}
-            onChange={(e) => onUpdate({ ...action, key: e.target.value })}
-            style={styles.textInput}
-          />
-        )}
+
 
         {action.type === "ShowDialogue" && (
           <input
@@ -1293,7 +1246,7 @@ function IfActionEditor({
         <div style={{ fontSize: 10, color: "#8bc34a", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>✅ Then</span>
           <button
-            onClick={() => updateThenActions([...thenActions, { type: "Log" }])}
+            onClick={() => updateThenActions([...thenActions, { type: "Wait" }])}
             style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
           >
             +
@@ -1334,7 +1287,7 @@ function IfActionEditor({
         <div style={{ fontSize: 10, color: "#f44336", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>❌ Else</span>
           <button
-            onClick={() => updateElseActions([...elseActions, { type: "Log" }])}
+            onClick={() => updateElseActions([...elseActions, { type: "Wait" }])}
             style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
           >
             +

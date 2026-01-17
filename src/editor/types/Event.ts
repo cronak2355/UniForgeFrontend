@@ -12,9 +12,8 @@ export type ActionType =
   | "MoveEntity"
   | "SpawnEntity"
   | "PlaySound"
-  | "PlayAnimation"
-  | "Log"       // Debug log
-  | "OpenUrl";  // Open external link
+  | "PlayAnimation";
+
 
 /**
  * Entity에 부착되는 이벤트 데이터 구조

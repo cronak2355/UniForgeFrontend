@@ -45,24 +45,23 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
     Wait: "일정 시간동안 기다립니다.",
     MoveToward: "목표 지점으로 이동합니다. 목표는 다양하게 설정 가능합니다.",
     Attack: "타겟에게 공격을 가합니다. 데미지를 설정할 수 있습니다.",
-    FireProjectile: "적이나 플레이어에게 발사체를 생성 후 발사합니다.",
+
     TakeDamage: "데미지를 입힐수있습니다.",
-    Heal: "체력을 회복합니다.",
+
     SetVar: "원하는 변수 값을 변경합니다.",
-    Enable: "오브젝트를 활성화합니다.",
+
     Disable: "오브젝트를 비활성화합니다.",
     ChangeScene: "다른씬으로 이동합니다.",
     Rotate: "오브젝트를 회전시킵니다.",
     Pulse: "크기를 조절하거나 색상을 변경하는등 다양한 효과를 줍니다.",
     ShowDialogue: "대화 UI를 표시힙니다.",
     PlaySound: "사운드를 재생합니다.",
-    IncrementVar: "원하는 변수에 더하기를 사용합니다.",
     EmitEventSignal: "이벤트 신호 전송해서 특정 컴포넌트를 실행시킬 수 있습니다.",
     RunModule: "모듈(비쥬얼 스크립트)을 실행합니다.",
     SpawnEntity: "엔티티를 생성합니다.",
     PlayAnimation: "애니메이션을 재생합니다.",
-    Log: "원하는 로그를 출력할수있습니다!",
-    OpenUrl: "URL 열어줍니다.",
+
+
     If: "조건에 맞춰 참과 거짓일때 행동을 조절할수있습니다.",
 };
 
