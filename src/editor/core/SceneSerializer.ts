@@ -259,7 +259,7 @@ export class SceneSerializer {
     gameData.scenes.forEach(sceneJson => {
       // checks if scene already exists (for merge) or create new
       // For full load, we usually assume clean state.
-      const sceneId = state.createScene(sceneJson.name, sceneJson.sceneId);
+      const sceneId = state.createScene(sceneJson.name, sceneJson.sceneId, true);
       this.deserializeSceneContent(sceneJson, state, sceneId);
     });
 

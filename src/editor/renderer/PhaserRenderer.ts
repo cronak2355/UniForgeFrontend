@@ -1011,6 +1011,12 @@ export class PhaserRenderer implements IRenderer {
             // But UI elements definitely need size.
 
             obj = sprite;
+        } else if (type === "container") {
+            // [Fix] Handle 'container' type explicitly (e.g. Main Camera)
+            // Create empty container, no visual placeholder
+            const container = this.scene.add.container(x, y);
+            container.setSize(width, height);
+            obj = container;
         } else {
             // Fallback Placeholder
             const rect = this.scene.add.rectangle(x, y, width, height, 0xff00ff);
