@@ -1142,6 +1142,7 @@ const CONDITION_TYPES = [
   { value: "InputJump", label: "점프 입력" },
   { value: "InputKey", label: "키 입력" },
   { value: "SignalFlag", label: "시그널 플래그" },
+  { value: "SignalKeyEquals", label: "신호 키 비교" },
 ];
 
 function IfActionEditor({
@@ -1191,6 +1192,7 @@ function IfActionEditor({
   const conditionNeedsValue = ["VarEquals", "VarNotEquals", "VarGreaterThan", "VarLessThan", "VarGreaterOrEqual", "VarLessOrEqual", "HpBelow", "HpAbove"].includes(condition.type);
   const conditionNeedsRange = ["InRange", "OutOfRange"].includes(condition.type);
   const conditionNeedsKey = ["InputKey", "SignalFlag"].includes(condition.type);
+  const conditionNeedsSignalKey = condition.type === "SignalKeyEquals";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
@@ -1266,6 +1268,16 @@ function IfActionEditor({
               placeholder="키"
               value={(condition.key as string) || ""}
               onChange={(e) => updateCondition({ key: e.target.value })}
+              style={{ ...styles.textInput, fontSize: 11, padding: "3px 4px" }}
+            />
+          )}
+
+          {conditionNeedsSignalKey && (
+            <input
+              type="text"
+              placeholder="신호 키 (signalKey)"
+              value={(condition.signalKey as string) || ""}
+              onChange={(e) => updateCondition({ signalKey: e.target.value })}
               style={{ ...styles.textInput, fontSize: 11, padding: "3px 4px" }}
             />
           )}

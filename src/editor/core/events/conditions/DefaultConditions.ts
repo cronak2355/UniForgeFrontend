@@ -225,6 +225,17 @@ ConditionRegistry.register("SignalFlag", (ctx: ActionContext, params: Record<str
     return ctx.entityContext?.signals.flags[key] === true;
 });
 
+// Signal Key Comparison - Used with OnSignalReceive event
+// Checks if the received signal matches the expected signalKey
+ConditionRegistry.register("SignalKeyEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const expectedKey = (params.signalKey as string) ?? (params.key as string) ?? "";
+    if (!expectedKey) return true; // No key filter = match all signals
+
+    // Get the signal from the event data (passed from EVENT_SIGNAL)
+    const receivedSignal = ctx.eventData?.signal as string;
+    return receivedSignal === expectedKey;
+});
+
 // --- Tag Conditions ---
 
 ConditionRegistry.register("CompareTag", (ctx: ActionContext, params: Record<string, unknown>) => {

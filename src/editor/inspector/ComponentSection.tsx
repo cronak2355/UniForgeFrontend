@@ -72,6 +72,7 @@ export const CONDITION_TYPES = [
     { value: "InputKey", label: "키 입력 중 (Hold)" },
     { value: "InputDown", label: "키 누름 (Down)" },
     { value: "CompareTag", label: "태그 비교 (CompareTag)" },
+    { value: "SignalKeyEquals", label: "신호 키 비교 (SignalKey)" },
 ];
 
 export const INPUT_KEY_OPTIONS = [
@@ -675,7 +676,8 @@ function ConditionEditor({
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
-    const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
+    const isSignalKeyCondition = condition.type === "SignalKeyEquals";
+    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
     const thenActions = condition.then || [];
 
     const updateThenActions = (newActions: any[]) => {
@@ -749,6 +751,16 @@ function ConditionEditor({
                         placeholder="Tag (e.g. Player)"
                         value={(condition.tag as string) || ""}
                         onChange={(e) => onUpdate({ ...condition, tag: e.target.value })}
+                        style={styles.textInput}
+                    />
+                )}
+
+                {isSignalKeyCondition && (
+                    <input
+                        type="text"
+                        placeholder="신호 키 (signalKey)"
+                        value={(condition.signalKey as string) || ""}
+                        onChange={(e) => onUpdate({ ...condition, signalKey: e.target.value })}
                         style={styles.textInput}
                     />
                 )}

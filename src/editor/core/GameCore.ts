@@ -159,15 +159,22 @@ export class GameCore {
             "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
             "COLLISION_EXIT": ["OnCollisionExit"],
             "ENTITY_DIED": ["OnDestroy"],
+            "EVENT_SIGNAL": ["OnSignalReceive"],
         };
 
         const mappedEvents = eventMapping[eventType];
         if (!mappedEvents) return;
 
         // For collision events, execute for both entities
+        // For signal events, broadcast to all entities
         const entityIds: string[] = [];
         if (eventType.startsWith("COLLISION") && event.data?.entityA && event.data?.entityB) {
             entityIds.push(event.data.entityA, event.data.entityB);
+        } else if (eventType === "EVENT_SIGNAL") {
+            // Signal events are broadcast to ALL entities
+            for (const id of this.runtimeContext.entities.keys()) {
+                entityIds.push(id);
+            }
         } else if (entityId) {
             entityIds.push(entityId);
         }
