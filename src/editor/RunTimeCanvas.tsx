@@ -443,40 +443,57 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         prevTilesRef.current = nextTiles;
     }, [tiles]);
 
+    // [Optimization] Track previous asset/entity signatures to prevent redundant updates
+    const assetsSignatureRef = useRef<string>("");
+    const entitiesSignatureRef = useRef<string>("");
+
     useEffect(() => {
         const renderer = rendererRef.current;
         if (!renderer || !rendererReadyRef.current) return;
 
-        const nextSignature = buildTileSignature(assets);
+        // Create signatures to detect actual changes
+        const nextAssetsSig = buildTileSignature(assets); // Reuse tile signature logic for assets
+        const nextEntitiesSig = entities.map(e => `${e.id}:${e.texture}:${e.x}:${e.y}`).join("|"); // Simple entity signature
+
+        // Skip if nothing changed
+        if (nextAssetsSig === assetsSignatureRef.current && nextEntitiesSig === entitiesSignatureRef.current) {
+            return;
+        }
+
         let cancelled = false;
 
         (async () => {
-            renderer.updateAssets?.(assets);
+            // Only update assets if assets changed
+            if (nextAssetsSig !== assetsSignatureRef.current) {
+                renderer.updateAssets?.(assets);
 
-            // Tile handling (canvas-based tileset) - remains here
-            if (nextSignature !== tileSignatureRef.current) {
+                // Tile handling
                 const tilesetCanvas = await buildTilesetCanvas(assets);
                 if (cancelled || !tilesetCanvas) return;
+
                 renderer.addCanvasTexture("tiles", tilesetCanvas);
                 renderer.initTilemap("tiles");
                 tilemapReadyRef.current = true;
-                tileSignatureRef.current = nextSignature;
+                tileSignatureRef.current = nextAssetsSig;
                 applyAllTiles(renderer, tiles);
                 prevTilesRef.current = indexTiles(tiles);
+
+                assetsSignatureRef.current = nextAssetsSig;
             }
 
-            // Refresh entity textures (textures already loaded in preload())
+            // Refresh entity textures (always check compatible textures)
             for (const ent of entities) {
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
                 renderer.refreshEntityTexture(ent.id, textureKey);
             }
+            entitiesSignatureRef.current = nextEntitiesSig;
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [assets, entities]);
+    }, [assets, entities, tiles]); // Added tiles to dep array as it is used in tilemap rebuild
 
 
     const colors = {

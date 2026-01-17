@@ -43,8 +43,9 @@ export class ApiClient {
             if (!text || text.trim() === '') {
                 return undefined as T;
             }
-            console.error("Received HTML/Text instead of JSON (likely server error page):", text.substring(0, 200));
-            throw new Error(`서버 응답 오류 (Status: ${response.status}). 관리자에게 문의하세요.`);
+            console.error(`Received HTML/Text instead of JSON from ${response.url} (likely server error page):`, text.substring(0, 200));
+            console.trace("Stack trace for non-JSON response:");
+            throw new Error(`서버 응답 오류 (${response.url} Status: ${response.status}). 관리자에게 문의하세요.`);
         }
 
         return response.json();
