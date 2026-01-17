@@ -146,6 +146,21 @@ export function ActionEditor({
           </>
         )}
 
+        {action.type === "MoveToward" && (
+          <>
+            <ParamInput
+              label="position"
+              value={action.position ?? { x: action.x ?? 0, y: action.y ?? 0 }}
+              onChange={(v) => onUpdate({ ...action, position: v, x: undefined, y: undefined })}
+              variables={variables}
+              entities={entities}
+              listId={listId}
+              targetType="vector2"
+            />
+            <ParamInput label="speed" value={action.speed} defaultValue={100} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
+          </>
+        )}
+
         {action.type === "Wait" && (
           <ParamInput
             label="seconds"
@@ -1092,12 +1107,19 @@ function OperandInput({
               <option value="">(Self)</option>
               {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
-            <input
-              style={{ ...styles.textInput, flex: 1, minWidth: '40%' }}
-              placeholder="prop"
+            <select
+              style={{ ...styles.smallSelect, flex: 1, minWidth: '40%' }}
               value={source.property ?? ""}
               onChange={(e) => updateSource({ property: e.target.value })}
-            />
+            >
+              <option value="">속성 선택</option>
+              <option value="position">📍 position (Vector2)</option>
+              <option value="x">X 좌표</option>
+              <option value="y">Y 좌표</option>
+              <option value="rotation">🔄 rotation</option>
+              <option value="scaleX">↔️ scaleX</option>
+              <option value="scaleY">↕️ scaleY</option>
+            </select>
           </>
         )}
 

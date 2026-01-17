@@ -246,8 +246,24 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
-    const targetX = Number(resolveValue(ctx, (params.x ?? 0) as any));
-    const targetY = Number(resolveValue(ctx, (params.y ?? 0) as any));
+    // Support Vector2 'position' parameter or legacy separate x/y
+    let targetX: number;
+    let targetY: number;
+
+    if (params.position !== undefined) {
+        const position = resolveValue(ctx, params.position as any);
+        if (typeof position === 'object' && position !== null && 'x' in position && 'y' in position) {
+            targetX = Number((position as any).x ?? 0);
+            targetY = Number((position as any).y ?? 0);
+        } else {
+            targetX = Number(position ?? 0);
+            targetY = Number(position ?? 0);
+        }
+    } else {
+        targetX = Number(resolveValue(ctx, (params.x ?? 0) as any));
+        targetY = Number(resolveValue(ctx, (params.y ?? 0) as any));
+    }
+
     const entity = getEntity(ctx);
     const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 100) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
@@ -606,6 +622,11 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
         // but let's assume property means core transforms or derived stats.
         if (!targetEntity || !src.property) return 0;
 
+        // Special case: 'position' returns Vector2 { x, y }
+        if (src.property === "position") {
+            return { x: targetEntity.x ?? 0, y: targetEntity.y ?? 0 };
+        }
+
         // Check core transform
         if (src.property in targetEntity) {
             return (targetEntity as any)[src.property];
@@ -634,7 +655,7 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
             }
         }
 
-        // console.log(`[ResolveValue] Mouse (${src.mode ?? 'abs'}): ${x}, ${y}`);
+        // console.log(`[ResolveValue] Mouse (${src.mode ?? 'absolute'}): x=${x}, y=${y}, raw input:`, { mouseX: input?.mouseX, mouseY: input?.mouseY });
 
         if (src.axis === "x") return x;
         if (src.axis === "y") return y;

@@ -224,19 +224,9 @@ export class RuntimeContext {
     }
 
     getInput(): InputState {
-        const result = { ...this.input };
-
-        // Clear keysDown after first consumption to prevent multiple triggers
-        if (!this.keysDownConsumed && this.input.keysDown) {
-            this.keysDownConsumed = true;
-            // Clear keysDown from stored state so subsequent calls in same frame get empty
-            this.input = { ...this.input, keysDown: {} };
-        } else {
-            // Subsequent calls get empty keysDown
-            result.keysDown = {};
-        }
-
-        return result;
+        // Return input state as-is - all components in the same frame should see the same input
+        // keysDown is cleared automatically when setInput is called at the start of the next frame
+        return { ...this.input };
     }
 
     setGroundTags(tags: string[]): void {

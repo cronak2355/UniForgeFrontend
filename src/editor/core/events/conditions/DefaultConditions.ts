@@ -125,10 +125,27 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (variable && typeof variable.value === "number") {
+    if (!variable) return false;
+
+    // Vector2 comparison
+    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
+        const varX = (variable.value as any).x;
+        const varY = (variable.value as any).y;
+
+        // Compare with Vector2 expectedValue
+        if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
+            return varX === (expectedValue as any).x && varY === (expectedValue as any).y;
+        }
+        // Compare with separate x, y params
+        const expX = params.x !== undefined ? params.x : params.value;
+        const expY = params.y !== undefined ? params.y : params.value;
+        return varX == expX && varY == expY;
+    }
+
+    if (typeof variable.value === "number") {
         return variable.value == expectedValue;
     }
-    return variable?.value === expectedValue;
+    return variable.value === expectedValue;
 });
 
 ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
@@ -145,10 +162,27 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (variable && typeof variable.value === "number") {
+    if (!variable) return true; // Variable doesn't exist = not equal
+
+    // Vector2 comparison
+    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
+        const varX = (variable.value as any).x;
+        const varY = (variable.value as any).y;
+
+        // Compare with Vector2 expectedValue
+        if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
+            return varX !== (expectedValue as any).x || varY !== (expectedValue as any).y;
+        }
+        // Compare with separate x, y params
+        const expX = params.x !== undefined ? params.x : params.value;
+        const expY = params.y !== undefined ? params.y : params.value;
+        return varX != expX || varY != expY;
+    }
+
+    if (typeof variable.value === "number") {
         return variable.value != expectedValue;
     }
-    return variable?.value !== expectedValue;
+    return variable.value !== expectedValue;
 });
 
 ConditionRegistry.register("VarLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {

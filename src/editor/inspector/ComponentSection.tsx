@@ -775,6 +775,29 @@ function ConditionEditor({
                             <option value="true">true</option>
                             <option value="false">false</option>
                         </select>
+                    ) : selectedVar?.type === "vector2" ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                            <input
+                                type="number"
+                                placeholder="x"
+                                value={(condition.value as any)?.x ?? condition.x ?? 0}
+                                onChange={(e) => {
+                                    const y = (condition.value as any)?.y ?? condition.y ?? 0;
+                                    onUpdate({ ...condition, value: { x: Number(e.target.value), y }, x: Number(e.target.value), y });
+                                }}
+                                style={{ ...styles.textInput, width: 50 }}
+                            />
+                            <input
+                                type="number"
+                                placeholder="y"
+                                value={(condition.value as any)?.y ?? condition.y ?? 0}
+                                onChange={(e) => {
+                                    const x = (condition.value as any)?.x ?? condition.x ?? 0;
+                                    onUpdate({ ...condition, value: { x, y: Number(e.target.value) }, x, y: Number(e.target.value) });
+                                }}
+                                style={{ ...styles.textInput, width: 50 }}
+                            />
+                        </div>
                     ) : (
                         <input
                             type="text"
