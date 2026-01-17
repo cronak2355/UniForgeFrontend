@@ -128,18 +128,7 @@ class ActionRegistryClass {
             }
         });
 
-        this.register("Log", (ctx, params) => {
-            console.log(`[Action:Log]`, params.payload || params.message || "No message");
-        });
 
-        this.register("OpenUrl", (ctx, params) => {
-            const url = params.payload as string;
-            if (url) {
-                window.open(url, '_blank');
-            } else {
-                console.warn(`[Action:OpenUrl] URL is empty`);
-            }
-        });
     }
 
     run(name: string, ctx: ActionContext, params: Record<string, unknown>) {

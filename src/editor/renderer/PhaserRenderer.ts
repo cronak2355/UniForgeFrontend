@@ -1011,6 +1011,12 @@ export class PhaserRenderer implements IRenderer {
             // But UI elements definitely need size.
 
             obj = sprite;
+        } else if (type === "container") {
+            // [Fix] Handle 'container' type explicitly (e.g. Main Camera)
+            // Create empty container, no visual placeholder
+            const container = this.scene.add.container(x, y);
+            container.setSize(width, height);
+            obj = container;
         } else {
             // Fallback Placeholder
             const rect = this.scene.add.rectangle(x, y, width, height, 0xff00ff);
@@ -2363,6 +2369,18 @@ export class PhaserRenderer implements IRenderer {
         const obj = this.entities.get(id) as any;
         if (obj && typeof obj.setTint === "function") {
             obj.setTint(color);
+        }
+    }
+
+    clear(): void {
+        console.log(`[PhaserRenderer] Clearing ${this.entities.size} entities.`);
+        for (const [id, entity] of this.entities) {
+            if (entity.destroy) entity.destroy();
+        }
+        this.entities.clear();
+
+        if (this.scene && this.scene.children) {
+            // Optional: Force clear logic if entities were not in map
         }
     }
 }

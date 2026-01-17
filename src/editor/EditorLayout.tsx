@@ -245,35 +245,50 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     }
                 }
 
-                // 3. If scene is still empty after loading, add a default camera (essential for viewing)
+                // 3. Ensure Main Camera exists after loading (fallback for legacy or empty scenes)
                 const scene = core.getCurrentScene();
-                if (scene && scene.entities.size === 0) {
-                    console.log("[EditorLayout] Empty scene detected. Adding default camera.");
-                    // Add default camera
-                    const cameraEntity = {
-                        id: crypto.randomUUID(),
-                        name: "Main Camera",
-                        active: true,
-                        position: { x: 0, y: 0, z: -10 },
-                        rotation: { x: 0, y: 0, z: 0 },
-                        scale: { x: 1, y: 1, z: 1 },
-                        components: [
-                            {
-                                type: "Camera",
-                                props: {
-                                    fov: 60,
-                                    size: 5,
-                                    isPerspective: true,
-                                    zoom: 1,
-                                    checkLayers: true // default
+                if (scene) {
+                    const hasCamera = Array.from(scene.entities.values()).some(e => e.name === "Main Camera");
+                    if (!hasCamera) {
+                        console.log("[EditorLayout] No Main Camera found after load. Adding default camera.");
+                        const cameraEntity = {
+                            id: crypto.randomUUID(),
+                            name: "Main Camera",
+                            type: "container",
+                            role: "neutral", // Added missing field
+                            active: true,
+                            position: { x: 0, y: 0, z: -10 },
+                            rotation: { x: 0, y: 0, z: 0 },
+                            scale: { x: 1, y: 1, z: 1 },
+                            // Flat properties matching EditorEntity interface
+                            x: 0,
+                            y: 0,
+                            z: -10,
+                            rotationX: 0, // Added missing field
+                            rotationY: 0,
+                            rotationZ: 0,
+                            scaleX: 1,
+                            scaleY: 1,
+                            components: [
+                                {
+                                    type: "Camera",
+                                    props: {
+                                        fov: 60,
+                                        size: 5,
+                                        isPerspective: true,
+                                        zoom: 1,
+                                        checkLayers: true // default
+                                    }
                                 }
-                            }
-                        ],
-                        variables: [],
-                        scripts: []
-                    };
-                    core.addEntity(cameraEntity as any);
-                    core.setSelectedEntity(cameraEntity as any);
+                            ],
+                            variables: [],
+                            scripts: [],
+                            logic: [], // Added missing field
+                            events: [] // Added missing field
+                        };
+                        core.addEntity(cameraEntity as any);
+                        core.setSelectedEntity(cameraEntity as any); // Select it too
+                    }
                 }
             } catch (err) {
                 console.error("[EditorLayout] Critical error in initEditor", err);
@@ -1338,71 +1353,71 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                         flexDirection: 'column',
                         position: 'relative',
                     }}>
-                    <div style={{
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 12px',
-                        background: colors.bgTertiary,
-                        borderBottom: `1px solid ${colors.borderColor}`,
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: colors.accentLight,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                    }}>
-                        속성 (Inspector)
-                    </div>
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                        {selectedAsset && selectedAsset.tag !== "Prefab" && (
-                            <AssetAnimationSettings asset={selectedAsset} />
-                        )}
-                        {selectedAsset && selectedAsset.tag === "Prefab" && (
-                            <PrefabInspector asset={selectedAsset} />
-                        )}
-                        {localSelectedEntity && !selectedAsset && (
-                            <InspectorPanel
-                                entity={localSelectedEntity}
-                                onUpdateEntity={handleInspectorUpdate}
-                            />
-                        )}
-                    </div>
-                    <button
-                        type="button"
-                        aria-label="Add inspector item"
-                        onClick={() => setIsComponentHelperOpen(true)}
-                        style={{
-                            position: 'absolute',
-                            right: '24px',
-                            bottom: '22px',
-                            width: isComponentHelperHover ? '160px' : '44px',
-                            height: '44px',
-                            borderRadius: '999px',
-                            border: `1px solid ${colors.borderColor}`,
-                            background: colors.accent,
-                            color: colors.textPrimary,
-                            fontSize: '24px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            boxShadow: '0 8px 16px rgba(0,0,0,0.35)',
+                        <div style={{
+                            height: '32px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
                             padding: '0 12px',
-                            transition: 'width 0.2s ease',
-                            overflow: 'hidden',
-                        }}
-                        onMouseEnter={() => setIsComponentHelperHover(true)}
-                        onMouseLeave={() => setIsComponentHelperHover(false)}
-                    >
-                        <span>+</span>
-                        {isComponentHelperHover && (
-                            <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                컴포넌트 마술사
-                            </span>
-                        )}
-                    </button>
+                            background: colors.bgTertiary,
+                            borderBottom: `1px solid ${colors.borderColor}`,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: colors.accentLight,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                        }}>
+                            속성 (Inspector)
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                            {selectedAsset && selectedAsset.tag !== "Prefab" && (
+                                <AssetAnimationSettings asset={selectedAsset} />
+                            )}
+                            {selectedAsset && selectedAsset.tag === "Prefab" && (
+                                <PrefabInspector asset={selectedAsset} />
+                            )}
+                            {localSelectedEntity && !selectedAsset && (
+                                <InspectorPanel
+                                    entity={localSelectedEntity}
+                                    onUpdateEntity={handleInspectorUpdate}
+                                />
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Add inspector item"
+                            onClick={() => setIsComponentHelperOpen(true)}
+                            style={{
+                                position: 'absolute',
+                                right: '24px',
+                                bottom: '22px',
+                                width: isComponentHelperHover ? '160px' : '44px',
+                                height: '44px',
+                                borderRadius: '999px',
+                                border: `1px solid ${colors.borderColor}`,
+                                background: colors.accent,
+                                color: colors.textPrimary,
+                                fontSize: '24px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                boxShadow: '0 8px 16px rgba(0,0,0,0.35)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                padding: '0 12px',
+                                transition: 'width 0.2s ease',
+                                overflow: 'hidden',
+                            }}
+                            onMouseEnter={() => setIsComponentHelperHover(true)}
+                            onMouseLeave={() => setIsComponentHelperHover(false)}
+                        >
+                            <span>+</span>
+                            {isComponentHelperHover && (
+                                <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    컴포넌트 마술사
+                                </span>
+                            )}
+                        </button>
                     </div>
                 )}
 

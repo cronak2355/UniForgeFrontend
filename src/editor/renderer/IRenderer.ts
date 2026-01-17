@@ -1,284 +1,69 @@
-/**
- * IRenderer - 엔진 독립적 렌더러 인터페이스
- * 
- * 모든 렌더링 명령은 이 인터페이스를 거쳐야 합니다.
- * Phaser, Three.js 등 다양한 엔진으로 구현할 수 있습니다.
- */
-
-import type { EditorEvent } from "../types/Event";
-
-/**
- * 3D 좌표 (z축 포함)
- * Phaser에서는 z를 setDepth()로 매핑
- */
 export interface Vector3 {
     x: number;
     y: number;
     z: number;
 }
 
-/**
- * 화면 좌표 (2D)
- */
 export interface ScreenCoord {
     x: number;
     y: number;
 }
 
-/**
- * 엔티티 스폰 옵션
- */
 export interface SpawnOptions {
     texture?: string;
+    name?: string;
     width?: number;
     height?: number;
     color?: number;
-    events?: EditorEvent[];
-    name?: string;
+    events?: any[];
 }
 
-/**
- * 렌더러 추상 인터페이스
- * 
- * 설계 원칙:
- * 1. ID 동기화 보장: spawn()은 외부에서 전달받은 ID를 그대로 사용
- * 2. 좌표계 변환: worldToScreen / screenToWorld 메서드 제공
- * 3. Lifecycle 관리: destroy() 시 모든 리소스 해제
- */
 export interface IRenderer {
-    // ===== Lifecycle =====
-
-    /**
-     * 렌더러 초기화
-     * @param container 렌더링할 DOM 요소
-     */
-    init(container: HTMLElement): Promise<void>;
-
-    /**
-     * 렌더러 정리 - 모든 엔티티와 리소스 해제
-     * - Map에 저장된 모든 엔티티 destroy
-     * - Game 인스턴스 정리
-     * - 이벤트 리스너 제거
-     * - 참조 null 처리
-     */
+    init(container: HTMLElement, config?: { width: number; height: number }): Promise<void>;
     destroy(): void;
 
-    // ===== Entity Management =====
+    // Core Entity Lifecycle
+    spawn(id: string, type: string, x: number, y: number, z: number, options?: SpawnOptions): void;
+    remove(id: string): void;
+    clear(): void; // Scene Change Cleanup
 
-    /**
-     * 엔티티 생성
-     * @param id 외부(EditorState)에서 전달받은 ID - 자체 생성 금지
-     * @param type 엔티티 타입
-     * @param x X 좌표
-     * @param y Y 좌표
-     * @param z Z 좌표 (기본값 0, Phaser에서는 depth로 매핑)
-     * @param options 추가 옵션
-     */
-    spawn(id: string, type: string, x: number, y: number, z?: number, options?: SpawnOptions): void;
-
-    /**
-     * 엔티티 업데이트
-     * @param id 엔티티 ID
-     * @param x X 좌표
-     * @param y Y 좌표
-     * @param z Z 좌표 (선택적)
-     * @param rotation 회전 각도 (선택적, 도 단위)
-     */
     update(id: string, x: number, y: number, z?: number, rotation?: number): void;
-
-    /**
-     * 스케일 변경
-     */
     setScale(id: string, scaleX: number, scaleY: number, scaleZ?: number): void;
-
-    /**
-     * 알파(투명도) 변경 (0~1)
-     */
     setAlpha(id: string, alpha: number): void;
-
-    /**
-     * 틴트(색상) 변경
-     */
     setTint(id: string, color: number): void;
 
-    /**
-     * 엔티티 제거
-     * @param id 엔티티 ID
-     */
-    remove(id: string): void;
+    // Visuals
+    setText(id: string, text: string): void;
+    updateText(id: string, text: string): void;
+    setBarValue(id: string, value: number, max?: number): void;
+    updateBar(id: string, ratio: number): void; // ratio 0.0 ~ 1.0
 
-    /**
-     * 엔티티 존재 여부 확인 - ID 동기화 검증용
-     * @param id 엔티티 ID
-     */
-    hasEntity(id: string): boolean;
-
-    /**
-     * 모든 엔티티 ID 목록 반환 - 동기화 검증용
-     */
-    getAllEntityIds(): string[];
-
-    // ===== Animation =====
-
-    /**
-     * 애니메이션 재생
-     * @param id 엔티티 ID
-     * @param name 애니메이션 이름
-     */
-    playAnim(id: string, name: string): void;
-
-    /**
-     * UI 텍스트 설정
-     * @param id 엔티티 ID
-     * @param text 표시할 텍스트
-     */
-    setText?(id: string, text: string): void;
-
-    /**
-     * UI 바 값 설정
-     * @param id 엔티티 ID
-     * @param value 현재 값
-     * @param max 최대 값
-     */
-    setBarValue?(id: string, value: number, max: number): void;
-
-    /**
-     * UI 텍스트 정렬 설정
-     */
-    setTextAlignment?(id: string, align: "left" | "center" | "right"): void;
-
-    // ===== Camera =====
-
-    /**
-     * 카메라 위치 설정
-     */
-    setCameraPosition(x: number, y: number, z?: number): void;
-
-    /**
-     * 카메라 줌 설정
-     */
+    // Camera
+    setCameraPosition(x: number, y: number): void;
     setCameraZoom(zoom: number): void;
 
-    /**
-     * 현재 카메라 위치 반환
-     */
-    getCameraPosition(): Vector3;
+    // Animation
+    playAnim(id: string, animName: string, loop?: boolean): void;
 
-    /**
-     * 현재 카메라 줌 반환
-     */
-    getCameraZoom(): number;
-
-    // ===== Coordinate Transformation =====
-
-    /**
-     * 월드 좌표 → 화면 좌표 변환
-     * Phaser: 좌상단 기준
-     * Three.js: 중앙 기준 (구현체에서 변환)
-     */
-    worldToScreen(x: number, y: number, z?: number): ScreenCoord;
-
-    /**
-     * 화면 좌표 → 월드 좌표 변환
-     */
-    screenToWorld(screenX: number, screenY: number): Vector3;
-
-    // ===== Tile System =====
-
-    /**
-     * 타일 설정
-     */
-    setTile(x: number, y: number, tileIndex: number): void;
-
-    /**
-     * 타일 제거
-     */
+    // Assets
+    setPreloadAssets(assets: any[]): void;
+    updateAssets?(assets: any[]): void;
+    addCanvasTexture(key: string, canvas: HTMLCanvasElement): void;
+    initTilemap(tilesetKey: string): void;
+    setTile(x: number, y: number, tileIdx: number): void;
     removeTile(x: number, y: number): void;
+    refreshEntityTexture(id: string, textureKey: string): void;
 
-    /**
-     * 프리뷰 타일 설정 (마우스 호버 시)
-     */
-    setPreviewTile(x: number, y: number, tileIndex: number): void;
-
-    /**
-     * 프리뷰 타일 제거
-     */
-    clearPreviewTile(): void;
-
-    // ===== Grid =====
-
-    /**
-     * 그리드 표시/숨김
-     */
-    setGridVisible(visible: boolean): void;
-
-    // ===== Interaction Callbacks =====
-
-    /**
-     * 엔티티 클릭 시 호출
-     */
-    onEntityClick?: (id: string, worldX: number, worldY: number) => void;
-
-    /**
-     * 포인터 다운 시 호출 (월드 좌표)
-     */
-    onPointerDown?: (worldX: number, worldY: number, worldZ: number) => void;
-
-    /**
-     * 포인터 이동 시 호출 (월드 좌표)
-     */
-    onPointerMove?: (worldX: number, worldY: number, worldZ: number, isInside: boolean) => void;
-
-    /**
-     * 포인터 업 시 호출 (월드 좌표)
-     */
-    onPointerUp?: (worldX: number, worldY: number, worldZ: number) => void;
-
-    /**
-     * 스크롤 시 호출
-     */
-    onScroll?: (deltaY: number, screenX: number, screenY: number) => void;
-
-    /**
-     * 카메라 스크롤(좌상단 좌표) 설정
-     */
-    setCameraScroll?(x: number, y: number): void;
-
-    /**
-     * 카메라 스크롤 반환
-     */
-    getCameraScroll?(): { x: number, y: number };
-
-    // ===== Particle System =====
-
-    /**
-     * 파티클 이펙트 재생
-     */
-    playParticle?(presetId: string, x: number, y: number, scale?: number): void;
-
-    /**
-     * 커스텀 파티클 재생
-     */
-    playCustomParticle?(textureId: string, x: number, y: number, scale?: number): void;
-
-    /**
-     * 지속 파티클 이미터 생성
-     */
-    createParticleEmitter?(id: string, presetId: string, x: number, y: number): void;
-
-    /**
-     * 파티클 이미터 중지
-     */
-    stopParticleEmitter?(id: string): void;
-
-    /**
-     * 게임 오브젝트 가져오기 (위치 참조용)
-     */
-    getGameObject?(id: string): { x: number; y: number } | null;
-
-    /**
-     * 런타임 모드 여부
-     * EditorCanvas에서는 false, RunTimeCanvas에서는 true
-     */
+    // State props
+    gameCore?: any;
+    gameConfig?: any;
+    useEditorCoreRuntimePhysics?: boolean;
     isRuntimeMode?: boolean;
+
+    // Inputs / Callbacks
+    onUpdateCallback?: (time: number, delta: number) => void;
+    getRuntimeContext?: () => any;
+    onInputState?: (input: any) => void;
+    // [FIX] Update signature to match PhaserRenderer implementation (3 args)
+    onEntityClick?: (id: string, worldX: number, worldY: number) => void;
 }
