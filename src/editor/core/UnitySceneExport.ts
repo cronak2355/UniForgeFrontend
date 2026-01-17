@@ -61,19 +61,31 @@ export interface UnityEntityJSON {
   id: string;
   type: string;
   name: string;
-  texture?: string;  // Added for asset reference
+  texture?: string;
   x: number;
   y: number;
-  z?: number;        // Added for z-index
-  rotation?: number; // Added
-  scaleX?: number;   // Added
-  scaleY?: number;   // Added
-  role?: string;     // Added
-  tags?: string[];   // Added
+  z?: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+  role?: string;
+  tags?: string[];
   variables: UnityVariableJSON[];
-  events: UnityEventJSON[];
-  components?: any[]; // HIGH-FIDELITY: Full logic components for complex logic preservation
-  modules?: any[];    // Module graphs
+  // v3: components is the single source of truth for logic (no more events array)
+  components: UnityComponentJSON[];
+  modules?: any[];
+}
+
+export interface UnityComponentJSON {
+  id: string;
+  type: "Logic" | "Transform" | "Render" | string;
+  // Logic component fields
+  event?: string;
+  eventParams?: Record<string, unknown>;
+  conditions?: Array<{ type: string; [key: string]: unknown }>;
+  conditionLogic?: "AND" | "OR";
+  actions?: UnityActionJSON[];
+  elseActions?: UnityActionJSON[];
 }
 
 export interface UnityVariableJSON {
@@ -81,18 +93,6 @@ export interface UnityVariableJSON {
   name: string;
   type: string;
   value: any;
-}
-
-export interface UnityEventJSON {
-  id: string;
-  trigger: string;
-  triggerParams?: Record<string, unknown>;
-  conditionLogic?: "AND" | "OR" | "BRANCH";
-  conditions?: Array<{ type: string; then?: UnityActionJSON[]; [key: string]: unknown }>;
-  action: string;
-  params?: Record<string, unknown>;
-  actions?: UnityActionJSON[];  // Multiple actions support
-  elseActions?: UnityActionJSON[];  // Else branch support
 }
 
 export interface UnityActionJSON {
@@ -125,69 +125,45 @@ export class UnitySceneExporter {
     };
   }
 
+  /**
+   * Export entity with components-only format (v3)
+   * No more events array - components is the single source of truth
+   */
   private static exportEntity(e: EditorEntity): UnityEntityJSON {
-    const components = splitLogicItems(e.logic);
-    const logicComponents = components.filter(
-      (c): c is LogicComponent => c.type === "Logic"
-    );
+    const allComponents = splitLogicItems(e.logic);
 
-    const events: UnityEventJSON[] = logicComponents.map((lc, index) => {
-      // Export ALL actions, not just the first one
-      const allActions: UnityActionJSON[] = (lc.actions || []).map(action => {
-        const { type, ...params } = action as { type: string; [key: string]: unknown };
-        return { type, ...params };
-      });
-
-      // Export else actions if present
-      const allElseActions: UnityActionJSON[] = (lc.elseActions || []).map(action => {
-        const { type, ...params } = action as { type: string; [key: string]: unknown };
-        return { type, ...params };
-      });
-
-      // Export conditions with their 'then' branches for BRANCH logic
-      const exportedConditions = (lc.conditions || []).map(cond => {
-        const { type, then: thenActions, ...rest } = cond as { type: string; then?: Array<{ type: string; [key: string]: unknown }>; [key: string]: unknown };
-        const exportedCond: { type: string; then?: UnityActionJSON[]; [key: string]: unknown } = { type, ...rest };
-
-        if (thenActions && thenActions.length > 0) {
-          exportedCond.then = thenActions.map(action => {
-            const { type: actionType, ...actionParams } = action;
-            return { type: actionType, ...actionParams };
-          });
-        }
-
-        return exportedCond;
-      });
-
-      return {
-        id: `ev_${lc.id.substring(0, 4)}_${index}`,
-        trigger: lc.event,
-        triggerParams: lc.eventParams,
-        conditionLogic: (lc.conditionLogic || "AND") as "AND" | "OR" | "BRANCH",
-        conditions: exportedConditions,
-        // Keep backward compatibility: first action as 'action' + 'params'
-        action: allActions[0]?.type || "None",
-        params: allActions[0] ? { ...allActions[0] } : undefined,
-        // NEW: Full actions array for Unity
-        actions: allActions.length > 0 ? allActions : undefined,
-        elseActions: allElseActions.length > 0 ? allElseActions : undefined,
-      };
-    });
-
-    // Remove 'type' from params to avoid duplication (backward compat field)
-    events.forEach(ev => {
-      if (ev.params) delete (ev.params as any).type;
-    });
+    // Export only Logic components with clean structure
+    const exportedComponents: UnityComponentJSON[] = allComponents
+      .filter((c): c is LogicComponent => c.type === "Logic")
+      .map((lc) => ({
+        id: lc.id,
+        type: "Logic" as const,
+        event: lc.event,
+        eventParams: lc.eventParams,
+        conditions: (lc.conditions || []).map(cond => {
+          const { type, ...rest } = cond as { type: string; [key: string]: unknown };
+          return { type, ...rest };
+        }),
+        conditionLogic: (lc.conditionLogic || "AND") as "AND" | "OR",
+        actions: (lc.actions || []).map(action => {
+          const { type, ...params } = action as { type: string; [key: string]: unknown };
+          return { type, ...params };
+        }),
+        elseActions: (lc.elseActions || []).map(action => {
+          const { type, ...params } = action as { type: string; [key: string]: unknown };
+          return { type, ...params };
+        }),
+      }));
 
     return {
       id: e.id,
-      type: e.type, // Fixed: use e.type (sprite/container) instead of e.tag
+      type: e.type,
       name: e.name,
       texture: e.texture,
       x: e.x,
       y: e.y,
       z: (e as any).z ?? 0,
-      rotation: typeof e.rotation === 'object' ? (e.rotation as any).z || 0 : e.rotation || 0, // [Fix] Handle object rotation
+      rotation: typeof e.rotation === 'object' ? (e.rotation as any).z || 0 : e.rotation || 0,
       scaleX: e.scaleX ?? 1,
       scaleY: e.scaleY ?? 1,
       role: e.role,
@@ -198,10 +174,7 @@ export class UnitySceneExporter {
         type: v.type,
         value: v.value,
       })),
-      events,
-      // HIGH-FIDELITY: Include full components array for Unity to reconstruct complex logic
-      // This preserves BRANCH conditions, elseActions, and all action parameters
-      components: components,
+      components: exportedComponents,
       modules: (e as any).modules ?? [],
     };
   }
