@@ -249,7 +249,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 frameCountRef.current++;
                 if (time > lastFpsTimeRef.current + 500) {
                     setFps(Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current)));
-                    console.log(`[RunTimeCanvas] FPS: ${Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current))}, Entities: ${gameRuntime.getRuntimeContext().entities.size}`);
                     frameCountRef.current = 0;
                     lastFpsTimeRef.current = time;
                 }
