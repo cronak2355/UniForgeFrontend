@@ -173,24 +173,6 @@ export function ActionEditor({
           />
         )}
 
-        {action.type === "ChaseTarget" && (
-          <>
-            <select
-              value={(action.targetId as string) || ""}
-              onChange={(e) => onUpdate({ ...action, targetId: e.target.value })}
-              style={styles.smallSelect}
-            >
-              <option value="">(target)</option>
-              {entities.map((ent) => (
-                <option key={ent.id} value={ent.id}>
-                  {ent.name || ent.id}
-                </option>
-              ))}
-            </select>
-            <ParamInput label="speed" value={action.speed} defaultValue={80} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
-          </>
-        )}
-
         {(action.type === "TakeDamage" || action.type === "Heal") && (
           <ParamInput label="amount" value={action.amount} defaultValue={10} onChange={(v) => onUpdate({ ...action, amount: v })} variables={variables} entities={entities} listId={listId} />
         )}

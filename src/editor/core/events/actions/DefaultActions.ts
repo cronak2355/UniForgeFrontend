@@ -284,61 +284,6 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     }
 });
 
-ActionRegistry.register("ChaseTarget", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer;
-    if (!renderer) return;
-    if (!isAlive(ctx)) return;
-
-    const entityId = ctx.entityId;
-
-    let targetId = ((params.targetId as string) ?? "").trim() || undefined;
-    const targetRole = params.targetRole as string | undefined;
-
-    if (targetId) {
-        const targetObj = renderer.getGameObject?.(targetId);
-        if (!targetObj) {
-            targetId = undefined;
-        }
-    }
-
-    if (!targetId && targetRole) {
-        const gameCore = ctx.globals?.gameCore;
-        const gameObject = renderer.getGameObject?.(entityId);
-        if (gameCore && gameObject) {
-            const nearest = gameCore.getNearestEntityByRole?.(targetRole, gameObject.x, gameObject.y, entityId);
-            if (nearest) {
-                targetId = nearest.id;
-            }
-        }
-    }
-
-    if (!targetId) return;
-
-    const gameObject = renderer.getGameObject?.(entityId);
-    const targetObject = renderer.getGameObject?.(targetId);
-    if (!gameObject || !targetObject) return;
-
-    const entity = getEntity(ctx);
-    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 100) as any);
-    const dt = (ctx.eventData.dt as number) ?? 0.016;
-
-    const dx = targetObject.x - gameObject.x;
-    const dy = targetObject.y - gameObject.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > 5) {
-        const nx = dx / distance;
-        const ny = dy / distance;
-        gameObject.x += nx * Number(speed) * dt;
-        gameObject.y += ny * Number(speed) * dt;
-
-        if (entity) {
-            entity.x = gameObject.x;
-            entity.y = gameObject.y;
-        }
-    }
-});
-
 // --- Combat Actions ---
 
 const attackCooldowns = new Map<string, number>();
@@ -1062,30 +1007,8 @@ ActionRegistry.register("PlayParticle", (ctx: ActionContext, params: Record<stri
     }
 });
 
-ActionRegistry.register("StartParticleEmitter", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer;
-    if (!renderer?.createParticleEmitter) return;
+// --- Flow Control Actions ---
 
-    const emitterId = (params.emitterId as string) ?? `emitter_${ctx.entityId}`;
-    const preset = (params.preset as string) ?? "fire";
-
-    // 위치: params > gameObject > entity 데이터 순으로 시도
-    const gameObject = renderer.getGameObject?.(ctx.entityId);
-    const entity = getEntity(ctx);
-
-    const x = (params.x as number) ?? gameObject?.x ?? entity?.x ?? 0;
-    const y = (params.y as number) ?? gameObject?.y ?? entity?.y ?? 0;
-
-    renderer.createParticleEmitter(emitterId, preset, x, y);
-});
-
-ActionRegistry.register("StopParticleEmitter", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer;
-    if (!renderer?.stopParticleEmitter) return;
-
-    const emitterId = (params.emitterId as string) ?? `emitter_${ctx.entityId}`;
-    renderer.stopParticleEmitter(emitterId);
-});
 
 // --- Flow Control Actions ---
 
