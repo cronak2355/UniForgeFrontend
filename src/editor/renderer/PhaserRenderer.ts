@@ -44,6 +44,46 @@ class PhaserRenderScene extends Phaser.Scene {
         super("PhaserRenderScene");
     }
 
+    // Assets to load in preload() phase - set by PhaserRenderer before scene starts
+    public assetsToPreload: Array<{ id: string; name: string; url: string; tag: string; metadata?: any }> = [];
+
+    /**
+     * Phaser preload lifecycle - loads all sprite assets before create()
+     * Tiles are handled separately via canvas texture in React useEffect
+     */
+    preload() {
+        console.log(`[PhaserRenderScene] preload() - Loading ${this.assetsToPreload.length} assets`);
+
+        for (const asset of this.assetsToPreload) {
+            // Skip tiles - they use canvas-based tileset
+            if (asset.tag === "Tile") continue;
+
+            const metadata = asset.metadata;
+
+            // Load as spritesheet if metadata specifies frame dimensions
+            if (metadata?.frameWidth > 0 && metadata?.frameHeight > 0) {
+                this.load.spritesheet(asset.name, asset.url, {
+                    frameWidth: metadata.frameWidth,
+                    frameHeight: metadata.frameHeight
+                });
+                // Also load with asset.id if different from name
+                if (asset.id !== asset.name) {
+                    this.load.spritesheet(asset.id, asset.url, {
+                        frameWidth: metadata.frameWidth,
+                        frameHeight: metadata.frameHeight
+                    });
+                }
+            } else {
+                // Load as regular image
+                this.load.image(asset.name, asset.url);
+                if (asset.id !== asset.name) {
+                    this.load.image(asset.id, asset.url);
+                }
+            }
+        }
+    }
+
+
     create() {
         console.log("[PhaserRenderScene] create() called");
 
@@ -517,11 +557,23 @@ export class PhaserRenderer implements IRenderer {
 
     // ===== Lifecycle =====
 
+    /**
+     * Set assets to preload before calling init()
+     * These will be loaded in the scene's preload() phase
+     */
+    setPreloadAssets(assets: Array<{ id: string; name: string; url: string; tag: string; metadata?: any }>): void {
+        this._pendingAssets = assets;
+    }
+
+    private _pendingAssets: Array<{ id: string; name: string; url: string; tag: string; metadata?: any }> = [];
+
     async init(container: HTMLElement, options?: { width?: number, height?: number }): Promise<void> {
         this._container = container;
 
         const scene = new PhaserRenderScene();
         scene.phaserRenderer = this;
+        // Pass pending assets to scene for preload()
+        scene.assetsToPreload = this._pendingAssets;
         this.scene = scene;
 
         const config: Phaser.Types.Core.GameConfig = {
@@ -541,11 +593,12 @@ export class PhaserRenderer implements IRenderer {
 
         this.game = new Phaser.Game(config);
 
-        // ??以€鍮??€湲?
+        // 씬 준비 대기
         return new Promise((resolve) => {
             this.initResolve = resolve;
         });
     }
+
 
     /**
      * ??以€鍮??꾨즺 ???몄텧 (?대???
@@ -958,6 +1011,12 @@ export class PhaserRenderer implements IRenderer {
             // But UI elements definitely need size.
 
             obj = sprite;
+        } else if (type === "container") {
+            // [Fix] Handle 'container' type explicitly (e.g. Main Camera)
+            // Create empty container, no visual placeholder
+            const container = this.scene.add.container(x, y);
+            container.setSize(width, height);
+            obj = container;
         } else {
             // Fallback Placeholder
             const rect = this.scene.add.rectangle(x, y, width, height, 0xff00ff);
@@ -2310,6 +2369,18 @@ export class PhaserRenderer implements IRenderer {
         const obj = this.entities.get(id) as any;
         if (obj && typeof obj.setTint === "function") {
             obj.setTint(color);
+        }
+    }
+
+    clear(): void {
+        console.log(`[PhaserRenderer] Clearing ${this.entities.size} entities.`);
+        for (const [id, entity] of this.entities) {
+            if (entity.destroy) entity.destroy();
+        }
+        this.entities.clear();
+
+        if (this.scene && this.scene.children) {
+            // Optional: Force clear logic if entities were not in map
         }
     }
 }

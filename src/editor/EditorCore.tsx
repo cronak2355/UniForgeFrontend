@@ -107,8 +107,6 @@ export class EditorState implements IGameState {
         // Initialize default scene
         this.createScene("Scene 1", "default");
         this.loadDemoScene();
-        this.createScene("Scene 1", "default");
-        this.loadDemoScene();
 
         // Initial snapshot
         this.snapshot();
@@ -284,7 +282,7 @@ export class EditorState implements IGameState {
     getCurrentSceneId() { return this.currentSceneId; }
     getCurrentScene() { return this.scenes.get(this.currentSceneId); }
 
-    createScene(name: string, id?: string): string {
+    createScene(name: string, id?: string, skipDefaultEntities: boolean = false): string {
         this.snapshot();
         const newId = id || crypto.randomUUID();
         this.scenes.set(newId, {
@@ -293,6 +291,38 @@ export class EditorState implements IGameState {
             entities: new Map(),
             tiles: new Map()
         });
+
+        // [User Request] Ensure Main Camera exists in every new scene
+        // Skip if this createScene call is part of a deserialize/load process (skipDefaultEntities = true)
+        if (!skipDefaultEntities) {
+            const scene = this.scenes.get(newId);
+            if (scene) {
+                const hasCamera = Array.from(scene.entities.values()).some(e => e.name === "Main Camera");
+                if (!hasCamera) {
+                    const cameraEntity: EditorEntity = {
+                        id: crypto.randomUUID(),
+                        name: "Main Camera",
+                        type: "container",
+                        role: "neutral",
+                        x: 640,
+                        y: 360,
+                        z: 0,
+                        rotation: 0,
+                        rotationX: 0,
+                        rotationY: 0,
+                        rotationZ: 0,
+                        scaleX: 1,
+                        scaleY: 1,
+                        variables: [],
+                        components: [],
+                        logic: [],
+                        events: []
+                    };
+                    scene.entities.set(cameraEntity.id, cameraEntity);
+                }
+            }
+        }
+
         this.currentSceneId = newId; // Auto-switch to new scene
         this.notify();
         return newId;

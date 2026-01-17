@@ -125,10 +125,27 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (variable && typeof variable.value === "number") {
+    if (!variable) return false;
+
+    // Vector2 comparison
+    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
+        const varX = (variable.value as any).x;
+        const varY = (variable.value as any).y;
+
+        // Compare with Vector2 expectedValue
+        if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
+            return varX === (expectedValue as any).x && varY === (expectedValue as any).y;
+        }
+        // Compare with separate x, y params
+        const expX = params.x !== undefined ? params.x : params.value;
+        const expY = params.y !== undefined ? params.y : params.value;
+        return varX == expX && varY == expY;
+    }
+
+    if (typeof variable.value === "number") {
         return variable.value == expectedValue;
     }
-    return variable?.value === expectedValue;
+    return variable.value === expectedValue;
 });
 
 ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
@@ -145,10 +162,27 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
     const varName = params.name as string;
     const expectedValue = params.value;
     const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (variable && typeof variable.value === "number") {
+    if (!variable) return true; // Variable doesn't exist = not equal
+
+    // Vector2 comparison
+    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
+        const varX = (variable.value as any).x;
+        const varY = (variable.value as any).y;
+
+        // Compare with Vector2 expectedValue
+        if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
+            return varX !== (expectedValue as any).x || varY !== (expectedValue as any).y;
+        }
+        // Compare with separate x, y params
+        const expX = params.x !== undefined ? params.x : params.value;
+        const expY = params.y !== undefined ? params.y : params.value;
+        return varX != expX || varY != expY;
+    }
+
+    if (typeof variable.value === "number") {
         return variable.value != expectedValue;
     }
-    return variable?.value !== expectedValue;
+    return variable.value !== expectedValue;
 });
 
 ConditionRegistry.register("VarLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
@@ -223,6 +257,17 @@ ConditionRegistry.register("SignalFlag", (ctx: ActionContext, params: Record<str
     const key = params.key as string;
     if (!key) return false;
     return ctx.entityContext?.signals.flags[key] === true;
+});
+
+// Signal Key Comparison - Used with OnSignalReceive event
+// Checks if the received signal matches the expected signalKey
+ConditionRegistry.register("SignalKeyEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const expectedKey = (params.signalKey as string) ?? (params.key as string) ?? "";
+    if (!expectedKey) return true; // No key filter = match all signals
+
+    // Get the signal from the event data (passed from EVENT_SIGNAL)
+    const receivedSignal = ctx.eventData?.signal as string;
+    return receivedSignal === expectedKey;
 });
 
 // --- Tag Conditions ---

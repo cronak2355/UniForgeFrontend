@@ -33,29 +33,22 @@ export const ACTION_LABELS: Record<string, string> = {
     Jump: "점프",
     Wait: "대기",
     MoveToward: "목표이동",
-    ChaseTarget: "추적24시",
     Attack: "공격",
-    FireProjectile: "발사체 발사",
     TakeDamage: "피해 입기",
-    Heal: "회복",
     SetVar: "변수 설정",
-    Enable: "활성",
     ChangeScene: "씬 전환",
-    Log: "로그",
+
+
     Rotate: "회전",
     Pulse: "펄스",
     ShowDialogue: "대화 표시",
     PlaySound: "사운드 재생",
     EmitEventSignal: "이벤트 신호 보내기",
-    ClearSignal: "신호 해제",
-    IncrementVar: "변수 증가",
     Disable: "비활성",
     PlayParticle: "파티클 생성",
-    StartParticleEmitter: "파티클 이미터 시작",
-    StopParticleEmitter: "파티클 이미터 종료",
     If: "조건문",
     RunModule: "모듈 실행",
-    OpenUrl: "url 열기",
+
     SpawnEntity: "엔티티 생성",
     PlayAnimation: "애니메이션 동작",
 };
@@ -72,6 +65,7 @@ export const CONDITION_TYPES = [
     { value: "InputKey", label: "키 입력 중 (Hold)" },
     { value: "InputDown", label: "키 누름 (Down)" },
     { value: "CompareTag", label: "태그 비교 (CompareTag)" },
+    { value: "SignalKeyEquals", label: "신호 키 비교 (SignalKey)" },
 ];
 
 export const INPUT_KEY_OPTIONS = [
@@ -675,7 +669,8 @@ function ConditionEditor({
 }) {
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
-    const isValueFreeCondition = isInputCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
+    const isSignalKeyCondition = condition.type === "SignalKeyEquals";
+    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
     const thenActions = condition.then || [];
 
     const updateThenActions = (newActions: any[]) => {
@@ -753,6 +748,16 @@ function ConditionEditor({
                     />
                 )}
 
+                {isSignalKeyCondition && (
+                    <input
+                        type="text"
+                        placeholder="신호 키 (signalKey)"
+                        value={(condition.signalKey as string) || ""}
+                        onChange={(e) => onUpdate({ ...condition, signalKey: e.target.value })}
+                        style={styles.textInput}
+                    />
+                )}
+
                 {!isValueFreeCondition && condition.type !== "CompareTag" && (
                     selectedVar?.type === "bool" ? (
                         <select
@@ -763,6 +768,29 @@ function ConditionEditor({
                             <option value="true">true</option>
                             <option value="false">false</option>
                         </select>
+                    ) : selectedVar?.type === "vector2" ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                            <input
+                                type="number"
+                                placeholder="x"
+                                value={(condition.value as any)?.x ?? condition.x ?? 0}
+                                onChange={(e) => {
+                                    const y = (condition.value as any)?.y ?? condition.y ?? 0;
+                                    onUpdate({ ...condition, value: { x: Number(e.target.value), y }, x: Number(e.target.value), y });
+                                }}
+                                style={{ ...styles.textInput, width: 50 }}
+                            />
+                            <input
+                                type="number"
+                                placeholder="y"
+                                value={(condition.value as any)?.y ?? condition.y ?? 0}
+                                onChange={(e) => {
+                                    const x = (condition.value as any)?.x ?? condition.x ?? 0;
+                                    onUpdate({ ...condition, value: { x, y: Number(e.target.value) }, x, y: Number(e.target.value) });
+                                }}
+                                style={{ ...styles.textInput, width: 50 }}
+                            />
+                        </div>
                     ) : (
                         <input
                             type="text"
@@ -782,7 +810,7 @@ function ConditionEditor({
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                         <span style={{ fontSize: 10, color: colors.textSecondary }}>추가 동작 ({thenActions.length})</span>
                         <button
-                            onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Log" }])}
+                            onClick={() => updateThenActions([...thenActions, { type: availableActions[0] || "Wait" }])}
                             style={{ ...styles.addButton, padding: "1px 4px", fontSize: 9 }}
                         >
                             + 동작 추가

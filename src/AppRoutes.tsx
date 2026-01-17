@@ -52,6 +52,7 @@ function AppRoutes() {
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
             <Route path="/editor/:gameId" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
             {/* Play Mode Route */}
+            <Route path="/play" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
             <Route path="/play/:gameId" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
         </Routes>
     );

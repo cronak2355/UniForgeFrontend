@@ -40,10 +40,11 @@ ActionRegistry.register("PlaySound", (ctx: ActionContext, params: Record<string,
 
 /**
  * EmitEventSignal - 이벤트 신호 발생
- * params: { signal: string }
+ * params: { signal: string } or { signalKey: string }
  */
 ActionRegistry.register("EmitEventSignal", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const signal = params.signal as string;
+    // Support both 'signal' and 'signalKey' for UI compatibility
+    const signal = (params.signal as string) ?? (params.signalKey as string);
     if (!signal) {
         console.warn("[Action] EmitEventSignal: No signal provided");
         return;

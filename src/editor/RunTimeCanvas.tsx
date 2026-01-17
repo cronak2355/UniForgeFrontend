@@ -114,7 +114,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const initialModulesRef = useRef<ModuleGraph[] | null>(null);
     const rendererReadyRef = useRef(false);
     const tilemapReadyRef = useRef(false);
-    const loadedTexturesRef = useRef<Set<string>>(new Set());
     const tileSignatureRef = useRef<string>("");
     const { core, assets, tiles, entities, selectedEntity, modules, aspectRatio } = useEditorCoreSnapshot();
     const [fps, setFps] = useState(0);
@@ -203,8 +202,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 gameHeight = parseInt(hStr) || 720;
             }
 
-            // 3. Init Renderer (Async)
-            // console.log(`[RunTimeCanvas] Initializing... ${gameWidth}x${gameHeight}`);
+            // 3. Set assets for preload BEFORE init
+            renderer.setPreloadAssets(assets);
+
+            // 4. Init Renderer (Async) - preload() will run during this
             await renderer.init(ref.current as HTMLElement, { width: gameWidth, height: gameHeight });
 
             // [Lifecycle] Check after await
@@ -214,30 +215,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 return;
             }
 
-            // 4. Setup State
+            // 5. Setup State - textures are now ready from preload()
             rendererReadyRef.current = true;
             setIsRendererReady(true);
             renderer.isRuntimeMode = true;
             renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
 
-            // 4.5 Load Textures (CRITICAL - must be before entity spawn)
-            // console.log(`[RunTimeCanvas] Loading ${assets.length} assets...`);
-            for (const asset of assets) {
-                if (asset.tag === "Tile") continue;
-                // [FIX] Load texture with both name AND id keys to handle entity.texture being asset.id
-                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
-                // Also load with asset.id as key (entities use asset.id as texture key)
-                if (asset.id !== asset.name) {
-                    await renderer.loadTexture(asset.id, asset.url, asset.metadata);
-                }
-                if (!isMounted) {
-                    console.log("[RunTimeCanvas] Aborted during texture loading");
-                    renderer.destroy();
-                    rendererRef.current = null;
-                    return;
-                }
-            }
-            // console.log("[RunTimeCanvas] Textures loaded");
 
             // 5. Spawn Entities (Global + Scene)
             const globalEntities = Array.from(core.getGlobalEntities().values());
@@ -389,6 +372,8 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         const handleSceneChange = (event: GameEvent) => {
             if (event.type !== "SCENE_CHANGE_REQUEST") return;
 
+            console.log("[RunTimeCanvas] SCENE_CHANGE_REQUEST received:", event.data);
+
             const sceneId = event.data?.sceneId as string | undefined;
             const sceneName = event.data?.sceneName as string | undefined;
 
@@ -405,7 +390,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             }
 
             if (core.getCurrentSceneId() !== target.id) {
+                console.log("[RunTimeCanvas] Switching scene from", core.getCurrentSceneId(), "to", target.id);
                 core.switchScene(target.id);
+            } else {
+                console.log("[RunTimeCanvas] Scene already active:", target.id);
             }
 
             const gameRuntime = gameCoreRef.current;
@@ -454,24 +442,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         if (!renderer || !rendererReadyRef.current) return;
 
         const nextSignature = buildTileSignature(assets);
-        const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
-        const assetLookup = new Map<string, Asset>();
-        for (const asset of assets) {
-            assetLookup.set(asset.name, asset);
-            assetLookup.set(asset.id, asset);
-        }
         let cancelled = false;
 
         (async () => {
             renderer.updateAssets?.(assets);
 
-            for (const asset of nextNonTileAssets) {
-                if (loadedTexturesRef.current.has(asset.name)) continue;
-                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
-                if (cancelled) return;
-                loadedTexturesRef.current.add(asset.name);
-            }
-
+            // Tile handling (canvas-based tileset) - remains here
             if (nextSignature !== tileSignatureRef.current) {
                 const tilesetCanvas = await buildTilesetCanvas(assets);
                 if (cancelled || !tilesetCanvas) return;
@@ -483,18 +459,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 prevTilesRef.current = indexTiles(tiles);
             }
 
+            // Refresh entity textures (textures already loaded in preload())
             for (const ent of entities) {
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
-
-                if (!loadedTexturesRef.current.has(textureKey)) {
-                    const asset = assetLookup.get(textureKey);
-                    if (asset) {
-                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
-                        if (cancelled) return;
-                        loadedTexturesRef.current.add(textureKey);
-                    }
-                }
                 renderer.refreshEntityTexture(ent.id, textureKey);
             }
         })();
@@ -503,6 +471,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             cancelled = true;
         };
     }, [assets, entities]);
+
 
     const colors = {
         bgPrimary: '#0d1117',
