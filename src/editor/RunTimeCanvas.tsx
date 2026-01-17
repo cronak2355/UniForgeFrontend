@@ -109,6 +109,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
     const [gameCore, setGameCore] = useState<GameCore | null>(null);
+    const [isRendererReady, setIsRendererReady] = useState(false);
     const prevTilesRef = useRef<Map<string, TilePlacement>>(new Map());
     const initialModulesRef = useRef<ModuleGraph[] | null>(null);
     const rendererReadyRef = useRef(false);
@@ -215,6 +216,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
             // 4. Setup State
             rendererReadyRef.current = true;
+            setIsRendererReady(true);
             renderer.isRuntimeMode = true;
             renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
 
@@ -356,6 +358,32 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             console.log("[RunTimeCanvas] ========== CLEANUP COMPLETE ==========");
         };
     }, []); // Empty deps - only run on mount/unmount
+
+    useEffect(() => {
+        if (!isRendererReady) return;
+        const gameRuntime = gameCoreRef.current;
+        const renderer = rendererRef.current;
+        if (!gameRuntime || !renderer) return;
+
+        const runtimeContext = gameRuntime.getRuntimeContext();
+        if (runtimeContext.entities.size > 0) return;
+
+        const globalEntities = Array.from(core.getGlobalEntities().values());
+        const sceneEntities = Array.from(core.getEntities().values());
+        if (globalEntities.length === 0 && sceneEntities.length === 0) return;
+
+        gameRuntime.resetRuntime();
+        spawnRuntimeEntities(gameRuntime, [...globalEntities, ...sceneEntities]);
+
+        for (const entity of runtimeContext.entities.values()) {
+            if (entity.name === "Main Camera") {
+                const cx = Number(entity.x) || 0;
+                const cy = Number(entity.y) || 0;
+                renderer.setCameraPosition(cx, cy);
+                break;
+            }
+        }
+    }, [core, entities, isRendererReady]);
 
     useEffect(() => {
         const handleSceneChange = (event: GameEvent) => {
