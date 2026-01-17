@@ -11,7 +11,7 @@ export class PresetManager {
             return entity;
         }
 
-        console.log(`[PresetManager] Applying preset '${preset.label}' to entity '${entity.name}'`);
+
 
         const newVariables = preset.variables.map((v) => ({
             ...v,

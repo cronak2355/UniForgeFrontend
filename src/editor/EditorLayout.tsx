@@ -143,6 +143,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     const [runtimeCore, setRuntimeCore] = useState<any>(null); // Store Runtime Core when in Play mode
     const [isDirty, setIsDirty] = useState(false);
     const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
+    const [isEditorReady, setIsEditorReady] = useState(false);
 
     // Asset Panel Resize State (Removed - layout changed to Sidebar Tabs)
     // const [assetPanelHeight, setAssetPanelHeight] = useState(280); 
@@ -179,21 +180,23 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 let loadedFromServer = false;
                 if (gameId && gameId !== "undefined") {
                     if (gameId === 'new') {
-                        console.log("[EditorLayout] New project requested. Starting fresh.");
+
                         core.clear();
                         loadedFromServer = true;
                         setIsDirty(false);
                     } else {
                         try {
+                            console.log("[EditorLayout] Loading scene for gameId:", gameId);
                             const sceneJson = await loadScene(gameId);
+                            console.log("[EditorLayout] Scene loaded:", sceneJson ? "success" : "null");
                             if (sceneJson) {
-                                console.log("[EditorLayout] Loaded scene from server");
+
                                 core.clear();
                                 SceneSerializer.deserialize(sceneJson, core);
                                 loadedFromServer = true;
                             } else {
                                 // Loaded but empty (New Game)
-                                console.log("[EditorLayout] specific gameId provided but no content (New Game). Clearing core.");
+
                                 core.clear();
                                 loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
                             }
@@ -201,12 +204,13 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             console.warn("[EditorLayout] Server load failed:", e);
                             // If server load fails (e.g. 404 Not Found because no version exists yet), 
                             // we should treat it as a fresh new game, NOT fall back to local autosave.
-                            console.log("[EditorLayout] Treating as new empty project due to load failure.");
+
                             core.clear();
                             loadedFromServer = true;
                         }
                     }
                 }
+                console.log("[EditorLayout] initEditor complete", { loadedFromServer, entities: core.getEntities().size });
 
                 if (!loadedFromServer) {
                     // 2. Fallback to local autosave
@@ -214,31 +218,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     if (saved) {
                         try {
                             const json = JSON.parse(saved);
-                            // ... (existing validation logic for autosave) ...
-                            // REMOVED: S3 URL filtering
-                            /*
-                            if (json.assets && Array.isArray(json.assets)) {
-                                json.assets = json.assets.filter((asset: any) => {
-                                    const isS3Url = asset.url && asset.url.includes('amazonaws.com');
-                                    if (isS3Url) return false;
-                                    return true;
-                                });
-                            }
-                            */
-
-                            // Re-enable entity filtering ONLY if needed for consistency, but be careful not to delete valid stuff
-                            if (json.entities && Array.isArray(json.entities)) {
-                                const validAssetNames = new Set(json.assets?.map((a: any) => a.name) || []);
-                                // Filter entities that refer to non-existent assets (optional consistency check)
-                                // json.entities = json.entities.filter((entity: any) => {
-                                //    if (entity.texture && !validAssetNames.has(entity.texture)) return false;
-                                //    return true;
-                                // });
-                            }
-
                             core.clear();
                             SceneSerializer.deserialize(json, core);
-                            console.log("[EditorLayout] Loaded from local autosave");
                         } catch (e) {
                             console.error("[EditorLayout] Failed to parse local autosave", e);
                         }
@@ -250,7 +231,6 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 if (scene) {
                     const hasCamera = Array.from(scene.entities.values()).some(e => e.name === "Main Camera");
                     if (!hasCamera) {
-                        console.log("[EditorLayout] No Main Camera found after load. Adding default camera.");
                         const cameraEntity = {
                             id: crypto.randomUUID(),
                             name: "Main Camera",
@@ -292,6 +272,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 }
             } catch (err) {
                 console.error("[EditorLayout] Critical error in initEditor", err);
+            } finally {
+                setIsEditorReady(true);
             }
         };
 
@@ -375,7 +357,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
-        console.log("Generating AI Asset:", prompt);
+
         try {
             // 1. Call AI Service
             // Default size 512 for now
@@ -444,7 +426,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             core.setSelectedEntity(newEntity);
             setLocalSelectedEntity(newEntity); // Update UI
 
-            console.log("AI Asset Placed:", newEntity);
+
 
         } catch (e) {
             console.error("AI Generation Failed:", e);
@@ -474,12 +456,12 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 const newGame = await createGame(user.id, "Untitled Project", "Restored Project");
                 id = String(newGame.gameId);
                 isNewGame = true;
-                console.log("[EditorLayout] Created fallback game:", id);
+
             }
 
             // 2. Save Version
             await saveGameVersion(id, sceneJson);
-            console.log("[EditorLayout] Saved game version");
+
 
             // 3. Capture and Upload Thumbnail (Best Effort)
             try {
@@ -517,7 +499,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                 const thumbnailUrl = presignData.publicUrl || s3Url;
                                 // Update thumbnail via updateGameInfo
                                 await updateGameInfo(id, undefined, undefined, thumbnailUrl);
-                                console.log("[EditorLayout] Thumbnail updated");
+
                             } else {
                                 console.warn("Thumbnail upload to S3 failed:", uploadRes.status);
                             }
@@ -890,7 +872,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                         metadata: (asset as any).description ? JSON.parse((asset as any).description) : undefined,
                         description: (asset as any).description
                     });
-                    console.log("Auto-imported asset:", (asset as any).name);
+
                 }
             } catch (e) {
                 console.error("Failed to auto-load new asset:", e);
@@ -960,6 +942,20 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         }
     };
 
+
+
+    if (!isEditorReady) {
+        return (
+            <div style={{
+                width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: colors.bgPrimary, color: colors.textSecondary, flexDirection: 'column', gap: '16px'
+            }}>
+                <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '32px', color: colors.accent }}></i>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>프로젝트를 불러오는 중...</div>
+            </div>
+        );
+    }
+
     return (
         <div style={{
             width: '100vw',
@@ -1028,7 +1024,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                                 JSON.stringify(sceneJson)
                                             );
 
-                                            console.log("✅ Export Scene JSON saved", sceneJson);
+
 
                                             // 3. Build 페이지로 이동
                                             navigate("/build");

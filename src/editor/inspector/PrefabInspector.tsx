@@ -86,7 +86,7 @@ export function PrefabInspector({ asset }: Props) {
         });
 
         setIsDirty(false);
-        console.log(`[PrefabInspector] Saved prefab: ${asset.name}`);
+
     };
 
     const handleReset = () => {
