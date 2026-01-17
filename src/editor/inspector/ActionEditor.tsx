@@ -977,6 +977,24 @@ function OperandInput({
     onChange({ ...source, ...updates });
   };
 
+  const normalizeVector2 = (val: any) => {
+    if (typeof val === "object" && val !== null && "x" in val && "y" in val) {
+      return { x: (val as any).x, y: (val as any).y };
+    }
+    return { x: 0, y: 0 };
+  };
+
+  const parseMaybeNumber = (raw: string) => {
+    if (raw === "" || raw === "-" || raw === "." || raw === "-.") return raw;
+    const num = Number(raw);
+    return Number.isNaN(num) ? raw : num;
+  };
+
+  const coerceNumber = (raw: string) => {
+    const num = Number(raw);
+    return Number.isNaN(num) ? 0 : num;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 4, marginBottom: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
@@ -1006,14 +1024,28 @@ function OperandInput({
                   className="variable-value min-w-0"
                   style={{ ...styles.smallNumberInput, flex: 1, width: '100%' }}
                   value={source.value?.x ?? 0}
-                  onChange={(e) => updateSource({ value: { ...source.value, x: parseFloat(e.target.value) || 0 } })}
+                  onChange={(e) => {
+                    const vector = normalizeVector2(source.value);
+                    updateSource({ value: { ...vector, x: parseMaybeNumber(e.target.value) } });
+                  }}
+                  onBlur={(e) => {
+                    const vector = normalizeVector2(source.value);
+                    updateSource({ value: { ...vector, x: coerceNumber(e.target.value) } });
+                  }}
                 />
                 <span className="text-[10px] text-gray-500 shrink-0">Y</span>
                 <input
                   className="variable-value min-w-0"
                   style={{ ...styles.smallNumberInput, flex: 1, width: '100%' }}
                   value={source.value?.y ?? 0}
-                  onChange={(e) => updateSource({ value: { ...source.value, y: parseFloat(e.target.value) || 0 } })}
+                  onChange={(e) => {
+                    const vector = normalizeVector2(source.value);
+                    updateSource({ value: { ...vector, y: parseMaybeNumber(e.target.value) } });
+                  }}
+                  onBlur={(e) => {
+                    const vector = normalizeVector2(source.value);
+                    updateSource({ value: { ...vector, y: coerceNumber(e.target.value) } });
+                  }}
                 />
               </div>
             ) : (

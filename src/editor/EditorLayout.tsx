@@ -1329,14 +1329,15 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 </div>
 
                 {/* RIGHT PANEL - Inspector */}
-                <div style={{
-                    width: '280px',
-                    background: colors.bgSecondary,
-                    borderLeft: `2px solid ${colors.borderColor}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative',
-                }}>
+                {!isPlayMode && (
+                    <div style={{
+                        width: '280px',
+                        background: colors.bgSecondary,
+                        borderLeft: `2px solid ${colors.borderColor}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        position: 'relative',
+                    }}>
                     <div style={{
                         height: '32px',
                         display: 'flex',
@@ -1402,7 +1403,8 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             </span>
                         )}
                     </button>
-                </div>
+                    </div>
+                )}
 
                 {/* Play Mode Overlay */}
                 {isPlayMode && (

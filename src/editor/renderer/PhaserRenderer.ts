@@ -1756,6 +1756,8 @@ export class PhaserRenderer implements IRenderer {
 
     setTile(x: number, y: number, tileIndex: number): void {
         if (!this.baseLayer || !this.map || !this.tileset || !this.baseLayer.layer) return;
+        if (!Number.isFinite(tileIndex) || tileIndex < 0) return;
+        if (this.tileset.total !== undefined && tileIndex >= this.tileset.total) return;
 
         const tx = x + this.tileOffsetX;
         const ty = y + this.tileOffsetY;

@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { marketplaceService, Asset } from '../services/marketplaceService';
+import { libraryService } from '../services/libraryService';
 import TopBar from '../components/common/TopBar';
 import AssetCard from '../components/common/AssetCard';
 import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
 import { getCloudFrontUrl } from '../utils/imageUtils';
 
 const MarketplacePage = () => {
-    const { logout } = useAuth();
+    const { logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
     // UI State
@@ -19,6 +20,7 @@ const MarketplacePage = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState<Asset | null>(null);
+    const [isAddingToLibrary, setIsAddingToLibrary] = useState(false);
 
     // Filter State
     const [selectedFilterId, setSelectedFilterId] = useState<string>("전체");
@@ -115,6 +117,27 @@ const MarketplacePage = () => {
     const handleCategorySelect = (item: CategoryItem) => {
         setSelectedFilterId(item.id);
         setSelectedCategory(item.id);
+    };
+
+    const handleAddToLibrary = async () => {
+        if (!selectedItem) return;
+        if (!isAuthenticated) {
+            if (confirm('로그인이 필요합니다. 로그인 페이지로 이동할까요?')) {
+                navigate('/auth');
+            }
+            return;
+        }
+
+        setIsAddingToLibrary(true);
+        try {
+            await libraryService.addToLibrary(selectedItem.id, 'ASSET');
+            alert(`${selectedItem.name}이(가) 라이브러리에 추가되었습니다.`);
+        } catch (error: any) {
+            console.error('Failed to add to library:', error);
+            alert(error?.message || '라이브러리 추가에 실패했습니다.');
+        } finally {
+            setIsAddingToLibrary(false);
+        }
     };
 
     return (
@@ -270,11 +293,12 @@ const MarketplacePage = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => alert(`${selectedItem.name}이(가) 라이브러리에 다운로드되었습니다.`)}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                    onClick={handleAddToLibrary}
+                                    disabled={isAddingToLibrary}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:cursor-not-allowed"
                                 >
-                                    <i className="fa-solid fa-download"></i>
-                                    라이브러리에 담기
+                                    <i className={`fa-solid ${isAddingToLibrary ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
+                                    {isAddingToLibrary ? '추가 중...' : '라이브러리에 담기'}
                                 </button>
                             </div>
                         </div>
