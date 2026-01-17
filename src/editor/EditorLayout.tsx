@@ -1334,7 +1334,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                         ) : (
                             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                                 <RunTimeCanvas
-                                    key={`run-${runSession}`}
+                                    key={`run-${runSession}-${currentSceneId}`}
                                     onRuntimeEntitySync={handleRuntimeEntitySync}
                                     onGameReady={setRuntimeCore}
                                 />
