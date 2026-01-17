@@ -22,9 +22,9 @@ function parsePrefab(raw: unknown): EditorEntity | null {
 
 export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
   if (asset.tag === "Prefab" && asset.metadata?.prefab) {
-    console.log("[assetToEntity] prefab metadata", asset.metadata.prefab);
+
     const prefab = parsePrefab(asset.metadata.prefab);
-    console.log("[assetToEntity] parsed prefab", prefab);
+
     if (prefab) {
       const normalizedPrefab = syncLegacyFromLogic(ensureEntityLogic(prefab));
       return {

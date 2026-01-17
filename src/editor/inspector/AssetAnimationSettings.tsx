@@ -82,7 +82,7 @@ export function AssetAnimationSettings({ asset }: Props) {
         });
 
         setIsDirty(false);
-        console.log(`[AssetAnimationSettings] Updated ${asset.name}: FPS=${fps}, Loop=${loop}`);
+
     };
 
     const handleReset = () => {

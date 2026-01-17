@@ -127,7 +127,7 @@ export class EditorScene extends Phaser.Scene {
   // create
   // -----------------------
   create() {
-    console.log("[EditorScene] create() called - starting initialization");
+
     this.ready = true;
 
     const cam = this.cameras.main;

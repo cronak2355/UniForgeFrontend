@@ -123,16 +123,16 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const cleanupDoneRef = useRef(false);
 
     useEffect(() => {
-        console.log("[RunTimeCanvas] useEffect CALLED - timestamp:", Date.now());
+
 
         if (!ref.current) {
-            console.log("[RunTimeCanvas] No ref, skipping initialization");
+
             return;
         }
 
         // [GUARD] Prevent double initialization
         if (initializationStartedRef.current) {
-            console.log("[RunTimeCanvas] Already  initialized, skipping");
+
             return;
         }
 
@@ -141,7 +141,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
         // [CRITICAL FIX] If a renderer already exists, clean it up first
         if (rendererRef.current) {
-            console.log("[RunTimeCanvas] Cleaning up existing renderer before re-init");
+
             rendererRef.current.destroy();
             rendererRef.current = null;
         }
@@ -151,7 +151,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             ref.current.removeChild(ref.current.firstChild);
         }
 
-        console.log("[RunTimeCanvas] ========== STARTING INITIALIZATION ==========");
+
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
 
@@ -187,7 +187,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             // 1. Small delay to ensure cleanup from previous cycle completes
             await new Promise(resolve => setTimeout(resolve, 50));
             if (!isMounted) {
-                console.log("[RunTimeCanvas] Aborted during initial delay");
+
                 renderer.destroy();
                 rendererRef.current = null;
                 return;
@@ -210,7 +210,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
             // [Lifecycle] Check after await
             if (!isMounted) {
-                console.log("[RunTimeCanvas] Unmounted during init. Destroying.");
+
                 renderer.destroy();
                 return;
             }
@@ -249,6 +249,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 frameCountRef.current++;
                 if (time > lastFpsTimeRef.current + 500) {
                     setFps(Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current)));
+                    console.log(`[RunTimeCanvas] FPS: ${Math.round(frameCountRef.current * 1000 / (time - lastFpsTimeRef.current))}, Entities: ${gameRuntime.getRuntimeContext().entities.size}`);
                     frameCountRef.current = 0;
                     lastFpsTimeRef.current = time;
                 }
@@ -307,13 +308,13 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         return () => {
             // [GUARD] Prevent double cleanup
             if (cleanupDoneRef.current) {
-                console.log("[RunTimeCanvas] Cleanup already done, skipping duplicate");
+
                 return;
             }
 
             cleanupDoneRef.current = true;
             isMounted = false;
-            console.log("[RunTimeCanvas] ========== CLEANUP STARTED ==========");
+
 
             if (gameRuntime && gameRuntime.destroy) {
                 gameRuntime.destroy();
@@ -338,7 +339,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             // Reset initialization flag so component can re-init if remounted
             initializationStartedRef.current = false;
 
-            console.log("[RunTimeCanvas] ========== CLEANUP COMPLETE ==========");
+
         };
     }, []); // Empty deps - only run on mount/unmount
 
@@ -353,8 +354,13 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
         const globalEntities = Array.from(core.getGlobalEntities().values());
         const sceneEntities = Array.from(core.getEntities().values());
-        if (globalEntities.length === 0 && sceneEntities.length === 0) return;
+        console.log("[RunTimeCanvas] Checking entities for spawn. Global:", globalEntities.length, "Scene:", sceneEntities.length);
+        if (globalEntities.length === 0 && sceneEntities.length === 0) {
+            console.warn("[RunTimeCanvas] No entities to spawn yet.");
+            return;
+        }
 
+        console.log("[RunTimeCanvas] Spawning entities...", globalEntities.length + sceneEntities.length);
         gameRuntime.resetRuntime();
         spawnRuntimeEntities(gameRuntime, [...globalEntities, ...sceneEntities]);
 
@@ -372,7 +378,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         const handleSceneChange = (event: GameEvent) => {
             if (event.type !== "SCENE_CHANGE_REQUEST") return;
 
-            console.log("[RunTimeCanvas] SCENE_CHANGE_REQUEST received:", event.data);
+
 
             const sceneId = event.data?.sceneId as string | undefined;
             const sceneName = event.data?.sceneName as string | undefined;
@@ -390,10 +396,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             }
 
             if (core.getCurrentSceneId() !== target.id) {
-                console.log("[RunTimeCanvas] Switching scene from", core.getCurrentSceneId(), "to", target.id);
+
                 core.switchScene(target.id);
             } else {
-                console.log("[RunTimeCanvas] Scene already active:", target.id);
+
             }
 
             const gameRuntime = gameCoreRef.current;
@@ -414,7 +420,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     useEffect(() => {
         const gameRuntime = gameCoreRef.current;
         if (!gameRuntime) return;
-        gameRuntime.setModuleLibrary(modules, (updated) => core.updateModule(updated));
+        gameRuntime.setModuleLibrary(modules, (updated: any) => core.updateModule(updated));
     }, [modules]);
 
     useEffect(() => {

@@ -52,7 +52,7 @@ class PhaserRenderScene extends Phaser.Scene {
      * Tiles are handled separately via canvas texture in React useEffect
      */
     preload() {
-        console.log(`[PhaserRenderScene] preload() - Loading ${this.assetsToPreload.length} assets`);
+
 
         for (const asset of this.assetsToPreload) {
             // Skip tiles - they use canvas-based tileset
@@ -85,7 +85,7 @@ class PhaserRenderScene extends Phaser.Scene {
 
 
     create() {
-        console.log("[PhaserRenderScene] create() called");
+
 
         // 파티클 시스템 초기화 (텍스처 먼저 로드해야 함)
         initParticleTextures(this);
@@ -181,7 +181,7 @@ class PhaserRenderScene extends Phaser.Scene {
             // Only system-level events (AI_ATTACK, ENTITY_DIED particles) are processed above.
         };
         EventBus.on(this.eventHandler);
-        console.log("[PhaserRenderScene] EAC System initialized with RPG movement");
+
 
         // 준?비? 완료 ? 알림
         this.phaserRenderer.onSceneReady();
@@ -713,7 +713,7 @@ export class PhaserRenderer implements IRenderer {
         this.onPointerUp = undefined;
         this.onScroll = undefined;
 
-        console.log("[PhaserRenderer] Destroyed - all resources cleaned up");
+
     }
 
     // ===== Guide Frame =====
@@ -779,14 +779,14 @@ export class PhaserRenderer implements IRenderer {
         // Check if entity should be rendered (skip data-only entities like GameState)
         const isRenderableVar = getVar("isRenderable");
         if (isRenderableVar?.value === false) {
-            console.log(`[PhaserRenderer] Skipping non-renderable entity: ${id}`);
+
             return;
         }
 
         // Skip GameState entity (data container, should not render)
         const entityName = options?.name || this.core.getEntity(id)?.name || this.core.getGlobalEntity(id)?.name;
         if (entityName === "GameState") {
-            console.log(`[PhaserRenderer] Skipping GameState entity (data-only)`);
+
             return;
         }
 
@@ -1091,7 +1091,7 @@ export class PhaserRenderer implements IRenderer {
                         else (bg as any).setFillStyle(bgColorInt);
                     });
                     container.on('pointerdown', () => {
-                        console.log(`[Button] Clicked! id=${id}`);
+
                         if ('setTint' in bg) (bg as any).setTint(0x888888);
                         else (bg as any).setFillStyle(0x1abc9c);
 
@@ -1392,7 +1392,7 @@ export class PhaserRenderer implements IRenderer {
             if (this.scene?.anims.exists(key)) {
                 sprite.play(key, true);
                 if (isFallback) {
-                    console.log(`[PhaserRenderer] PlayAnim fallback: Requested '${name}' -> Playing '${key}'`);
+
                 }
 
                 // [Loop Override]
@@ -2087,7 +2087,7 @@ export class PhaserRenderer implements IRenderer {
 
                             // Heuristic: horizontal strip detection
                             if (width > height && width % height === 0 && width / height > 1) {
-                                console.log(`[PhaserRenderer] Existing texture '${key}' detected as sprite strip (${width}x${height}). Reloading with slicing.`);
+
                                 scene.textures.remove(key);
                                 // Proceed to reload with heuristic slicing below
                             } else {
@@ -2143,12 +2143,12 @@ export class PhaserRenderer implements IRenderer {
                             framesToSlice = width / height;
                             frameWidth = height; // Assuming square frames
                             frameHeight = height;
-                            console.log(`[PhaserRenderer] Heuristic detection: '${key}' seems to be a spritesheet (${framesToSlice} frames). Auto-slicing.`);
+
                         }
 
                         // Execute manual slicing if determined
                         if (framesToSlice > 1 && frameWidth > 0) {
-                            console.log(`[PhaserRenderer] Manually slicing texture '${key}': ${width}x${height} -> ${framesToSlice} frames of ${frameWidth}x${frameHeight} (Using String Keys)`);
+
                             for (let i = 0; i < framesToSlice; i++) {
                                 // [Fix] Use STRING keys to align with explicit animation creation and ensure lookup consistency
                                 texture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
@@ -2206,14 +2206,14 @@ export class PhaserRenderer implements IRenderer {
                     this.scene.anims.remove(animKey);
                 }
 
-                console.log(`[PhaserRenderer] Creating animation '${animKey}': fps=${config.fps}, loop=${config.loop}, repeat=${config.loop ? -1 : 0}`);
+
                 this.scene.anims.create({
                     key: animKey,
                     frames: validFrames.map(f => ({ key: key, frame: String(f) })), // Direct mapping safer for manual slices
                     frameRate: config.fps,
                     repeat: config.loop ? -1 : 0
                 });
-                console.log(`[PhaserRenderer] Created/Updated animation: ${animKey}`);
+
             }
         }
         // AUTO-GENERATE: If no explicit animations but spritesheet has multiple frames, create "default" animation
@@ -2252,7 +2252,7 @@ export class PhaserRenderer implements IRenderer {
                     };
                 });
 
-                console.log(`[PhaserRenderer] String-aligned frame generation for '${defaultAnimKey}': Used ${count} frames`, JSON.stringify(framesConfig));
+
             } else {
                 // Fallback for non-loaded or numeric implicit frames
                 framesConfig = this.scene.anims.generateFrameNumbers(key, { start: 0, end: effectiveFrameCount - 1 });
@@ -2267,7 +2267,7 @@ export class PhaserRenderer implements IRenderer {
                 frameRate: defaultFps,
                 repeat: -1
             });
-            console.log(`[PhaserRenderer] Auto-created default animation: ${defaultAnimKey} (${effectiveFrameCount} frames, ${defaultFps} FPS)`);
+
         }
 
     }
@@ -2373,7 +2373,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     clear(): void {
-        console.log(`[PhaserRenderer] Clearing ${this.entities.size} entities.`);
+
         for (const [id, entity] of this.entities) {
             if (entity.destroy) entity.destroy();
         }

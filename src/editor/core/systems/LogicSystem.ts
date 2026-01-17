@@ -128,14 +128,14 @@ export class LogicSystem implements System {
 
             if (logic === "BRANCH") {
                 let handled = false;
-                console.log(`[LogicSystem COLLISION BRANCH] Checking ${conditions.length} conditions for entity ${entityId}...`);
+
                 for (const c of conditions) {
-                    console.log(`[LogicSystem COLLISION BRANCH] Condition:`, JSON.stringify(c));
+
                     if (ConditionRegistry.check(c.type, ctx, c)) {
-                        console.log(`[LogicSystem COLLISION BRANCH] Condition passed! then actions:`, c.then);
+
                         for (const action of (c.then ?? [])) {
                             const { type, ...params } = action;
-                            console.log(`[LogicSystem COLLISION BRANCH] Running action: ${type}`, params);
+
                             ActionRegistry.run(type, ctx, params);
                         }
                         handled = true;
@@ -143,7 +143,7 @@ export class LogicSystem implements System {
                     }
                 }
                 if (!handled) {
-                    console.log(`[LogicSystem COLLISION BRANCH] No condition passed, running elseActions:`, logicData.elseActions);
+
                     for (const action of (logicData.elseActions ?? [])) {
                         const { type, ...params } = action;
                         ActionRegistry.run(type, ctx, params);
@@ -289,14 +289,14 @@ export class LogicSystem implements System {
 
         if (logic === "BRANCH") {
             let handled = false;
-            console.log(`[LogicSystem BRANCH] Checking ${conditions.length} conditions...`);
+
             for (const c of conditions) {
-                console.log(`[LogicSystem BRANCH] Condition:`, JSON.stringify(c));
+
                 if (ConditionRegistry.check(c.type, ctx, c)) {
-                    console.log(`[LogicSystem BRANCH] Condition passed! then actions:`, c.then);
+
                     for (const action of (c.then ?? [])) {
                         const { type, ...params } = action;
-                        console.log(`[LogicSystem BRANCH] Running action: ${type}`, params);
+
                         ActionRegistry.run(type, ctx, params);
                     }
                     handled = true;
@@ -304,7 +304,7 @@ export class LogicSystem implements System {
                 }
             }
             if (!handled) {
-                console.log(`[LogicSystem BRANCH] No condition passed, running elseActions:`, logicData.elseActions);
+
                 for (const action of (logicData.elseActions ?? [])) {
                     const { type, ...params } = action;
                     ActionRegistry.run(type, ctx, params);

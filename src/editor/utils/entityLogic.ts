@@ -27,9 +27,7 @@ export function syncLegacyFromLogic(entity: EditorEntity): EditorEntity {
 
   // Debug: Check if conditions are preserved
   components.forEach((comp, idx) => {
-    if (comp.type === 'Logic' && (comp as any).conditions?.length > 0) {
-      console.log(`[syncLegacy] Entity ${entity.id} Comp ${idx} conditions:`, JSON.stringify((comp as any).conditions));
-    }
+
   });
 
   return { ...entity, components };

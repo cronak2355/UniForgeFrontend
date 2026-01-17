@@ -321,6 +321,4 @@ ConditionRegistry.register("InputDown", (ctx: ActionContext, params: Record<stri
     return false;
 });
 
-console.log(
-    "[DefaultConditions] 14 conditions registered: IsGrounded, IsAlive, HpBelow, HpAbove, InRange, OutOfRange, VarEquals, VarNotEquals, VarGreaterThan, VarGreaterOrEqual, VarLessThan, VarLessOrEqual, SignalFlag, Input*"
-);
+
