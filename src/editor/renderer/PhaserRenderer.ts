@@ -2365,4 +2365,16 @@ export class PhaserRenderer implements IRenderer {
             obj.setTint(color);
         }
     }
+
+    clear(): void {
+        console.log(`[PhaserRenderer] Clearing ${this.entities.size} entities.`);
+        for (const [id, entity] of this.entities) {
+            if (entity.destroy) entity.destroy();
+        }
+        this.entities.clear();
+
+        if (this.scene && this.scene.children) {
+            // Optional: Force clear logic if entities were not in map
+        }
+    }
 }

@@ -516,12 +516,9 @@ export class GameCore {
         this.runtimeContext.clearEntities();
 
         // Clear renderer entities
-        // Since we don't have a direct clear() on renderer, we rely on removeEntity logic or manual clear
-        // But here we just want to reset state. 
-        // Consumers of resetRuntime (RunTimeCanvas) are expected to handle Renderer clear if they don't use GameCore.removeEntity
-        // actually RunTimeCanvas manages lifecycle. 
-        // For now, just clearing context is what's requested by the missing method.
-        // Ideally we should sync with renderer, but PhserRenderer might handle clear separately.
+        if (this.renderer && this.renderer.clear) {
+            this.renderer.clear();
+        }
     }
 
     hasEntity(id: string): boolean {

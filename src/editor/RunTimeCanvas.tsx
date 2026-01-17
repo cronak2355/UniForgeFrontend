@@ -372,6 +372,8 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         const handleSceneChange = (event: GameEvent) => {
             if (event.type !== "SCENE_CHANGE_REQUEST") return;
 
+            console.log("[RunTimeCanvas] SCENE_CHANGE_REQUEST received:", event.data);
+
             const sceneId = event.data?.sceneId as string | undefined;
             const sceneName = event.data?.sceneName as string | undefined;
 
@@ -388,7 +390,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             }
 
             if (core.getCurrentSceneId() !== target.id) {
+                console.log("[RunTimeCanvas] Switching scene from", core.getCurrentSceneId(), "to", target.id);
                 core.switchScene(target.id);
+            } else {
+                console.log("[RunTimeCanvas] Scene already active:", target.id);
             }
 
             const gameRuntime = gameCoreRef.current;
