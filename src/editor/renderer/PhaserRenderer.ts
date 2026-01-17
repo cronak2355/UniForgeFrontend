@@ -763,7 +763,7 @@ export class PhaserRenderer implements IRenderer {
 
         // ID 중복 검사
         if (this.entities.has(id)) {
-            console.warn(`[PhaserRenderer] Entity with id "${id}" already exists. Skipping duplicate spawn.`);
+            // console.warn(`[PhaserRenderer] Entity with id "${id}" already exists. Skipping duplicate spawn.`);
             return;
         }
 
@@ -1159,14 +1159,14 @@ export class PhaserRenderer implements IRenderer {
             this.entities.delete(id);
             // console.log(`[PhaserRenderer] Removed entity: ${id}`);
         } else {
-            console.warn(`[PhaserRenderer] Cannot remove: entity "${id}" not found`);
+            // console.warn(`[PhaserRenderer] Cannot remove: entity "${id}" not found`);
         }
     }
 
     refreshEntityTexture(id: string, textureKey: string): void {
         // console.log(`[PhaserRenderer] refreshEntityTexture called for ${id} with ${textureKey}`);
         if (!this.scene) {
-            console.warn("[PhaserRenderer] No scene during refreshEntityTexture");
+            // console.warn("[PhaserRenderer] No scene during refreshEntityTexture");
             return;
         }
         if (!this.scene.textures.exists(textureKey)) {
@@ -1440,7 +1440,7 @@ export class PhaserRenderer implements IRenderer {
             // but let's try to be smarter.
             // Actually, we can just fail here safely.
 
-            console.warn(`[PhaserRenderer] Anim '${name}' not found for texture '${targetTexture}'. Fallbacks failed.`);
+            // console.warn(`[PhaserRenderer] Anim '${name}' not found for texture '${targetTexture}'. Fallbacks failed.`);
         }
     }
 
