@@ -94,11 +94,57 @@ class PhaserRenderScene extends Phaser.Scene {
         // [FIX] Create animations for all preloaded spritesheet assets
         for (const asset of this.assetsToPreload) {
             if (asset.tag === "Tile") continue;
-            if (asset.metadata?.frameWidth > 0 && asset.metadata?.frameHeight > 0) {
-                this.phaserRenderer.createAnimationsFromMetadata(asset.name, asset.metadata);
-                // Also create for asset.id if different
+
+            const key = asset.name;
+            let metadata = asset.metadata;
+
+            // If metadata specifies frame dimensions, use them
+            if (metadata?.frameWidth > 0 && metadata?.frameHeight > 0) {
+                this.phaserRenderer.createAnimationsFromMetadata(key, metadata);
                 if (asset.id !== asset.name) {
-                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, asset.metadata);
+                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, metadata);
+                }
+            } else {
+                // [FIX] Heuristic slicing for images loaded without metadata
+                // Check if the texture is a horizontal strip that should be sliced
+                const texture = this.textures.get(key);
+                if (texture && texture.frameTotal <= 1) {
+                    const img = texture.getSourceImage();
+                    if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement || (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap)) {
+                        const width = img.width;
+                        const height = img.height;
+
+                        // Heuristic: If width > height and width is a multiple of height, it's a horizontal strip
+                        if (width > height && width % height === 0 && width / height > 1) {
+                            const frameCount = width / height;
+                            const frameWidth = height; // Square frames assumed
+                            const frameHeight = height;
+
+                            // Manually add frames to the texture
+                            for (let i = 0; i < frameCount; i++) {
+                                texture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
+                            }
+
+                            // Create metadata for animation creation
+                            const heuristicMetadata = {
+                                frameWidth: frameWidth,
+                                frameHeight: frameHeight,
+                                frameCount: frameCount
+                            };
+
+                            this.phaserRenderer.createAnimationsFromMetadata(key, heuristicMetadata);
+                            if (asset.id !== asset.name) {
+                                // Also slice for asset.id texture if it exists
+                                const idTexture = this.textures.get(asset.id);
+                                if (idTexture && idTexture.frameTotal <= 1) {
+                                    for (let i = 0; i < frameCount; i++) {
+                                        idTexture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
+                                    }
+                                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, heuristicMetadata);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1051,6 +1097,17 @@ export class PhaserRenderer implements IRenderer {
 
         this.attachEntityInteraction(obj, id, uiType || type);
 
+        // [FIX] Auto-play default animation for sprites with spritesheets
+        if (obj instanceof Phaser.GameObjects.Sprite && options?.texture) {
+            const textureKey = options.texture;
+            const defaultAnimKey = `${textureKey}_default`;
+
+            // Check if default animation exists and play it
+            if (this.scene.anims.exists(defaultAnimKey)) {
+                obj.play(defaultAnimKey, true);
+            }
+        }
+
         // UI Element Common Settings
         if (isUI) {
             const uiObj = obj as any;
@@ -1237,7 +1294,13 @@ export class PhaserRenderer implements IRenderer {
 
                 obj.setTexture(textureKey);
 
-                // If texture wasn't loaded when setTexture was called, 
+                // [FIX] Auto-play default animation after texture change
+                const defaultAnimKey = `${textureKey}_default`;
+                if (this.scene.anims.exists(defaultAnimKey)) {
+                    obj.play(defaultAnimKey, true);
+                }
+
+                // If texture wasn't loaded when setTexture was called,
                 // recalculate size when it finishes loading
                 if (!wasLoaded) {
                     const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
@@ -1248,6 +1311,11 @@ export class PhaserRenderer implements IRenderer {
                         this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (obj && !obj.scene) return; // Sprite was destroyed
                             setSize(obj);
+                            // [FIX] Play animation after texture loads
+                            const animKey = `${textureKey}_default`;
+                            if (this.scene?.anims.exists(animKey)) {
+                                obj.play(animKey, true);
+                            }
                         }).catch((err: Error) => {
                             console.error(`[updateEntityVisuals] Failed to load texture for recalculation:`, err);
                         });
@@ -1273,6 +1341,12 @@ export class PhaserRenderer implements IRenderer {
 
                     bg.setTexture(textureKey);
 
+                    // [FIX] Auto-play default animation
+                    const defaultAnimKey = `${textureKey}_default`;
+                    if (this.scene.anims.exists(defaultAnimKey)) {
+                        bg.play(defaultAnimKey, true);
+                    }
+
                     // Recalculate size after texture loads if it wasn't loaded initially
                     if (!wasLoaded) {
                         const textureUrl = entity?.texture ? this.getAssetUrl(entity.texture) : undefined;
@@ -1283,6 +1357,11 @@ export class PhaserRenderer implements IRenderer {
                             this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                                 if (bg && !bg.scene) return; // Sprite was destroyed
                                 setSize(bg);
+                                // [FIX] Play animation after texture loads
+                                const animKey = `${textureKey}_default`;
+                                if (this.scene?.anims.exists(animKey)) {
+                                    bg.play(animKey, true);
+                                }
                             }).catch((err: Error) => {
                                 console.error(`[updateEntityVisuals] Container sprite texture load failed:`, err);
                             });
@@ -1317,6 +1396,11 @@ export class PhaserRenderer implements IRenderer {
                         this.loadTexture(textureKey, textureUrl, asset?.metadata).then(() => {
                             if (sprite && !sprite.scene) return;
                             setSize(sprite);
+                            // [FIX] Play animation after texture loads
+                            const animKey = `${textureKey}_default`;
+                            if (this.scene?.anims.exists(animKey)) {
+                                sprite.play(animKey, true);
+                            }
                         }).catch((err: Error) => {
                             console.error(`[updateEntityVisuals] New sprite texture load failed:`, err);
                         });
@@ -1325,6 +1409,11 @@ export class PhaserRenderer implements IRenderer {
                     }
                 } else {
                     setSize(sprite);
+                    // [FIX] Auto-play default animation
+                    const defaultAnimKey = `${textureKey}_default`;
+                    if (this.scene.anims.exists(defaultAnimKey)) {
+                        sprite.play(defaultAnimKey, true);
+                    }
                 }
 
                 obj.addAt(sprite, 0);
@@ -1350,10 +1439,15 @@ export class PhaserRenderer implements IRenderer {
         sprite.setScale(scaleX, scaleY);
 
         // For root/non-UI sprite, keepAspectRatio usually not set, but if it is?
-        // Logic mainly for UI Containers logic above. 
+        // Logic mainly for UI Containers logic above.
         // But let's apply for consistency if entity has the variable.
         setSize(sprite);
 
+        // [FIX] Auto-play default animation for new sprite
+        const defaultAnimKey = `${textureKey}_default`;
+        if (this.scene.anims.exists(defaultAnimKey)) {
+            sprite.play(defaultAnimKey, true);
+        }
 
         if (entity?.role === "projectile" || entity?.role === "enemy" || entity?.role === "player") {
             this.scene.physics.add.existing(sprite);
