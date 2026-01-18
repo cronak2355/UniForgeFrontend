@@ -2137,6 +2137,64 @@ export class PhaserRenderer implements IRenderer {
         this.keyboardCaptureEnabled = true;
     }
 
+    /**
+     * [FIX] Before removing a texture, update all sprites using it to prevent glTexture null error.
+     * This sets affected sprites to be invisible temporarily. They will be restored when the texture is reloaded.
+     */
+    private updateSpritesBeforeTextureRemove(textureKey: string): void {
+        if (!this.scene) return;
+
+        for (const [_id, obj] of this.entities) {
+            if (obj instanceof Phaser.GameObjects.Sprite) {
+                if (obj.texture && obj.texture.key === textureKey) {
+                    // Store the original texture key and frame for restoration
+                    obj.setData('__pendingTextureReload', { key: textureKey, frame: obj.frame?.name });
+                    // Hide the sprite until texture is reloaded
+                    obj.setVisible(false);
+                }
+            } else if (obj instanceof Phaser.GameObjects.Container) {
+                // Check children of containers
+                obj.each((child: Phaser.GameObjects.GameObject) => {
+                    if (child instanceof Phaser.GameObjects.Sprite) {
+                        if (child.texture && child.texture.key === textureKey) {
+                            child.setData('__pendingTextureReload', { key: textureKey, frame: child.frame?.name });
+                            child.setVisible(false);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * [FIX] After a texture is reloaded, restore sprites that were hidden.
+     */
+    private restoreSpritesAfterTextureReload(textureKey: string): void {
+        if (!this.scene) return;
+
+        for (const [_id, obj] of this.entities) {
+            if (obj instanceof Phaser.GameObjects.Sprite) {
+                const pending = obj.getData('__pendingTextureReload');
+                if (pending && pending.key === textureKey) {
+                    // Re-apply the texture with the new spritesheet
+                    obj.setTexture(textureKey, pending.frame || '0');
+                    obj.setVisible(true);
+                    obj.setData('__pendingTextureReload', null);
+                }
+            } else if (obj instanceof Phaser.GameObjects.Container) {
+                obj.each((child: Phaser.GameObjects.GameObject) => {
+                    if (child instanceof Phaser.GameObjects.Sprite) {
+                        const pending = child.getData('__pendingTextureReload');
+                        if (pending && pending.key === textureKey) {
+                            child.setTexture(textureKey, pending.frame || '0');
+                            child.setVisible(true);
+                            child.setData('__pendingTextureReload', null);
+                        }
+                    }
+                });
+            }
+        }
+    }
 
 
     // ===== Texture Loading (Phaser-specific helper) =====
@@ -2157,19 +2215,24 @@ export class PhaserRenderer implements IRenderer {
                 // we must REMOVE the old texture and reload it as a spritesheet.
                 // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
                 const texture = scene.textures.get(key);
-                // Check if this metadata implies a spritesheet (frames or explicit animations)
-                const isSpritesheetMetadata = metadata && (
-                    (metadata.frameWidth && metadata.frameWidth > 0) ||
-                    (metadata.frameCount && metadata.frameCount > 1) ||
-                    (metadata.animations && Object.keys(metadata.animations).length > 0)
+                // [FIX] Check if this metadata implies a REAL spritesheet (with actual frame data)
+                // Simple animation settings (loop, fps) without frame data should NOT trigger spritesheet reload
+                const hasRealSpriteSheetData = metadata && (
+                    (metadata.frameWidth && metadata.frameWidth > 0 && metadata.frameHeight && metadata.frameHeight > 0) ||
+                    (metadata.frameCount && metadata.frameCount > 1)
                 );
 
-                if (isSpritesheetMetadata) {
+                if (hasRealSpriteSheetData) {
                     // Check if animations already exist
                     const hasPrefixAnims = scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
+                    // [FIX] Also check for manually added frames via getFrameNames()
+                    const existingFrameNames = texture.getFrameNames();
+                    const hasMultipleFrames = existingFrameNames.length > 1 || texture.frameTotal > 1;
 
-                    if (texture.frameTotal <= 1 && !hasPrefixAnims) {
+                    if (!hasMultipleFrames && !hasPrefixAnims) {
                         console.warn(`[PhaserRenderer] Texture '${key}' exists but is static. Reloading as spritesheet for animations.`);
+                        // [FIX] Before removing texture, update all sprites using it to prevent glTexture null error
+                        this.updateSpritesBeforeTextureRemove(key);
                         scene.textures.remove(key);
                         // Proceed to load below...
                     } else {
@@ -2183,34 +2246,11 @@ export class PhaserRenderer implements IRenderer {
                         return;
                     }
                 } else {
-                    // [FIX] Even without metadata, check if this existing texture should be sliced via heuristic
-                    // This fixes drag-and-drop assets where the heuristic runs on first load but not on subsequent loads
-                    if (texture.frameTotal <= 1) {
-                        const img = texture.getSourceImage();
-                        if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement || img instanceof ImageBitmap) {
-                            const width = img.width;
-                            const height = img.height;
-
-                            // Heuristic: horizontal strip detection
-                            if (width > height && width % height === 0 && width / height > 1) {
-
-                                scene.textures.remove(key);
-                                // Proceed to reload with heuristic slicing below
-                            } else {
-                                // Single static image, no slicing needed
-                                resolve();
-                                return;
-                            }
-                        } else {
-                            resolve();
-                            return;
-                        }
-                    } else {
-                        // Texture already has frames, ensure animations exist
-                        this.createAnimationsFromMetadata(key, metadata);
-                        resolve();
-                        return;
-                    }
+                    // [FIX] Without spritesheet metadata, do NOT attempt heuristic slicing on existing textures.
+                    // The heuristic should only run on FIRST load (in the 'complete' callback below).
+                    // For existing textures without metadata, just resolve immediately - they're static images.
+                    resolve();
+                    return;
                 }
             }
 
@@ -2273,6 +2313,8 @@ export class PhaserRenderer implements IRenderer {
                 }
 
                 this.createAnimationsFromMetadata(key, metadata);
+                // [FIX] Restore sprites that were hidden before texture removal
+                this.restoreSpritesAfterTextureReload(key);
                 resolve();
             });
             scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
