@@ -444,20 +444,22 @@ export class EditorState implements IGameState {
     }
 
     addAsset(asset: Asset) {
-        this.assets.push(asset);
+        this.assets = [...this.assets, asset];
         this.notify();
     }
 
     updateAsset(updatedAsset: Asset) {
         const index = this.assets.findIndex(a => a.id === updatedAsset.id);
         if (index !== -1) {
-            this.assets[index] = updatedAsset;
+            const newAssets = [...this.assets];
+            newAssets[index] = updatedAsset;
+            this.assets = newAssets;
             this.notify();
         }
     }
 
     setAssets(assets: Asset[]) {
-        this.assets = assets;
+        this.assets = [...assets];
         this.notify();
     }
 

@@ -1706,7 +1706,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         ).then((res) => {
                                             core.addAsset({
                                                 id: res.id,
-                                                tag: res.tag,
+                                                tag: dropAssetTag, // [FIX] Use user-selected tag to ensure correct filtering (e.g. "Tile")
                                                 name: res.name,
                                                 url: res.url,
                                                 idx: -1,
