@@ -423,22 +423,7 @@ ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, un
     }
 });
 
-ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const renderer = ctx.globals?.renderer;
-    if (!renderer) return;
 
-    const entityId = ctx.entityId;
-    const gameObject = renderer.getGameObject?.(entityId);
-    if (!gameObject || !gameObject.setScale) return;
-
-    const time = Date.now() / 1000;
-    const speed = Number(resolveValue(ctx, (params.speed ?? 2) as any));
-    const min = Number(resolveValue(ctx, (params.minScale ?? 0.8) as any));
-    const max = Number(resolveValue(ctx, (params.maxScale ?? 1.2) as any));
-
-    const scale = min + (Math.sin(time * speed) + 1) * 0.5 * (max - min);
-    gameObject.setScale(scale);
-});
 
 // --- Variable Actions ---
 
@@ -816,15 +801,18 @@ ActionRegistry.register("Pulse", (ctx: ActionContext, params: Record<string, unk
     const gameObject = renderer.getGameObject?.(entityId);
     if (!gameObject) return;
 
-    const speed = (params.speed as number) ?? 2;
-    const min = (params.minScale as number) ?? 0.8;
-    const max = (params.maxScale as number) ?? 1.2;
+    // Correctly resolve and coerce values to numbers
+    const speed = Number(resolveValue(ctx, (params.speed ?? 2) as any));
+    const min = Number(resolveValue(ctx, (params.minScale ?? 0.8) as any));
+    const max = Number(resolveValue(ctx, (params.maxScale ?? 1.2) as any));
 
     const time = performance.now() * 0.001;
     const t = Math.sin(time * speed) * 0.5 + 0.5;
     const scale = min + (max - min) * t;
 
-    gameObject.setScale?.(scale);
+    if (gameObject.setScale) {
+        gameObject.setScale(scale);
+    }
 
     const entity = getEntity(ctx);
     if (entity) {
