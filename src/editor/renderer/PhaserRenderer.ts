@@ -519,7 +519,7 @@ export class PhaserRenderer implements IRenderer {
     private initResolve: (() => void) | null = null;
 
     // ===== ?곸닔 =====
-    private readonly TILE_SIZE = 32;
+    private readonly TILE_SIZE = 100;
     private readonly MAP_SIZE = 200;
 
     // ===== Interaction Callbacks =====

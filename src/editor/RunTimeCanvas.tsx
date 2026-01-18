@@ -12,7 +12,7 @@ import { EventBus } from "./core/events/EventBus";
 import type { GameEvent } from "./core/events/EventBus";
 import type { InputState } from "./core/RuntimePhysics";
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 100;
 const TILESET_COLS = 16;
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {

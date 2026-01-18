@@ -10,7 +10,7 @@ import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import { assetToEntity } from "./utils/assetToEntity";
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 100;
 const TILESET_COLS = 16;
 
 type Props = {

@@ -3,7 +3,7 @@ import { colors } from "../constants/colors";
 import type { Asset } from "../types/Asset";
 import { editorCore } from "../EditorCore";
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 100;
 const TILESET_COLS = 9;
 const MAX_COLOR_TILES = 30;
 
