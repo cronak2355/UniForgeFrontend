@@ -91,6 +91,18 @@ class PhaserRenderScene extends Phaser.Scene {
         initParticleTextures(this);
         this.particleManager = new ParticleManager(this);
 
+        // [FIX] Create animations for all preloaded spritesheet assets
+        for (const asset of this.assetsToPreload) {
+            if (asset.tag === "Tile") continue;
+            if (asset.metadata?.frameWidth > 0 && asset.metadata?.frameHeight > 0) {
+                this.phaserRenderer.createAnimationsFromMetadata(asset.name, asset.metadata);
+                // Also create for asset.id if different
+                if (asset.id !== asset.name) {
+                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, asset.metadata);
+                }
+            }
+        }
+
         // 커스텀 파티클 에셋 등록 (Particle 태그)
         const assets = this.phaserRenderer?.core?.getAssets?.() ?? [];
         const particleAssets = assets.filter((a: { tag: string }) => a.tag === 'Particle');
@@ -2174,7 +2186,7 @@ export class PhaserRenderer implements IRenderer {
         });
     }
 
-    private createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
+    public createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {
         if (!this.scene) return;
 
         const texture = this.scene.textures.get(key);
