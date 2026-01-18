@@ -82,7 +82,7 @@ export interface UnityComponentJSON {
   // Logic component fields
   event?: string;
   eventParams?: Record<string, unknown>;
-  conditions?: Array<{ type: string; [key: string]: unknown }>;
+  conditions?: Array<{ type: string;[key: string]: unknown }>;
   conditionLogic?: "AND" | "OR";
   actions?: UnityActionJSON[];
   elseActions?: UnityActionJSON[];
@@ -141,16 +141,16 @@ export class UnitySceneExporter {
         event: lc.event,
         eventParams: lc.eventParams,
         conditions: (lc.conditions || []).map(cond => {
-          const { type, ...rest } = cond as { type: string; [key: string]: unknown };
+          const { type, ...rest } = cond as { type: string;[key: string]: unknown };
           return { type, ...rest };
         }),
         conditionLogic: (lc.conditionLogic || "AND") as "AND" | "OR",
         actions: (lc.actions || []).map(action => {
-          const { type, ...params } = action as { type: string; [key: string]: unknown };
+          const { type, ...params } = action as { type: string;[key: string]: unknown };
           return { type, ...params };
         }),
         elseActions: (lc.elseActions || []).map(action => {
-          const { type, ...params } = action as { type: string; [key: string]: unknown };
+          const { type, ...params } = action as { type: string;[key: string]: unknown };
           return { type, ...params };
         }),
       }));
@@ -222,13 +222,13 @@ export class UnitySceneExporter {
       if (asset.url && !asset.url.startsWith("data:")) {
         try {
           console.log(`[UnitySceneExporter] Fetching ${asset.url} for blob conversion...`);
-          
+
           // Try fetch without credentials first (works better with S3 presigned URLs)
           // S3's Access-Control-Allow-Origin: * conflicts with credentials: 'include'
           let res = await fetch(asset.url, {
             credentials: 'omit'  // Don't send cookies - avoids CORS conflict with S3
           });
-          
+
           // If omit fails and URL is our own API, try with credentials
           if (!res.ok && asset.url.includes('/api/')) {
             res = await fetch(asset.url, {
@@ -238,15 +238,20 @@ export class UnitySceneExporter {
 
           if (res.ok) {
             const blob = await res.blob();
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
+            const contentType = blob.type || '';
+            const isWebP = contentType.includes('webp') || asset.url.toLowerCase().includes('.webp');
 
-            console.log(`[UnitySceneExporter] Converted to DataURI: ${asset.url.substring(0, 30)}... (${base64.length} chars)`);
-            asset.url = base64;
+            console.log(`[UnitySceneExporter] Asset blob type: ${contentType}, isWebP: ${isWebP}`);
+
+            // Convert to PNG using Canvas to ensure Unity compatibility
+            const base64 = await this.convertBlobToPngDataUri(blob, isWebP, asset.url);
+
+            if (base64) {
+              console.log(`[UnitySceneExporter] Converted to PNG DataURI: ${asset.url.substring(0, 30)}... (${base64.length} chars)`);
+              asset.url = base64;
+            } else {
+              console.warn(`[UnitySceneExporter] Failed to convert asset to PNG: ${asset.url}`);
+            }
           } else {
             console.warn(`[UnitySceneExporter] Failed to fetch asset for DataURI conversion: ${asset.url} ${res.status}`);
           }
@@ -260,6 +265,111 @@ export class UnitySceneExporter {
     await Promise.all(convertPromises);
     return newJson;
   }
+
+  /**
+   * Converts a blob to PNG Data URI with multiple fallback strategies.
+   * Handles WebP and other formats that Unity may not support natively.
+   */
+  private static async convertBlobToPngDataUri(blob: Blob, isWebP: boolean, originalUrl: string): Promise<string | null> {
+    // Strategy 1: Use createImageBitmap (supports WebP in modern browsers) + Canvas
+    try {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(bitmap, 0, 0);
+        const pngData = canvas.toDataURL('image/png');
+        bitmap.close();
+        if (pngData && pngData.startsWith('data:image/png')) {
+          console.log(`[UnitySceneExporter] Converted via createImageBitmap: ${bitmap.width}x${bitmap.height}`);
+          return pngData;
+        }
+      }
+      bitmap.close();
+    } catch (e) {
+      console.warn(`[UnitySceneExporter] createImageBitmap failed, trying Image element...`, e);
+    }
+
+    // Strategy 2: Use Image element (traditional approach)
+    try {
+      const pngData = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        const blobUrl = URL.createObjectURL(blob);
+
+        const timeoutId = setTimeout(() => {
+          URL.revokeObjectURL(blobUrl);
+          reject(new Error('Image load timeout'));
+        }, 10000);
+
+        img.onload = () => {
+          clearTimeout(timeoutId);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(blobUrl);
+            reject(new Error('Canvas context failed'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const data = canvas.toDataURL('image/png');
+          URL.revokeObjectURL(blobUrl);
+          resolve(data);
+        };
+
+        img.onerror = () => {
+          clearTimeout(timeoutId);
+          URL.revokeObjectURL(blobUrl);
+          reject(new Error('Image load failed'));
+        };
+
+        img.src = blobUrl;
+      });
+
+      if (pngData && pngData.startsWith('data:image/png')) {
+        return pngData;
+      }
+    } catch (e) {
+      console.warn(`[UnitySceneExporter] Image element conversion failed:`, e);
+    }
+
+    // Strategy 3: For WebP, try using a proxy service that converts to PNG
+    if (isWebP && originalUrl.startsWith('http')) {
+      try {
+        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}&output=png`;
+        console.log(`[UnitySceneExporter] Trying proxy conversion: ${proxyUrl}`);
+
+        const proxyRes = await fetch(proxyUrl, { credentials: 'omit' });
+        if (proxyRes.ok) {
+          const pngBlob = await proxyRes.blob();
+          // Recursively try to convert (but mark as non-WebP to avoid infinite loop)
+          return await this.convertBlobToPngDataUri(pngBlob, false, proxyUrl);
+        }
+      } catch (e) {
+        console.warn(`[UnitySceneExporter] Proxy conversion failed:`, e);
+      }
+    }
+
+    // Strategy 4: Last resort - return raw blob as data URI (Unity will try its best)
+    // But add warning that this may not work
+    console.warn(`[UnitySceneExporter] All PNG conversion strategies failed for ${originalUrl}, using raw format`);
+    try {
+      const reader = new FileReader();
+      const rawDataUri = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return rawDataUri;
+    } catch {
+      return null;
+    }
+  }
+
 
   /**
    * Sanitizes entity data for Unity compatibility
