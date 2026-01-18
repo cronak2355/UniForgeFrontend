@@ -609,6 +609,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         prevTilesRef.current = nextTiles;
     }, [tiles, isRendererReady]);
 
+    // Asset and Entity texture loading
     useEffect(() => {
         const renderer = rendererRef.current;
         if (!renderer || !isRendererReady) return;
@@ -643,15 +644,25 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 prevTilesRef.current = indexTiles(tiles);
             }
 
+            // Refresh entity textures after asset loading
             for (const ent of entities) {
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
 
                 const asset = assetLookup.get(textureKey);
                 if (asset) {
-                    // Always try to load/update texture logic
-                    await renderer.loadTexture(textureKey, asset.url, asset.metadata);
-                    if (cancelled) return;
+                    // [FIX] Only load texture if not already properly loaded
+                    // This prevents reload during drag operations
+                    const scene = renderer.getScene();
+                    const textureExists = scene?.textures.exists(textureKey);
+                    const texture = textureExists ? scene?.textures.get(textureKey) : null;
+                    const hasFrames = texture && (texture.frameTotal > 1 || texture.getFrameNames().length > 1);
+
+                    // Only load if texture doesn't exist or has no frames yet
+                    if (!textureExists || !hasFrames) {
+                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
+                        if (cancelled) return;
+                    }
                 }
                 renderer.refreshEntityTexture(ent.id, textureKey);
             }
