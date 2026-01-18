@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { colors } from "../constants/colors";
 import type { Asset } from "../types/Asset";
 import { editorCore } from "../EditorCore";
+import { getCloudFrontUrl } from "../../utils/imageUtils";
 
 const TILE_SIZE = 100;
 const TILESET_COLS = 9;
@@ -19,18 +20,27 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
     useEffect(() => {
         const filtered = assets.filter(a => a.tag === "Tile");
+        console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`);
+
         // Deep comparison to avoid re-renders if assets didn't change
         const prev = JSON.stringify(tileAssets.map(a => a.id));
         const next = JSON.stringify(filtered.map(a => a.id));
 
         if (prev !== next) {
+            console.log("[TilePalettePanel] Tile assets changed. Updating state.");
             setTileAssets(filtered);
+        } else {
+            console.log("[TilePalettePanel] No change in tile assets detected.");
         }
     }, [assets]); // assets array reference changes often, but contents might be same
 
     useEffect(() => {
-        if (!canvasRef.current || tileAssets.length === 0) return;
+        if (!canvasRef.current || tileAssets.length === 0) {
+            console.log("[TilePalettePanel] Skipping render. Canvas ready:", !!canvasRef.current, "Tiles:", tileAssets.length);
+            return;
+        }
 
+        console.log("[TilePalettePanel] Rendering canvas with", tileAssets.length, "tiles.");
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
@@ -49,7 +59,6 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         let loadedCount = 0;
         tileAssets.forEach((asset, idx) => {
             const img = new Image();
-            img.crossOrigin = "anonymous";
             img.onload = () => {
                 const x = (idx % TILESET_COLS) * TILE_SIZE;
                 const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
@@ -58,8 +67,16 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
                 // Draw grid
                 ctx.strokeStyle = "rgba(255,255,255,0.1)";
                 ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                loadedCount++;
+                if (loadedCount === tileAssets.length) {
+                    console.log("[TilePalettePanel] All tile images loaded and drawn.");
+                }
             };
-            img.src = asset.url;
+            img.onerror = (e) => {
+                console.error(`[TilePalettePanel] Failed to load image: ${asset.url}`, e);
+            };
+            img.src = getCloudFrontUrl(asset.url);
         });
 
     }, [tileAssets]);

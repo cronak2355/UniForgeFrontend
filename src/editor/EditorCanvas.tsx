@@ -9,6 +9,7 @@ import type { TilePlacement } from "./EditorCore";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import { assetToEntity } from "./utils/assetToEntity";
+import { getCloudFrontUrl } from "../utils/imageUtils";
 
 const TILE_SIZE = 100;
 const TILESET_COLS = 16;
