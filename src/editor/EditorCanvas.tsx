@@ -9,8 +9,9 @@ import type { TilePlacement } from "./EditorCore";
 import { buildLogicItems, splitLogicItems } from "./types/Logic";
 import { createDefaultModuleGraph } from "./types/Module";
 import { assetToEntity } from "./utils/assetToEntity";
+import { getCloudFrontUrl } from "../utils/imageUtils";
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 100;
 const TILESET_COLS = 16;
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
     onSelectEntity?: (entity: EditorEntity) => void;
     tilingTool?: "" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase";
     selectedTileIndex?: number;
+    onRendererReady?: (renderer: { setCameraPosition: (x: number, y: number) => void }) => void;
 };
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
@@ -87,7 +89,7 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop, tilingTool = "", selectedTileIndex = 0 }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop, tilingTool = "", selectedTileIndex = 0, onRendererReady }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const { tiles, entities, modules, aspectRatio, currentSceneId } = useEditorCoreSnapshot();
@@ -254,6 +256,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             // immediately after this flag is set. This prevents double-spawn race conditions.
 
             gameCore.flush(); // Sync Context immediately
+
+            // Notify parent that renderer is ready and expose camera control
+            if (onRendererReady) {
+                onRendererReady({
+                    setCameraPosition: (x: number, y: number) => renderer.setCameraPosition(x, y)
+                });
+            }
 
             setIsRendererReady(true);
         })();
@@ -609,6 +618,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         prevTilesRef.current = nextTiles;
     }, [tiles, isRendererReady]);
 
+    // Asset and Entity texture loading
     useEffect(() => {
         const renderer = rendererRef.current;
         if (!renderer || !isRendererReady) return;
@@ -643,15 +653,25 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 prevTilesRef.current = indexTiles(tiles);
             }
 
+            // Refresh entity textures after asset loading
             for (const ent of entities) {
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
 
                 const asset = assetLookup.get(textureKey);
                 if (asset) {
-                    // Always try to load/update texture logic
-                    await renderer.loadTexture(textureKey, asset.url, asset.metadata);
-                    if (cancelled) return;
+                    // [FIX] Only load texture if not already properly loaded
+                    // This prevents reload during drag operations
+                    const scene = renderer.getScene();
+                    const textureExists = scene?.textures.exists(textureKey);
+                    const texture = textureExists ? scene?.textures.get(textureKey) : null;
+                    const hasFrames = texture && (texture.frameTotal > 1 || texture.getFrameNames().length > 1);
+
+                    // Only load if texture doesn't exist or has no frames yet
+                    if (!textureExists || !hasFrames) {
+                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
+                        if (cancelled) return;
+                    }
                 }
                 renderer.refreshEntityTexture(ent.id, textureKey);
             }

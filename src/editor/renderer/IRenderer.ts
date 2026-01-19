@@ -16,6 +16,7 @@ export interface SpawnOptions {
     height?: number;
     color?: number;
     events?: any[];
+    variables?: any[];  // Entity variables for UI screen coordinates, etc.
 }
 
 export interface IRenderer {

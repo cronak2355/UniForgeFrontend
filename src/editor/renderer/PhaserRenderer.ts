@@ -20,19 +20,19 @@ import { ParticleManager } from "../core/ParticleManager";
 import { initParticleTextures } from "../../AssetsEditor/services/simpleParticleService";
 
 /**
- * Phaser ???대? ?대옒??
- * PhaserRenderer媛€ 愿€由ы븯???ㅼ젣 ??
+ * Phaser 씬을 담당하는 클래스
+ * PhaserRenderer가 관리하는 실제 씬
  */
 class PhaserRenderScene extends Phaser.Scene {
     public phaserRenderer!: PhaserRenderer;
     public particleManager!: ParticleManager;
-
+    public runtimeMainCameraFollowed = false; // Public for PhaserRenderer access
     get editorCore(): EditorState {
         return this.phaserRenderer.core;
     }
     private _keyboardAdapter!: KeyboardAdapter;
 
-    // RPG ?ㅽ????대룞???꾪븳 ???곹깭
+    // RPG 스타일 이동을 위한 키 상태
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
     private spaceKey!: Phaser.Input.Keyboard.Key;
@@ -114,7 +114,7 @@ class PhaserRenderScene extends Phaser.Scene {
                         const width = img.width;
                         const height = img.height;
 
-                        // Heuristic: If width > height and width is a multiple of height, it's a horizontal strip
+                        // Heuristic: If width > height and width % height === 0, it's a horizontal strip
                         if (width > height && width % height === 0 && width / height > 1) {
                             const frameCount = width / height;
                             const frameWidth = height; // Square frames assumed
@@ -210,6 +210,34 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
+            // [Editor Event] Camera Move
+            if (event.type === "EDITOR_CAMERA_MOVE") {
+                const x = event.data?.x as number;
+                const y = event.data?.y as number;
+                if (typeof x === "number" && typeof y === "number") {
+                    this.phaserRenderer.setCameraPosition(x, y);
+                }
+            }
+
+            // [System Event] Entity Died - Auto Particle
+            if (event.type === "ENTITY_DIED") {
+                const data = event.data || {};
+                const entityId = data.entityId as string;
+                const gameObject = this.phaserRenderer?.getGameObject?.(entityId);
+
+                if (gameObject) {
+                    // 기본값 없음, "none"이 아니면 재생
+                    const entities = this.phaserRenderer?.core?.getEntities?.();
+                    const entity = entities?.get(entityId);
+                    const deathEffectVar = entity?.variables?.find((v: { name: string }) => v.name === "deathEffect");
+                    const deathEffect = (deathEffectVar?.value as string);
+
+                    if (deathEffect && deathEffect !== "none") {
+                        this.particleManager?.playEffect(deathEffect, gameObject.x, gameObject.y, 1);
+                    }
+                }
+            }
+
             // [System Event] Entity Died - Auto Particle (엔티티의 deathEffect 변수 사용)
             if (event.type === "ENTITY_DIED") {
                 const data = event.data || {};
@@ -241,7 +269,7 @@ class PhaserRenderScene extends Phaser.Scene {
         EventBus.on(this.eventHandler);
 
 
-        // 준?비? 완료 ? 알림
+        // 준비 완료 알림
         this.phaserRenderer.onSceneReady();
 
         const cleanup = () => {
@@ -394,10 +422,27 @@ class PhaserRenderScene extends Phaser.Scene {
             }
 
             try {
-                if (cameraEntity && this.cameras?.main) {
-                    const cx = Number(cameraEntity.x) || 0;
-                    const cy = Number(cameraEntity.y) || 0;
-                    this.cameras.main.centerOn(cx, cy);
+                if (cameraEntity && this.cameras?.main && !this.runtimeMainCameraFollowed) {
+                    // Find corresponding GameObject
+                    const cameraObj = this.phaserRenderer.getGameObject(cameraEntity.id);
+                    if (cameraObj) {
+                        this.cameras.main.startFollow(cameraObj, true);
+                        this.runtimeMainCameraFollowed = true;
+                        // console.log("[PhaserRenderer] Runtime Camera following 'Main Camera'");
+                    } else {
+                        // If GameObject not found, just center on entity's position
+                        const cx = Number(cameraEntity.x) || 0;
+                        const cy = Number(cameraEntity.y) || 0;
+                        this.cameras.main.centerOn(cx, cy);
+                    }
+                } else if (cameraEntity && this.cameras?.main && this.runtimeMainCameraFollowed) {
+                    // If already following, ensure it stays centered on the entity's current position
+                    // This is handled by startFollow internally, but we can update if needed
+                    // For now, rely on startFollow's continuous update.
+                } else if (!cameraEntity && this.cameras?.main) {
+                    // If no "Main Camera" entity, ensure camera is not following anything
+                    this.cameras.main.stopFollow();
+                    this.runtimeMainCameraFollowed = false;
                 }
             } catch (e) {
                 // Silent fail for camera sync
@@ -407,12 +452,12 @@ class PhaserRenderScene extends Phaser.Scene {
             return;
         }
 
-        // ?ㅻ낫?쒓? 珥덇린?붾릺吏€ ?딆븯?쇰㈃ ?ㅽ궢
+        // 컨트롤러가 초기화되지 않았다면 스킵
         if (!this.cursors || !this.wasd) return;
 
-        const dt = delta / 1000; // 珥??⑥쐞
+        const dt = delta / 1000; // 초단위
 
-        // ?낅젰 ?곹깭 ?섏쭛 (?붿쭊 ?낅┰??
+        // 입력 상태 수집 (엔진 독립적)
         const input: InputState = {
             left: this.cursors.left.isDown || this.wasd.A.isDown,
             right: this.cursors.right.isDown || this.wasd.D.isDown,
@@ -439,10 +484,10 @@ class PhaserRenderScene extends Phaser.Scene {
             return;
         }
 
-        // Kinetic 紐⑤뱢??媛€吏?controllableRoles ??븷 ?뷀떚?곕쭔 ?ㅻ낫???낅젰?쇰줈 ?낅뜲?댄듃
+        // Kinetic 모듈을 가진 controllableRoles 역할 엔티티만 에디터 입력으로 업데이트
         const controllableRoles = this.phaserRenderer.gameConfig?.controllableRoles ?? defaultGameConfig.controllableRoles;
         this.phaserRenderer.core.getEntities().forEach((entity) => {
-            // controllableRoles???놁쑝硫??ㅻ낫???낅젰 ?ㅽ궢
+            // controllableRoles에 없으면 스킵
             if (!hasRole(entity.role, controllableRoles)) return;
 
             const hasPhysicsVars = (entity.variables ?? []).some((v: any) =>
@@ -453,18 +498,18 @@ class PhaserRenderScene extends Phaser.Scene {
             );
             if (!hasPhysicsVars) return;
 
-            // Kinetic 紐⑤뱢???놁쑝硫??ㅽ궢
+            // Kinetic 모듈이 없으면 스킵
             const gameObject = this.phaserRenderer.getGameObject(entity.id) as Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite | null;
             if (!gameObject) return;
 
-            // RuntimePhysics濡?臾쇰━ 怨꾩궛 (?붿쭊 ?낅┰??
+            // RuntimePhysics로 물리 계산 (엔진 독립적)
             const result = runtimePhysics.updateEntity(entity, dt, input);
 
-            // 寃곌낵瑜?寃뚯엫 ?ㅻ툕?앺듃???곸슜
+            // 결과를 게임 오브젝트에 적용
             gameObject.x = result.x;
             gameObject.y = result.y;
 
-            // EditorCore ?뷀떚???곗씠???숆린??
+            // EditorCore 엔티티 데이터 동기화
             entity.x = result.x;
             entity.y = result.y;
         });
@@ -472,12 +517,12 @@ class PhaserRenderScene extends Phaser.Scene {
 }
 
 /**
- * Phaser ?뚮뜑??援ы쁽泥?
+ * Phaser 렌더러 구현체
  * 
- * ?ㅺ퀎 ?먯튃:
- * 1. ID ?숆린?? spawn ???몃? ID瑜?洹몃?濡??ъ슜, 以묐났 寃€???꾩닔
- * 2. 醫뚰몴 蹂€?? Phaser??醫뚯긽??湲곗? 醫뚰몴怨??ъ슜
- * 3. Lifecycle: destroy ??紐⑤뱺 由ъ냼???꾨꼍 ?댁젣
+ * 설계 원칙:
+ * 1. ID 동기화: spawn 시 엔티티 ID를 그대로 사용, 중복 검사 필수
+ * 2. 좌표 변환: Phaser의 좌상단 기준 좌표계 사용
+ * 3. Lifecycle: destroy 시 모든 리소스 해제
  */
 export class PhaserRenderer implements IRenderer {
     public readonly core: EditorState;
@@ -492,6 +537,8 @@ export class PhaserRenderer implements IRenderer {
     private keyboardCaptureEnabled = true;
     private onGlobalFocusIn?: (event: FocusEvent) => void;
     private onGlobalFocusOut?: (event: FocusEvent) => void;
+    private particleManager!: ParticleManager;
+
     public isEditableFocused(): boolean {
         const active = document.activeElement;
         if (!(active instanceof HTMLElement)) return false;
@@ -500,10 +547,10 @@ export class PhaserRenderer implements IRenderer {
         return active.isContentEditable === true;
     }
 
-    // ===== ?뷀떚??愿€由?- ID ?숆린??蹂댁옣 =====
+    // ===== 엔티티 관리 - ID 동기화 보장 =====
     private entities: Map<string, Phaser.GameObjects.GameObject> = new Map();
 
-    // ===== ?€?쇰㏊ 愿€??=====
+    // ===== 타일맵 관련 =====
     private map: Phaser.Tilemaps.Tilemap | null = null;
     private tileset: Phaser.Tilemaps.Tileset | null = null;
     private baseLayer: Phaser.Tilemaps.TilemapLayer | null = null;
@@ -511,15 +558,15 @@ export class PhaserRenderer implements IRenderer {
     private tileOffsetX = 0;
     private tileOffsetY = 0;
 
-    // ===== 洹몃━??=====
+    // ===== 그리드 =====
     private gridGraphics: Phaser.GameObjects.Graphics | null = null;
     private gridVisible = true;
 
-    // ===== 珥덇린??肄쒕갚 =====
+    // ===== 초기화 콜백 =====
     private initResolve: (() => void) | null = null;
 
-    // ===== ?곸닔 =====
-    private readonly TILE_SIZE = 32;
+    // ===== 상수 =====
+    private readonly TILE_SIZE = 100;
     private readonly MAP_SIZE = 200;
 
     // ===== Interaction Callbacks =====
@@ -542,6 +589,11 @@ export class PhaserRenderer implements IRenderer {
 
     set isRuntimeMode(value: boolean) {
         this._isRuntimeMode = value;
+        if (!value) {
+            if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when exiting runtime
+        } else {
+            if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when entering runtime to trigger search
+        }
         this.updateInputState();
     }
 
@@ -610,7 +662,7 @@ export class PhaserRenderer implements IRenderer {
         getRuntimeContext?(): RuntimeContext;
     };
 
-    /** 寃뚯엫 ?ㅼ젙 (??븷蹂?湲곕뒫 留ㅽ븨) */
+    /** 게임 설정 (역할별기능 매핑) */
     gameConfig?: GameConfig;
 
     // ===== Lifecycle =====
@@ -659,22 +711,22 @@ export class PhaserRenderer implements IRenderer {
 
 
     /**
-     * ??以€鍮??꾨즺 ???몄텧 (?대???
+     * 씬 준비 완료 시 호출 (내부용)
      */
     onSceneReady(): void {
         if (!this.scene) return;
 
         this.scene.load.setCORS("anonymous");
 
-        // 洹몃━??洹몃옒?쎌뒪 珥덇린??
+        // 그리드 그래픽스 초기화
         this.gridGraphics = this.scene.add.graphics();
         this.gridGraphics.setDepth(9999);
 
-        // ?낅젰 ?대깽???ㅼ젙
+        // 입력 이벤트 설정
         this.setupInputEvents();
         this.setupKeyboardCaptureGuards();
 
-        // 珥덇린???꾨즺 ?뚮┝
+        // 초기화 완료 알림
         if (this.initResolve) {
             this.initResolve();
             this.initResolve = null;
@@ -682,7 +734,7 @@ export class PhaserRenderer implements IRenderer {
     }
 
     /**
-     * ?낅뜲?댄듃 猷⑦봽 (?대???
+     * 업데이트 루프 (내부용)
      */
     onUpdate(time: number, delta: number): void {
         // console.log(`[PhaserRenderer] onUpdate. Runtime: ${this.isRuntimeMode}, Core: ${!!this.gameCore}`);
@@ -701,6 +753,23 @@ export class PhaserRenderer implements IRenderer {
 
         // Update UI Bars dynamically
         this.updateBars();
+
+        // [Runtime Camera Follow]
+        if (this.isRuntimeMode && this.scene && !this.scene.runtimeMainCameraFollowed && this.scene.cameras.main) {
+            const entities = this.core.getEntities();
+            // Find entity named "Main Camera"
+            const mainCameraEntity = Array.from(entities.values()).find(e => e.name === "Main Camera");
+
+            if (mainCameraEntity) {
+                // Find corresponding GameObject
+                const cameraObj = this.entities.get(mainCameraEntity.id);
+                if (cameraObj) {
+                    this.scene.cameras.main.startFollow(cameraObj, true);
+                    this.scene.runtimeMainCameraFollowed = true;
+                    // console.log("[PhaserRenderer] Runtime Camera following 'Main Camera'");
+                }
+            }
+        }
 
         if (this.onUpdateCallback) {
             this.onUpdateCallback(time, delta);
@@ -922,29 +991,49 @@ export class PhaserRenderer implements IRenderer {
         };
 
         // [UI COORDINATE TRANSFORMATION]
-        // Editor: UI at world coords, Main Camera at (cx, cy) → screen offset = (x-cx, y-cy)
-        // Runtime: UI should appear at same screen offset, but camera is at (gameWidth/2, gameHeight/2)
-        // Therefore: runtime world pos = (x - cx) + (gameWidth/2, gameHeight/2)
+        // Editor: UI at world coordinates (user can drag position)
+        // Runtime: UI uses scrollFactor(0), positioned relative to screen center
         let uiX = x;
         let uiY = y;
 
         if (isUI && this.isRuntimeMode && this.scene?.cameras?.main) {
-            // Find Main Camera entity to get editor camera position
-            const mainCamera = this.core.getEntities().get('Main Camera') ||
-                Array.from(this.core.getEntities().values()).find(e => e.name === 'Main Camera');
+            // Calculate screen offset from Main Camera position
+            let mainCamera: any = null;
+
+            // 1. Try finding in GameCore (Runtime)
+            if (this.gameCore && this.gameCore.getAllEntities) {
+                const all = this.gameCore.getAllEntities();
+                mainCamera = Array.from(all.values()).find((e: any) => e.name === 'Main Camera');
+            }
+
+            // 2. Fallback to Editor Core
+            if (!mainCamera) {
+                mainCamera = this.core.getEntities().get('Main Camera') ||
+                    Array.from(this.core.getEntities().values()).find(e => e.name === 'Main Camera') ||
+                    this.core.getGlobalEntities().get('Main Camera') ||
+                    Array.from(this.core.getGlobalEntities().values()).find(e => e.name === 'Main Camera');
+            }
 
             if (mainCamera) {
                 const cam = this.scene.cameras.main;
-                const editorCamX = mainCamera.x || 0;
-                const editorCamY = mainCamera.y || 0;
+                const editorCamX = Number(mainCamera.x) || 0;
+                const editorCamY = Number(mainCamera.y) || 0;
 
-                // Calculate screen offset from editor camera
+                // Calculate offset from Main Camera (this is the "screen offset")
                 const screenOffsetX = x - editorCamX;
                 const screenOffsetY = y - editorCamY;
 
-                // Apply same screen offset from runtime camera center
+                // Apply offset from camera center
                 uiX = cam.centerX + screenOffsetX;
                 uiY = cam.centerY + screenOffsetY;
+
+                // console.log(`[PhaserRenderer] UI Spawn: ${options?.name} (isUI=${isUI})`);
+                // console.log(`  - Entity World Pos: (${x}, ${y})`);
+                // console.log(`  - Main Camera World Pos: (${editorCamX}, ${editorCamY})`);
+                // console.log(`  - Screen Offset: (${screenOffsetX}, ${screenOffsetY})`);
+                // console.log(`  - Final Screen Pos: (${uiX}, ${uiY})`);
+            } else {
+                console.warn(`[PhaserRenderer] UI Coordinate Warning: 'Main Camera' entity not found. UI may appear misplaced.`);
             }
         }
 
@@ -2160,6 +2249,64 @@ export class PhaserRenderer implements IRenderer {
         this.keyboardCaptureEnabled = true;
     }
 
+    /**
+     * [FIX] Before removing a texture, update all sprites using it to prevent glTexture null error.
+     * This sets affected sprites to be invisible temporarily. They will be restored when the texture is reloaded.
+     */
+    private updateSpritesBeforeTextureRemove(textureKey: string): void {
+        if (!this.scene) return;
+
+        for (const [_id, obj] of this.entities) {
+            if (obj instanceof Phaser.GameObjects.Sprite) {
+                if (obj.texture && obj.texture.key === textureKey) {
+                    // Store the original texture key and frame for restoration
+                    obj.setData('__pendingTextureReload', { key: textureKey, frame: obj.frame?.name });
+                    // Hide the sprite until texture is reloaded
+                    obj.setVisible(false);
+                }
+            } else if (obj instanceof Phaser.GameObjects.Container) {
+                // Check children of containers
+                obj.each((child: Phaser.GameObjects.GameObject) => {
+                    if (child instanceof Phaser.GameObjects.Sprite) {
+                        if (child.texture && child.texture.key === textureKey) {
+                            child.setData('__pendingTextureReload', { key: textureKey, frame: child.frame?.name });
+                            child.setVisible(false);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * [FIX] After a texture is reloaded, restore sprites that were hidden.
+     */
+    private restoreSpritesAfterTextureReload(textureKey: string): void {
+        if (!this.scene) return;
+
+        for (const [_id, obj] of this.entities) {
+            if (obj instanceof Phaser.GameObjects.Sprite) {
+                const pending = obj.getData('__pendingTextureReload');
+                if (pending && pending.key === textureKey) {
+                    // Re-apply the texture with the new spritesheet
+                    obj.setTexture(textureKey, pending.frame || '0');
+                    obj.setVisible(true);
+                    obj.setData('__pendingTextureReload', null);
+                }
+            } else if (obj instanceof Phaser.GameObjects.Container) {
+                obj.each((child: Phaser.GameObjects.GameObject) => {
+                    if (child instanceof Phaser.GameObjects.Sprite) {
+                        const pending = child.getData('__pendingTextureReload');
+                        if (pending && pending.key === textureKey) {
+                            child.setTexture(textureKey, pending.frame || '0');
+                            child.setVisible(true);
+                            child.setData('__pendingTextureReload', null);
+                        }
+                    }
+                });
+            }
+        }
+    }
 
 
     // ===== Texture Loading (Phaser-specific helper) =====
@@ -2180,19 +2327,24 @@ export class PhaserRenderer implements IRenderer {
                 // we must REMOVE the old texture and reload it as a spritesheet.
                 // This handles the case where a user has duplicate asset names (one static, one animated) or re-imports fixes.
                 const texture = scene.textures.get(key);
-                // Check if this metadata implies a spritesheet (frames or explicit animations)
-                const isSpritesheetMetadata = metadata && (
-                    (metadata.frameWidth && metadata.frameWidth > 0) ||
-                    (metadata.frameCount && metadata.frameCount > 1) ||
-                    (metadata.animations && Object.keys(metadata.animations).length > 0)
+                // [FIX] Check if this metadata implies a REAL spritesheet (with actual frame data)
+                // Simple animation settings (loop, fps) without frame data should NOT trigger spritesheet reload
+                const hasRealSpriteSheetData = metadata && (
+                    (metadata.frameWidth && metadata.frameWidth > 0 && metadata.frameHeight && metadata.frameHeight > 0) ||
+                    (metadata.frameCount && metadata.frameCount > 1)
                 );
 
-                if (isSpritesheetMetadata) {
+                if (hasRealSpriteSheetData) {
                     // Check if animations already exist
                     const hasPrefixAnims = scene.anims.toJSON()?.anims?.some((a: any) => a.key.startsWith(key + "_"));
+                    // [FIX] Also check for manually added frames via getFrameNames()
+                    const existingFrameNames = texture.getFrameNames();
+                    const hasMultipleFrames = existingFrameNames.length > 1 || texture.frameTotal > 1;
 
-                    if (texture.frameTotal <= 1 && !hasPrefixAnims) {
+                    if (!hasMultipleFrames && !hasPrefixAnims) {
                         console.warn(`[PhaserRenderer] Texture '${key}' exists but is static. Reloading as spritesheet for animations.`);
+                        // [FIX] Before removing texture, update all sprites using it to prevent glTexture null error
+                        this.updateSpritesBeforeTextureRemove(key);
                         scene.textures.remove(key);
                         // Proceed to load below...
                     } else {
@@ -2206,34 +2358,11 @@ export class PhaserRenderer implements IRenderer {
                         return;
                     }
                 } else {
-                    // [FIX] Even without metadata, check if this existing texture should be sliced via heuristic
-                    // This fixes drag-and-drop assets where the heuristic runs on first load but not on subsequent loads
-                    if (texture.frameTotal <= 1) {
-                        const img = texture.getSourceImage();
-                        if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement || img instanceof ImageBitmap) {
-                            const width = img.width;
-                            const height = img.height;
-
-                            // Heuristic: horizontal strip detection
-                            if (width > height && width % height === 0 && width / height > 1) {
-
-                                scene.textures.remove(key);
-                                // Proceed to reload with heuristic slicing below
-                            } else {
-                                // Single static image, no slicing needed
-                                resolve();
-                                return;
-                            }
-                        } else {
-                            resolve();
-                            return;
-                        }
-                    } else {
-                        // Texture already has frames, ensure animations exist
-                        this.createAnimationsFromMetadata(key, metadata);
-                        resolve();
-                        return;
-                    }
+                    // [FIX] Without spritesheet metadata, do NOT attempt heuristic slicing on existing textures.
+                    // The heuristic should only run on FIRST load (in the 'complete' callback below).
+                    // For existing textures without metadata, just resolve immediately - they're static images.
+                    resolve();
+                    return;
                 }
             }
 
@@ -2296,6 +2425,8 @@ export class PhaserRenderer implements IRenderer {
                 }
 
                 this.createAnimationsFromMetadata(key, metadata);
+                // [FIX] Restore sprites that were hidden before texture removal
+                this.restoreSpritesAfterTextureReload(key);
                 resolve();
             });
             scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
@@ -2449,8 +2580,45 @@ export class PhaserRenderer implements IRenderer {
 
         // console.log(`[PhaserRenderer] update ${id} -> x=${x} y=${y}`);
 
-        obj.x = x;
-        obj.y = y;
+        let finalX = x;
+        let finalY = y;
+
+        // [UI COORDINATE TRANSFORMATION - RUNTIME]
+        // GameCore sends World Coordinates, but for UI with ScrollFactor(0), we need Screen Coordinates.
+        if (this.isRuntimeMode && obj.getData('isUI') && this.scene?.cameras?.main) {
+            let mainCamera: any = null;
+
+            // 1. Try finding in GameCore (Runtime)
+            if (this.gameCore && this.gameCore.getAllEntities) {
+                const all = this.gameCore.getAllEntities();
+                mainCamera = Array.from(all.values()).find((e: any) => e.name === 'Main Camera');
+            }
+
+            // 2. Fallback to Editor Core
+            if (!mainCamera) {
+                mainCamera = this.core.getEntities().get('Main Camera') ||
+                    Array.from(this.core.getEntities().values()).find(e => e.name === 'Main Camera') ||
+                    this.core.getGlobalEntities().get('Main Camera') ||
+                    Array.from(this.core.getGlobalEntities().values()).find(e => e.name === 'Main Camera');
+            }
+
+            if (mainCamera) {
+                const cam = this.scene.cameras.main;
+                const editorCamX = Number(mainCamera.x) || 0;
+                const editorCamY = Number(mainCamera.y) || 0;
+
+                // Calculate offset from Main Camera
+                const screenOffsetX = x - editorCamX;
+                const screenOffsetY = y - editorCamY;
+
+                // Apply offset from camera center
+                finalX = cam.centerX + screenOffsetX;
+                finalY = cam.centerY + screenOffsetY;
+            }
+        }
+
+        obj.x = finalX;
+        obj.y = finalY;
 
         if (typeof z === "number" && typeof obj.setDepth === "function") {
             const isUI = obj.getData('isUI');
@@ -2512,4 +2680,7 @@ export class PhaserRenderer implements IRenderer {
             // Optional: Force clear logic if entities were not in map
         }
     }
+
 }
+
+

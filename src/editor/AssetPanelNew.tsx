@@ -34,7 +34,7 @@ type Props = {
     onDeleteAsset?: (asset: Asset) => void;
 };
 
-type AssetPanelVars = Array<{ id: string; name: string; type: string; value: number | string | boolean }>;
+type AssetPanelVars = Array<{ id: string; name: string; type: string; value: any }>;
 
 export function AssetPanelNew({
     changeSelectedAsset,
