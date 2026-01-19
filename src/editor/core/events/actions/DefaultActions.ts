@@ -542,6 +542,10 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
     return 0;
 }
 
+
+// Static Cooldown Map to prevent duplicate execution of SetVar
+const setVarGlobalCooldowns = new Map<string, number>();
+
 ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, unknown>) => {
     const entity = getEntity(ctx);
     if (!entity) return;
@@ -549,20 +553,39 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const varName = params.name as string;
     if (!varName) return;
 
+    // [DEBUG] Trace SetVar Execution
+    console.log(`[SetVar] Executing: ${varName} (Entity: ${ctx.entityId}) Event: ${(ctx.eventData as any)?.type || 'unknown'}`);
+
+
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     const operation = (params.operation as string) ?? "Set";
-    const operand1 = params.operand1 as ValueSource | number | string;
-    const operand2 = params.operand2 as ValueSource | number | string;
+    const operand1 = params.operand1;
+    const operand2 = params.operand2;
 
+    // [GUARD] Duplicate Execution Prevention
+    // Key based on Entity, Variable, Operation, and Operands.
+    // If exact same operation happens on same entity/var within 1 frame (~1ms), we block it.
+    // We use a safe margin (e.g., 2ms) to catch double-loops but allow 60fps updates (16ms).
+    const opKey = `${ctx.entityId}:${varName}:${operation}:${JSON.stringify(operand1)}:${JSON.stringify(operand2)}`;
+    const now = performance.now();
+    const lastTime = setVarGlobalCooldowns.get(opKey) ?? 0;
 
+    // 2ms throttle: Blocks almost-instant duplicates (same microtask/frame)
+    // but allows next-frame updates (16ms+).
+    if (now - lastTime < 2) {
+        return;
+    }
+    setVarGlobalCooldowns.set(opKey, now);
+
+    // Enhanced SetVar: Variable = Op1 [Operation] Op2
     // Check if using legacy mode (simple value param)
     if (params.value !== undefined && params.operand1 === undefined) {
         setVar(entity, varName, params.value as number | string);
         return;
     }
 
-    const val1 = resolveValue(ctx, operand1 ?? 0);
-    const val2 = resolveValue(ctx, operand2 ?? 0);
+    const val1 = resolveValue(ctx, (operand1 ?? 0) as any);
+    const val2 = resolveValue(ctx, (operand2 ?? 0) as any);
 
     // console.log(`[SetVar] ${varName} = ${JSON.stringify(val1)} (Op: ${operation}), Source: ${JSON.stringify(operand1)}`);
 
@@ -609,6 +632,8 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
             case "Set": default: result = val1; break;
         }
     }
+
+
 
     setVar(entity, varName, result as any);
 

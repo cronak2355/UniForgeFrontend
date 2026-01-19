@@ -10,6 +10,7 @@ import type { GameCore } from "../GameCore";
 
 export class LogicSystem implements System {
     name = "LogicSystem";
+    private readonly instanceId = Math.floor(Math.random() * 10000); // [DEBUG] Trace Instance
     private moduleRuntime: ModuleRuntime;
     private gameCore?: GameCore;
 
@@ -24,6 +25,16 @@ export class LogicSystem implements System {
     setGameCore(core: GameCore) {
         this.gameCore = core;
     }
+
+    // [FIX] Track processed collisions per frame to prevent duplicate execution
+    private executedCollisions = new Set<string>();
+
+    // [FIX] Track executed components per frame (for OnUpdate/TICK)
+    private executedComponents = new Set<import("../RuntimeComponent").RuntimeComponent>();
+
+    // [FIX] Track executed actions per frame to prevent duplicate action execution
+    private executedActions = new Set<string>();
+
 
     private OnStartListener?: (event: any) => void;
     private CollisionListener?: (event: any) => void;
@@ -82,6 +93,9 @@ export class LogicSystem implements System {
     }
 
     private handleCollisionEvent(context: RuntimeContext, event: any) {
+        // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
+        if (this.gameCore?.isDestroyed) return;
+
         const renderer = this.gameCore?.getRenderer();
         const isRuntime = renderer?.isRuntimeMode;
 
@@ -92,6 +106,25 @@ export class LogicSystem implements System {
         const entityB = data.entityB as string;
         const tagA = data.tagA as string;
         const tagB = data.tagB as string;
+        const type = event.type || "COLLISION_ENTER";
+
+        // [FIX] Deduplicate Collision Events per Frame
+        // CollisionSystem emits ENTER once per pair. LogicSystem handles it.
+        // We ensure we don't process the exact same A-B collision twice in one frame
+        // (e.g. if emitted twice or listener duplicated)
+
+        // Use a frame-based or unique key. Since we clear set on update, 
+        // we just need A|B|Type unique key.
+        // Sort IDs to ensure A|B is same as B|A for the Pair Execution check?
+        // No, we want to execute Logic for A vs B, and B vs A. 
+        // But we want to ensure we don't do A vs B TWICE.
+
+        const collisionKey = `${entityA}:${entityB}:${type}`;
+        if (this.executedCollisions.has(collisionKey)) {
+            // console.warn(`[LogicSystem] Skipping duplicate collision event: ${collisionKey}`);
+            return;
+        }
+        this.executedCollisions.add(collisionKey);
 
         // Execute OnCollision logic for both entities involved
         this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
@@ -109,9 +142,31 @@ export class LogicSystem implements System {
         const entity = context.entities.get(entityId);
         if (!entity || !entity.active) return;
 
-        // Get OnCollision logic components for this entity
-        const logicComponents = context.getComponentsByEvent("OnCollision")
-            .filter(c => c.entityId === entityId);
+        // Determine which event types to look for based on the actual event
+        const eventType = collisionData.type || "COLLISION_ENTER"; // Fallback if type missing
+        const targetEvents = ["OnCollision"]; // Always include base 'OnCollision'
+
+        if (eventType === "COLLISION_ENTER") {
+            targetEvents.push("OnCollisionEnter");
+        } else if (eventType === "COLLISION_STAY") {
+            targetEvents.push("OnCollisionStay");
+        }
+
+        // Get OnCollision logic components for this entity (checking all aliases)
+        const logicComponents: import("../RuntimeComponent").RuntimeComponent[] = [];
+
+        for (const evt of targetEvents) {
+            const comps = context.getComponentsByEvent(evt);
+            for (const c of comps) {
+                if (c.entityId === entityId) {
+                    logicComponents.push(c);
+                }
+            }
+        }
+
+        if (logicComponents.length > 1) {
+            console.warn(`[LogicSystem] Entity ${entityId} has ${logicComponents.length} collision logic components! Duplicate execution likely.`);
+        }
 
         for (const comp of logicComponents) {
             const logicData = comp.data as import("../../types/Component").LogicComponent;
@@ -121,6 +176,7 @@ export class LogicSystem implements System {
                 entityId,
                 eventData: {
                     ...collisionData,
+                    type: eventType, // Ensure type is explicitly passed
                     entityA: collisionData.entityA,
                     entityB: collisionData.entityB,
                     tagA: collisionData.tagA,
@@ -246,6 +302,17 @@ export class LogicSystem implements System {
     }
 
     onUpdate(context: RuntimeContext, dt: number) {
+        // [GUARD] Stop if GameCore is destroyed
+        if (this.gameCore?.isDestroyed) return;
+
+
+        // [FIX] Reset collision duplicate tracker every frame
+        this.executedCollisions.clear();
+        // [FIX] Reset component execution tracker every frame
+        this.executedComponents.clear();
+        // [FIX] Reset action execution tracker every frame
+        this.executedActions.clear();
+
         // [CHECK] Only run logic if in Runtime Mode. 
         const isRuntime = this.gameCore?.getRenderer().isRuntimeMode;
         if (!isRuntime) return;
@@ -254,7 +321,7 @@ export class LogicSystem implements System {
 
         // 1. Execute Logic Components (OnUpdate/TICK)
         const logicComponents = context.getAllComponentsOfType("Logic");
-        // console.log(`[LogicSystem] Update. Components: ${logicComponents.length}`);
+        // console.log(`[LogicSystem ${this.instanceId}] Update. Components: ${logicComponents.length} | Destroyed: ${this.gameCore?.isDestroyed}`);
 
         if (logicComponents.length === 0 && context.entities.size > 0) {
             // console.warn(`[LogicSystem] No Logic components found! (Entities: ${context.entities.size})`);
@@ -268,6 +335,15 @@ export class LogicSystem implements System {
 
             // Filter: OnUpdate or TICK only
             if (logicData.event !== "OnUpdate" && logicData.event !== "TICK") continue;
+
+            // [FIX] Deduplicate Component Execution
+            if (this.executedComponents.has(comp)) {
+                // console.warn(`[LogicSystem ${this.instanceId}] Skipping duplicate component execution for ${comp.entityId}`);
+                continue;
+            }
+            this.executedComponents.add(comp);
+
+            // console.log(`[LogicSystem ${this.instanceId}] Executing Update Logic for ${comp.entityId}`);
 
             // Check entity exists and is alive
             const entity = context.entities.get(comp.entityId);
@@ -365,9 +441,28 @@ export class LogicSystem implements System {
             ? (logicData.actions ?? [])
             : (logicData.elseActions ?? []);
 
-        for (const action of actionsToRun) {
-            const { type, ...params } = action;
-            ActionRegistry.run(type, ctx, params);
+
+        // Only log details when actions will actually execute
+        if (actionsToRun.length > 0) {
+            if (actionsToRun.length > 1) {
+                console.warn(`[LogicSystem] ⚠️ MULTIPLE ACTIONS:`, actionsToRun.map((a, i) => `${i}: ${a.type}`));
+            }
+
+            for (const action of actionsToRun) {
+                const { type, ...params } = action;
+
+                // [FIX] Generate unique signature for this action execution
+                const actionSignature = `${comp.entityId}:${type}:${JSON.stringify(params)}`;
+
+                if (this.executedActions.has(actionSignature)) {
+                    console.warn(`[LogicSystem] ⛔ Blocked duplicate action: ${type} for entity ${comp.entityId}`);
+                    continue;
+                }
+                this.executedActions.add(actionSignature);
+
+                console.log(`[LogicSystem #${this.instanceId}] ▶️ Action: ${type} on entity ${comp.entityId}`);
+                ActionRegistry.run(type, ctx, params);
+            }
         }
     }
 }

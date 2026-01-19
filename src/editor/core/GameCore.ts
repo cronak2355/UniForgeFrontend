@@ -362,8 +362,8 @@ export class GameCore {
                 {
                     x: entity.x,
                     y: entity.y,
-                    width: baseWidth * Math.abs(entity.scaleX),
-                    height: baseHeight * Math.abs(entity.scaleY),
+                    width: baseWidth * entity.scaleX,
+                    height: baseHeight * entity.scaleY,
                 },
                 { isSolid: true }
             );
@@ -385,15 +385,37 @@ export class GameCore {
             }
         }
 
-        // 4b. Queue Components from logic array (EditorLogicItem[])
         if (options.logic) {
-            // console.log(`[GameCore] CreateEntity ${id}: Queuing ${options.logic.length} logic items.`);
+            // [FIX] Explicitly allow duplicate logic items (e.g. multiple OnUpdate components),
+            // BUT filter duplicates for "SetVar" actions to prevent double execution.
+            const processedSetVarSignatures = new Set<string>();
+
             for (const item of options.logic) {
                 if (item.kind === "component") {
+                    const comp = item.component;
+
+                    // [FIX] Check for "SetVar" action to filter duplicates
+                    // Only inspect if it's a Logic component (which has 'actions')
+                    if (comp.type === "Logic") {
+                        const logicComp = comp as import("../types/Component").LogicComponent;
+                        const hasSetVar = logicComp.actions?.some((a) => a.type === "SetVar");
+
+                        if (hasSetVar) {
+                            // Signature: Event + Logic Content
+                            const signature = `${comp.type}:${JSON.stringify(logicComp)}`;
+
+                            if (processedSetVarSignatures.has(signature)) {
+                                // console.warn(`[GameCore] Filtered duplicate 'SetVar' logic for ${id}`);
+                                continue;
+                            }
+                            processedSetVarSignatures.add(signature);
+                        }
+                    }
+
                     const runtimeComp: RuntimeComponent = {
                         entityId: id,
-                        type: item.component.type,
-                        data: item.component
+                        type: comp.type,
+                        data: comp
                     };
                     this.pipeline.queueAddComponent(runtimeComp);
                 }
