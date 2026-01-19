@@ -229,9 +229,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 // 3. Ensure Main Camera exists after loading (fallback for legacy or empty scenes)
                 const scene = core.getCurrentScene();
                 if (scene) {
-                    const hasCamera = Array.from(scene.entities.values()).some(e => e.name === "Main Camera");
-                    if (!hasCamera) {
-                        const cameraEntity = {
+                    let cameraEntity = Array.from(scene.entities.values()).find(e => e.name === "Main Camera");
+                    if (!cameraEntity) {
+                        const newCam = {
                             id: crypto.randomUUID(),
                             name: "Main Camera",
                             type: "container",
@@ -264,10 +264,19 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             variables: [],
                             scripts: [],
                             logic: [], // Added missing field
-                            events: [] // Added missing field
+                            events: [], // Added missing field
+                            texture: undefined // Explicitly undefined
                         };
-                        core.addEntity(cameraEntity as any);
-                        core.setSelectedEntity(cameraEntity as any); // Select it too
+                        core.addEntity(newCam as any);
+                        core.setSelectedEntity(newCam as any); // Select it too
+                    } else if (cameraEntity.texture === "Main Camera") {
+                        // [Fix] Clean up bad texture data
+                        cameraEntity.texture = undefined;
+                        // Force update via addEntity to trigger notify/snapshot if needed, or just set in map?
+                        // Core.addEntity handles logic wrapping.
+                        // Let's use updateEntityAnywhere or just modify and notify.
+                        // Since we are in init logic, direct modification + notify might be best, but core.updateEntity is safer.
+                        core.updateEntity({ ...cameraEntity, texture: undefined });
                     }
                 }
             } catch (err) {

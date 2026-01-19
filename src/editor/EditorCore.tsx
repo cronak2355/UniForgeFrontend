@@ -297,9 +297,9 @@ export class EditorState implements IGameState {
         if (!skipDefaultEntities) {
             const scene = this.scenes.get(newId);
             if (scene) {
-                const hasCamera = Array.from(scene.entities.values()).some(e => e.name === "Main Camera");
-                if (!hasCamera) {
-                    const cameraEntity: EditorEntity = {
+                let cameraEntity = Array.from(scene.entities.values()).find(e => e.name === "Main Camera");
+                if (!cameraEntity) {
+                    cameraEntity = {
                         id: crypto.randomUUID(),
                         name: "Main Camera",
                         type: "container",
@@ -316,8 +316,13 @@ export class EditorState implements IGameState {
                         variables: [],
                         components: [],
                         logic: [],
-                        events: []
+                        events: [],
+                        texture: undefined // Explicitly undefined
                     };
+                    scene.entities.set(cameraEntity.id, cameraEntity);
+                } else if (cameraEntity.texture === "Main Camera") {
+                    // [Fix] Clean up bad texture data from previous serializations
+                    cameraEntity.texture = undefined;
                     scene.entities.set(cameraEntity.id, cameraEntity);
                 }
             }
