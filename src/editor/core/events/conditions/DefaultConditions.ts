@@ -8,9 +8,26 @@ function getEntityVariables(ctx: ActionContext): VariableEntry[] {
     return entities?.get(ctx.entityId)?.variables ?? [];
 }
 
-function getNumberVar(ctx: ActionContext, name: string): number | undefined {
+// Get variable value with support for "varName.x" or "varName.y" for vector2 variables
+function getVariableValue(ctx: ActionContext, name: string): unknown {
+    // Support "varName.x" or "varName.y" for vector2 variables
+    if (name.endsWith(".x") || name.endsWith(".y")) {
+        const baseName = name.slice(0, -2);
+        const axis = name.slice(-1) as "x" | "y";
+        const variable = getEntityVariables(ctx).find((v) => v.name === baseName);
+        if (variable?.value && typeof variable.value === "object" && axis in (variable.value as any)) {
+            return (variable.value as any)[axis];
+        }
+        return undefined;
+    }
+
     const variable = getEntityVariables(ctx).find((v) => v.name === name);
-    return typeof variable?.value === "number" ? variable.value : undefined;
+    return variable?.value;
+}
+
+function getNumberVar(ctx: ActionContext, name: string): number | undefined {
+    const value = getVariableValue(ctx, name);
+    return typeof value === "number" ? value : undefined;
 }
 
 // --- Ground / Status Conditions ---
@@ -124,13 +141,13 @@ ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<str
 ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const expectedValue = params.value;
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return false;
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return false;
 
-    // Vector2 comparison
-    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
-        const varX = (variable.value as any).x;
-        const varY = (variable.value as any).y;
+    // Vector2 comparison (only for full vector2, not .x/.y access)
+    if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
+        const varX = (value as any).x;
+        const varY = (value as any).y;
 
         // Compare with Vector2 expectedValue
         if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
@@ -142,18 +159,18 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
         return varX == expX && varY == expY;
     }
 
-    if (typeof variable.value === "number") {
-        return variable.value == expectedValue;
+    if (typeof value === "number") {
+        return value == expectedValue;
     }
-    return variable.value === expectedValue;
+    return value === expectedValue;
 });
 
 ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const compareValue = Number(params.value);
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return false;
-    const val = Number(variable.value);
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return false;
+    const val = Number(value);
     if (isNaN(val)) return false;
     return val > compareValue;
 });
@@ -161,13 +178,13 @@ ConditionRegistry.register("VarGreaterThan", (ctx: ActionContext, params: Record
 ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const expectedValue = params.value;
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return true; // Variable doesn't exist = not equal
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return true; // Variable doesn't exist = not equal
 
-    // Vector2 comparison
-    if (typeof variable.value === "object" && variable.value !== null && 'x' in variable.value && 'y' in variable.value) {
-        const varX = (variable.value as any).x;
-        const varY = (variable.value as any).y;
+    // Vector2 comparison (only for full vector2, not .x/.y access)
+    if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
+        const varX = (value as any).x;
+        const varY = (value as any).y;
 
         // Compare with Vector2 expectedValue
         if (typeof expectedValue === "object" && expectedValue !== null && 'x' in expectedValue && 'y' in expectedValue) {
@@ -179,18 +196,18 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
         return varX != expX || varY != expY;
     }
 
-    if (typeof variable.value === "number") {
-        return variable.value != expectedValue;
+    if (typeof value === "number") {
+        return value != expectedValue;
     }
-    return variable.value !== expectedValue;
+    return value !== expectedValue;
 });
 
 ConditionRegistry.register("VarLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const compareValue = Number(params.value);
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return false;
-    const val = Number(variable.value);
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return false;
+    const val = Number(value);
     if (isNaN(val)) return false;
     return val < compareValue;
 });
@@ -198,9 +215,9 @@ ConditionRegistry.register("VarLessThan", (ctx: ActionContext, params: Record<st
 ConditionRegistry.register("VarGreaterOrEqual", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const compareValue = Number(params.value);
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return false;
-    const val = Number(variable.value);
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return false;
+    const val = Number(value);
     if (isNaN(val)) return false;
     return val >= compareValue;
 });
@@ -208,9 +225,9 @@ ConditionRegistry.register("VarGreaterOrEqual", (ctx: ActionContext, params: Rec
 ConditionRegistry.register("VarLessOrEqual", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const compareValue = Number(params.value);
-    const variable = getEntityVariables(ctx).find((v) => v.name === varName);
-    if (!variable) return false;
-    const val = Number(variable.value);
+    const value = getVariableValue(ctx, varName);
+    if (value === undefined) return false;
+    const val = Number(value);
     if (isNaN(val)) return false;
     return val <= compareValue;
 });
