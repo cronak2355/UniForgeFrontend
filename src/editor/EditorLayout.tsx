@@ -725,6 +725,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [core, mode]);
 
+    // [UI FIX] Camera Control
+    const [cameraControl, setCameraControl] = useState<{ setCameraPosition: (x: number, y: number) => void } | null>(null);
+
     const [localSelectedEntity, setLocalSelectedEntity] = useState<EditorEntity | null>(selectedEntity);
     const runtimeSyncPendingRef = useRef<EditorEntity | null>(null);
     const runtimeSyncTimerRef = useRef<number | null>(null);
@@ -1239,6 +1242,11 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         setLocalSelectedEntity(entity);
                                     }}
                                     runtimeCore={mode === "run" ? runtimeCore : null}
+                                    onFocusCamera={(x, y) => {
+                                        if (cameraControl) {
+                                            cameraControl.setCameraPosition(x, y);
+                                        }
+                                    }}
                                 />
                             ) : (
                                 <AssetPanelNew
@@ -1328,6 +1336,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                     }}
                                     tilingTool={tilingTool}
                                     selectedTileIndex={selectedTileIndex}
+                                    onRendererReady={(renderer) => setCameraControl(renderer)}
                                 />
                             </div>
                         ) : (

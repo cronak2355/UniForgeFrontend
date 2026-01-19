@@ -23,6 +23,7 @@ type Props = {
     onSelectEntity?: (entity: EditorEntity) => void;
     tilingTool?: "" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase";
     selectedTileIndex?: number;
+    onRendererReady?: (renderer: { setCameraPosition: (x: number, y: number) => void }) => void;
 };
 
 async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | null> {
@@ -88,7 +89,7 @@ function indexTiles(tiles: TilePlacement[]) {
     return map;
 }
 
-export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop, tilingTool = "", selectedTileIndex = 0 }: Props) {
+export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, onExternalImageDrop, tilingTool = "", selectedTileIndex = 0, onRendererReady }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const core = useEditorCore();
     const { tiles, entities, modules, aspectRatio, currentSceneId } = useEditorCoreSnapshot();
@@ -255,6 +256,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             // immediately after this flag is set. This prevents double-spawn race conditions.
 
             gameCore.flush(); // Sync Context immediately
+
+            // Notify parent that renderer is ready and expose camera control
+            if (onRendererReady) {
+                onRendererReady({
+                    setCameraPosition: (x: number, y: number) => renderer.setCameraPosition(x, y)
+                });
+            }
 
             setIsRendererReady(true);
         })();

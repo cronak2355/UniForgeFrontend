@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect } from "react";
 import type { EditorEntity } from "./types/Entity";
 import { colors } from "./constants/colors";
-import type { EditorState, SceneData } from "./EditorCore";
+import { EventBus } from "./core/events/EventBus";
+import { type EditorState, type SceneData } from "./EditorCore";
 
 type Props = {
     core: EditorState;
@@ -10,6 +11,7 @@ type Props = {
     selectedId: string | null;
     onSelect: (entity: EditorEntity) => void;
     runtimeCore?: any;
+    onFocusCamera?: (x: number, y: number) => void;  // Focus editor camera on position
 };
 
 const MenuOption = ({ label, onClick }: { label: string, onClick: () => void }) => (
@@ -33,7 +35,7 @@ const MenuOption = ({ label, onClick }: { label: string, onClick: () => void }) 
     </button>
 );
 
-export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect, runtimeCore }: Props) {
+export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSelect, runtimeCore, onFocusCamera }: Props) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState<"scene" | "entity" | null>(null);
@@ -72,7 +74,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         const existingNames = new Set(Array.from(scenes.values()).map(s => s.name));
 
         while (true) {
-            name = `Scene ${i}`;
+            name = `Scene ${i} `;
             if (!existingNames.has(name)) {
                 break;
             }
@@ -117,9 +119,16 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
             { id: crypto.randomUUID(), name: "z", type: "float", value: 100 }, // Default High Z
         ];
 
-        // Default transform
+        // Simple approach: Place UI at Main Camera position (center of guide frame)
+        // User can drag to desired position in editor
+        const entities = core.getEntities();
+        const mainCamera = Array.from(entities.values()).find(e => e.name === "Main Camera");
+        const cameraX = mainCamera?.x ?? 0;
+        const cameraY = mainCamera?.y ?? 0;
+
+        // Default transform - positioned at Main Camera (guide frame center)
         const transform = {
-            x: 400, y: 300, z: 100,
+            x: cameraX, y: cameraY, z: 100,
             rotation: 0, rotationX: 0, rotationY: 0, rotationZ: 0,
             scaleX: 1, scaleY: 1
         };
@@ -197,6 +206,14 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
         core.addEntity(entity);
         setShowTemplateMenu(false);
         onSelect(entity);
+
+        // Focus editor camera on Main Camera to show UI correctly within guide frame
+        EventBus.emit("EDITOR_CAMERA_MOVE", { x: cameraX, y: cameraY });
+
+        // Legacy prop call (optional, kept for compatibility if needed, using EventBus is preferred)
+        if (onFocusCamera) {
+            onFocusCamera(cameraX, cameraY);
+        }
     };
 
     if (runtimeCore) {
@@ -208,7 +225,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                     alignItems: 'center',
                     padding: '0 12px',
                     background: colors.error, // Red header for runtime
-                    borderBottom: `1px solid ${colors.borderColor}`,
+                    borderBottom: `1px solid ${colors.borderColor} `,
                     color: '#fff',
                     fontWeight: 600,
                     fontSize: '11px',
@@ -260,7 +277,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                 justifyContent: 'space-between',
                 padding: '0 12px',
                 background: colors.bgTertiary,
-                borderBottom: `1px solid ${colors.borderColor}`,
+                borderBottom: `1px solid ${colors.borderColor} `,
             }}>
                 <span style={{
                     fontSize: '11px',
@@ -297,7 +314,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                             top: '100%',
                             right: 0,
                             background: colors.bgSecondary,
-                            border: `1px solid ${colors.borderColor}`,
+                            border: `1px solid ${colors.borderColor} `,
                             borderRadius: '4px',
                             padding: '4px',
                             zIndex: 100,
@@ -394,7 +411,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                             onClick={(e) => e.stopPropagation()}
                                             style={{
                                                 background: colors.bgPrimary,
-                                                border: `1px solid ${colors.accent}`,
+                                                border: `1px solid ${colors.accent} `,
                                                 color: '#fff',
                                                 padding: '0 2px',
                                                 fontSize: '12px',
@@ -463,7 +480,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                             onClick={(e) => e.stopPropagation()}
                                             style={{
                                                 background: colors.bgPrimary,
-                                                border: `1px solid ${colors.accent}`,
+                                                border: `1px solid ${colors.accent} `,
                                                 color: '#fff',
                                                 padding: '2px',
                                                 fontSize: '14px',
@@ -547,7 +564,7 @@ export function HierarchyPanel({ core, scenes, currentSceneId, selectedId, onSel
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{
                                                             background: colors.bgPrimary,
-                                                            border: `1px solid ${colors.accent}`,
+                                                            border: `1px solid ${colors.accent} `,
                                                             color: '#fff',
                                                             padding: '0 2px',
                                                             fontSize: '12px',
