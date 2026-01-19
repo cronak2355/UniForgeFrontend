@@ -194,7 +194,27 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
     let dirY = 0;
 
     if (params.direction) {
-        const direction = resolveValue(ctx, params.direction as any);
+        const rawDir = params.direction as ValueSource;
+        let direction = resolveValue(ctx, rawDir);
+
+        // [FIX] Support "Follow" behavior when using "Prop" -> "position"
+        // If the user selects a Target Position (via Prop), we calculate the direction towards it.
+        if (
+            rawDir &&
+            typeof rawDir === 'object' &&
+            rawDir.type === 'property' &&
+            rawDir.property === 'position' &&
+            direction &&
+            typeof direction === 'object'
+        ) {
+            const targetX = Number((direction as any).x ?? 0);
+            const targetY = Number((direction as any).y ?? 0);
+            direction = {
+                x: targetX - gameObject.x,
+                y: targetY - gameObject.y
+            };
+        }
+
         // console.log("[Move Debug] Resolved Direction:", direction, "Type:", typeof direction);
         if (typeof direction === 'object' && direction !== null) {
             dirX = Number((direction as any).x ?? 0);

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchPublicGames, GameSummary } from '../services/gameService';
 import { getCloudFrontUrl } from '../utils/imageUtils';
 import { PublishGameModal } from '../components/games/PublishGameModal';
+import CommentSection from '../components/games/CommentSection';
 
 const ExplorePage = () => {
     const { user, logout } = useAuth();
@@ -438,9 +439,8 @@ const ExplorePage = () => {
                                         <p style={{ lineHeight: '1.6', color: '#ccc', whiteSpace: 'pre-wrap' }}>{selectedGame.description || "설명이 없습니다."}</p>
                                     </div>
                                 </div>
-                                <div style={{ borderLeft: '1px solid #333', paddingLeft: '2rem' }}>
-                                    {/* Ranking / Comments placeholders */}
-                                    <p className="text-gray-500">댓글 기능 준비 중...</p>
+                                <div style={{ borderLeft: '1px solid #333', paddingLeft: '2rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                    <CommentSection gameId={selectedGame.id} />
                                 </div>
                             </div>
                         </div>

@@ -244,6 +244,30 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
         }
     };
 
+    const handleDownloadAsset = async (item: UILibraryItem) => {
+        if (!item.thumbnail || item.thumbnail === DEFAULT_ASSET_THUMBNAIL) {
+            alert("다운로드 가능한 이미지가 없습니다.");
+            return;
+        }
+
+        try {
+            const response = await fetch(item.thumbnail);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const extension = blob.type.split('/')[1] || 'webp';
+            a.download = `${item.title.replace(/\s+/g, '_')}_uniforge.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error("Download failed:", error);
+            alert("다운로드에 실패했습니다.");
+        }
+    };
+
 
     return (
         <div className={`flex flex-col ${isModal ? 'h-full bg-[#0a0a0a]' : 'min-h-screen bg-black'} text-white relative overflow-hidden`}>
@@ -388,8 +412,13 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                     draggable={activeTab === 'assets'} // Only items in Assets tab are draggable
                                     onDragStart={(e) => onAssetDragStart(e, item)}
                                     onClick={() => {
-                                        if (isModal && onSelect) onSelect(item);
+                                        if (isModal && onSelect) {
+                                            onSelect(item);
+                                        } else if (item.type === 'asset') {
+                                            navigate(`/assets-editor?assetId=${item.id}`);
+                                        }
                                     }}
+                                    onDownload={item.type === 'asset' ? (e) => handleDownloadAsset(item) : undefined}
                                     overlayActions={
                                         <>
                                             <button
@@ -397,20 +426,18 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (isModal && onSelect) onSelect(item);
+                                                    else if (item.type === 'game') {
+                                                        // Handle game play
+                                                    } else {
+                                                        navigate(`/assets-editor?assetId=${item.id}`);
+                                                    }
                                                 }}
                                             >
-                                                {isModal ? 'Select' : (item.type === 'game' ? 'Play' : 'Download')}
+                                                {isModal ? 'Select' : (item.type === 'game' ? 'Play' : 'Edit')}
                                             </button>
 
                                             {item.type === 'asset' && !isModal && (
                                                 <div className="flex gap-2 mt-3">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setMovingItem(item); }}
-                                                        className="w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-black/90 backdrop-blur-sm rounded-full text-white transition-colors border border-white/10"
-                                                        title="컬렉션 이동"
-                                                    >
-                                                        <i className="fa-solid fa-folder"></i>
-                                                    </button>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -419,7 +446,7 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                                                         className="w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-black/90 backdrop-blur-sm rounded-full text-white transition-colors border border-white/10"
                                                         title="에셋 편집"
                                                     >
-                                                        <i className="fa-solid fa-pen"></i>
+                                                        <i className="fa-solid fa-pen text-xs"></i>
                                                     </button>
                                                 </div>
                                             )}

@@ -1,0 +1,25 @@
+config:
+  target: "https://uniforge.kr"
+  phases:
+    - duration: 60
+      arrivalRate: 20
+      rampTo: 200
+      name: "Target 200 users"
+    - duration: 60
+      arrivalRate: 200
+      rampTo: 300
+      name: "Target 300 users"
+    - duration: 60
+      arrivalRate: 300
+      rampTo: 500
+      name: "Target 500 users"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Marketplace Load Analysis"
+    flow:
+      - get:
+          url: "/api/assets?sort=latest"
+      - think: 1
