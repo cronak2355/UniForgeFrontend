@@ -27,6 +27,7 @@ export class LogicSystem implements System {
 
     private OnStartListener?: (event: any) => void;
     private CollisionListener?: (event: any) => void;
+    private OnClickListener?: (event: any) => void;
     private runtimeContext?: RuntimeContext;
 
     onInit(context: RuntimeContext): void {
@@ -51,6 +52,17 @@ export class LogicSystem implements System {
             }
         };
         EventBus.on(this.CollisionListener);
+
+        // Listen for OnClick events (UI Buttons, etc.)
+        this.OnClickListener = (event: any) => {
+            if (event.type === "OnClick") {
+                const targetId = event.targetId;
+                if (targetId) {
+                    this.handleOnClick(context, targetId, event.data);
+                }
+            }
+        };
+        EventBus.on(this.OnClickListener);
     }
 
     onDestroy(): void {
@@ -61,6 +73,10 @@ export class LogicSystem implements System {
         if (this.CollisionListener) {
             EventBus.off(this.CollisionListener);
             this.CollisionListener = undefined;
+        }
+        if (this.OnClickListener) {
+            EventBus.off(this.OnClickListener);
+            this.OnClickListener = undefined;
         }
         this.runtimeContext = undefined;
     }
@@ -205,6 +221,27 @@ export class LogicSystem implements System {
 
         for (const comp of componentsToRun) {
             this.executeLogicComponent(context, comp, 0); // dt=0 for OnStart
+        }
+    }
+
+    private handleOnClick(context: RuntimeContext, entityId: string, data: any) {
+        const renderer = this.gameCore?.getRenderer();
+        const isRuntime = renderer?.isRuntimeMode;
+
+        // Ensure we are in runtime
+        if (!isRuntime) return;
+
+        const entity = context.entities.get(entityId);
+        if (!entity || !entity.active) return;
+
+        // Get OnClick logic components for this entity
+        const clickComponents = context.getComponentsByEvent("OnClick")
+            .filter(c => c.entityId === entityId);
+
+        // console.log(`[LogicSystem] Handling OnClick for ${entityId}. Found ${clickComponents.length} components.`);
+
+        for (const comp of clickComponents) {
+            this.executeLogicComponent(context, comp, 0);
         }
     }
 
