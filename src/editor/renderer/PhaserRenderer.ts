@@ -132,7 +132,7 @@ class PhaserRenderScene extends Phaser.Scene {
                                 frameCount: frameCount
                             };
 
-                            this.phaserRenderer.createAnimationsFromMetadata(key, heuristicMetadata);
+                            this.phaserRenderer.createAnimationsFromMetadata(key, heuristicMetadata as any);
                             if (asset.id !== asset.name) {
                                 // Also slice for asset.id texture if it exists
                                 const idTexture = this.textures.get(asset.id);
@@ -140,7 +140,7 @@ class PhaserRenderScene extends Phaser.Scene {
                                     for (let i = 0; i < frameCount; i++) {
                                         idTexture.add(String(i), 0, i * frameWidth, 0, frameWidth, frameHeight);
                                     }
-                                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, heuristicMetadata);
+                                    this.phaserRenderer.createAnimationsFromMetadata(asset.id, heuristicMetadata as any);
                                 }
                             }
                         }
@@ -1291,6 +1291,7 @@ export class PhaserRenderer implements IRenderer {
             else uiObj.setDepth(z);
 
             // Re-apply Button Interactions (only in Runtime, to not interfere with Editor dragging)
+
             // Re-apply Button Interactions (Runtime Only)
             if (this.isRuntimeMode && uiType === "button" && obj instanceof Phaser.GameObjects.Container) {
                 const bg = obj.getByName("bg");
@@ -1326,9 +1327,15 @@ export class PhaserRenderer implements IRenderer {
                         else (bg as any).setFillStyle(bgColorInt);
                     });
                     container.on('pointerdown', () => {
+                        // [DEBUG] Log user request
+                        console.log(`[Button] Clicked entity: ${id}`);
 
                         if ('setTint' in bg) (bg as any).setTint(0x888888);
                         else (bg as any).setFillStyle(0x1abc9c);
+
+                        // Trigger Game Logic "On Click"
+                        EventBus.emit("OnClick", { button: 0 }, id);
+
 
                         if (this.onEntityClick && this.scene) {
                             const ptr = this.scene.input.activePointer;
@@ -1751,46 +1758,62 @@ export class PhaserRenderer implements IRenderer {
     private updateBars(): void {
         if (!this.scene) return;
 
-        // Get entities from the appropriate source (Runtime or Editor)
-        const entities = this.isRuntimeMode && this.gameCore?.getRuntimeContext
-            ? this.gameCore.getRuntimeContext()?.entities
-            : this.core.getEntities();
+        // Iterate LOCAL entities in Phaser to find bars
+        // This is more efficient than iterating core.entities if we just want to update visuals
+        // But we need data from Core/Runtime.
 
-        if (!entities) return;
+        // Strategy: Iterate over all Phaser entities. If it's a UI Bar, find its source and update.
+        for (const [id, obj] of this.entities) {
+            // Check if this object is a Bar Container
+            const isUI = obj.getData('isUI');
+            const type = obj.getData('type');
 
-        // Iterate all entities and update bars
-        for (const [id, entity] of entities) {
-            // Check if this is a bar UI element
-            const isUI = entity.variables?.find((v: any) => v.name === "isUI")?.value === true;
-            const uiType = entity.variables?.find((v: any) => v.name === "uiType")?.value;
+            if (!isUI || type !== 'bar') continue;
 
-            if (!isUI || uiType !== "bar") continue;
+            // Retrieve configuration from Variable store (Editor vs Runtime)
+            let entityData: any = null;
+            let sourceEntityId: string = "";
+            let valueVarName: string = "";
+            let maxVarName: string = "";
 
-            // Get bar configuration
-            const sourceEntityId = String(entity.variables?.find((v: any) => v.name === "uiSourceEntity")?.value || "");
-            const valueVarName = String(entity.variables?.find((v: any) => v.name === "uiValueVar")?.value || "");
-            const maxVarName = String(entity.variables?.find((v: any) => v.name === "uiMaxVar")?.value || "");
+            if (this.isRuntimeMode && this.gameCore?.getRuntimeContext) {
+                const ctx = this.gameCore.getRuntimeContext();
+                entityData = ctx?.entities.get(id); // RuntimeEntity
+            } else {
+                entityData = this.core.getEntity(id); // EditorEntity
+            }
+
+            if (!entityData) continue;
+
+            // Get variable config (Bar needs 'uiSourceEntity', 'uiValueVar', 'uiMaxVar')
+            const getVarVal = (name: string) => entityData.variables?.find((v: any) => v.name === name)?.value;
+
+            sourceEntityId = String(getVarVal("uiSourceEntity") || "");
+            valueVarName = String(getVarVal("uiValueVar") || "");
+            maxVarName = String(getVarVal("uiMaxVar") || "");
 
             if (!sourceEntityId || !valueVarName || !maxVarName) continue;
 
-            // Resolve source entity (check both global and scene entities)
-            let sourceEntity: any = null;
+            // Resolve Source Entity Variables
+            let currentValue = 0;
+            let maxValue = 1;
+
             if (this.isRuntimeMode && this.gameCore?.getRuntimeContext) {
+                // RUNTIME: Use RuntimeContext's optimized lookup
                 const ctx = this.gameCore.getRuntimeContext();
-                sourceEntity = ctx?.entities.get(sourceEntityId);
+                currentValue = Number(ctx?.getEntityVariable(sourceEntityId, valueVarName) ?? 0);
+                maxValue = Number(ctx?.getEntityVariable(sourceEntityId, maxVarName) ?? 1);
             } else {
-                sourceEntity = this.core.getGlobalEntities().get(sourceEntityId)
-                    || this.core.getEntities().get(sourceEntityId);
+                // EDITOR: Use Core Entities (Real-time updates from Inspector)
+                const sourceEntity = this.core.getEntity(sourceEntityId) || this.core.getGlobalEntity(sourceEntityId);
+                if (sourceEntity) {
+                    currentValue = Number(sourceEntity.variables?.find((v: any) => v.name === valueVarName)?.value ?? 0);
+                    maxValue = Number(sourceEntity.variables?.find((v: any) => v.name === maxVarName)?.value ?? 1);
+                }
             }
 
-            if (!sourceEntity) continue;
-
-            // Get current and max values
-            const currentValue = sourceEntity.variables?.find((v: any) => v.name === valueVarName)?.value ?? 0;
-            const maxValue = sourceEntity.variables?.find((v: any) => v.name === maxVarName)?.value ?? 1;
-
-            // Update the bar visual
-            this.setBarValue(id, Number(currentValue), Number(maxValue));
+            // Update parameters
+            this.setBarValue(id, currentValue, maxValue);
         }
     }
 
