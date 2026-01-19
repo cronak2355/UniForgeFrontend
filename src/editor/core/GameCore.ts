@@ -155,10 +155,8 @@ export class GameCore {
         // Map EventBus event types to Logic component event types
         // NOTE: OnStart is handled by LogicSystem directly, not here (to avoid duplicate execution)
         const eventMapping: Record<string, string[]> = {
-            // [FIX] Removed COLLISION_ENTER and COLLISION_STAY to avoid double execution.
-            // These are now handled exclusively by LogicSystem.
-            // "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
-            // "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
+            "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
+            "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
             "COLLISION_EXIT": ["OnCollisionExit"],
             "ENTITY_DIED": ["OnDestroy"],
             "EVENT_SIGNAL": ["OnSignalReceive"],
@@ -364,8 +362,8 @@ export class GameCore {
                 {
                     x: entity.x,
                     y: entity.y,
-                    width: baseWidth * Math.abs(entity.scaleX),
-                    height: baseHeight * Math.abs(entity.scaleY),
+                    width: baseWidth * entity.scaleX,
+                    height: baseHeight * entity.scaleY,
                 },
                 { isSolid: true }
             );
@@ -375,21 +373,9 @@ export class GameCore {
         this.pipeline.queueCreateEntity(entity);
 
         // 4. Queue Components (from options.components - legacy)
-        // [FIX] Prevent duplicate Logic components if options.logic is provided
-        const logicComponentTypes = new Set(
-            options.logic?.filter(item => item.kind === "component").map(item => item.component.type) || []
-        );
-
         if (options.components) {
             // console.log(`[GameCore] CreateEntity ${id}: Processing options.components (${options.components.length})`);
             for (const c of options.components) {
-                // Skip if this component type is already provided by options.logic (specifically Logic components)
-                // Note: Logic items usually have type 'Logic' but unique data. 
-                // We mainly want to avoid adding the EXACT SAME Logic component sourced from legacy path.
-                if (c.type === "Logic" && options.logic && options.logic.length > 0) {
-                    continue;
-                }
-
                 const runtimeComp: RuntimeComponent = {
                     entityId: id,
                     type: c.type,
@@ -399,36 +385,44 @@ export class GameCore {
             }
         }
 
-        // 4b. Queue Components from logic array (EditorLogicItem[])
         if (options.logic) {
-            // console.log(`[GameCore] CreateEntity ${id}: Queuing ${options.logic.length} logic items.`);
-            const addedSignatures = new Set<string>();
+            // [FIX] Explicitly allow duplicate logic items (e.g. multiple OnUpdate components),
+            // BUT filter duplicates for "SetVar" actions to prevent double execution.
+            const processedSetVarSignatures = new Set<string>();
+
             for (const item of options.logic) {
                 if (item.kind === "component") {
                     const comp = item.component;
-                    // Prevent duplicates within options.logic itself
-                    let eventType = (comp as any).event || 'null';
-                    // [FIX] Normalize TICK/OnUpdate aliases to prevent duplication
-                    if (eventType === 'TICK') eventType = 'OnUpdate';
 
-                    const sig = `${comp.type}:${eventType}`;
-                    if (addedSignatures.has(sig)) {
-                        console.warn(`[GameCore] ⚠️ Duplicate logic filtered in options.logic for ${id}: ${sig}`);
-                        continue;
+                    // [FIX] Check for "SetVar" action to filter duplicates
+                    // Only inspect if it's a Logic component (which has 'actions')
+                    if (comp.type === "Logic") {
+                        const logicComp = comp as import("../types/Component").LogicComponent;
+                        const hasSetVar = logicComp.actions?.some((a) => a.type === "SetVar");
+
+                        if (hasSetVar) {
+                            // Signature: Event + Logic Content
+                            const signature = `${comp.type}:${JSON.stringify(logicComp)}`;
+
+                            if (processedSetVarSignatures.has(signature)) {
+                                // console.warn(`[GameCore] Filtered duplicate 'SetVar' logic for ${id}`);
+                                continue;
+                            }
+                            processedSetVarSignatures.add(signature);
+                        }
                     }
-                    console.log(`[GameCore] ✓ Adding logic component for ${id}: ${sig}`);
-                    addedSignatures.add(sig);
 
                     const runtimeComp: RuntimeComponent = {
                         entityId: id,
-                        type: item.component.type,
-                        data: item.component
+                        type: comp.type,
+                        data: comp
                     };
                     this.pipeline.queueAddComponent(runtimeComp);
                 }
             }
+        } else {
+            // console.warn(`[GameCore] CreateEntity ${id}: No 'logic' options provided.`);
         }
-
 
         // 5. Setup Variables
         if (options.variables) {
@@ -558,8 +552,7 @@ export class GameCore {
     }
 
     setInputState(input: InputState) {
-        // [FIX] Removed executeFrame(0) call - it was causing duplicate logic execution!
-        // The input state is updated here and will be used in the next normal frame.
+        this.pipeline.executeFrame(0); // Hack to force input update? No.
         this.runtimeContext.setInput(input);
     }
 
@@ -628,12 +621,9 @@ export class GameCore {
         }
     }
 
-    public isDestroyed = false;
-
     // Compatibility stub
     validateIdSync() { return true; }
     destroy() {
-        this.isDestroyed = true;
         if (this.eventHandler) EventBus.off(this.eventHandler);
         this.pipeline.destroy(); // Cleanup systems (LogicSystem listeners etc)
         this.runtimeContext.clearEntities();
