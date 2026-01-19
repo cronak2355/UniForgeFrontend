@@ -747,6 +747,9 @@ export class PhaserRenderer implements IRenderer {
         // This is critical for RuntimeContext-based systems (LogicSystem) to run.
         if (this.isRuntimeMode && this.gameCore) {
             (this.gameCore as any).update(time, delta);
+
+            // [CRITICAL FIX] Sync Runtime Entity Data to Visuals
+            this.syncRuntimeVisuals();
         } else {
             // console.warn("[PhaserRenderer] Skipping GameCore update. Runtime:", this.isRuntimeMode, "Core:", !!this.gameCore);
         }
@@ -755,24 +758,92 @@ export class PhaserRenderer implements IRenderer {
         this.updateBars();
 
         // [Runtime Camera Follow]
-        if (this.isRuntimeMode && this.scene && !this.scene.runtimeMainCameraFollowed && this.scene.cameras.main) {
+        if (this.isRuntimeMode && this.scene && this.scene.cameras.main) {
             const entities = this.core.getEntities();
             // Find entity named "Main Camera"
-            const mainCameraEntity = Array.from(entities.values()).find(e => e.name === "Main Camera");
+            // [FIX] Search in RuntimeContext if available, otherwise fallback to core
+            let mainCameraEntity: any = null;
+            if (this.gameCore && this.gameCore.getRuntimeContext) {
+                const ctx = this.gameCore.getRuntimeContext();
+                for (const e of ctx.entities.values()) {
+                    if (e.name === "Main Camera") {
+                        mainCameraEntity = e;
+                        break;
+                    }
+                }
+            } else {
+                mainCameraEntity = Array.from(entities.values()).find(e => e.name === "Main Camera");
+            }
 
             if (mainCameraEntity) {
-                // Find corresponding GameObject
-                const cameraObj = this.entities.get(mainCameraEntity.id);
-                if (cameraObj) {
-                    this.scene.cameras.main.startFollow(cameraObj, true);
-                    this.scene.runtimeMainCameraFollowed = true;
-                    // console.log("[PhaserRenderer] Runtime Camera following 'Main Camera'");
+                if (!this.scene.runtimeMainCameraFollowed) {
+                    // Find corresponding GameObject
+                    const cameraObj = this.entities.get(mainCameraEntity.id);
+                    if (cameraObj) {
+                        this.scene.cameras.main.startFollow(cameraObj, true);
+                        this.scene.runtimeMainCameraFollowed = true;
+                    }
                 }
+            } else {
+                // [FIX] Camera Fallback: If no "Main Camera", ensure camera is at 0,0 or centered
+                if (this.scene.runtimeMainCameraFollowed) {
+                    this.scene.cameras.main.stopFollow();
+                    this.scene.runtimeMainCameraFollowed = false;
+                }
+                // Optional: Force center if desired, but 0,0 top-left is standard for no-camera setup
+                // this.scene.cameras.main.centerOn(0, 0); 
             }
         }
 
         if (this.onUpdateCallback) {
             this.onUpdateCallback(time, delta);
+        }
+    }
+
+    /**
+     * [CRITICAL] Syncs RuntimeContext entity data (x, y, rotation, etc.) to Phaser GameObjects.
+     * Without this, the visuals will never move even if the logic is running!
+     */
+    private syncRuntimeVisuals(): void {
+        const context = this.gameCore?.getRuntimeContext?.();
+        if (!context) return;
+
+        for (const [id, entity] of context.entities) {
+            const obj = this.entities.get(id);
+            if (!obj) continue;
+
+            // 1. Position & Rotation
+            // Note: Physics might have already updated obj.x/y if using Arcade Physics directly,
+            // but we are using our own engine-agnostic RuntimePhysics.
+
+            // Should we interpolate? For now, direct sync.
+            obj.x = entity.x;
+            obj.y = entity.y;
+            obj.rotation = entity.rotation; // Radians? 
+            // If entity.rotation is degrees, convert? Usually our engine uses radians internally or degrees?
+            // RuntimeEntity.ts says "rotation: number; // Z-rotation in 2D". 
+            // Phaser rotation is Radians. If Logic uses Degrees, we need conversion.
+            // Assuming RuntimeContext stores Radians for now as per previous behavior.
+
+            obj.setScale(entity.scaleX, entity.scaleY);
+
+            // 2. Visibility / Active
+            obj.setVisible(entity.active);
+            obj.setActive(entity.active);
+
+            // 3. Depth (Z-index)
+            if (entity.z !== undefined && obj.depth !== entity.z) {
+                obj.setDepth(entity.z);
+            }
+
+            // 4. Alpha (Opacity)
+            const opacityVar = entity.variables.find((v: any) => v.name === "opacity");
+            if (opacityVar) {
+                const alpha = Number(opacityVar.value);
+                if (!isNaN(alpha)) {
+                    if (obj.alpha !== alpha) obj.setAlpha(alpha);
+                }
+            }
         }
     }
 
@@ -1019,9 +1090,15 @@ export class PhaserRenderer implements IRenderer {
                 const editorCamX = Number(mainCamera.x) || 0;
                 const editorCamY = Number(mainCamera.y) || 0;
 
+                // [FIX] Apply Zoom to Screen Offset
+                // Identify Zoom variable from Main Camera entity variables
+                const zoomVar = mainCamera.variables?.find((v: any) => v.name === "zoom");
+                const zoom = zoomVar ? Number(zoomVar.value) : 1;
+
                 // Calculate offset from Main Camera (this is the "screen offset")
-                const screenOffsetX = x - editorCamX;
-                const screenOffsetY = y - editorCamY;
+                // Visual Distance = World Distance * Zoom
+                const screenOffsetX = (x - editorCamX) * zoom;
+                const screenOffsetY = (y - editorCamY) * zoom;
 
                 // Apply offset from camera center
                 uiX = cam.centerX + screenOffsetX;
@@ -1029,8 +1106,8 @@ export class PhaserRenderer implements IRenderer {
 
                 // console.log(`[PhaserRenderer] UI Spawn: ${options?.name} (isUI=${isUI})`);
                 // console.log(`  - Entity World Pos: (${x}, ${y})`);
-                // console.log(`  - Main Camera World Pos: (${editorCamX}, ${editorCamY})`);
-                // console.log(`  - Screen Offset: (${screenOffsetX}, ${screenOffsetY})`);
+                // console.log(`  - Main Camera: Pos(${editorCamX}, ${editorCamY}), Zoom(${zoom})`);
+                // console.log(`  - Screen Offset (Zoomed): (${screenOffsetX}, ${screenOffsetY})`);
                 // console.log(`  - Final Screen Pos: (${uiX}, ${uiY})`);
             } else {
                 console.warn(`[PhaserRenderer] UI Coordinate Warning: 'Main Camera' entity not found. UI may appear misplaced.`);
