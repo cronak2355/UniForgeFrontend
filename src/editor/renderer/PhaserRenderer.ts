@@ -180,6 +180,7 @@ class PhaserRenderScene extends Phaser.Scene {
             if (event.type === "KEY_DOWN") {
                 const code = event.data?.key as string;
                 if (code) {
+                    // console.log(`[PhaserRenderer] KEY_DOWN: ${code}`);
                     this.keyState[code] = true;
                     this.keysDownState[code] = true;
                 }
@@ -238,25 +239,6 @@ class PhaserRenderScene extends Phaser.Scene {
                 }
             }
 
-            // [System Event] Entity Died - Auto Particle (엔티티의 deathEffect 변수 사용)
-            if (event.type === "ENTITY_DIED") {
-                const data = event.data || {};
-                const entityId = data.entityId as string;
-                const gameObject = this.phaserRenderer?.getGameObject?.(entityId);
-
-                if (gameObject) {
-                    // 기본값 없음, "none"이 아니면 재생
-                    const entities = this.phaserRenderer?.core?.getEntities?.();
-                    const entity = entities?.get(entityId);
-                    const deathEffectVar = entity?.variables?.find((v: { name: string }) => v.name === "deathEffect");
-                    const deathEffect = (deathEffectVar?.value as string);
-
-                    if (deathEffect && deathEffect !== "none") {
-                        this.particleManager?.playEffect(deathEffect, gameObject.x, gameObject.y, 1);
-                    }
-                }
-            }
-
             // [Optimized] TICK event is now ignored here to prevent GC overhead.
             // It is handled directly in the update() loop using reusable objects.
             if (event.type === "TICK") return;
@@ -275,8 +257,11 @@ class PhaserRenderScene extends Phaser.Scene {
         const cleanup = () => {
             this._keyboardAdapter?.destroy();
             if (this.eventHandler) {
-                EventBus.off(this.eventHandler);
-                this.eventHandler = undefined;
+                if (this.eventHandler) {
+                    // console.log("[PhaserRenderer] Cleanup: Removing EventBus listeners");
+                    EventBus.off(this.eventHandler);
+                    this.eventHandler = undefined;
+                }
             }
         };
 
@@ -373,42 +358,44 @@ class PhaserRenderScene extends Phaser.Scene {
     // 물리 상태는 RuntimePhysics에서 관리됨
 
     update(time: number, delta: number) {
-        // 부모 업데이트 호출
+        // [CRITICAL FIX] Set input BEFORE onUpdate() so game logic sees current frame's input
+        if (this.phaserRenderer.isRuntimeMode) {
+            const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
+            if (runtimeContext) {
+                // Capture Input for Runtime - MUST be set before gameCore.update() runs
+                const input: InputState = {
+                    left: this.cursors?.left.isDown || this.wasd?.A.isDown || false,
+                    right: this.cursors?.right.isDown || this.wasd?.D.isDown || false,
+                    up: this.cursors?.up.isDown || this.wasd?.W.isDown || false,
+                    down: this.cursors?.down.isDown || this.wasd?.S.isDown || false,
+                    jump: (this.spaceKey?.isDown === true) || (this.cursors?.up?.isDown === true) || (this.wasd?.W?.isDown === true),
+                    mouseX: this.input.activePointer?.worldX ?? 0,
+                    mouseY: this.input.activePointer?.worldY ?? 0,
+                    mouseScreenX: this.input.activePointer?.x ?? 0,
+                    mouseScreenY: this.input.activePointer?.y ?? 0,
+                    keys: { ...this.keyState },
+                    keysDown: { ...this.keysDownState }
+                };
+                // Reset keysDownState after consuming it
+                this.keysDownState = {};
+
+                // Sync Input to RuntimeContext BEFORE game logic runs
+                runtimeContext.setInput(input);
+            }
+        }
+
+        // 부모 업데이트 호출 - Now gameCore.update() sees the new input
         this.phaserRenderer.onUpdate(time, delta);
 
         if (this.phaserRenderer.isRuntimeMode) {
             // [RuntimeContext Query-Based Update Loop]
-            // Uses RuntimeContext for all runtime data (entities, components, variables)
-            // EditorState is NOT accessed during runtime - full separation
-
-            const frameStart = performance.now();
-            const dt = delta / 1000;
+            // Input was already set above before onUpdate()
 
             const runtimeContext = this.phaserRenderer.getRuntimeContext?.();
             if (!runtimeContext) return;
 
-            // Capture Input for Runtime
-            const input: InputState = {
-                left: this.cursors?.left.isDown || this.wasd?.A.isDown || false,
-                right: this.cursors?.right.isDown || this.wasd?.D.isDown || false,
-                up: this.cursors?.up.isDown || this.wasd?.W.isDown || false,
-                down: this.cursors?.down.isDown || this.wasd?.S.isDown || false,
-                jump: (this.spaceKey?.isDown === true) || (this.cursors?.up?.isDown === true) || (this.wasd?.W?.isDown === true),
-                mouseX: this.input.activePointer?.worldX ?? 0,
-                mouseY: this.input.activePointer?.worldY ?? 0,
-                mouseScreenX: this.input.activePointer?.x ?? 0,
-                mouseScreenY: this.input.activePointer?.y ?? 0,
-                keys: { ...this.keyState },
-                keysDown: { ...this.keysDownState }
-            };
-            // Reset keysDownState after consuming it
-            this.keysDownState = {};
-
-            // Sync Input to RuntimeContext
-            runtimeContext.setInput(input);
-
-            // [Optimized] Logic execution is now handled by LogicSystem via GameCore pipeline.
-            // Duplicate execution loop removed.
+            // [Optimized] Logic execution is handled by LogicSystem via GameCore pipeline.
+            // Input is already set above before onUpdate().
 
             // Camera Sync: Find "Main Camera" and sync position & zoom
             let cameraEntity: any = null;
@@ -619,6 +606,9 @@ export class PhaserRenderer implements IRenderer {
     getRuntimeContext?: () => RuntimeContext | null;
     useEditorCoreRuntimePhysics = true;
 
+    /** Runtime Camera Initial Position (for UI absolute positioning) */
+    private _runtimeCameraStartPos: { x: number, y: number, zoom: number } | null = null;
+
     /** Runtime mode flag - logic components and TICK only run when true */
     private _isRuntimeMode = false;
 
@@ -630,8 +620,10 @@ export class PhaserRenderer implements IRenderer {
         this._isRuntimeMode = value;
         if (!value) {
             if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when exiting runtime
+            this._runtimeCameraStartPos = null;
         } else {
             if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when entering runtime to trigger search
+            this._runtimeCameraStartPos = null;
         }
         this.updateInputState();
     }
@@ -782,11 +774,16 @@ export class PhaserRenderer implements IRenderer {
             this.redrawGrid();
         }
 
+
         // [Fix] Execute GameCore loop (Logic, Physics, etc.)
         // This is critical for RuntimeContext-based systems (LogicSystem) to run.
-        if (this.isRuntimeMode && this.gameCore) {
-            (this.gameCore as any).update(time, delta);
+        // [REMOVED] Direct call causes duplicate execution!
+        // GameCore.update is now called via onUpdateCallback from RunTimeCanvas.tsx
+        // if (this.isRuntimeMode && this.gameCore) {
+        //     (this.gameCore as any).update(time, delta);
+        // }
 
+        if (this.isRuntimeMode && this.gameCore) {
             // [CRITICAL FIX] Sync Runtime Entity Data to Visuals
             this.syncRuntimeVisuals();
         } else {
@@ -871,14 +868,38 @@ export class PhaserRenderer implements IRenderer {
         let mainCamZoom = 1;
         let hasMainCamera = false;
 
-        for (const [id, entity] of context.entities) {
-            if (entity.name === "Main Camera") {
-                mainCamX = Number(entity.x);
-                mainCamY = Number(entity.y);
-                const zVar = entity.variables.find((v: any) => v.name === "zoom");
-                mainCamZoom = zVar ? Number(zVar.value) : 1;
-                hasMainCamera = true;
-                break;
+        // [FIX] Use Initial Camera Position for UI Screen Offset Calculation
+        // This ensures UI stays fixed on screen even if Camera moves.
+        if (!this._runtimeCameraStartPos && this.isRuntimeMode) {
+            for (const [id, entity] of context.entities) {
+                if (entity.name === "Main Camera") {
+                    const zVar = entity.variables.find((v: any) => v.name === "zoom");
+                    this._runtimeCameraStartPos = {
+                        x: Number(entity.x),
+                        y: Number(entity.y),
+                        zoom: zVar ? Number(zVar.value) : 1
+                    };
+                    break;
+                }
+            }
+        }
+
+        // Use cached start pos if available, otherwise current (fallback)
+        if (this._runtimeCameraStartPos) {
+            mainCamX = this._runtimeCameraStartPos.x;
+            mainCamY = this._runtimeCameraStartPos.y;
+            mainCamZoom = this._runtimeCameraStartPos.zoom;
+            hasMainCamera = true;
+        } else {
+            for (const [id, entity] of context.entities) {
+                if (entity.name === "Main Camera") {
+                    mainCamX = Number(entity.x);
+                    mainCamY = Number(entity.y);
+                    const zVar = entity.variables.find((v: any) => v.name === "zoom");
+                    mainCamZoom = zVar ? Number(zVar.value) : 1;
+                    hasMainCamera = true;
+                    break;
+                }
             }
         }
 
@@ -901,6 +922,7 @@ export class PhaserRenderer implements IRenderer {
                 // Match the logic in spawn():
                 // ScreenOffset = (WorldPos - CameraPos) * Zoom
                 // FinalPos = ScreenCenter + ScreenOffset
+                // IMPORTANT: We use mainCamX/Y from START position to keep offset constant relative to screen
                 const screenOffsetX = (entity.x - mainCamX) * mainCamZoom;
                 const screenOffsetY = (entity.y - mainCamY) * mainCamZoom;
                 targetX = screenCenterX + screenOffsetX;
@@ -1332,7 +1354,7 @@ export class PhaserRenderer implements IRenderer {
             // But UI elements definitely need size.
 
             obj = sprite;
-        } else if (type === "container") {
+        } else if (type === "container" || type === "Camera" || entityName === "Main Camera") {
             // [Fix] Handle 'container' type explicitly (e.g. Main Camera)
             // Create empty container, no visual placeholder
             const container = this.scene.add.container(x, y);

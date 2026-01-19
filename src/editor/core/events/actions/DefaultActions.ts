@@ -553,6 +553,11 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const varName = params.name as string;
     if (!varName) return;
 
+    // [DEBUG] Trace SetVar Execution
+    console.log(`[SetVar] Executing: ${varName} (Entity: ${ctx.entityId}) Event: ${(ctx.eventData as any)?.type || 'unknown'}`);
+
+
+    // Enhanced SetVar: Variable = Op1 [Operation] Op2
     const operation = (params.operation as string) ?? "Set";
     const operand1 = params.operand1;
     const operand2 = params.operand2;
@@ -627,6 +632,8 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
             case "Set": default: result = val1; break;
         }
     }
+
+
 
     setVar(entity, varName, result as any);
 
@@ -770,6 +777,7 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,
+        tags: source?.tags ? [...source.tags] : [],
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";
