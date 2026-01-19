@@ -154,10 +154,9 @@ export class GameCore {
 
         // Map EventBus event types to Logic component event types
         // NOTE: OnStart is handled by LogicSystem directly, not here (to avoid duplicate execution)
+        // NOTE: COLLISION events are handled by LogicSystem, not here
+        // This prevents duplicate execution
         const eventMapping: Record<string, string[]> = {
-            "COLLISION_ENTER": ["OnCollision", "OnCollisionEnter"],
-            "COLLISION_STAY": ["OnCollision", "OnCollisionStay"],
-            "COLLISION_EXIT": ["OnCollisionExit"],
             "ENTITY_DIED": ["OnDestroy"],
             "EVENT_SIGNAL": ["OnSignalReceive"],
         };
