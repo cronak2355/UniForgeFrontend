@@ -553,10 +553,6 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const varName = params.name as string;
     if (!varName) return;
 
-    // [DEBUG] Trace SetVar Execution
-    console.log(`[SetVar] Executing: ${varName} (Entity: ${ctx.entityId}) Event: ${(ctx.eventData as any)?.type || 'unknown'}`);
-
-
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     const operation = (params.operation as string) ?? "Set";
     const operand1 = params.operand1;
@@ -634,6 +630,79 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     }
 
 
+
+    // Handle special entity properties (position, scale, rotation)
+    const specialProperties = ["x", "y", "position.x", "position.y", "scaleX", "scaleY", "scale.x", "scale.y", "rotation"];
+    const normalizedName = varName.toLowerCase();
+
+    if (specialProperties.includes(varName) || specialProperties.includes(normalizedName)) {
+        const renderer = ctx.globals?.renderer;
+        const gameObj = renderer?.getGameObject?.(ctx.entityId);
+        const numValue = typeof result === 'number' ? result : Number(result);
+
+        switch (varName) {
+            case "x":
+            case "position.x":
+                entity.x = numValue;
+                if (gameObj) (gameObj as any).x = numValue;
+                break;
+            case "y":
+            case "position.y":
+                entity.y = numValue;
+                if (gameObj) (gameObj as any).y = numValue;
+                break;
+            case "scaleX":
+            case "scale.x":
+                entity.scaleX = numValue;
+                if (gameObj?.setScale) {
+                    const currentScaleY = entity.scaleY ?? 1;
+                    (gameObj as any).setScale(numValue, currentScaleY);
+                }
+                break;
+            case "scaleY":
+            case "scale.y":
+                entity.scaleY = numValue;
+                if (gameObj?.setScale) {
+                    const currentScaleX = entity.scaleX ?? 1;
+                    (gameObj as any).setScale(currentScaleX, numValue);
+                }
+                break;
+            case "rotation":
+                entity.rotation = numValue;
+                if (gameObj) (gameObj as any).rotation = numValue;
+                break;
+        }
+
+        // Also sync to RuntimeContext
+        const gameCore = ctx.globals?.gameCore as any;
+        if (gameCore?.getRuntimeContext) {
+            const runtimeEntity = gameCore.getRuntimeContext().entities.get(ctx.entityId);
+            if (runtimeEntity) {
+                switch (varName) {
+                    case "x":
+                    case "position.x":
+                        runtimeEntity.x = numValue;
+                        break;
+                    case "y":
+                    case "position.y":
+                        runtimeEntity.y = numValue;
+                        break;
+                    case "scaleX":
+                    case "scale.x":
+                        runtimeEntity.scaleX = numValue;
+                        break;
+                    case "scaleY":
+                    case "scale.y":
+                        runtimeEntity.scaleY = numValue;
+                        break;
+                    case "rotation":
+                        runtimeEntity.rotation = numValue;
+                        break;
+                }
+            }
+        }
+        return;
+    }
 
     setVar(entity, varName, result as any);
 
