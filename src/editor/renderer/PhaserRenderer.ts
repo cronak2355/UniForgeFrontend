@@ -180,6 +180,7 @@ class PhaserRenderScene extends Phaser.Scene {
             if (event.type === "KEY_DOWN") {
                 const code = event.data?.key as string;
                 if (code) {
+                    // console.log(`[PhaserRenderer] KEY_DOWN: ${code}`);
                     this.keyState[code] = true;
                     this.keysDownState[code] = true;
                 }
@@ -275,8 +276,11 @@ class PhaserRenderScene extends Phaser.Scene {
         const cleanup = () => {
             this._keyboardAdapter?.destroy();
             if (this.eventHandler) {
-                EventBus.off(this.eventHandler);
-                this.eventHandler = undefined;
+                if (this.eventHandler) {
+                    // console.log("[PhaserRenderer] Cleanup: Removing EventBus listeners");
+                    EventBus.off(this.eventHandler);
+                    this.eventHandler = undefined;
+                }
             }
         };
 
@@ -782,11 +786,16 @@ export class PhaserRenderer implements IRenderer {
             this.redrawGrid();
         }
 
+
         // [Fix] Execute GameCore loop (Logic, Physics, etc.)
         // This is critical for RuntimeContext-based systems (LogicSystem) to run.
-        if (this.isRuntimeMode && this.gameCore) {
-            (this.gameCore as any).update(time, delta);
+        // [REMOVED] Direct call causes duplicate execution!
+        // GameCore.update is now called via onUpdateCallback from RunTimeCanvas.tsx
+        // if (this.isRuntimeMode && this.gameCore) {
+        //     (this.gameCore as any).update(time, delta);
+        // }
 
+        if (this.isRuntimeMode && this.gameCore) {
             // [CRITICAL FIX] Sync Runtime Entity Data to Visuals
             this.syncRuntimeVisuals();
         } else {

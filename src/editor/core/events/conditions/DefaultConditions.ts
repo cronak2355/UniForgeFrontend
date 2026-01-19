@@ -316,8 +316,10 @@ ConditionRegistry.register("InputDown", (ctx: ActionContext, params: Record<stri
 
     // Check keysDown state from InputSystem (just pressed this frame)
     if (ctx.input?.keysDown?.[key] === true) {
+        // console.log(`[Condition] InputDown TRUE for ${key}. KeysDown:`, JSON.stringify(ctx.input?.keysDown));
         return true;
     }
+    // console.log(`[Condition] InputDown FALSE for ${key}. KeysDown:`, JSON.stringify(ctx.input?.keysDown));
     return false;
 });
 

@@ -549,6 +549,10 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const varName = params.name as string;
     if (!varName) return;
 
+    // [DEBUG] Trace SetVar Execution
+    console.log(`[SetVar] Executing: ${varName} (Entity: ${ctx.entityId}) Event: ${(ctx.eventData as any)?.type || 'unknown'}`);
+
+
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     const operation = (params.operation as string) ?? "Set";
     const operand1 = params.operand1 as ValueSource | number | string;
@@ -609,6 +613,8 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
             case "Set": default: result = val1; break;
         }
     }
+
+
 
     setVar(entity, varName, result as any);
 
