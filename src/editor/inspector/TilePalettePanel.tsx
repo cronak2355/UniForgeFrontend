@@ -5,7 +5,7 @@ import { editorCore } from "../EditorCore";
 import { getCloudFrontUrl } from "../../utils/imageUtils";
 
 const TILE_SIZE = 100;
-const TILESET_COLS = 9;
+const TILESET_COLS = 3;
 const MAX_COLOR_TILES = 30;
 
 interface TilePalettePanelProps {

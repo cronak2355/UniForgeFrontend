@@ -923,10 +923,13 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 assetService.uploadAsset(u.file, u.name, u.tag, token, undefined, false)
             ));
 
-            results.forEach(result => {
+            results.forEach((result, index) => {
+                // [FIX] Use the user-selected tag from uploads array instead of server-returned tag
+                // to ensure "Tile" tag is preserved for tile palette recognition
+                const selectedTag = uploads[index]?.tag ?? result.tag;
                 core.addAsset({
                     id: result.id,
-                    tag: result.tag,
+                    tag: selectedTag,
                     name: result.name,
                     url: result.url,
                     idx: -1,
@@ -1691,36 +1694,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             </button>
                             <button
                                 disabled={isUploadingAsset}
-                                onClick={() => {
-                                    const file = dropModalFiles[0];
-                                    if (file) {
-                                        const token = localStorage.getItem("token");
-                                        setIsUploadingAsset(true);
-                                        assetService.uploadAsset(
-                                            file,
-                                            dropAssetName || file.name,
-                                            dropAssetTag,
-                                            token,
-                                            {}, // metadata
-                                            false // isPublic
-                                        ).then((res) => {
-                                            core.addAsset({
-                                                id: res.id,
-                                                tag: dropAssetTag, // [FIX] Use user-selected tag to ensure correct filtering (e.g. "Tile")
-                                                name: res.name,
-                                                url: res.url,
-                                                idx: -1,
-                                                metadata: {}
-                                            });
-                                            setDropModalFiles([]);
-                                        }).catch(err => {
-                                            console.error(err);
-                                            alert("Upload failed: " + err.message);
-                                        }).finally(() => {
-                                            setIsUploadingAsset(false);
-                                        });
-                                    }
-                                }}
+                                onClick={handleAddAsset}
                                 style={{
                                     padding: '10px 24px',
                                     background: isUploadingAsset ? '#2563eb' : '#3b82f6',
