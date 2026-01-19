@@ -410,7 +410,7 @@ class PhaserRenderScene extends Phaser.Scene {
             // [Optimized] Logic execution is now handled by LogicSystem via GameCore pipeline.
             // Duplicate execution loop removed.
 
-            // Camera Sync: Find "Main Camera" and sync position
+            // Camera Sync: Find "Main Camera" and sync position & zoom
             let cameraEntity: any = null;
 
             // Search for Main Camera
@@ -422,27 +422,66 @@ class PhaserRenderScene extends Phaser.Scene {
             }
 
             try {
-                if (cameraEntity && this.cameras?.main && !this.runtimeMainCameraFollowed) {
-                    // Find corresponding GameObject
-                    const cameraObj = this.phaserRenderer.getGameObject(cameraEntity.id);
-                    if (cameraObj) {
-                        this.cameras.main.startFollow(cameraObj, true);
-                        this.runtimeMainCameraFollowed = true;
-                        // console.log("[PhaserRenderer] Runtime Camera following 'Main Camera'");
-                    } else {
-                        // If GameObject not found, just center on entity's position
-                        const cx = Number(cameraEntity.x) || 0;
-                        const cy = Number(cameraEntity.y) || 0;
-                        this.cameras.main.centerOn(cx, cy);
+                if (cameraEntity && this.cameras?.main) {
+                    const cam = this.cameras.main;
+
+                    // 1. Sync Zoom
+                    if (cameraEntity.components) {
+                        const camComp = cameraEntity.components.find((c: any) => c.type === "Camera");
+                        if (camComp && camComp.props) {
+                            const targetZoom = Number(camComp.props.zoom) || 1;
+                            if (Math.abs(cam.zoom - targetZoom) > 0.001) {
+                                cam.setZoom(targetZoom);
+                            }
+                        }
                     }
-                } else if (cameraEntity && this.cameras?.main && this.runtimeMainCameraFollowed) {
-                    // If already following, ensure it stays centered on the entity's current position
-                    // This is handled by startFollow internally, but we can update if needed
-                    // For now, rely on startFollow's continuous update.
+                    // Fallback to variable for backwards compatibility if component prop missing
+                    if (!cameraEntity.components?.some((c: any) => c.type === "Camera")) {
+                        const zoomVar = runtimeContext.getEntityVariable(cameraEntity.id, "zoom");
+                        if (zoomVar !== undefined) {
+                            const targetZoom = Number(zoomVar) || 1;
+                            if (Math.abs(cam.zoom - targetZoom) > 0.001) {
+                                cam.setZoom(targetZoom);
+                            }
+                        }
+                    }
+
+                    // 2. Sync Follow / Position
+                    if (!this.runtimeMainCameraFollowed) {
+                        // Find corresponding GameObject
+                        const cameraObj = this.phaserRenderer.getGameObject(cameraEntity.id);
+                        if (cameraObj) {
+                            cam.startFollow(cameraObj, true);
+                            this.runtimeMainCameraFollowed = true;
+                            // console.log("[PhaserRenderer] Runtime Camera following 'Main Camera'");
+                        } else {
+                            // If GameObject not found, just center on entity's position
+                            const cx = Number(cameraEntity.x) || 0;
+                            const cy = Number(cameraEntity.y) || 0;
+                            cam.centerOn(cx, cy);
+                        }
+                    } else {
+                        // If following, check if we need to stop following (e.g. invalid target?)
+                        // For now, assume startFollow works.
+                        // But if visual object was destroyed, we might need to re-bind.
+                        // Phaser handles destruction of target by stopping follow automatically usually?
+                        // Let's re-verify existence?
+                        const cameraObj = this.phaserRenderer.getGameObject(cameraEntity.id);
+                        if (!cameraObj) {
+                            this.runtimeMainCameraFollowed = false; // Re-trigger search next frame
+
+                            // Fallback Position
+                            const cx = Number(cameraEntity.x) || 0;
+                            const cy = Number(cameraEntity.y) || 0;
+                            cam.centerOn(cx, cy);
+                        }
+                    }
                 } else if (!cameraEntity && this.cameras?.main) {
                     // If no "Main Camera" entity, ensure camera is not following anything
-                    this.cameras.main.stopFollow();
-                    this.runtimeMainCameraFollowed = false;
+                    if (this.runtimeMainCameraFollowed) {
+                        this.cameras.main.stopFollow();
+                        this.runtimeMainCameraFollowed = false;
+                    }
                 }
             } catch (e) {
                 // Silent fail for camera sync
@@ -793,6 +832,24 @@ export class PhaserRenderer implements IRenderer {
                 // Optional: Force center if desired, but 0,0 top-left is standard for no-camera setup
                 // this.scene.cameras.main.centerOn(0, 0); 
             }
+
+            // [DEBUG] Log Camera State
+            // @ts-ignore
+            if (!this._debugTimer) this._debugTimer = Date.now();
+            // @ts-ignore
+            if (Date.now() - this._debugTimer > 1000) {
+                // @ts-ignore
+                this._debugTimer = Date.now();
+
+                const cam = this.scene.cameras.main;
+                const rendererCount = this.entities.size;
+                const runtimeCount = this.gameCore?.getRuntimeContext?.()?.entities.size ?? 0;
+
+                console.log(`[PhaserRenderer Debug]`);
+                console.log(`  - Mode: Runtime=${this.isRuntimeMode}, HasMainCameraEntity=${!!mainCameraEntity}`);
+                console.log(`  - Camera: Scroll(${cam.scrollX.toFixed(1)}, ${cam.scrollY.toFixed(1)}), Zoom=${cam.zoom}`);
+                console.log(`  - Entities: Renderer=${rendererCount}, Runtime=${runtimeCount}`);
+            } // END DEBUG
         }
 
         if (this.onUpdateCallback) {
@@ -808,32 +865,72 @@ export class PhaserRenderer implements IRenderer {
         const context = this.gameCore?.getRuntimeContext?.();
         if (!context) return;
 
+        // [UI Sync Prep] Find Main Camera for UI Offset Calculation
+        let mainCamX = 0;
+        let mainCamY = 0;
+        let mainCamZoom = 1;
+        let hasMainCamera = false;
+
         for (const [id, entity] of context.entities) {
-            const obj = this.entities.get(id);
+            if (entity.name === "Main Camera") {
+                mainCamX = Number(entity.x);
+                mainCamY = Number(entity.y);
+                const zVar = entity.variables.find((v: any) => v.name === "zoom");
+                mainCamZoom = zVar ? Number(zVar.value) : 1;
+                hasMainCamera = true;
+                break;
+            }
+        }
+
+        const screenCenterX = this.scene?.cameras.main.centerX ?? 0;
+        const screenCenterY = this.scene?.cameras.main.centerY ?? 0;
+
+        for (const [id, entity] of context.entities) {
+            const obj = this.entities.get(id) as any;
             if (!obj) continue;
 
+            // Check if UI
+            const isUI = obj.getData('isUI') === true;
+
             // 1. Position & Rotation
-            // Note: Physics might have already updated obj.x/y if using Arcade Physics directly,
-            // but we are using our own engine-agnostic RuntimePhysics.
+            let targetX = entity.x;
+            let targetY = entity.y;
 
-            // Should we interpolate? For now, direct sync.
-            obj.x = entity.x;
-            obj.y = entity.y;
-            obj.rotation = entity.rotation; // Radians? 
-            // If entity.rotation is degrees, convert? Usually our engine uses radians internally or degrees?
-            // RuntimeEntity.ts says "rotation: number; // Z-rotation in 2D". 
-            // Phaser rotation is Radians. If Logic uses Degrees, we need conversion.
-            // Assuming RuntimeContext stores Radians for now as per previous behavior.
+            if (isUI && hasMainCamera) {
+                // [UI Coordinate Transformation]
+                // Match the logic in spawn():
+                // ScreenOffset = (WorldPos - CameraPos) * Zoom
+                // FinalPos = ScreenCenter + ScreenOffset
+                const screenOffsetX = (entity.x - mainCamX) * mainCamZoom;
+                const screenOffsetY = (entity.y - mainCamY) * mainCamZoom;
+                targetX = screenCenterX + screenOffsetX;
+                targetY = screenCenterY + screenOffsetY;
+            }
 
-            obj.setScale(entity.scaleX, entity.scaleY);
+            if (obj.setPosition) {
+                obj.setPosition(targetX, targetY);
+            } else {
+                obj.x = targetX;
+                obj.y = targetY;
+            }
+
+            if (obj.setRotation) {
+                obj.setRotation(entity.rotation);
+            } else {
+                obj.rotation = entity.rotation;
+            }
+
+            if (obj.setScale) {
+                obj.setScale(entity.scaleX, entity.scaleY);
+            }
 
             // 2. Visibility / Active
-            obj.setVisible(entity.active);
-            obj.setActive(entity.active);
+            if (obj.setVisible) obj.setVisible(entity.active);
+            if (obj.setActive) obj.setActive(entity.active);
 
             // 3. Depth (Z-index)
             if (entity.z !== undefined && obj.depth !== entity.z) {
-                obj.setDepth(entity.z);
+                if (obj.setDepth) obj.setDepth(entity.z);
             }
 
             // 4. Alpha (Opacity)
@@ -841,7 +938,7 @@ export class PhaserRenderer implements IRenderer {
             if (opacityVar) {
                 const alpha = Number(opacityVar.value);
                 if (!isNaN(alpha)) {
-                    if (obj.alpha !== alpha) obj.setAlpha(alpha);
+                    if (obj.alpha !== alpha && obj.setAlpha) obj.setAlpha(alpha);
                 }
             }
         }
@@ -2743,6 +2840,12 @@ export class PhaserRenderer implements IRenderer {
         const obj = this.entities.get(id) as any;
         if (obj && typeof obj.setTint === "function") {
             obj.setTint(color);
+        }
+    }
+
+    public setZoom(zoom: number): void {
+        if (this.scene && this.scene.cameras && this.scene.cameras.main) {
+            this.scene.cameras.main.setZoom(zoom);
         }
     }
 

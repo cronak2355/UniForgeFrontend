@@ -363,11 +363,37 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         gameRuntime.resetRuntime();
         spawnRuntimeEntities(gameRuntime, [...globalEntities, ...sceneEntities]);
 
-        for (const entity of runtimeContext.entities.values()) {
+        // [FIX] Initialize camera to Main Camera entity position AND ZOOM on startup
+        // 'runtimeContext' is already declared in the outer scope (line 351), so reuse it.
+        // Also fetch refreshed context just in case (though reference should be same)
+        const currentContext = gameRuntime.getRuntimeContext();
+        for (const entity of currentContext.entities.values()) {
             if (entity.name === "Main Camera") {
                 const cx = Number(entity.x) || 0;
                 const cy = Number(entity.y) || 0;
                 renderer.setCameraPosition(cx, cy);
+
+                // Sync Initial Zoom
+                let zoom = 1;
+
+                // 1. Try Component Prop via Context (RuntimeEntity struct does NOT hold components directly)
+                const comps = currentContext.getEntityComponents(entity.id);
+                const camComp = comps?.find((c: any) => c.type === "Camera") as any;
+
+                if (camComp) {
+                    // Handle both potentially direct props (legacy) or data.props (new structure)
+                    const props = camComp.props || camComp.data?.props;
+                    if (props && props.zoom) {
+                        zoom = Number(props.zoom);
+                    }
+                }
+                // 2. Try Variable
+                else {
+                    const zoomVar = currentContext.getEntityVariable(entity.id, "zoom");
+                    if (zoomVar !== undefined) zoom = Number(zoomVar);
+                }
+
+                if (zoom > 0) renderer.setZoom(zoom);
                 break;
             }
         }
