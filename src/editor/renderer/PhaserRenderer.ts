@@ -789,11 +789,9 @@ export class PhaserRenderer implements IRenderer {
 
         // [Fix] Execute GameCore loop (Logic, Physics, etc.)
         // This is critical for RuntimeContext-based systems (LogicSystem) to run.
-        // [REMOVED] Direct call causes duplicate execution!
-        // GameCore.update is now called via onUpdateCallback from RunTimeCanvas.tsx
-        // if (this.isRuntimeMode && this.gameCore) {
-        //     (this.gameCore as any).update(time, delta);
-        // }
+        if (this.isRuntimeMode && this.gameCore) {
+            (this.gameCore as any).update(time, delta);
+        }
 
         if (this.isRuntimeMode && this.gameCore) {
             // [CRITICAL FIX] Sync Runtime Entity Data to Visuals

@@ -301,17 +301,26 @@ export class LogicSystem implements System {
         }
     }
 
+    private lastUpdateTimestamp = 0;
+
     onUpdate(context: RuntimeContext, dt: number) {
         // [GUARD] Stop if GameCore is destroyed
         if (this.gameCore?.isDestroyed) return;
 
+        const currentTimestamp = performance.now();
+        // If time difference is significant (e.g. > 2ms), it's a new frame. 
+        // Otherwise, it's likely a duplicate call in the same frame.
+        const isNewFrame = (currentTimestamp - this.lastUpdateTimestamp) > 2;
 
-        // [FIX] Reset collision duplicate tracker every frame
-        this.executedCollisions.clear();
-        // [FIX] Reset component execution tracker every frame
-        this.executedComponents.clear();
-        // [FIX] Reset action execution tracker every frame
-        this.executedActions.clear();
+        if (isNewFrame) {
+            // New frame: Clear trackers
+            this.executedCollisions.clear();
+            this.executedComponents.clear();
+            this.executedActions.clear();
+            this.lastUpdateTimestamp = currentTimestamp;
+        } else {
+            // Same frame duplicate call: Do NOT clear trackers
+        }
 
         // [CHECK] Only run logic if in Runtime Mode. 
         const isRuntime = this.gameCore?.getRenderer().isRuntimeMode;
