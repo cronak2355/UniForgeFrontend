@@ -619,6 +619,9 @@ export class PhaserRenderer implements IRenderer {
     getRuntimeContext?: () => RuntimeContext | null;
     useEditorCoreRuntimePhysics = true;
 
+    /** Runtime Camera Initial Position (for UI absolute positioning) */
+    private _runtimeCameraStartPos: { x: number, y: number, zoom: number } | null = null;
+
     /** Runtime mode flag - logic components and TICK only run when true */
     private _isRuntimeMode = false;
 
@@ -630,8 +633,10 @@ export class PhaserRenderer implements IRenderer {
         this._isRuntimeMode = value;
         if (!value) {
             if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when exiting runtime
+            this._runtimeCameraStartPos = null;
         } else {
             if (this.scene) this.scene.runtimeMainCameraFollowed = false; // Reset flag when entering runtime to trigger search
+            this._runtimeCameraStartPos = null;
         }
         this.updateInputState();
     }
@@ -871,14 +876,38 @@ export class PhaserRenderer implements IRenderer {
         let mainCamZoom = 1;
         let hasMainCamera = false;
 
-        for (const [id, entity] of context.entities) {
-            if (entity.name === "Main Camera") {
-                mainCamX = Number(entity.x);
-                mainCamY = Number(entity.y);
-                const zVar = entity.variables.find((v: any) => v.name === "zoom");
-                mainCamZoom = zVar ? Number(zVar.value) : 1;
-                hasMainCamera = true;
-                break;
+        // [FIX] Use Initial Camera Position for UI Screen Offset Calculation
+        // This ensures UI stays fixed on screen even if Camera moves.
+        if (!this._runtimeCameraStartPos && this.isRuntimeMode) {
+            for (const [id, entity] of context.entities) {
+                if (entity.name === "Main Camera") {
+                    const zVar = entity.variables.find((v: any) => v.name === "zoom");
+                    this._runtimeCameraStartPos = {
+                        x: Number(entity.x),
+                        y: Number(entity.y),
+                        zoom: zVar ? Number(zVar.value) : 1
+                    };
+                    break;
+                }
+            }
+        }
+
+        // Use cached start pos if available, otherwise current (fallback)
+        if (this._runtimeCameraStartPos) {
+            mainCamX = this._runtimeCameraStartPos.x;
+            mainCamY = this._runtimeCameraStartPos.y;
+            mainCamZoom = this._runtimeCameraStartPos.zoom;
+            hasMainCamera = true;
+        } else {
+            for (const [id, entity] of context.entities) {
+                if (entity.name === "Main Camera") {
+                    mainCamX = Number(entity.x);
+                    mainCamY = Number(entity.y);
+                    const zVar = entity.variables.find((v: any) => v.name === "zoom");
+                    mainCamZoom = zVar ? Number(zVar.value) : 1;
+                    hasMainCamera = true;
+                    break;
+                }
             }
         }
 
@@ -901,6 +930,7 @@ export class PhaserRenderer implements IRenderer {
                 // Match the logic in spawn():
                 // ScreenOffset = (WorldPos - CameraPos) * Zoom
                 // FinalPos = ScreenCenter + ScreenOffset
+                // IMPORTANT: We use mainCamX/Y from START position to keep offset constant relative to screen
                 const screenOffsetX = (entity.x - mainCamX) * mainCamZoom;
                 const screenOffsetY = (entity.y - mainCamY) * mainCamZoom;
                 targetX = screenCenterX + screenOffsetX;
