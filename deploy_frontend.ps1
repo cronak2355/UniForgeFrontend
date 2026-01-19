@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $bucketName = "uniforge-assets"
-$distributionId = "E3ILQB1O3RSTP"
+$distributionId = "E2C82OGQQLZ3BB"
 
 Write-Host "Deploying to $bucketName..."
 Write-Host "Syncing dist/ to S3 (No delete)..."

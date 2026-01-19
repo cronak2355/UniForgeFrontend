@@ -1,6 +1,6 @@
 // Hardcoded for now, but ideally env var
 // CloudFront Domain (from Terraform)
-export const CLOUDFRONT_DOMAIN = "d2h4arewwuma9h.cloudfront.net";
+export const CLOUDFRONT_DOMAIN = "d3268cfwjiozkv.cloudfront.net";
 
 /**
  * Converts an S3 URL or legacy URL to a CloudFront URL.
@@ -21,19 +21,23 @@ export function getCloudFrontUrl(url: string | undefined | null): string {
 
     // 2. Handle specific legacy/wrong domain (uniforge.kr) AND Standardize to Proxy URL
     // If we detect an Asset ID in the URL, prefer using the Proxy API for security & consistency
-    // Regex to extract Asset ID from: https://uniforge.kr/uploads/ASSET/{UUID}/...
     const assetIdRegex = /uploads\/ASSET\/([a-f0-9-]+)\//i;
-    const match = url.match(assetIdRegex);
+    const gameIdRegex = /uploads\/GAME\/([a-f0-9-]+)\//i;
 
-    if (match && match[1]) {
-        return `/api/assets/s3/${match[1]}?imageType=base`;
+    const assetMatch = url.match(assetIdRegex);
+    const gameMatch = url.match(gameIdRegex);
+
+    if (assetMatch && assetMatch[1]) {
+        return `/api/assets/s3/${assetMatch[1]}?imageType=base`;
     }
 
-    // Default fallback (though we should avoid this for assets)
-    if (url.startsWith("https://uniforge.kr/uploads")) {
-        // If we couldn't extract ID, still try to route via CloudFront as last resort or keep as is?
-        // User wants Proxy. If we can' extract ID, we can't use Proxy.
-        return url.replace("https://uniforge.kr", `https://${CLOUDFRONT_DOMAIN}`);
+    if (gameMatch && gameMatch[1]) {
+        return `/api/games/s3/${gameMatch[1]}?imageType=thumbnail`;
+    }
+
+    // Default fallback
+    if (url.startsWith("https://uniforge.kr/uploads") || url.includes("cloudfront.net/uploads")) {
+        return url.replace(/https:\/\/[^/]+/, `https://${CLOUDFRONT_DOMAIN}`);
     }
 
     return url;
