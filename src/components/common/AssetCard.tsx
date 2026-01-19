@@ -12,6 +12,7 @@ interface AssetCardProps {
     purchaseDate?: string;
     isGame?: boolean;
     onClick?: () => void;
+    onDownload?: (e: React.MouseEvent) => void;
     overlayActions?: React.ReactNode;
     draggable?: boolean;
     onDragStart?: (e: React.DragEvent) => void;
@@ -26,6 +27,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
     purchaseDate,
     isGame = false,
     onClick,
+    onDownload,
     overlayActions,
     draggable,
     onDragStart
@@ -63,6 +65,20 @@ const AssetCard: React.FC<AssetCardProps> = ({
                 <span className={`absolute top-3 left-3 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md backdrop-blur-md border border-white/10 ${isGame ? 'bg-purple-600/80 text-white' : 'bg-blue-600/80 text-white'}`}>
                     {isGame ? 'GAME' : type}
                 </span>
+
+                {/* Download Button (Top Right) */}
+                {!isGame && onDownload && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDownload(e);
+                        }}
+                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 hover:bg-blue-600 text-white rounded-lg border border-white/10 transition-all z-20 group/btn"
+                        title="Download Asset"
+                    >
+                        <i className="fa-solid fa-download text-xs group-hover/btn:scale-110 transition-transform"></i>
+                    </button>
+                )}
 
                 {/* Overlay Actions (Hover) */}
                 {overlayActions && (
