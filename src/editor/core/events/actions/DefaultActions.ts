@@ -752,6 +752,7 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,
+        tags: source?.tags ? [...source.tags] : [],
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";

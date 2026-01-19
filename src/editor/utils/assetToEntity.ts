@@ -42,6 +42,7 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
         logic: normalizedPrefab.logic ?? buildLogicItems({ components: [] }),
         components: normalizedPrefab.components ?? [],
         modules: normalizedPrefab.modules ?? [createDefaultModuleGraph()],
+        tags: normalizedPrefab.tags ?? [],
       };
     }
   }
