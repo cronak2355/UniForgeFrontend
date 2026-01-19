@@ -362,8 +362,8 @@ export class GameCore {
                 {
                     x: entity.x,
                     y: entity.y,
-                    width: baseWidth * entity.scaleX,
-                    height: baseHeight * entity.scaleY,
+                    width: baseWidth * Math.abs(entity.scaleX),
+                    height: baseHeight * Math.abs(entity.scaleY),
                 },
                 { isSolid: true }
             );
