@@ -746,9 +746,9 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
             }
             return baseVars;
         })(),
-        components: sourceComponents ? cloneJson(sourceComponents) : [],
+        components: sourceType === "prefab" && sourceComponents ? cloneJson(sourceComponents) : [],
         role: ((params.role as string) ?? source?.role ?? "neutral"),
-        modules: source?.modules ? cloneJson(source.modules) : [],
+        modules: sourceType === "prefab" && source?.modules ? cloneJson(source.modules) : [],
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,

@@ -462,24 +462,6 @@ export function ActionEditor({
                 <ParamInput label="dy" value={action.offsetY} onChange={(v) => onUpdate({ ...action, offsetY: v })} variables={variables} entities={entities} listId={listId} />
               </>
             )}
-            {spawnSourceType === "texture" && (
-              <>
-                <input
-                  type="text"
-                  placeholder="texture"
-                  value={(action.texture as string) || ""}
-                  onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
-                  list={`${listId}-textures`}
-                  style={styles.textInput}
-                />
-                <datalist id={`${listId}-textures`}>
-                  {assets?.map((a) => (
-                    <option key={a.id} value={a.name} />
-                  ))}
-                </datalist>
-              </>
-            )}
-
             {/* Prefab Initial Variables Override UI */}
             {spawnSourceType === "prefab" && spawnAssetId && (
               (() => {
