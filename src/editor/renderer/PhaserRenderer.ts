@@ -633,16 +633,44 @@ export class PhaserRenderer implements IRenderer {
 
         const draggable = !this._isRuntimeMode && !this.isPreviewMode;
 
-        for (const entity of this.entities.values()) {
+        for (const [id, entity] of this.entities) {
             if (draggable) {
                 this.scene.input.setDraggable(entity);
             } else {
                 this.scene.input.setDraggable(entity, false);
             }
-        }
 
-        // Also toggle grid visibility or interaction?
-        // Usually grid remains.
+            // [FIX] UI Camera Sync Logic
+            // When entering Runtime: UI elements should stay fixed on screen (ScrollFactor 0)
+            // When exiting Runtime: UI elements should return to World Space (ScrollFactor 1) & restore Editor Position
+            const isUI = entity.getData('isUI') === true;
+            if (isUI) {
+                const gameObj = entity as any;
+                if (this._isRuntimeMode) {
+                    // Runtime: Fixed to Screen
+                    if (gameObj.setScrollFactor) {
+                        gameObj.setScrollFactor(0);
+                    }
+                } else {
+                    // Editor: Moves with Camera (World Space)
+                    if (gameObj.setScrollFactor) {
+                        gameObj.setScrollFactor(1);
+                    }
+
+                    // Restore Editor Position (World Coordinates)
+                    // syncRuntimeVisuals() may have moved it to Screen Coordinates (relative to 0,0)
+                    const editorEntity = this.core.getEntity(id) || this.core.getGlobalEntity(id);
+                    if (editorEntity) {
+                        if (gameObj.setPosition) {
+                            gameObj.setPosition(editorEntity.x, editorEntity.y);
+                        } else {
+                            gameObj.x = editorEntity.x;
+                            gameObj.y = editorEntity.y;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private attachEntityInteraction(obj: Phaser.GameObjects.GameObject, id: string, type: string) {
