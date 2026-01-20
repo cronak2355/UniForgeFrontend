@@ -569,6 +569,15 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     // If exact same operation happens on same entity/var within 1 frame (~1ms), we block it.
     // We use a safe margin (e.g., 2ms) to catch double-loops but allow 60fps updates (16ms).
     const opKey = `${ctx.entityId}:${varName}:${operation}:${JSON.stringify(operand1)}:${JSON.stringify(operand2)}`;
+    const now = performance.now();
+    const lastTime = setVarGlobalCooldowns.get(opKey) ?? 0;
+
+    // 2ms throttle: Blocks almost-instant duplicates (same microtask/frame)
+    // but allows next-frame updates (16ms+).
+    if (now - lastTime < 2) {
+        return;
+    }
+    setVarGlobalCooldowns.set(opKey, now);
 
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     // Check if using legacy mode (simple value param)
