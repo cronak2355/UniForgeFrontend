@@ -19,13 +19,23 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
     const [tileAssets, setTileAssets] = useState<Asset[]>([]);
 
     useEffect(() => {
-        // [Logic Fix] Case-insensitive matching for "Tile" tag
         const filtered = assets.filter(a => a.tag?.trim().toLowerCase() === "tile");
-        console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`, filtered.map(a => `${a.name}(${a.idx})`));
 
-        // Always update state when assets prop changes to ensure sync
-        setTileAssets(filtered);
-    }, [assets]); // assets array reference changes often, but contents might be same
+        // [Performance Fix] Deep comparison to prevent redundant re-renders/flickering
+        setTileAssets(prev => {
+            if (prev.length === filtered.length) {
+                // Check if all IDs and Image URLs match
+                const isSame = prev.every((p, i) =>
+                    p.id === filtered[i].id &&
+                    p.url === filtered[i].url &&
+                    p.idx === filtered[i].idx
+                );
+                if (isSame) return prev; // Return same reference to skip update
+            }
+            console.log(`[TilePalettePanel] Assets changed. Updating state. Count: ${filtered.length}`);
+            return filtered;
+        });
+    }, [assets]);
 
     useEffect(() => {
         if (!canvasRef.current || tileAssets.length === 0) {
@@ -59,8 +69,6 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         canvas.width = PALETTE_COLS * TILE_SIZE;
         canvas.height = Math.max(rows, 1) * TILE_SIZE;
 
-        console.log(`[TilePalettePanel] Layout: ${PALETTE_COLS} cols, Canvas Size: ${canvas.width}x${canvas.height}`);
-
         // Clear
         ctx.fillStyle = colors.bgPrimary;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -81,9 +89,6 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
                 const x = (tileIdx % PALETTE_COLS) * TILE_SIZE;
                 const y = Math.floor(tileIdx / PALETTE_COLS) * TILE_SIZE;
-
-                // [DEBUG] Log detailed render info
-                console.log(`[TilePalettePanel] Drawing ${asset.name} (Tag:${asset.tag}) at Idx:${tileIdx} [${x}, ${y}]`);
 
                 ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
 
@@ -195,14 +200,13 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
                 overflowX: "auto", // [FIX] Allow horizontal scroll if canvas is wider than sidebar
                 overflowY: "auto",
                 position: "relative",
-                padding: "4px",
-                border: "1px dashed rgba(255,0,0,0.3)" // [DEBUG] Show container bounds
+                padding: "4px"
             }}>
                 <div style={{ position: "relative", width: "fit-content" }}>
                     <canvas
                         ref={canvasRef}
                         onClick={handleCanvasClick}
-                        style={{ cursor: "pointer", display: "block", background: colors.bgTertiary }}
+                        style={{ cursor: "pointer", display: "block" }}
                     />
                     {/* Selection Highlight Overlay */}
                     {selectedTileIndex >= 0 && (
