@@ -435,9 +435,35 @@ ActionRegistry.register("Rotate", (ctx: ActionContext, params: Record<string, un
     }
 });
 
+ActionRegistry.register("Enable", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return;
+
+    const entityId = ctx.entityId;
+    const enabled = params.enabled !== false; // Default to true if not specified
+
+    // Update entity active state
+    const entity = getEntity(ctx);
+    if (entity) {
+        (entity as any).active = enabled;
+    }
+
+    // Update visual visibility via gameObject
+    const gameObject = renderer.getGameObject?.(entityId);
+    if (gameObject) {
+        if (gameObject.setVisible) {
+            gameObject.setVisible(enabled);
+        }
+        if (gameObject.setActive) {
+            gameObject.setActive(enabled);
+        }
+    }
+});
+
 
 
 // --- Variable Actions ---
+
 
 type ValueSource = {
     type: "literal" | "variable" | "property" | "mouse";
