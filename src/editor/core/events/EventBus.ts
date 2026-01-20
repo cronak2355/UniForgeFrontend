@@ -33,7 +33,9 @@ class EventBusClass {
      */
     on(handler: EventHandler): void {
         this.handlers.push(handler);
-        console.warn(`[EventBus] Handler Added. Total: ${this.handlers.length}`);
+        if (this.debugMode) {
+            console.log(`[EventBus] Handler Added. Total: ${this.handlers.length}`);
+        }
     }
 
     /**
@@ -42,7 +44,9 @@ class EventBusClass {
     off(handler: EventHandler): void {
         const prev = this.handlers.length;
         this.handlers = this.handlers.filter(h => h !== handler);
-        console.warn(`[EventBus] Handler Removed. Prev: ${prev}, New: ${this.handlers.length}. Success: ${prev !== this.handlers.length}`);
+        if (this.debugMode) {
+            console.log(`[EventBus] Handler Removed. Prev: ${prev}, New: ${this.handlers.length}. Success: ${prev !== this.handlers.length}`);
+        }
     }
 
     /**
