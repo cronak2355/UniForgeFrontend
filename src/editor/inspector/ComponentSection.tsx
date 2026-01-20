@@ -93,6 +93,8 @@ export const CONDITION_TYPES = [
     { value: "InputDown", label: "키 누름 (Down)" },
     { value: "CompareTag", label: "태그 비교 (CompareTag)" },
     { value: "SignalKeyEquals", label: "신호 키 비교 (SignalKey)" },
+    { value: "DistanceLessThan", label: "거리 비교 (작음) <" },
+    { value: "DistanceGreaterThan", label: "거리 비교 (큼) >" },
 ];
 
 export const INPUT_KEY_OPTIONS = [
@@ -697,7 +699,8 @@ function ConditionEditor({
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
     const isSignalKeyCondition = condition.type === "SignalKeyEquals";
-    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
+    const isDistanceCondition = condition.type === "DistanceLessThan" || condition.type === "DistanceGreaterThan";
+    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag" || isDistanceCondition;
     const thenActions = condition.then || [];
 
     const updateThenActions = (newActions: any[]) => {
@@ -788,6 +791,30 @@ function ConditionEditor({
                         onChange={(e) => onUpdate({ ...condition, signalKey: e.target.value })}
                         style={styles.textInput}
                     />
+                )}
+
+                {isDistanceCondition && (
+                    <div style={{ display: "flex", gap: "4px", width: "100%" }}>
+                        <select
+                            value={(condition.targetEntityId as string) || ""}
+                            onChange={(e) => onUpdate({ ...condition, targetEntityId: e.target.value })}
+                            style={{ ...styles.smallSelect, flex: 1 }}
+                        >
+                            <option value="">(대상 엔티티)</option>
+                            {entities?.map((e) => (
+                                <option key={e.id} value={e.id}>
+                                    {e.name}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="number"
+                            placeholder="거리"
+                            value={(condition.value as number) ?? 0}
+                            onChange={(e) => onUpdate({ ...condition, value: Number(e.target.value) })}
+                            style={{ ...styles.textInput, width: "60px" }}
+                        />
+                    </div>
                 )}
 
                 {!isValueFreeCondition && condition.type !== "CompareTag" && (
