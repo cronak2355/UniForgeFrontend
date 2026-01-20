@@ -1,6 +1,8 @@
 // src/AssetsEditor/services/SagemakerService.ts
 // SageMaker AI Asset Generation Service
 
+import { authService } from '../../services/authService';
+
 const API_BASE_URL = 'https://2v95dezrbk.execute-api.ap-northeast-2.amazonaws.com/dev';
 
 export interface GenerateAssetRequest {
@@ -12,6 +14,7 @@ export interface GenerateAssetRequest {
     image?: string; // Base64 encoded image
     strength?: number; // 0.0 to 1.0 (Refine strength)
     mode?: 'text-to-image' | 'image-to-image' | 'remove_background';
+    seed?: number;
 }
 
 export interface GenerateAssetResponse {
@@ -23,11 +26,20 @@ export interface GenerateAssetResponse {
     prompt?: string;
     message?: string;
     error?: string;
+    seed?: number;
 }
 
 export interface EndpointStatusResponse {
     status: 'InService' | 'Creating' | 'Updating' | 'Failed' | 'OutOfService' | 'Deleting' | 'Unknown';
     message?: string;
+}
+
+function getAuthHeaders() {
+    const token = authService.getToken();
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+    };
 }
 
 /**
@@ -37,7 +49,7 @@ export async function checkEndpointStatus(): Promise<EndpointStatusResponse> {
     try {
         const response = await fetch(`${API_BASE_URL}/endpoint-status`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
         });
         return await response.json();
     } catch (error) {
@@ -50,19 +62,17 @@ export async function generateAsset(request: GenerateAssetRequest): Promise<Gene
     try {
         const response = await fetch(`${API_BASE_URL}/generate-asset`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 prompt: request.prompt,
-                negative_prompt: request.negative_prompt || 'low quality, bad anatomy, worst quality, low resolution',
-                // SDXL specific
-                width: request.width || 1024,
-                height: request.height || 1024,
-                steps: 30, // Default good balance
-                cfg_scale: 7.0,
-                // Optional: pass through seed if we track it
-                // seed: request.seed
-                // style_preset can be mapped from asset_type if needed, or passed separately
-
+                negative_prompt: request.negative_prompt || 'blurry, low quality, distorted',
+                asset_type: request.asset_type,
+                width: request.width || 512,
+                height: request.height || 512,
+                image: request.image,
+                strength: request.strength,
+                mode: request.mode,
+                seed: request.seed,
             }),
         });
 

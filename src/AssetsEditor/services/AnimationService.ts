@@ -1,4 +1,4 @@
-// src/AssetsEditor/services/animationService.ts
+// src/AssetsEditor/services/AnimationService.ts
 
 import {
   ANIMATION_PRESETS,
@@ -7,15 +7,9 @@ import {
 } from '../data/AnimationPresets';
 import type { AnimationPreset } from '../data/AnimationPresets';
 import { authService } from '../../services/authService';
-import SagemakerService from './SagemakerService';
+import { SagemakerService } from './SagemakerService';
 
-// 애니메이션 프레임 전용 API (seed 기반 일관성)
-const ANIMATION_API_URL = '/api/generate-animation-frame';
-
-// 기존 단일 이미지 생성 API
-const GENERATE_API_URL = '/api/AIgenerate';
-
-// 배경 제거 전용 API
+// 배경 제거 전용 API (Backend - Bedrock Nova Canvas)
 const REMOVE_BG_API_URL = '/api/remove-background';
 
 export interface GenerateOptions {
@@ -41,12 +35,78 @@ function getAuthHeaders() {
   };
 }
 
+// Extended Korean-to-English translation map
+const TRANSLATION_MAP: Record<string, string> = {
+  "해골기사": "Skeleton Knight",
+  "전설의 기사": "Legendary Knight", // Add specific compound
+  "전설의": "legendary",
+  "전설": "legend",
+  "픽셀 아트": "pixel art",
+  "호러": "horror",
+  "웅장한": "epic, grand",
+  "기사": "knight",
+  "전사": "warrior",
+  "마법사": "mage",
+  "몬스터": "monster",
+  "배경 제거": "background removal",
+  "정면": "front view",
+  "전신": "full body",
+  "오크": "orc",
+  "고블린": "goblin",
+  "슬라임": "slime",
+  "드래곤": "dragon"
+};
+
+function hasKorean(text: string): boolean {
+  return /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
+}
+
 /**
- * 애니메이션 프레임들을 순차적으로 생성
- * 
- * 핵심 변경: 모든 프레임을 txt2img로 생성하되, 같은 seed 사용
- * - seed가 같으면 캐릭터 스타일이 일관되게 유지됨
- * - 프롬프트가 다르면 포즈가 달라짐 (걷기, 뛰기 등)
+ * Translates prompt via Backend API (AWS Translate) with fallback to local map
+ */
+async function translatePromptAsync(text: string): Promise<string> {
+  // 1. Try API Translation
+  try {
+    const response = await fetch('/api/ai/translate', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        targetLang: 'en'
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const translated = data.translatedText || text;
+
+      // Double-check: If API returns text that still has Korean, it likely failed silently
+      if (hasKorean(translated)) {
+        console.warn("API returned Korean text, applying fallback map.");
+        return applyFallbackMap(translated);
+      }
+      return translated;
+    } else {
+      console.warn(`Translation failed [${response.status}], using fallback map.`);
+    }
+  } catch (e) {
+    console.error("Translation API error:", e);
+  }
+
+  // 2. Fallback (If API failed or threw error)
+  return applyFallbackMap(text);
+}
+
+function applyFallbackMap(text: string): string {
+  let translated = text;
+  Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+    translated = translated.replace(new RegExp(ko, 'g'), en);
+  });
+  return translated;
+}
+
+/**
+ * 애니메이션 프레임들을 순차적으로 생성 (SageMaker Direct)
  */
 export async function generateAnimation(
   options: GenerateOptions
@@ -66,64 +126,47 @@ export async function generateAnimation(
   }
 
   const generatedFrames: GeneratedFrame[] = [];
-  let sharedSeed: number | null = null;  // 모든 프레임이 공유할 seed
+  let sharedSeed: number | undefined = undefined;  // 모든 프레임이 공유할 seed
 
   console.log(`🎬 애니메이션 생성 시작: ${preset.nameKo} (${preset.frameCount}프레임)`);
-  console.log(`   방식: Seed 기반 txt2img (포즈 변화 O, 스타일 일관성 O)`);
+  console.log(`   방식: Seed 기반 txt2img (SageMaker)`);
 
   for (let i = 0; i < preset.frames.length; i++) {
     const frame = preset.frames[i];
-    const prompt = buildFramePrompt(characterDescription, preset, i);
+    const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, i);
 
     onProgress?.(i + 1, preset.frameCount);
     console.log(`   프레임 ${i + 1}/${preset.frameCount}: ${frame.description}`);
 
     try {
-      const requestBody: Record<string, unknown> = {
-        prompt,
-        size: canvasSize,
-        asset_type: 'character',
+      const response = await SagemakerService.generateAsset({
+        prompt: prompt,
         negative_prompt: NEGATIVE_KEYWORDS,
-        frame_index: i,
-      };
-
-      // 첫 프레임이 아니면 저장된 seed 사용 (일관성 유지)
-      if (sharedSeed !== null) {
-        requestBody.seed = sharedSeed;
-      }
-
-      const response = await fetch(ANIMATION_API_URL, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(requestBody),
+        asset_type: 'character',
+        width: 512,
+        height: 512,
+        mode: 'text-to-image',
+        seed: sharedSeed // 첫 프레임 이후 동일한 seed 사용
       });
 
-      if (response.status === 401) {
-        throw new Error("Unauthorized: Please log in again.");
+      if (!response.success || !response.image) {
+        throw new Error(response.error || "Image generation failed");
       }
 
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
+      // 첫 프레임에서 생성된 seed를 저장 (이후 프레임에서 재사용)
+      if (i === 0 && response.seed !== undefined) {
+        sharedSeed = response.seed;
+        console.log(`   🎲 Seed 고정: ${sharedSeed}`);
       }
 
-      if (data.image) {
-        // 첫 프레임에서 생성된 seed를 저장 (이후 프레임에서 재사용)
-        if (i === 0 && data.seed !== undefined) {
-          sharedSeed = data.seed;
-          console.log(`   🎲 Seed 고정: ${sharedSeed}`);
-        }
+      const generatedFrame: GeneratedFrame = {
+        frameIndex: i,
+        imageData: response.image,
+        prompt,
+      };
 
-        const generatedFrame: GeneratedFrame = {
-          frameIndex: i,
-          imageData: data.image,
-          prompt,
-        };
-
-        generatedFrames.push(generatedFrame);
-        onFrameGenerated?.(i, data.image);
-      }
+      generatedFrames.push(generatedFrame);
+      onFrameGenerated?.(i, response.image);
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
@@ -132,9 +175,9 @@ export async function generateAnimation(
       throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
     }
 
-    // 서버 부하 방지를 위한 딜레이
+    // 서버 부하 방지를 위한 딜레이 (SageMaker는 빠르지만 안전하게)
     if (i < preset.frames.length - 1) {
-      await delay(300);
+      await delay(200);
     }
   }
 
@@ -144,7 +187,6 @@ export async function generateAnimation(
 
 /**
  * 단일 프레임만 재생성 (특정 프레임만 다시 만들고 싶을 때)
- * seed를 지정하면 스타일 일관성 유지
  */
 export async function regenerateFrame(
   characterDescription: string,
@@ -158,76 +200,54 @@ export async function regenerateFrame(
     throw new Error(`프레임 인덱스가 유효하지 않습니다: ${frameIndex}`);
   }
 
-  const prompt = buildFramePrompt(characterDescription, preset, frameIndex);
+  const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, frameIndex);
 
-  const requestBody: Record<string, unknown> = {
-    prompt,
-    size: canvasSize,
-    asset_type: 'character',
+  const response = await SagemakerService.generateAsset({
+    prompt: prompt,
     negative_prompt: NEGATIVE_KEYWORDS,
-    frame_index: frameIndex,
-  };
-
-  if (seed !== undefined) {
-    requestBody.seed = seed;
-  }
-
-  const response = await fetch(ANIMATION_API_URL, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(requestBody),
+    asset_type: 'character',
+    width: 512,
+    height: 512,
+    mode: 'text-to-image',
+    seed: seed
   });
 
-  if (response.status === 401) {
-    throw new Error("Unauthorized: Please log in again.");
+  if (!response.success || !response.image) {
+    throw new Error(response.error || "Regeneration failed");
   }
 
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error);
-  }
-
-  return { image: data.image, seed: data.seed };
+  return { image: response.image, seed: response.seed || 0 };
 }
 
 /**
- * 첫 프레임(기준 프레임)만 생성
- * 반환된 seed를 저장해서 나머지 프레임에 사용
+ * 첫 프레임(기준 프레임)만 생성 (SageMaker)
  */
 export async function generateBaseFrame(
   characterDescription: string,
   canvasSize: number
 ): Promise<{ image: string; seed: number }> {
-  const prompt = `${characterDescription}, standing pose, neutral stance, front view, centered`;
+  // 강제 프롬프트 유지
+  const translatedDesc = await translatePromptAsync(characterDescription);
+  const prompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedDesc}, standing pose, neutral stance, front view, full body, centered, (game asset sprite:1.2), pixel art, game asset, single character, (white background:1.3), simple background`;
 
-  const response = await fetch(ANIMATION_API_URL, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      prompt,
-      size: canvasSize,
-      asset_type: 'character',
-      negative_prompt: NEGATIVE_KEYWORDS,
-      frame_index: 0,
-    }),
+  const response = await SagemakerService.generateAsset({
+    prompt: prompt,
+    negative_prompt: NEGATIVE_KEYWORDS,
+    asset_type: 'character',
+    width: 512,
+    height: 512,
+    mode: 'text-to-image'
   });
 
-  if (response.status === 401) {
-    throw new Error("Unauthorized: Please log in again.");
+  if (!response.success || !response.image) {
+    throw new Error(response.error || "Base frame generation failed");
   }
 
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error);
-  }
-
-  return { image: data.image, seed: data.seed };
+  return { image: response.image, seed: response.seed || 0 };
 }
 
 /**
- * 기준 프레임의 seed를 사용해서 애니메이션 확장 생성
+ * 기준 프레임의 seed를 사용해서 애니메이션 확장 생성 (SageMaker)
  */
 export async function generateAnimationFromBase(
   baseSeed: number,  // 기준 프레임의 seed (일관성 유지)
@@ -244,91 +264,85 @@ export async function generateAnimationFromBase(
 
   const generatedFrames: GeneratedFrame[] = [];
 
-  console.log(`🎬 Seed ${baseSeed} 기반 애니메이션 확장`);
+  console.log(`🎬 Seed ${baseSeed} 기반 애니메이션 확장 (SageMaker)`);
 
   for (let i = 0; i < preset.frames.length; i++) {
-    const prompt = buildFramePrompt(characterDescription, preset, i);
+    const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, i);
 
     onProgress?.(i + 1, preset.frameCount);
 
     try {
-      const response = await fetch(ANIMATION_API_URL, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          prompt,
-          size: canvasSize,
-          asset_type: 'character',
-          negative_prompt: NEGATIVE_KEYWORDS,
-          seed: baseSeed,  // 모든 프레임에 같은 seed
-          frame_index: i,
-        }),
+      const response = await SagemakerService.generateAsset({
+        prompt: prompt,
+        negative_prompt: NEGATIVE_KEYWORDS,
+        asset_type: 'character',
+        width: 512,
+        height: 512,
+        mode: 'text-to-image',
+        seed: baseSeed // 모든 프레임에 같은 seed 강제
       });
 
-      if (response.status === 401) {
-        throw new Error("Unauthorized: Please log in again.");
+      if (!response.success || !response.image) {
+        throw new Error(response.error || "Frame generation failed");
       }
 
-      const data = await response.json();
-
-      if (data.error) throw new Error(data.error);
-
-      if (data.image) {
-        generatedFrames.push({
-          frameIndex: i,
-          imageData: data.image,
-          prompt,
-        });
-        onFrameGenerated?.(i, data.image);
-      }
+      generatedFrames.push({
+        frameIndex: i,
+        imageData: response.image,
+        prompt,
+      });
+      onFrameGenerated?.(i, response.image);
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
       throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
     }
 
-    await delay(300);
+    await delay(200);
   }
 
   return generatedFrames;
 }
 
 /**
- * 단일 이미지 생성 (애니메이션 아닌 일반 생성)
+ * 단일 이미지 생성 (애니메이션 아닌 일반 생성) (SageMaker)
  */
+
+
 export async function generateSingleImage(
   prompt: string,
   canvasSize: number,
-  assetType: string = 'character'
+  assetType: 'character' | 'object' | 'tile' | 'effect' = 'character'
 ): Promise<string> {
-  console.log("[AnimationService] Generating via SageMaker...", { prompt, canvasSize, assetType });
-  try {
-    // Map assetType string to SagemakerService type
-    const mappedType = (['character', 'object', 'tile', 'effect'].includes(assetType)
-      ? assetType
-      : 'character') as 'character' | 'object' | 'tile' | 'effect';
+  console.log(`[AnimationService] Original Prompt: "${prompt}"`);
+  const translatedPrompt = await translatePromptAsync(prompt);
+  console.log(`[AnimationService] Translated Prompt: "${translatedPrompt}"`);
 
-    const result = await SagemakerService.generateAsset({
-      prompt,
-      width: canvasSize,
-      height: canvasSize,
-      asset_type: mappedType,
-      // Pass other parameters if needed
-    });
+  // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
+  // FULL BODY, VISIBLE FEET, GROUND를 강하게 배치하여 모델이 잘라내지 않도록 유도
+  const enhancedPrompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedPrompt}, (game asset sprite:1.2), pixel art style, solo, single isolated subject, centered, (white background:1.3), simple background`;
 
-    if (!result.success || !result.image) {
-      throw new Error(result.error || "Failed to generate image via SageMaker");
-    }
+  console.log(`[AnimationService] Final Prompt to SageMaker: "${enhancedPrompt}"`);
 
-    return result.image;
-  } catch (error) {
-    console.error("AI Generation Error (SageMaker):", error);
-    throw error;
+  const response = await SagemakerService.generateAsset({
+    prompt: enhancedPrompt,
+    negative_prompt: NEGATIVE_KEYWORDS + ", chopped off, cropped, close up, portrait, face only, bust shot, partial body, head only, torso only, out of frame, feet out of frame, cut off",
+    asset_type: assetType,
+    width: 512,  // Force 512
+    height: 512, // Force 512
+    mode: 'text-to-image'
+  });
+
+  if (!response.success || !response.image) {
+    throw new Error(response.error || "Single image generation failed");
   }
+
+  return response.image;
 }
 
 /**
- * AI 배경 제거 요청
+ * AI 배경 제거 요청 (Backend - Bedrock Nova Canvas 유지)
+ * SageMaker 엔드포인트에 배경 제거 기능이 없다면 Backend를 계속 사용.
  */
 export async function removeBackground(base64Image: string): Promise<string> {
   try {

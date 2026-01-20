@@ -5,6 +5,9 @@ import { editorCore } from "../EditorCore";
 import { getCloudFrontUrl } from "../../utils/imageUtils";
 import { TILE_SIZE, TILESET_COLS } from "../constants/tileConfig";
 
+// [UI Fix] Use PALETTE_COLS (3) for better visibility in sidebar, decoupled from global texture layout
+const PALETTE_COLS = 3;
+
 interface TilePalettePanelProps {
     assets: Asset[]; // All assets, need to filter for 'Tile' tag
     selectedTileIndex: number;
@@ -16,20 +19,23 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
     const [tileAssets, setTileAssets] = useState<Asset[]>([]);
 
     useEffect(() => {
-        const filtered = assets.filter(a => a.tag === "Tile");
-        console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`);
+        const filtered = assets.filter(a => a.tag?.trim().toLowerCase() === "tile");
 
-        // Deep comparison to avoid re-renders if assets didn't change
-        const prev = JSON.stringify(tileAssets.map(a => a.id));
-        const next = JSON.stringify(filtered.map(a => a.id));
-
-        if (prev !== next) {
-            console.log("[TilePalettePanel] Tile assets changed. Updating state.");
-            setTileAssets(filtered);
-        } else {
-            console.log("[TilePalettePanel] No change in tile assets detected.");
-        }
-    }, [assets]); // assets array reference changes often, but contents might be same
+        // [Performance Fix] Deep comparison to prevent redundant re-renders/flickering
+        setTileAssets(prev => {
+            if (prev.length === filtered.length) {
+                // Check if all IDs and Image URLs match
+                const isSame = prev.every((p, i) =>
+                    p.id === filtered[i].id &&
+                    p.url === filtered[i].url &&
+                    p.idx === filtered[i].idx
+                );
+                if (isSame) return prev; // Return same reference to skip update
+            }
+            console.log(`[TilePalettePanel] Assets changed. Updating state. Count: ${filtered.length}`);
+            return filtered;
+        });
+    }, [assets]);
 
     useEffect(() => {
         if (!canvasRef.current || tileAssets.length === 0) {
@@ -43,10 +49,24 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         if (!ctx) return;
 
         // Calculate required height based on max index
-        const maxIdx = tileAssets.reduce((max, a) => Math.max(max, a.idx ?? 0), 0);
-        const rows = Math.ceil((maxIdx + 1) / TILESET_COLS);
+        // Calculate max index to place unindexed tiles at the end
+        let maxExistingIdx = -1;
+        let unindexedCount = 0;
+        tileAssets.forEach(a => {
+            if (typeof a.idx === 'number' && a.idx !== -1) {
+                maxExistingIdx = Math.max(maxExistingIdx, a.idx);
+            } else {
+                unindexedCount++;
+            }
+        });
 
-        canvas.width = TILESET_COLS * TILE_SIZE;
+        // Ensure enough space for existing keyed tiles + unindexed fallbacks
+        const finalMaxIdx = Math.max(maxExistingIdx, -1) + unindexedCount;
+        const rows = Math.ceil((finalMaxIdx + 1) / PALETTE_COLS);
+
+        let nextVirtualIdx = maxExistingIdx + 1;
+
+        canvas.width = PALETTE_COLS * TILE_SIZE;
         canvas.height = Math.max(rows, 1) * TILE_SIZE;
 
         // Clear
@@ -57,11 +77,19 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         let loadedCount = 0;
         tileAssets.forEach((asset) => {
             const img = new Image();
-            img.crossOrigin = "Anonymous";
+            // img.crossOrigin = "Anonymous"; 
             img.onload = () => {
-                const tileIdx = asset.idx ?? 0;
-                const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
-                const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
+                let tileIdx = asset.idx ?? -1;
+
+                // [Safety Net] If idx is invalid, assign virtual index for display
+                if (tileIdx === -1) {
+                    tileIdx = nextVirtualIdx++;
+                    console.warn(`[TilePalettePanel] Asset ${asset.name} has idx -1, rendering at virtual index ${tileIdx}`);
+                }
+
+                const x = (tileIdx % PALETTE_COLS) * TILE_SIZE;
+                const y = Math.floor(tileIdx / PALETTE_COLS) * TILE_SIZE;
+
                 ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
 
                 // Draw grid
@@ -75,6 +103,20 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
             };
             img.onerror = (e) => {
                 console.error(`[TilePalettePanel] Failed to load image: ${asset.url}`, e);
+                // Draw error placeholder
+                const tileIdx = asset.idx ?? 0;
+                const x = (tileIdx % PALETTE_COLS) * TILE_SIZE;
+                const y = Math.floor(tileIdx / PALETTE_COLS) * TILE_SIZE;
+
+                ctx.fillStyle = "#ef4444"; // Red error color
+                ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+
+                ctx.fillStyle = "white";
+                ctx.font = "10px sans-serif";
+                ctx.fillText("ERR", x + 4, y + 20);
+
+                // Still count as loaded to finish the batch
+                loadedCount++;
             };
             img.src = getCloudFrontUrl(asset.url);
         });
@@ -91,7 +133,7 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
-        const targetIdx = row * TILESET_COLS + col;
+        const targetIdx = row * PALETTE_COLS + col;
         const exists = tileAssets.some(a => a.idx === targetIdx);
         if (exists) {
             onSelectTile(targetIdx);
@@ -132,8 +174,8 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
     };
 
     // Calculate Selection Highlight Position
-    const selX = (selectedTileIndex % TILESET_COLS) * TILE_SIZE;
-    const selY = Math.floor(selectedTileIndex / TILESET_COLS) * TILE_SIZE;
+    const selX = (selectedTileIndex % PALETTE_COLS) * TILE_SIZE;
+    const selY = Math.floor(selectedTileIndex / PALETTE_COLS) * TILE_SIZE;
 
     return (
         <div style={{
@@ -155,7 +197,7 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
             <div style={{
                 flex: 1,
-                overflowX: "hidden",
+                overflowX: "auto", // [FIX] Allow horizontal scroll if canvas is wider than sidebar
                 overflowY: "auto",
                 position: "relative",
                 padding: "4px"

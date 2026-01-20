@@ -593,7 +593,22 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     if (!tempCtx) return;
 
     tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(baseImage, 0, 0, pixelSize, pixelSize);
+
+    // Advanced Scaling: Maintain Aspect Ratio & Center
+    const sw = baseImage.width;
+    const sh = baseImage.height;
+
+    // Fit within pixelSize x pixelSize
+    const scale = Math.min(pixelSize / sw, pixelSize / sh);
+    const dw = Math.round(sw * scale);
+    const dh = Math.round(sh * scale);
+
+    // Center it
+    const dx = Math.round((pixelSize - dw) / 2);
+    const dy = Math.round((pixelSize - dh) / 2);
+
+    tempCtx.clearRect(0, 0, pixelSize, pixelSize); // Clear to transparency
+    tempCtx.drawImage(baseImage, 0, 0, sw, sh, dx, dy, dw, dh);
 
     const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
     engineRef.current.applyAIImage(imageData);
@@ -815,18 +830,57 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         blob = input;
       }
 
-      const imageBitmap = await createImageBitmap(blob);
-      setOriginalAIImage(imageBitmap);
-      setFeatherAmount(0);
+      // Convert to Image Element for Floating Mode
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.src = url;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
 
-      await processAndApplyImage(imageBitmap, 0);
+      // Maintain Aspect Ratio & Center
+      const resolution = pixelSize;
+      const aspectRatio = img.width / img.height;
+      let width = img.width;
+      let height = img.height;
+
+      // Fit logic
+      if (width > resolution || height > resolution) {
+        if (width > height) {
+          width = resolution;
+          height = width / aspectRatio;
+        } else {
+          height = resolution;
+          width = height * aspectRatio;
+        }
+      }
+
+      // Center logic
+      const x = (resolution - width) / 2;
+      const y = (resolution - height) / 2;
+
+      setFloatingImage({
+        element: img,
+        src: url,
+        x,
+        y,
+        width,
+        height,
+        aspectRatio
+      });
+
+      // Clear original reference as we are now in floating mode
+      setOriginalAIImage(null);
+      setFeatherAmount(0);
 
     } catch (e) {
       console.error("Failed to load/process AI image", e);
+      alert("이미지 로드 실패");
     } finally {
       setIsLoading(false);
     }
-  }, [processAndApplyImage]);
+  }, [pixelSize]);
 
   const applyImageData = useCallback((imageData: ImageData) => {
     if (!engineRef.current) return;

@@ -449,10 +449,16 @@ export class EditorState implements IGameState {
     }
 
     addAsset(asset: Asset) {
-        if (asset.tag === "Tile" && (asset.idx === undefined || asset.idx === -1)) {
+        // [Logic Fix] Case-insensitive check for Tile tag to prevent mismatches
+        const normalizedTag = asset.tag?.trim().toLowerCase();
+        const isTile = normalizedTag === "tile";
+
+        console.log(`[EditorCore] Adding Asset: ${asset.name}, Tag: ${asset.tag}, IsTile: ${isTile}, Idx: ${asset.idx}`);
+
+        if (isTile && (asset.idx === undefined || asset.idx === -1)) {
             // Find next available index
             const existingIndices = this.assets
-                .filter(a => a.tag === "Tile" && a.idx !== -1)
+                .filter(a => a.tag?.toLowerCase() === "tile" && a.idx !== -1 && typeof a.idx === 'number')
                 .map(a => a.idx)
                 .sort((a, b) => a - b);
 

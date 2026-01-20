@@ -914,7 +914,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     rendererRef.current?.clearPreviewTile();
                 }}
             >
-                <div ref={ref} style={{ width: '100%', height: '100%' }} />
+                <div ref={ref} id="editor-phaser-container" style={{ width: '100%', height: '100%' }} />
                 <GameUIOverlay gameCore={gameCore} showHud={false} />
             </div>
         </div>
