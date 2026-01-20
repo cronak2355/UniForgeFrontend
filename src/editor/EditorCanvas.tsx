@@ -11,8 +11,7 @@ import { createDefaultModuleGraph } from "./types/Module";
 import { assetToEntity } from "./utils/assetToEntity";
 import { getCloudFrontUrl } from "../utils/imageUtils";
 
-const TILE_SIZE = 100;
-const TILESET_COLS = 16;
+import { TILE_SIZE, TILESET_COLS } from "./constants/tileConfig";
 
 type Props = {
     assets: Asset[];
@@ -37,10 +36,7 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
     const ctx = tilesetcanvas.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
 
-    let idx = 0;
     for (const asset of tileAssets) {
-        asset.idx = idx;
-
         const img = new Image();
         img.crossOrigin = "anonymous";
         const loaded = await new Promise<boolean>((resolve) => {
@@ -53,16 +49,15 @@ async function buildTilesetCanvas(assets: Asset[]): Promise<HTMLCanvasElement | 
             img.src = asset.url;
         });
 
-        const x = (idx % TILESET_COLS) * TILE_SIZE;
-        const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
+        const tileIdx = asset.idx;
+        const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
+        const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
         if (loaded) {
             ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
         } else {
             ctx.fillStyle = "#ff00ff";
             ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
         }
-
-        idx++;
     }
 
     return tilesetcanvas;

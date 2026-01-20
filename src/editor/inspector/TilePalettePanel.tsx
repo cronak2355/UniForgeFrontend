@@ -3,10 +3,7 @@ import { colors } from "../constants/colors";
 import type { Asset } from "../types/Asset";
 import { editorCore } from "../EditorCore";
 import { getCloudFrontUrl } from "../../utils/imageUtils";
-
-const TILE_SIZE = 100;
-const TILESET_COLS = 3;
-const MAX_COLOR_TILES = 30;
+import { TILE_SIZE, TILESET_COLS } from "../constants/tileConfig";
 
 interface TilePalettePanelProps {
     assets: Asset[]; // All assets, need to filter for 'Tile' tag
@@ -45,11 +42,12 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        const totalTiles = tileAssets.length;
-        const rows = Math.ceil(totalTiles / TILESET_COLS);
+        // Calculate required height based on max index
+        const maxIdx = tileAssets.reduce((max, a) => Math.max(max, a.idx ?? 0), 0);
+        const rows = Math.ceil((maxIdx + 1) / TILESET_COLS);
 
         canvas.width = TILESET_COLS * TILE_SIZE;
-        canvas.height = rows * TILE_SIZE;
+        canvas.height = Math.max(rows, 1) * TILE_SIZE;
 
         // Clear
         ctx.fillStyle = colors.bgPrimary;
@@ -57,12 +55,13 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
         // Draw Tiles
         let loadedCount = 0;
-        tileAssets.forEach((asset, idx) => {
+        tileAssets.forEach((asset) => {
             const img = new Image();
             img.crossOrigin = "Anonymous";
             img.onload = () => {
-                const x = (idx % TILESET_COLS) * TILE_SIZE;
-                const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
+                const tileIdx = asset.idx ?? 0;
+                const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
+                const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
                 ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
 
                 // Draw grid
@@ -92,9 +91,10 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
-        const index = row * TILESET_COLS + col;
-        if (index >= 0 && index < tileAssets.length) {
-            onSelectTile(index);
+        const targetIdx = row * TILESET_COLS + col;
+        const exists = tileAssets.some(a => a.idx === targetIdx);
+        if (exists) {
+            onSelectTile(targetIdx);
         }
     };
 
@@ -114,49 +114,20 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
         const dataUrl = offCanvas.toDataURL("image/png");
 
-        // Find existing color tiles
-        const colorTiles = tileAssets.filter(a => a.metadata?.isColorTile);
+        const newAsset: Asset = {
+            id: `color-${Date.now()}`,
+            name: `Color ${color}`,
+            tag: "Tile",
+            url: dataUrl,
+            idx: -1,
+            metadata: { isColorTile: true, color }
+        };
 
-        if (colorTiles.length >= MAX_COLOR_TILES) {
-            // Sort by ID (color-TIMESTAMP) to find the oldest
-            const oldest = [...colorTiles].sort((a, b) => a.id.localeCompare(b.id))[0];
+        editorCore.addAsset(newAsset);
 
-            // Delete the oldest asset
-            editorCore.removeAsset(oldest.id);
-
-            // Add new asset (so it appears at the end)
-            const newAssetId = `color-${Date.now()}`;
-            editorCore.addAsset({
-                id: newAssetId,
-                name: `Color ${color}`,
-                tag: "Tile",
-                url: dataUrl,
-                idx: -1,
-                metadata: { isColorTile: true, color }
-            });
-
-            // Auto Select the new asset (it will be the last one)
-            // We can't know the index immediately if state update is async, 
-            // but here state update is synchronous in EditorCore (just calls notify).
-            // However, tileAssets state in THIS component updates via useEffect.
-            // We can optimistically set selection to (MAX_COLOR_TILES - 1) or wait.
-            // Given the useEffect logic, it will re-render.
-            // Let's set index to the last one.
-            onSelectTile(MAX_COLOR_TILES - 1);
-        } else {
-            const newAssetId = `color-${Date.now()}`;
-            // Add virtual asset to core
-            editorCore.addAsset({
-                id: newAssetId,
-                name: `Color ${color}`,
-                tag: "Tile",
-                url: dataUrl,
-                idx: -1,
-                metadata: { isColorTile: true, color }
-            });
-
-            // The auto-selection will happen via index in the next render
-            onSelectTile(tileAssets.length);
+        // Optimistically select the new tile if idx was assigned
+        if (newAsset.idx !== undefined && newAsset.idx !== -1) {
+            onSelectTile(newAsset.idx);
         }
     };
 
