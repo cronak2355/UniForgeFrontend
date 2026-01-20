@@ -743,11 +743,19 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
     // [THROTTLE] Prevent excessive spawning ONLY IF cooldown param is set
     // Default: 0 (No limit)
     const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
+
+    // [DEBUG] Trace why cooldown fails
+    if (params.cooldown) {
+        console.log(`[SpawnThrottle] ID: ${ctx.entityId} Cooldown: ${cooldownInfo} Last: ${spawnCooldowns.get(ctx.entityId)} Now: ${performance.now() / 1000} Diff: ${(performance.now() / 1000) - (spawnCooldowns.get(ctx.entityId) ?? 0)}`);
+    }
+
     if (cooldownInfo > 0) {
-        const lastSpawn = spawnCooldowns.get(ctx.entityId) ?? 0;
         const now = performance.now() / 1000; // seconds
-        if (now - lastSpawn < cooldownInfo) {
-            return; // Cooldown active
+        if (spawnCooldowns.has(ctx.entityId)) {
+            const lastSpawn = spawnCooldowns.get(ctx.entityId)!;
+            if (now - lastSpawn < cooldownInfo) {
+                return; // Cooldown active
+            }
         }
         spawnCooldowns.set(ctx.entityId, now);
     }
@@ -1064,12 +1072,10 @@ ActionRegistry.register("SpawnIfClear", (ctx: ActionContext, params: Record<stri
     // [THROTTLE]
     const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
     if (cooldownInfo > 0) {
-        // Use a unique key for spawnifclear to avoid conflict with standard spawn if needed? 
-        // Or same key "EntityId" works because one entity usually spawns one thing.
-        const lastSpawn = spawnCooldowns.get(ctx.entityId) ?? 0;
         const now = performance.now() / 1000;
-        if (now - lastSpawn < cooldownInfo) {
-            return;
+        if (spawnCooldowns.has(ctx.entityId)) {
+            const lastSpawn = spawnCooldowns.get(ctx.entityId)!;
+            if (now - lastSpawn < cooldownInfo) return;
         }
         spawnCooldowns.set(ctx.entityId, now);
     }
