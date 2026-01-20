@@ -167,6 +167,50 @@ ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<str
     return distance > range;
 });
 
+ConditionRegistry.register("DistanceLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < limit;
+});
+
+ConditionRegistry.register("DistanceGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance > limit;
+});
+
 // --- Variable Conditions ---
 
 ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<string, unknown>) => {

@@ -8,9 +8,10 @@ import type {
   ModuleFlowNode,
   ModuleConditionNode,
   ModuleVariable,
-  ModuleNodeKind,
   ModuleSwitchNode,
   ModuleLiteral,
+  ModuleNodeKind,
+  ModuleConditionType,
 } from "../types/Module";
 import { colors } from "../constants/colors";
 import { ActionRegistry } from "../core/events/ActionRegistry";
@@ -54,6 +55,9 @@ export function ModuleGraphEditor({
   actionLabels,
   onChange,
 }: Props) {
+  // DEBUG: Check if new conditions are present
+  console.log("ModuleGraphEditor loaded. Conditions:", AVAILABLE_CONDITIONS);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const { entities: allEntities, assets } = useEditorCoreSnapshot();
   const connectingRef = useRef<{
@@ -629,6 +633,7 @@ export function ModuleGraphEditor({
                   <ConditionNodeEditor
                     node={node}
                     variables={combinedVariables}
+                    entities={entityOptions}
                     hasValueEdge={(portId) => hasValueEdge(node.id, portId)}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                   />
@@ -760,7 +765,10 @@ const AVAILABLE_CONDITIONS: { value: string; label: string }[] = [
   { value: "CompareTag", label: "Compare Tag" },
   { value: "SignalKeyEquals", label: "Signal Key" },
   { value: "IsGrounded", label: "Is Grounded" },
+
   { value: "IsAlive", label: "Is Alive" },
+  { value: "DistanceLessThan", label: "Distance < (Less)" },
+  { value: "DistanceGreaterThan", label: "Distance > (Greater)" },
 ];
 
 const INPUT_KEY_OPTIONS = [
@@ -780,17 +788,20 @@ const INPUT_KEY_OPTIONS = [
 function ConditionNodeEditor({
   node,
   variables,
+  entities,
   hasValueEdge,
   onUpdate,
 }: {
   node: ModuleConditionNode;
   variables: EditorVariable[];
+  entities: { id: string; name: string }[];
   hasValueEdge: (portId: string) => boolean;
   onUpdate: (patch: Partial<ModuleConditionNode>) => void;
 }) {
   const isInputCondition = node.condition === "InputKey" || node.condition === "InputDown";
   const isSignalKeyCondition = node.condition === "SignalKeyEquals";
-  const isValueFreeCondition = isInputCondition || isSignalKeyCondition || node.condition === "IsGrounded" || node.condition === "IsAlive" || node.condition === "CompareTag";
+  const isDistanceCondition = node.condition === "DistanceLessThan" || node.condition === "DistanceGreaterThan";
+  const isValueFreeCondition = isInputCondition || isSignalKeyCondition || node.condition === "IsGrounded" || node.condition === "IsAlive" || node.condition === "CompareTag" || isDistanceCondition;
 
   // Style mimicking Component Inspector row but stacked for Node width
   const rowStyle: CSSProperties = {
@@ -922,8 +933,80 @@ function ConditionNodeEditor({
           </div>
         )}
 
-        {/* Standard Comparison (Right Value) */}
-        {!isValueFreeCondition && node.condition !== "IfVariableChanged" && (
+        {isDistanceCondition && (
+          <>
+            {/* Target Entity Input (Left Operand) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 10, color: colors.textSecondary }}>Target Entity</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div
+                  onClick={() => onUpdate({ leftVariable: node.leftVariable ? undefined : variables[0]?.name })}
+                  style={{
+                    fontSize: 10,
+                    cursor: "pointer",
+                    color: node.leftVariable ? colors.accent : colors.textMuted,
+                    border: `1px solid ${colors.borderColor}`,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: node.leftVariable ? colors.bgSelected : "transparent"
+                  }}
+                  title="Toggle Variable/Entity"
+                >
+                  {node.leftVariable ? "Var" : "Ent"}
+                </div>
+                {node.leftVariable ? (
+                  renderVarSelect(node.leftVariable, (v) => onUpdate({ leftVariable: v }), "(Target Var)")
+                ) : (
+                  <select
+                    value={String(node.leftLiteral ?? "")}
+                    onChange={(e) => onUpdate({ leftLiteral: e.target.value })}
+                    style={smallSelectStyle}
+                  >
+                    <option value="">(Select Entity)</option>
+                    {entities.map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Distance Threshold (Right Operand) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 10, color: colors.textSecondary }}>Distance Limit</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div
+                  onClick={() => onUpdate({ rightVariable: node.rightVariable ? undefined : variables[0]?.name })}
+                  style={{
+                    fontSize: 10,
+                    cursor: "pointer",
+                    color: node.rightVariable ? colors.accent : colors.textMuted,
+                    border: `1px solid ${colors.borderColor}`,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: node.rightVariable ? colors.bgSelected : "transparent"
+                  }}
+                  title="Toggle Variable/Value"
+                >
+                  {node.rightVariable ? "Var" : "Val"}
+                </div>
+                {node.rightVariable ? (
+                  renderVarSelect(node.rightVariable, (v) => onUpdate({ rightVariable: v }), "(Distance Var)")
+                ) : (
+                  <input
+                    type="number"
+                    value={String(node.rightLiteral ?? 0)}
+                    onChange={(e) => onUpdate({ rightLiteral: Number(e.target.value) })}
+                    style={{ ...inputStyleCompact, flex: 1 }}
+                    placeholder="Distance"
+                  />
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Standard Comparison (Right Value) */}{!isValueFreeCondition && node.condition !== "IfVariableChanged" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 10, color: colors.textSecondary }}>Target Value</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -933,11 +1016,11 @@ function ConditionNodeEditor({
                 style={{
                   fontSize: 10,
                   cursor: "pointer",
-                  color: node.rightVariable ? colors.accent : colors.textDim,
-                  border: `1px solid ${colors.border}`,
+                  color: node.rightVariable ? colors.accent : colors.textMuted,
+                  border: `1px solid ${colors.borderColor}`,
                   padding: "2px 6px",
                   borderRadius: 4,
-                  background: node.rightVariable ? colors.accentVariables : "transparent"
+                  background: node.rightVariable ? colors.bgSelected : "transparent"
                 }}
                 title="Toggle Variable/Value"
               >

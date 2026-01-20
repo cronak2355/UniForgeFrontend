@@ -20,7 +20,9 @@ export type ModuleConditionType =
   | "VarLessThan"
   | "VarNotEquals"
   | "VarGreaterOrEqual"
-  | "VarLessOrEqual";
+  | "VarLessOrEqual"
+  | "DistanceLessThan"
+  | "DistanceGreaterThan";
 
 export type ModuleNodeKind =
   | "Entry"

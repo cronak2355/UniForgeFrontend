@@ -449,6 +449,30 @@ export class ModuleRuntime {
         const hp = this.resolveNamedValue(instance, "hp");
         return Number(hp ?? 0) > 0;
 
+      // -- Distance --
+      case "DistanceLessThan":
+      case "DistanceGreaterThan": {
+        const targetId = String(left ?? "");
+        if (!targetId) return false;
+
+        const self = this.hooks.getEntity(instance.entityId);
+        const target = this.hooks.getEntity(targetId);
+
+        if (!self || !target || self.x === undefined || self.y === undefined || target.x === undefined || target.y === undefined) {
+          return false;
+        }
+
+        const dx = self.x - target.x;
+        const dy = self.y - target.y;
+        const distSq = dx * dx + dy * dy;
+        const threshold = Number(right ?? 0);
+        const limitSq = threshold * threshold;
+
+        if (node.condition === "DistanceLessThan") return distSq < limitSq;
+        return distSq > limitSq;
+      }
+
+
       default:
         return false;
     }
