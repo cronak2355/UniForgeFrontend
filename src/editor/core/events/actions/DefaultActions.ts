@@ -751,7 +751,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
 
 
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>) => boolean } | undefined;
+    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>, eventData?: any) => boolean } | undefined;
     if (!gameCore?.startModule) return;
     const moduleId = (params.moduleId as string) ?? (params.moduleName as string) ?? (params.name as string);
     if (!moduleId) return;
@@ -766,7 +766,7 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
         resolvedOverrides[key] = resolveValue(ctx, val);
     }
 
-    gameCore.startModule(ctx.entityId, moduleId, resolvedOverrides);
+    gameCore.startModule(ctx.entityId, moduleId, resolvedOverrides, ctx.eventData);
 });
 
 // Static map to track spawn cooldowns (EntityId -> LastSpawnTime)
@@ -908,7 +908,8 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,
-        tags: source?.tags ? [...source.tags] : [],
+        // [REF] Use reference to tags array as requested by user
+        tags: source?.tags,
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";

@@ -324,6 +324,8 @@ export class GameCore {
             modules: options.modules,
             // Variables (CRITICAL: must copy from options)
             variables: options.variables ?? [],
+            // [FIX] Ensure tags are copied from options
+            tags: options.tags ?? [],
         };
 
         // Queue Creation
@@ -464,7 +466,7 @@ export class GameCore {
      * Start a module for an entity by module ID or name.
      * Called by RunModule action.
      */
-    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>): boolean {
+    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>, eventData?: any): boolean {
         // Find the module from moduleLibrary
         const module = this.moduleLibrary.find(
             (m) => m.id === moduleIdOrName || m.name === moduleIdOrName
@@ -474,7 +476,7 @@ export class GameCore {
             return false;
         }
 
-        this.moduleRuntime.startModule(entityId, module, initialVariables);
+        this.moduleRuntime.startModule(entityId, module, initialVariables, eventData);
         return true;
     }
 

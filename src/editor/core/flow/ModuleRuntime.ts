@@ -45,6 +45,7 @@ type ModuleInstance = {
   nodeState: Record<string, Record<string, unknown>>;
   valueSnapshots: Map<string, ModuleLiteral>;
   moduleVariables: Map<string, ModuleLiteral>;
+  eventData?: any;
 };
 
 const MAX_STEPS_PER_TICK = 64;
@@ -57,7 +58,7 @@ export class ModuleRuntime {
     this.hooks = hooks;
   }
 
-  startModule(entityId: string, module: ModuleGraph, initialVariables?: Record<string, any>): ModuleInstance | null {
+  startModule(entityId: string, module: ModuleGraph, initialVariables?: Record<string, any>, eventData?: any): ModuleInstance | null {
     const entry = module.nodes.find((n) => n.id === module.entryNodeId && n.kind === "Entry");
     if (!entry) {
       console.error("[ModuleRuntime] Missing entry node", { entityId, moduleId: module.id });
@@ -79,6 +80,7 @@ export class ModuleRuntime {
         moduleVariables: new Map(
           (module.variables ?? []).map((v) => [v.name, (v.value as ModuleLiteral) ?? null])
         ),
+        eventData,
       });
       return null;
     }
@@ -112,6 +114,7 @@ export class ModuleRuntime {
           return [v.name, (v.value as ModuleLiteral) ?? null];
         })
       ),
+      eventData,
     };
     this.instances.push(instance);
     return instance;
@@ -476,6 +479,9 @@ export class ModuleRuntime {
 
   private evaluateCondition(instance: ModuleInstance, node: ModuleConditionNode): boolean {
     const ctx = this.hooks.getActionContext(instance.entityId, 0); // dt is 0 for condition check usually
+    if (instance.eventData) {
+      ctx.eventData = { ...instance.eventData, ...(ctx.eventData || {}) };
+    }
     // Ensure module variables are available in context so resolveNamedValue works if checking entity vars
     // But resolveNamedValue is internal.
     // We need to resolve left/right values first for Var* conditions.
@@ -537,10 +543,30 @@ export class ModuleRuntime {
         // Unless this module flow was triggered by an Event.
         // If triggered by event, ctx.eventData should be populated.
         const eventData = ctx.eventData as any;
+
+        console.log(`[ModuleRuntime] CompareTag Check: Target='${targetTag}' EventData=`, eventData);
+
         if (eventData) {
-          if (eventData.tag === targetTag) return true;
-          if (eventData.otherTag === targetTag) return true;
+          if (eventData.tag === targetTag) {
+            console.log(`[ModuleRuntime] Matched 'tag' property.`);
+            return true;
+          }
+          if (eventData.otherTag === targetTag) {
+            console.log(`[ModuleRuntime] Matched 'otherTag' property.`);
+            return true;
+          }
+          // Also check explicit tagA/tagB if available (EntityA vs EntityB)
+          const myId = instance.entityId;
+          if (eventData.entityA === myId && eventData.tagB === targetTag) {
+            console.log(`[ModuleRuntime] Matched tagB (I am A)`);
+            return true;
+          }
+          if (eventData.entityB === myId && eventData.tagA === targetTag) {
+            console.log(`[ModuleRuntime] Matched tagA (I am B)`);
+            return true;
+          }
         }
+        console.log(`[ModuleRuntime] CompareTag Failed.`);
         return false;
       }
 
