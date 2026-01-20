@@ -97,8 +97,6 @@ export class LogicSystem implements System {
 
     private handleCollisionEvent(context: RuntimeContext, event: any) {
         // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
-        if (this.gameCore?.isDestroyed) return;
-
         const renderer = this.gameCore?.getRenderer();
         const isRuntime = renderer?.isRuntimeMode;
 
@@ -120,22 +118,12 @@ export class LogicSystem implements System {
         // we just need A|B|Type unique key.
         const collisionKey = `${entityA}:${entityB}:${type}`;
 
-        // 1. Intra-frame deduplication
+        // [FIX] Deduplicate Collision Events per Frame
         if (this.executedCollisions.has(collisionKey)) {
-            // console.warn(`[LogicSystem] Skipping duplicate collision event: ${collisionKey}`);
-            return;
-        }
-
-        // 2. [NEW] 10-Frame (approx 170ms) Cooldown
-        const now = performance.now();
-        const lastTime = this.collisionCooldowns.get(collisionKey) ?? 0;
-        if (now - lastTime < 170) {
-            // ~10 frames at 60fps. Ignoring re-trigger.
             return;
         }
 
         this.executedCollisions.add(collisionKey);
-        this.collisionCooldowns.set(collisionKey, now);
 
         // Execute OnCollision logic for both entities involved
         this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
@@ -311,10 +299,6 @@ export class LogicSystem implements System {
     }
 
     onUpdate(context: RuntimeContext, dt: number) {
-        // [GUARD] Stop if GameCore is destroyed
-        if (this.gameCore?.isDestroyed) return;
-
-
         // [FIX] Reset collision duplicate tracker every frame
         this.executedCollisions.clear();
         // [FIX] Reset component execution tracker every frame
