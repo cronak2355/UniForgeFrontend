@@ -201,9 +201,10 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
     // Normalize direction vector so speed is consistent
     const len = Math.sqrt(dirX * dirX + dirY * dirY);
     const step = Number(speed) * dt;
+    const shouldSnap = params.snap === true;
 
-    if (targetPos && len <= step) {
-        // [FIX] Snap to target to prevent jitter if close enough
+    if (shouldSnap && targetPos && len <= step) {
+        // [FIX] Snap to target to prevent jitter if close enough (Only if enabled)
         gameObject.x = targetPos.x;
         gameObject.y = targetPos.y;
     } else if (len > 0) {
