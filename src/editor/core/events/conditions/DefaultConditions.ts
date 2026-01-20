@@ -173,7 +173,7 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return false;
+    // if (value === undefined) return false; // [Modified] Allow undefined to flow down for boolean coercion (undefined == false)
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -192,7 +192,10 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) === coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        // console.log(`[VarEquals] ${varName} (${value}) vs ${expectedValue} -> ${boolVal} == ${boolExp}?`);
+        return boolVal === boolExp;
     }
 
     if (typeof value === "number") {
@@ -215,7 +218,7 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return true; // Variable doesn't exist = not equal
+    // if (value === undefined) return true; // [Modified] Allow undefined to flow down for boolean coercion
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -234,7 +237,9 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) !== coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        return boolVal !== boolExp;
     }
 
     if (typeof value === "number") {
