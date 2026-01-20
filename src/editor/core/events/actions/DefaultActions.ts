@@ -160,6 +160,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 
     let dirX = 0;
     let dirY = 0;
+    let targetPos: { x: number; y: number } | undefined;
 
     if (params.direction) {
         const rawDir = params.direction as ValueSource;
@@ -177,6 +178,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         ) {
             const targetX = Number((direction as any).x ?? 0);
             const targetY = Number((direction as any).y ?? 0);
+            targetPos = { x: targetX, y: targetY };
             direction = {
                 x: targetX - gameObject.x,
                 y: targetY - gameObject.y
@@ -198,15 +200,19 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 
     // Normalize direction vector so speed is consistent
     const len = Math.sqrt(dirX * dirX + dirY * dirY);
-    if (len > 0) {
+    const step = Number(speed) * dt;
+
+    if (targetPos && len <= step) {
+        // [FIX] Snap to target to prevent jitter if close enough
+        gameObject.x = targetPos.x;
+        gameObject.y = targetPos.y;
+    } else if (len > 0) {
         dirX /= len;
         dirY /= len;
+
+        gameObject.x += dirX * step;
+        gameObject.y += dirY * step;
     }
-
-    // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
-
-    gameObject.x += dirX * Number(speed) * dt;
-    gameObject.y += dirY * Number(speed) * dt;
 
     if (entity) {
         entity.x = gameObject.x;

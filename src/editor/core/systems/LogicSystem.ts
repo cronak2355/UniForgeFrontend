@@ -92,6 +92,9 @@ export class LogicSystem implements System {
         this.runtimeContext = undefined;
     }
 
+    // [FIX] Cooldown map for collisions to allow 10-frame debounce
+    private collisionCooldowns = new Map<string, number>();
+
     private handleCollisionEvent(context: RuntimeContext, event: any) {
         // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
         if (this.gameCore?.isDestroyed) return;
@@ -115,16 +118,24 @@ export class LogicSystem implements System {
 
         // Use a frame-based or unique key. Since we clear set on update, 
         // we just need A|B|Type unique key.
-        // Sort IDs to ensure A|B is same as B|A for the Pair Execution check?
-        // No, we want to execute Logic for A vs B, and B vs A. 
-        // But we want to ensure we don't do A vs B TWICE.
-
         const collisionKey = `${entityA}:${entityB}:${type}`;
+
+        // 1. Intra-frame deduplication
         if (this.executedCollisions.has(collisionKey)) {
             // console.warn(`[LogicSystem] Skipping duplicate collision event: ${collisionKey}`);
             return;
         }
+
+        // 2. [NEW] 10-Frame (approx 170ms) Cooldown
+        const now = performance.now();
+        const lastTime = this.collisionCooldowns.get(collisionKey) ?? 0;
+        if (now - lastTime < 170) {
+            // ~10 frames at 60fps. Ignoring re-trigger.
+            return;
+        }
+
         this.executedCollisions.add(collisionKey);
+        this.collisionCooldowns.set(collisionKey, now);
 
         // Execute OnCollision logic for both entities involved
         this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
