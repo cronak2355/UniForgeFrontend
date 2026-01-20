@@ -266,6 +266,11 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             const ent = core.getEntities().get(id);
             if (ent) {
                 core.setSelectedEntity(ent);
+                // Locked entities can be selected but not dragged
+                if (ent.locked) {
+                    dragEntityIdRef.current = null;
+                    return;
+                }
                 dragOffsetRef.current = { x: worldX - ent.x, y: worldY - ent.y };
             } else {
                 dragOffsetRef.current = { x: 0, y: 0 };
