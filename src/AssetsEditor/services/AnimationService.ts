@@ -314,22 +314,19 @@ export async function generateSingleImage(
   canvasSize: number,
   assetType: 'character' | 'object' | 'tile' | 'effect' = 'character'
 ): Promise<string> {
+  console.log(`[AnimationService] Original Prompt: "${prompt}"`);
   const translatedPrompt = await translatePromptAsync(prompt);
+  console.log(`[AnimationService] Translated Prompt: "${translatedPrompt}"`);
 
   // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
-  // 단, assetTypes가 'tile'이나 'effect'일 경우 다를 수 있으나, 
-  // 여기서는 사용자가 '캐릭터/오브젝트' 생성 시 주로 사용하므로 기본적으로 pixel art, game asset 등은 추가하는게 안전.
-  // 다만 AnimationPresets의 CONSISTENCY_KEYWORDS는 캐릭터 전용이므로,
-  // 여기서는 prompt에 기본적으로 'pixel art, game asset' 정도만 보장하거나, 
-  // 입력된 prompt를 그대로 신뢰하되 SagemakerService가 처리.
-  // 기존 BedrockService에서는 'pixel art style, solo, single isolated subject, centered'를 강제했음.
-  // 이를 여기서 복원함.
+  // FULL BODY를 가장 앞에 강하게 배치
+  const enhancedPrompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), ${translatedPrompt}, pixel art style, solo, single isolated subject, centered, (white background:1.3), simple background`;
 
-  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, ${translatedPrompt}, (white background:1.3), simple background`;
+  console.log(`[AnimationService] Final Prompt to SageMaker: "${enhancedPrompt}"`);
 
   const response = await SagemakerService.generateAsset({
     prompt: enhancedPrompt,
-    negative_prompt: NEGATIVE_KEYWORDS,
+    negative_prompt: NEGATIVE_KEYWORDS + ", chopped off, cropped, close up, portrait, face only, bust shot",
     asset_type: assetType,
     width: 512,  // Force 512
     height: 512, // Force 512
