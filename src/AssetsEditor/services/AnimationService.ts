@@ -73,13 +73,12 @@ export async function generateAnimation(
     console.log(`   프레임 ${i + 1}/${preset.frameCount}: ${frame.description}`);
 
     try {
-      // SageMaker 호출
       const response = await SagemakerService.generateAsset({
         prompt: prompt,
         negative_prompt: NEGATIVE_KEYWORDS,
         asset_type: 'character',
-        width: canvasSize,
-        height: canvasSize,
+        width: 512,
+        height: 512,
         mode: 'text-to-image',
         seed: sharedSeed // 첫 프레임 이후 동일한 seed 사용
       });
@@ -142,8 +141,8 @@ export async function regenerateFrame(
     prompt: prompt,
     negative_prompt: NEGATIVE_KEYWORDS,
     asset_type: 'character',
-    width: canvasSize,
-    height: canvasSize,
+    width: 512,
+    height: 512,
     mode: 'text-to-image',
     seed: seed
   });
@@ -164,14 +163,14 @@ export async function generateBaseFrame(
   canvasSize: number
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
-  const prompt = `${characterDescription}, standing pose, neutral stance, front view, centered, pixel art, game asset, single character, white background`;
+  const prompt = `${characterDescription}, standing pose, neutral stance, front view, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
     negative_prompt: NEGATIVE_KEYWORDS,
     asset_type: 'character',
-    width: canvasSize,
-    height: canvasSize,
+    width: 512,
+    height: 512,
     mode: 'text-to-image'
   });
 
@@ -207,37 +206,36 @@ export async function generateAnimationFromBase(
 
     onProgress?.(i + 1, preset.frameCount);
 
-    try {
-      const response = await SagemakerService.generateAsset({
-        prompt: prompt,
-        negative_prompt: NEGATIVE_KEYWORDS,
-        asset_type: 'character',
-        width: canvasSize,
-        height: canvasSize,
-        mode: 'text-to-image',
-        seed: baseSeed // 모든 프레임에 같은 seed 강제
-      });
+    const response = await SagemakerService.generateAsset({
+      prompt: prompt,
+      negative_prompt: NEGATIVE_KEYWORDS,
+      asset_type: 'character',
+      width: 512,
+      height: 512,
+      mode: 'text-to-image',
+      seed: baseSeed // 모든 프레임에 같은 seed 강제
+    });
 
-      if (!response.success || !response.image) {
-        throw new Error(response.error || "Frame generation failed");
-      }
-
-      generatedFrames.push({
-        frameIndex: i,
-        imageData: response.image,
-        prompt,
-      });
-      onFrameGenerated?.(i, response.image);
-
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
-      throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
+    if (!response.success || !response.image) {
+      throw new Error(response.error || "Frame generation failed");
     }
 
-    await delay(200);
+    generatedFrames.push({
+      frameIndex: i,
+      imageData: response.image,
+      prompt,
+    });
+    onFrameGenerated?.(i, response.image);
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
+    throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
   }
 
-  return generatedFrames;
+  await delay(200);
+}
+
+return generatedFrames;
 }
 
 /**
@@ -257,14 +255,14 @@ export async function generateSingleImage(
   // 기존 BedrockService에서는 'pixel art style, solo, single isolated subject, centered'를 강제했음.
   // 이를 여기서 복원함.
 
-  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, ${prompt}, white background`;
+  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, ${prompt}, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: enhancedPrompt,
     negative_prompt: NEGATIVE_KEYWORDS,
     asset_type: assetType,
-    width: canvasSize,
-    height: canvasSize,
+    width: 512,  // Force 512
+    height: 512, // Force 512
     mode: 'text-to-image'
   });
 

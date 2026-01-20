@@ -19,17 +19,17 @@ export interface AnimationPreset {
 
 // ⚠️ 중요: "animation", "spritesheet", "sequence" 같은 단어 절대 사용 금지!
 // AI가 여러 포즈를 한 장에 그리려고 함
-export const CONSISTENCY_KEYWORDS = 
-  "single character, solo, one person, full body, side view, white background, pixel art, game asset";
+export const CONSISTENCY_KEYWORDS =
+  "single character, solo, one person, full body, side view, (white background:1.3), simple background, pixel art, game asset";
 
 // 네거티브 프롬프트 (서버에서 사용)
 export const NEGATIVE_KEYWORDS =
-  "multiple characters, spritesheet, sprite sheet, multiple poses, grid, collage, sequence, frames, collection, group, crowd, multiple views";
+  "multiple characters, spritesheet, sprite sheet, multiple poses, grid, collage, sequence, frames, collection, group, crowd, multiple views, background, scenery, texture, detailed background";
 
 // ==================== 애니메이션 프리셋 정의 ====================
 
 export const ANIMATION_PRESETS: Record<string, AnimationPreset> = {
-  
+
   // ==================== IDLE (대기) ====================
   idle: {
     id: "idle",
@@ -394,7 +394,7 @@ export function buildFramePrompt(
 ): string {
   const frame = preset.frames[frameIndex];
   if (!frame) return "";
-  
+
   // 순서: 캐릭터 설명 먼저, 그 다음 포즈, 마지막에 일관성 키워드
   return `${characterDescription}, ${frame.prompt}, ${CONSISTENCY_KEYWORDS}`;
 }
