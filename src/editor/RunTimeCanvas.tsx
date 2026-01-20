@@ -80,6 +80,7 @@ function indexTiles(tiles: TilePlacement[]) {
 interface RunTimeCanvasProps {
     onRuntimeEntitySync?: (entity: EditorEntity) => void;
     onGameReady?: (core: any) => void;
+    onLoaded?: () => void; // [New]
 }
 
 function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
@@ -112,7 +113,7 @@ function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
     });
 }
 
-export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanvasProps) {
+export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady, onLoaded }: RunTimeCanvasProps) {
     const ref = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<PhaserRenderer | null>(null);
     const gameCoreRef = useRef<GameCore | null>(null);
@@ -131,16 +132,12 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
     const cleanupDoneRef = useRef(false);
 
     useEffect(() => {
-
-
         if (!ref.current) {
-
             return;
         }
 
         // [GUARD] Prevent double initialization
         if (initializationStartedRef.current) {
-
             return;
         }
 
@@ -149,7 +146,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
         // [CRITICAL FIX] If a renderer already exists, clean it up first
         if (rendererRef.current) {
-
             rendererRef.current.destroy();
             rendererRef.current = null;
         }
@@ -158,7 +154,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
         while (ref.current.firstChild) {
             ref.current.removeChild(ref.current.firstChild);
         }
-
 
         const renderer = new PhaserRenderer(core);
         rendererRef.current = renderer;
@@ -195,7 +190,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             // 1. Small delay to ensure cleanup from previous cycle completes
             await new Promise(resolve => setTimeout(resolve, 50));
             if (!isMounted) {
-
                 renderer.destroy();
                 rendererRef.current = null;
                 return;
@@ -218,7 +212,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
             // [Lifecycle] Check after await
             if (!isMounted) {
-
                 renderer.destroy();
                 return;
             }
@@ -228,7 +221,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             setIsRendererReady(true);
             renderer.isRuntimeMode = true;
             renderer.setCameraPosition(gameWidth / 2, gameHeight / 2);
-
 
             // 5. Spawn Entities (Global + Scene)
             const globalEntities = Array.from(core.getGlobalEntities().values());
@@ -248,6 +240,11 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                 }
             }
 
+            // Notify Parent that loading is done
+            if (onLoaded) {
+                onLoaded();
+            }
+
             // 6. Start Loop
             renderer.onUpdateCallback = (time, delta) => {
                 if (!isMounted) return;
@@ -261,67 +258,18 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
                     lastFpsTimeRef.current = time;
                 }
 
-                // [OPTIMIZED] UI Sync - Skip if no UI entities exist
-                // This is still O(n) but early-exits for non-UI entities
-                const runtimeContext = gameRuntime.getRuntimeContext();
-
-                // Quick exit if there are no entities
-                if (runtimeContext.entities.size === 0) return;
-
-                // UI Sync (only for entities with isUI=true)
-                for (const [id, entity] of runtimeContext.entities) {
-                    const isUI = runtimeContext.getEntityVariable(id, "isUI");
-                    if (isUI !== true) continue;
-
-                    const uiSourceEntityId = runtimeContext.getEntityVariable(id, "uiSourceEntity");
-                    const sourceId = uiSourceEntityId ? String(uiSourceEntityId) : null;
-                    if (!sourceId) continue;
-
-                    // Get source from RuntimeContext only (avoid editor access)
-                    const sourceEntity = runtimeContext.entities.get(sourceId);
-                    if (!sourceEntity) continue;
-
-                    const uiType = runtimeContext.getEntityVariable(id, "uiType");
-                    const uiValueLink = runtimeContext.getEntityVariable(id, "uiValueVar");
-                    const uiText = runtimeContext.getEntityVariable(id, "uiText");
-
-                    if (uiValueLink) {
-                        const val = runtimeContext.getEntityVariable(sourceId, String(uiValueLink));
-                        if (val !== undefined) {
-                            renderer.setText(id, String(val));
-                        }
-                    } else if (uiText !== undefined) {
-                        renderer.setText(id, String(uiText));
-                    }
-
-                    if (uiType === "bar") {
-                        const valVarName = runtimeContext.getEntityVariable(id, "uiValueVar");
-                        const maxVarName = runtimeContext.getEntityVariable(id, "uiMaxVar");
-                        if (valVarName && maxVarName) {
-                            const val = runtimeContext.getEntityVariable(sourceId, String(valVarName));
-                            const max = runtimeContext.getEntityVariable(sourceId, String(maxVarName));
-                            if (val !== undefined && max !== undefined) {
-                                renderer.setBarValue(id, Number(val), Number(max));
-                            }
-                        }
-                    }
-                }
-
-                // [REMOVED] Selected Entity Sync - This was too expensive (JSON.stringify every frame)
-                // Entity sync now only happens on explicit user interaction, not per-frame
+                syncUIText(gameRuntime, core, setFps);
             };
         })();
 
         return () => {
             // [GUARD] Prevent double cleanup
             if (cleanupDoneRef.current) {
-
                 return;
             }
 
             cleanupDoneRef.current = true;
             isMounted = false;
-
 
             if (gameRuntime && gameRuntime.destroy) {
                 gameRuntime.destroy();
@@ -330,7 +278,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
             if (renderer) {
                 renderer.onUpdateCallback = undefined;
                 renderer.onInputState = undefined;
-                renderer.onEntityClick = undefined; // Clean up the click handler
+                renderer.onEntityClick = undefined;
                 renderer.destroy();
             }
 
@@ -345,8 +293,6 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
             // Reset initialization flag so component can re-init if remounted
             initializationStartedRef.current = false;
-
-
         };
     }, []); // Empty deps - only run on mount/unmount
 
@@ -361,13 +307,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
         const globalEntities = Array.from(core.getGlobalEntities().values());
         const sceneEntities = Array.from(core.getEntities().values());
-        console.log("[RunTimeCanvas] Checking entities for spawn. Global:", globalEntities.length, "Scene:", sceneEntities.length);
         if (globalEntities.length === 0 && sceneEntities.length === 0) {
-            console.warn("[RunTimeCanvas] No entities to spawn yet.");
             return;
         }
 
-        console.log("[RunTimeCanvas] Spawning entities...", globalEntities.length + sceneEntities.length);
         gameRuntime.resetRuntime();
         spawnRuntimeEntities(gameRuntime, [...globalEntities, ...sceneEntities]);
 
@@ -386,6 +329,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
                 // 1. Try Component Prop via Context (RuntimeEntity struct does NOT hold components directly)
                 const comps = currentContext.getEntityComponents(entity.id);
+
                 const camComp = comps?.find((c: any) => c.type === "Camera") as any;
 
                 if (camComp) {

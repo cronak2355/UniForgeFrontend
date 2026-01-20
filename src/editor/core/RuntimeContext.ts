@@ -106,7 +106,7 @@ export class RuntimeContext {
             this.componentsByType.set(component.type, []);
         }
         this.componentsByType.get(component.type)!.push(component);
-        console.log(`[RuntimeContext] 📝 Registered Component: ${component.type} for Entity ${component.entityId}`);
+
 
         // Index by Entity
         if (!this.componentsByEntity.has(component.entityId)) {

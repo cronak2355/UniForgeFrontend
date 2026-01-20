@@ -1442,9 +1442,6 @@ export class PhaserRenderer implements IRenderer {
                         else (bg as any).setFillStyle(bgColorInt);
                     });
                     container.on('pointerdown', () => {
-                        // [DEBUG] Log user request
-                        console.log(`[Button] Clicked entity: ${id}`);
-
                         if ('setTint' in bg) (bg as any).setTint(0x888888);
                         else (bg as any).setFillStyle(0x1abc9c);
 
@@ -2621,7 +2618,17 @@ export class PhaserRenderer implements IRenderer {
                 this.restoreSpritesAfterTextureReload(key);
                 resolve();
             });
-            scene.load.once("loaderror", () => reject(new Error(`Failed to load texture: ${key}`)));
+
+            // [Robust Fallback] If loading fails (CORS, 404), Log warning but DO NOT crash.
+            // Resolve anyway so the game can continue with other assets/logic.
+            scene.load.once("loaderror", (file: any) => {
+                if (file.key === key) {
+                    console.warn(`[PhaserRenderer] Failed to load texture '${key}' (likely CORS or 404). Using fallback/placeholder behavior.`);
+                    // We simply resolve. Phaser will use a missing texture placeholder automatically if referenced.
+                    resolve();
+                }
+            });
+
             scene.load.start();
         });
     }

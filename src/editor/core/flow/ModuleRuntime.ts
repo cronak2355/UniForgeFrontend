@@ -272,6 +272,38 @@ export class ModuleRuntime {
     }
   }
 
+  private resolveValue(ctx: ActionContext, val: unknown): any {
+    if (val === null || val === undefined) return 0;
+    if (typeof val !== "object") return val;
+
+    const src = val as any;
+    if (src.type === "literal") return src.value;
+    if (src.type === "variable") {
+      if (!src.name) return 0;
+      if (ctx.scope?.has(src.name)) return ctx.scope.get(src.name);
+      return 0; // Fallback
+    }
+    // Simple property/vector support if needed
+    if ('x' in src && 'y' in src) return src;
+
+    return val;
+  }
+
+  private getResolvedParam(instance: ModuleInstance, nodeId: string, paramName: string, fallbackName?: string): any {
+    const node = instance.graph.nodes.find(n => n.id === nodeId);
+    if (!node) return 0;
+
+    const params = (node as any).params ?? {};
+    const fallbackVal = params[paramName] ?? (fallbackName ? params[fallbackName] : undefined);
+
+    const val = this.resolveValueInput(instance, nodeId, paramName, fallbackVal as ModuleLiteral);
+
+    const ctx = this.hooks.getActionContext(instance.entityId, 0);
+    ctx.scope = instance.moduleVariables;
+
+    return this.resolveValue(ctx, val);
+  }
+
   private executeAsync(instance: ModuleInstance, node: ModuleFlowNode, dt: number): "done" | "waiting" | "failed" {
     const state = this.getNodeState(instance, node.id);
     const ctx = this.hooks.getActionContext(instance.entityId, dt);
@@ -279,7 +311,16 @@ export class ModuleRuntime {
 
     switch (node.blockType) {
       case "Wait": {
-        const seconds = Number(node.params.seconds ?? 0);
+        let seconds = 0;
+        // Priority: seconds -> duration -> time
+        if (node.params.seconds !== undefined || this.findValueEdge(instance.graph, node.id, "seconds")) {
+          seconds = Number(this.getResolvedParam(instance, node.id, "seconds"));
+        } else if (node.params.duration !== undefined || this.findValueEdge(instance.graph, node.id, "duration")) {
+          seconds = Number(this.getResolvedParam(instance, node.id, "duration"));
+        } else {
+          seconds = Number(this.getResolvedParam(instance, node.id, "time"));
+        }
+
         if (seconds <= 0) {
           return "done";
         }
@@ -297,9 +338,10 @@ export class ModuleRuntime {
         return "waiting";
       }
       case "MoveTo": {
-        const targetX = Number(node.params.x ?? 0);
-        const targetY = Number(node.params.y ?? 0);
-        const speed = Number(node.params.speed ?? 100);
+        const targetX = Number(this.getResolvedParam(instance, node.id, "x"));
+        const targetY = Number(this.getResolvedParam(instance, node.id, "y"));
+        const speed = Number(this.getResolvedParam(instance, node.id, "speed") || 100);
+
         const entity = this.hooks.getEntity(instance.entityId);
         if (!entity) return "failed";
         ActionRegistry.run("MoveToward", ctx, { x: targetX, y: targetY, speed });
@@ -309,7 +351,10 @@ export class ModuleRuntime {
         return distSq <= 25 ? "done" : "waiting";
       }
       case "PlayAnimation": {
-        const seconds = Number(node.params.seconds ?? node.params.duration ?? 0.5);
+        const pSeconds = this.getResolvedParam(instance, node.id, "seconds");
+        const pDuration = this.getResolvedParam(instance, node.id, "duration");
+        const seconds = Number(pSeconds || pDuration || 0.5);
+
         if (!state.startedAt) {
           state.startedAt = performance.now();
         }
