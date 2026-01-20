@@ -385,9 +385,9 @@ export class ModuleRuntime {
     switch (node.condition) {
       case "IfVariableEquals":
       case "VarEquals":
-        return left == right; // loose equality for parity
+        return this.areValuesEqual(left, right);
       case "VarNotEquals":
-        return left != right;
+        return !this.areValuesEqual(left, right);
       case "IfVariableGreaterThan":
       case "VarGreaterThan":
         return Number(left ?? 0) > Number(right ?? 0);
@@ -403,7 +403,7 @@ export class ModuleRuntime {
         const key = `${node.id}:left`;
         const prev = instance.valueSnapshots.get(key);
         instance.valueSnapshots.set(key, left ?? null);
-        return prev !== undefined && prev !== left;
+        return prev !== undefined && !this.areValuesEqual(prev, left);
       }
 
       // -- Input Conditions --
@@ -476,6 +476,22 @@ export class ModuleRuntime {
       default:
         return false;
     }
+  }
+
+  private areValuesEqual(a: any, b: any): boolean {
+    if (a === b) return true;
+
+    // Convert boolean-like strings if comparing with boolean
+    if (typeof a === "boolean" && typeof b === "string") {
+      return (b === "true" && a === true) || (b === "false" && a === false);
+    }
+    if (typeof b === "boolean" && typeof a === "string") {
+      return (a === "true" && b === true) || (a === "false" && b === false);
+    }
+
+    // Loose equality for numbers/strings
+    // eslint-disable-next-line eqeqeq
+    return a == b;
   }
 
   private evaluateSwitch(instance: ModuleInstance, node: ModuleSwitchNode): string | null {
