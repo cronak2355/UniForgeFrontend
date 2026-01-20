@@ -550,7 +550,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
             // 3. Capture and Upload Thumbnail (Best Effort)
             try {
-                const canvasEl = document.querySelector('canvas') as HTMLCanvasElement | null;
+                const canvasEl = document.querySelector('#editor-phaser-container canvas') as HTMLCanvasElement | null;
                 if (canvasEl) {
                     const thumbnailDataUrl = canvasEl.toDataURL('image/png', 0.8);
                     const response = await fetch(thumbnailDataUrl);

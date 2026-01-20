@@ -57,7 +57,7 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         let loadedCount = 0;
         tileAssets.forEach((asset) => {
             const img = new Image();
-            img.crossOrigin = "Anonymous";
+            // img.crossOrigin = "Anonymous"; // Removed to prevent CORS errors on proxy images
             img.onload = () => {
                 const tileIdx = asset.idx ?? 0;
                 const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
@@ -75,6 +75,20 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
             };
             img.onerror = (e) => {
                 console.error(`[TilePalettePanel] Failed to load image: ${asset.url}`, e);
+                // Draw error placeholder
+                const tileIdx = asset.idx ?? 0;
+                const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
+                const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
+
+                ctx.fillStyle = "#ef4444"; // Red error color
+                ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+
+                ctx.fillStyle = "white";
+                ctx.font = "10px sans-serif";
+                ctx.fillText("ERR", x + 4, y + 20);
+
+                // Still count as loaded to finish the batch
+                loadedCount++;
             };
             img.src = getCloudFrontUrl(asset.url);
         });
