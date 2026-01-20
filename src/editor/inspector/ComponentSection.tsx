@@ -13,6 +13,7 @@ import type { EditorVariable } from "../types/Variable";
 import { ActionEditor } from "./ActionEditor";
 import type { ModuleGraph } from "../types/Module";
 import type { Asset } from "../types/Asset";
+import { COMPONENT_PRESETS } from "../presets/componentPresets";
 
 type Props = {
     entity: EditorEntity;
@@ -264,6 +265,16 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
         commitLogic([...logicComponents, newComponent]);
     };
 
+    const handleAddPreset = (presetId: string) => {
+        const preset = COMPONENT_PRESETS.find(p => p.id === presetId);
+        if (!preset) return;
+        const newComponents = preset.components.map(comp => ({
+            ...comp,
+            id: crypto.randomUUID(),
+        })) as LogicComponent[];
+        commitLogic([...logicComponents, ...newComponents]);
+    };
+
     const handleUpdateRule = (index: number, rule: LogicComponent, ensureModuleId?: string) => {
         const nextRules = [...logicComponents];
         nextRules[index] = rule;
@@ -355,6 +366,20 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
                     <button onClick={handleAddComponent} style={styles.addButton}>
                         + 요소 추가
                     </button>
+                    <select
+                        value=""
+                        onChange={(e) => {
+                            if (e.target.value) handleAddPreset(e.target.value);
+                        }}
+                        style={{ ...styles.addButton, cursor: "pointer" }}
+                    >
+                        <option value="">📦 프리셋</option>
+                        {COMPONENT_PRESETS.map(preset => (
+                            <option key={preset.id} value={preset.id}>
+                                {preset.icon} {preset.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
