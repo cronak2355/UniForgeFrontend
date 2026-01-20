@@ -288,19 +288,39 @@ export class CollisionSystem {
 
             for (const other of this.colliders.values()) {
                 if (other.entityId === entityId) continue;
-                if (!other.isSolid) continue;
+
+                // [OPTIMIZATION] Static entities don't move, so they don't resolve against others
+                // But dynamic entities resolving against static walls is handled below.
+
+                // Determine collision type
+                const isWall = other.isSolid && other.tag === "Wall";
+                const isSoft = !isWall && other.tag === collider.tag; // Enemy vs Enemy
+
+                if (!isWall && !isSoft) continue; // Only resolve Walls or Same-Tag separation
                 if (!this.canCollide(collider, other)) continue;
 
                 if (this.checkAABB(collider.bounds, other.bounds)) {
                     const { overlapX, overlapY } = this.calculateOverlap(collider.bounds, other.bounds);
 
-                    // 더 작은 겹침 방향으로 밀어내기
-                    if (overlapX < overlapY) {
-                        workX += collider.bounds.x < other.bounds.x ? -overlapX : overlapX;
-                    } else {
-                        workY += collider.bounds.y < other.bounds.y ? -overlapY : overlapY;
+                    if (isWall) {
+                        // Hard Collision (Wall) - Push out completely
+                        if (overlapX < overlapY) {
+                            workX += collider.bounds.x < other.bounds.x ? -overlapX : overlapX;
+                        } else {
+                            workY += collider.bounds.y < other.bounds.y ? -overlapY : overlapY;
+                        }
+                        blocked = true;
+                    } else if (isSoft) {
+                        // Soft Collision (Unit separation) - Push out partially (50%)
+                        // This creates a "crowd" effect without hard blocking
+                        const separationFactor = 0.5;
+                        if (overlapX < overlapY) {
+                            workX += (collider.bounds.x < other.bounds.x ? -overlapX : overlapX) * separationFactor;
+                        } else {
+                            workY += (collider.bounds.y < other.bounds.y ? -overlapY : overlapY) * separationFactor;
+                        }
                     }
-                    blocked = true;
+
                     hadCollision = true;
 
                     // 위치 업데이트 후 다시 검사
