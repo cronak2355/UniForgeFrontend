@@ -7,6 +7,7 @@ import {
 } from '../data/AnimationPresets';
 import type { AnimationPreset } from '../data/AnimationPresets';
 import { authService } from '../../services/authService';
+import SagemakerService from './SagemakerService';
 
 // 애니메이션 프레임 전용 API (seed 기반 일관성)
 const ANIMATION_API_URL = '/api/generate-animation-frame';
@@ -300,37 +301,28 @@ export async function generateSingleImage(
   canvasSize: number,
   assetType: string = 'character'
 ): Promise<string> {
+  console.log("[AnimationService] Generating via SageMaker...", { prompt, canvasSize, assetType });
   try {
-    const response = await fetch(GENERATE_API_URL, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        prompt,
-        size: canvasSize,
-        asset_type: assetType,
-        negative_prompt: NEGATIVE_KEYWORDS,
-      }),
+    // Map assetType string to SagemakerService type
+    const mappedType = (['character', 'object', 'tile', 'effect'].includes(assetType)
+      ? assetType
+      : 'character') as 'character' | 'object' | 'tile' | 'effect';
+
+    const result = await SagemakerService.generateAsset({
+      prompt,
+      width: canvasSize,
+      height: canvasSize,
+      asset_type: mappedType,
+      // Pass other parameters if needed
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`AI Generation Failed [${response.status}]:`, errorText);
-      throw new Error(`Server Error ${response.status}: ${errorText || response.statusText}`);
+    if (!result.success || !result.image) {
+      throw new Error(result.error || "Failed to generate image via SageMaker");
     }
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    if (!data.image) {
-      throw new Error("No image data received from server");
-    }
-
-    return data.image;
+    return result.image;
   } catch (error) {
-    console.error("AI Generation Error:", error);
+    console.error("AI Generation Error (SageMaker):", error);
     throw error;
   }
 }

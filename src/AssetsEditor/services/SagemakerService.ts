@@ -53,13 +53,16 @@ export async function generateAsset(request: GenerateAssetRequest): Promise<Gene
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: request.prompt,
-                negative_prompt: request.negative_prompt || 'blurry, low quality, distorted',
-                asset_type: request.asset_type,
-                width: request.width || 512,
-                height: request.height || 512,
-                image: request.image,
-                strength: request.strength,
-                mode: request.mode,
+                negative_prompt: request.negative_prompt || 'low quality, bad anatomy, worst quality, low resolution',
+                // SDXL specific
+                width: request.width || 1024,
+                height: request.height || 1024,
+                steps: 30, // Default good balance
+                cfg_scale: 7.0,
+                // Optional: pass through seed if we track it
+                // seed: request.seed
+                // style_preset can be mapped from asset_type if needed, or passed separately
+
             }),
         });
 
