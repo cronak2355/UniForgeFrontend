@@ -121,4 +121,55 @@ export const COMPONENT_PRESETS: ComponentPreset[] = [
             },
         ],
     },
+    {
+        id: "projectile-spawn",
+        name: "발사체 발사 (클릭)",
+        description: "마우스 클릭 시 발사체 프리팹 소환",
+        icon: "🔫",
+        components: [
+            {
+                type: "Logic",
+                event: "OnUpdate",
+                conditions: [{ type: "InputDown", key: "Mouse0" }],
+                conditionLogic: "AND",
+                actions: [{
+                    type: "SpawnEntity",
+                    sourceType: "prefab",
+                    prefabId: "",
+                    positionMode: "relative",
+                    offsetX: 0,
+                    offsetY: 0,
+                }],
+            },
+        ],
+    },
+    {
+        id: "projectile-behavior",
+        name: "발사체 동작",
+        description: "마우스 방향 이동 + 적 충돌 시 데미지",
+        icon: "💥",
+        components: [
+            {
+                type: "Logic",
+                event: "OnUpdate",
+                conditions: [],
+                conditionLogic: "AND",
+                actions: [{
+                    type: "Move",
+                    direction: { type: "mouse", mode: "relative" },
+                    speed: 500,
+                }],
+            },
+            {
+                type: "Logic",
+                event: "OnCollision",
+                conditions: [{ type: "CompareTag", tag: "Enemy" }],
+                conditionLogic: "AND",
+                actions: [
+                    { type: "TakeDamage", amount: 10 },
+                    { type: "Disable" },
+                ],
+            },
+        ],
+    },
 ];
