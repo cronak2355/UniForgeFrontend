@@ -237,6 +237,8 @@ export function AssetPanelNew({
                                         }}
                                         onPointerDown={(e) => {
                                             if (asset.tag === "Tile") return;
+                                            if (e.button !== 0) return; // Only allow Left Click for drag
+
                                             e.preventDefault();
                                             e.stopPropagation();
                                             // Visual feedback for grab
