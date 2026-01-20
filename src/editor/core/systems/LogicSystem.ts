@@ -453,12 +453,12 @@ export class LogicSystem implements System {
                 const actionSignature = `${comp.entityId}:${type}:${JSON.stringify(params)}`;
 
                 if (this.executedActions.has(actionSignature)) {
-                    console.warn(`[LogicSystem] ⛔ Blocked duplicate action: ${type} for entity ${comp.entityId}`);
+                    // console.warn(`[LogicSystem] ⛔ Blocked duplicate action: ${type} for entity ${comp.entityId}`);
                     continue;
                 }
                 this.executedActions.add(actionSignature);
 
-                console.log(`[LogicSystem #${this.instanceId}] ▶️ Action: ${type} on entity ${comp.entityId}`);
+                // console.log(`[LogicSystem #${this.instanceId}] ▶️ Action: ${type} on entity ${comp.entityId}`);
                 ActionRegistry.run(type, ctx, params);
             }
         }
