@@ -240,7 +240,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
             for (const asset of currentAssets) {
                 if (asset.tag === "Tile") continue;
-                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
+                try {
+                    await renderer.loadTexture(asset.name, asset.url, asset.metadata);
+                } catch (error) {
+                    console.warn(`[EditorCanvas] Failed to load texture: ${asset.name}`, error);
+                    // 개별 텍스처 실패는 무시하고 계속 진행
+                }
             }
 
             const tilesetCanvas = await buildTilesetCanvas(currentAssets);

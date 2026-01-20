@@ -43,60 +43,28 @@ function coerceBool(value: unknown): boolean {
     return Boolean(value);
 }
 
-function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
+function setVar(ctx: ActionContext, entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
     if (!entity) return;
-    if (!entity.variables) entity.variables = [];
-    const existing = entity.variables.find((v) => v.name === name);
-    if (existing) {
-        if (existing.type === "int" || existing.type === "float") {
-            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
-                // [Auto-Upgrade] Assigning Vector2 to Number -> Upgrade variable to vector2
-                existing.type = "vector2";
-                existing.value = { x: Number((value as any).x), y: Number((value as any).y) };
-                return;
-            }
-            const num = typeof value === "number" ? value : Number(value);
-            existing.value = Number.isNaN(num) ? 0 : num;
-        } else if (existing.type === "bool") {
-            existing.value = coerceBool(value);
-        } else if (existing.type === "vector2") {
-            // Handle vector2 type
-            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
-                existing.value = { x: Number(value.x), y: Number(value.y) };
-            } else {
-                // Fallback: treat as uniform scalar
-                const num = typeof value === 'number' ? value : Number(value);
-                existing.value = { x: num, y: num };
-            }
-        } else {
-            existing.value = String(value);
+
+    // [FIX] Use RuntimeContext.setEntityVariable to avoid direct mutation
+    // This prevents runtime state from leaking back to editor
+    const gameCore = ctx.globals?.gameCore as any;
+    const entityId = entity.id ?? ctx.entityId;
+
+    if (gameCore?.getRuntimeContext && entityId) {
+        // Determine type from value
+        let type = "any";
+        if (typeof value === "boolean") {
+            type = "bool";
+        } else if (typeof value === "number") {
+            type = Number.isInteger(value) ? "int" : "float";
+        } else if (typeof value === "string") {
+            type = "string";
+        } else if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
+            type = "vector2";
         }
-        return;
-    }
-    if (typeof value === "boolean" || (typeof value === "string" && (value === "true" || value === "false"))) {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "bool",
-            value: coerceBool(value),
-        });
-        return;
-    }
-    const numeric = typeof value === "number" ? value : Number(value);
-    if (!Number.isNaN(numeric)) {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "float",
-            value: numeric,
-        });
-    } else {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "string",
-            value: String(value),
-        });
+
+        gameCore.getRuntimeContext().setEntityVariable(entityId, name, value, type);
     }
 }
 
@@ -154,11 +122,11 @@ function applyDamage(
         // Auto-initialize HP if missing so Attack works by default
         hp = 100;
         maxHp = 100;
-        setVar(target, "maxHp", 100);
-        setVar(target, "hp", 100);
+        setVar(ctx, target, "maxHp", 100);
+        setVar(ctx, target, "hp", 100);
     }
     const nextHp = Math.max(0, (hp ?? maxHp ?? 100) - damage);
-    setVar(target, "hp", nextHp);
+    setVar(ctx, target, "hp", nextHp);
 
 
 
@@ -407,7 +375,7 @@ ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string
     const hp = getNumberVar(entity, "hp") ?? 0;
     const maxHp = getNumberVar(entity, "maxHp") ?? hp;
     const nextHp = Math.max(0, hp - amount);
-    setVar(entity, "hp", nextHp);
+    setVar(ctx, entity, "hp", nextHp);
 
     EventBus.emit("HP_CHANGED", {
         entityId: ctx.entityId,
@@ -576,7 +544,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     // Check if using legacy mode (simple value param)
     if (params.value !== undefined && params.operand1 === undefined) {
-        setVar(entity, varName, params.value as number | string);
+        setVar(ctx, entity, varName, params.value as number | string);
         return;
     }
 
@@ -704,7 +672,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
         return;
     }
 
-    setVar(entity, varName, result as any);
+    setVar(ctx, entity, varName, result as any);
 
     // Sync to RuntimeContext map (for Modules/Global access)
     const gameCore = ctx.globals?.gameCore as any;

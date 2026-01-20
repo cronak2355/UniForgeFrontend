@@ -84,6 +84,14 @@ interface RunTimeCanvasProps {
 
 function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
     entities.forEach((entity) => {
+        // [FIX] Deep copy entity data to isolate runtime state from editor
+        // This prevents runtime variable changes from affecting editor state
+        const clonedVariables = entity.variables ? JSON.parse(JSON.stringify(entity.variables)) : undefined;
+        const clonedComponents = entity.components ? JSON.parse(JSON.stringify(entity.components)) : undefined;
+        const clonedModules = entity.modules ? JSON.parse(JSON.stringify(entity.modules)) : undefined;
+        const clonedLogic = entity.logic ? JSON.parse(JSON.stringify(entity.logic)) : undefined;
+        const clonedTags = entity.tags ? [...entity.tags] : undefined;
+
         gameRuntime.createEntity(entity.id, entity.type, entity.x, entity.y, {
             name: entity.name,
             z: entity.z,
@@ -93,13 +101,13 @@ function spawnRuntimeEntities(gameRuntime: GameCore, entities: EditorEntity[]) {
             scaleX: entity.scaleX,
             scaleY: entity.scaleY,
             scaleZ: 1,
-            variables: entity.variables,
-            components: entity.components,
-            modules: entity.modules,
+            variables: clonedVariables,
+            components: clonedComponents,
+            modules: clonedModules,
             role: entity.role,
             texture: entity.texture,
-            logic: entity.logic,
-            tags: entity.tags, // [FIX] Pass entity tags for collision
+            logic: clonedLogic,
+            tags: clonedTags,
         });
     });
 }

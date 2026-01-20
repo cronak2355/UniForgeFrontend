@@ -185,25 +185,10 @@ export class RuntimeContext {
 
         this.entityVariables.get(entityId)!.set(name, { name, value, type: finalType });
 
-        // Sync to RuntimeEntity.variables array (for Editor Inspector Sync)
-        const entity = this.entities.get(entityId);
-        if (entity && entity.variables) {
-            const existingVar = entity.variables.find((v) => v.name === name);
-            if (existingVar) {
-                existingVar.value = value as any;
-                // Only update type if explicitly provided
-                if (type !== undefined) {
-                    existingVar.type = type as any;
-                }
-            } else {
-                entity.variables.push({
-                    id: crypto.randomUUID(), // Assuming crypto is available or generic ID
-                    name,
-                    value: value as any,
-                    type: finalType as any
-                });
-            }
-        }
+        // [FIX] REMOVED: Direct mutation of entity.variables array
+        // Previously this code directly modified the entity.variables array,
+        // which caused runtime state to leak back to editor state.
+        // Runtime now uses only entityVariables Map, keeping editor state isolated.
     }
 
     public getEntityVariable(entityId: string, name: string): ModuleLiteral | undefined {
