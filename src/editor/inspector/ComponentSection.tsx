@@ -390,25 +390,13 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     return (
         <div style={styles.sectionContainer}>
             <div style={styles.sectionHeader}>
-                <div style={styles.sectionTitle}>구성 요소 (Components) ({logicComponents.length})</div>
+                <div style={styles.sectionTitle}>
+                    <span style={{ fontSize: "16px" }}>⚡</span> 구성 요소 ({logicComponents.length})
+                </div>
                 <div style={styles.headerButtons}>
-                    <button onClick={handleAddComponent} style={styles.addButton}>
-                        + 요소 추가
+                    <button onClick={handleAddComponent} style={styles.primaryButton}>
+                        <span>+</span> 요소 추가
                     </button>
-                    <select
-                        value=""
-                        onChange={(e) => {
-                            if (e.target.value) handleAddPreset(e.target.value);
-                        }}
-                        style={{ ...styles.addButton, cursor: "pointer" }}
-                    >
-                        <option value="">📦 프리셋</option>
-                        {COMPONENT_PRESETS.map(preset => (
-                            <option key={preset.id} value={preset.id}>
-                                {preset.icon} {preset.name}
-                            </option>
-                        ))}
-                    </select>
                 </div>
             </div>
 
