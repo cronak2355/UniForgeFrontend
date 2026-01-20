@@ -68,9 +68,9 @@ export class EditorState implements IGameState {
             return new URL(`${normalizedBase}${fileName}`, window.location.origin).toString();
         };
         this.assets = [
-            { id: "1", name: "test1", tag: "Tile", url: assetUrl("TestAsset.webp"), idx: -1 },
-            { id: "2", name: "test2", tag: "Tile", url: assetUrl("TestAsset2.webp"), idx: -1 },
-            { id: "3", name: "test3", tag: "Tile", url: assetUrl("TestAsset3.webp"), idx: -1 },
+            { id: "1", name: "test1", tag: "Tile", url: assetUrl("TestAsset.webp"), idx: 0 },
+            { id: "2", name: "test2", tag: "Tile", url: assetUrl("TestAsset2.webp"), idx: 1 },
+            { id: "3", name: "test3", tag: "Tile", url: assetUrl("TestAsset3.webp"), idx: 2 },
             { id: "4", name: "tree", tag: "Character", url: assetUrl("GreenTree.webp"), idx: -1 },
         ];
 
@@ -80,7 +80,7 @@ export class EditorState implements IGameState {
                 const LOCAL_ASSETS_KEY = 'uniforge_local_assets';
                 const localAssets = JSON.parse(localStorage.getItem(LOCAL_ASSETS_KEY) || '[]');
                 for (const asset of localAssets) {
-                    this.assets.push({
+                    this.addAsset({
                         id: asset.id,
                         name: asset.name,
                         tag: asset.tag,
@@ -444,6 +444,23 @@ export class EditorState implements IGameState {
     }
 
     addAsset(asset: Asset) {
+        if (asset.tag === "Tile" && (asset.idx === undefined || asset.idx === -1)) {
+            // Find next available index
+            const existingIndices = this.assets
+                .filter(a => a.tag === "Tile" && a.idx !== -1)
+                .map(a => a.idx)
+                .sort((a, b) => a - b);
+
+            let nextIdx = 0;
+            for (const idx of existingIndices) {
+                if (idx === nextIdx) {
+                    nextIdx++;
+                } else {
+                    break;
+                }
+            }
+            asset.idx = nextIdx;
+        }
         this.assets = [...this.assets, asset];
         this.notify();
     }

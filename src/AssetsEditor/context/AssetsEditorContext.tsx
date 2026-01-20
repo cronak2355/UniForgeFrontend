@@ -873,11 +873,13 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Single frame import (or user cancelled)
-      engineRef.current.clearAllFrames();
-      const firstFrame = engineRef.current.getAllFrames()[0];
-      if (firstFrame && slicingResult.frames[0]) {
-        firstFrame.data.set(slicingResult.frames[0].data);
+      // Single frame import (or user cancelled) - Import into CURRENT frame
+      const currentIdx = engineRef.current.getCurrentFrameIndex();
+      const frames = engineRef.current.getAllFrames();
+      const targetFrame = frames[currentIdx];
+
+      if (targetFrame && slicingResult.frames[0]) {
+        targetFrame.data.set(slicingResult.frames[0].data);
       }
 
       syncFrameState();
