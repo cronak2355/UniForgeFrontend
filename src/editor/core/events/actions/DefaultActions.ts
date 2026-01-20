@@ -31,7 +31,16 @@ function getEntityById(ctx: ActionContext, id: string): RuntimeEntity | undefine
     return entities.get(id);
 }
 
-function getNumberVar(entity: RuntimeEntity | undefined, name: string): number | undefined {
+// [FIX] Updated to access RuntimeContext for dynamic variable updates
+function getNumberVar(ctx: ActionContext, entity: RuntimeEntity | undefined, name: string): number | undefined {
+    // 1. Try RuntimeContext
+    const gameCore = ctx.globals?.gameCore as any;
+    if (gameCore?.getRuntimeContext && entity?.id) {
+        const val = gameCore.getRuntimeContext().getEntityVariable(entity.id, name);
+        if (typeof val === "number") return val;
+    }
+
+    // 2. Fallback to initial state
     const variable = entity?.variables?.find((v) => v.name === name);
     return typeof variable?.value === "number" ? variable.value : undefined;
 }
@@ -74,7 +83,7 @@ function cloneJson<T>(value: T): T {
 
 function isAlive(ctx: ActionContext): boolean {
     const entity = getEntity(ctx);
-    const hp = getNumberVar(entity, "hp");
+    const hp = getNumberVar(ctx, entity, "hp");
     if (hp === undefined) return true;
     return hp > 0;
 }
@@ -116,8 +125,8 @@ function applyDamage(
     const target = getEntityById(ctx, targetId);
     if (!target) return false;
 
-    let hp = getNumberVar(target, "hp");
-    let maxHp = getNumberVar(target, "maxHp");
+    let hp = getNumberVar(ctx, target, "hp");
+    let maxHp = getNumberVar(ctx, target, "maxHp");
     if (hp === undefined && maxHp === undefined) {
         // Auto-initialize HP if missing so Attack works by default
         hp = 100;
@@ -155,7 +164,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
     if (!gameObject) return;
 
     const entity = getEntity(ctx);
-    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 200) as any);
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(ctx, entity, "speed") ?? 200) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     let dirX = 0;
@@ -260,7 +269,7 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
     }
 
     const entity = getEntity(ctx);
-    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(entity, "speed") ?? 100) as any);
+    const speed = resolveValue(ctx, (params.speed ?? getNumberVar(ctx, entity, "speed") ?? 100) as any);
     const dt = (ctx.eventData.dt as number) ?? 0.016;
 
     const dx = targetX - gameObject.x;
@@ -275,6 +284,14 @@ ActionRegistry.register("MoveToward", (ctx: ActionContext, params: Record<string
         if (entity) {
             entity.x = gameObject.x;
             entity.y = gameObject.y;
+        }
+    } else {
+        // [FIX] Snap to exact target to avoid jitter/snap-back
+        gameObject.x = targetX;
+        gameObject.y = targetY;
+        if (entity) {
+            entity.x = targetX;
+            entity.y = targetY;
         }
     }
 });
@@ -298,8 +315,8 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
     if (!attackerObj) return;
 
     const attackerEntity = getEntity(ctx);
-    const range = resolveValue(ctx, (params.range ?? getNumberVar(attackerEntity, "attackRange") ?? 100) as any);
-    const damage = resolveValue(ctx, (params.damage ?? getNumberVar(attackerEntity, "attack") ?? 10) as any);
+    const range = resolveValue(ctx, (params.range ?? getNumberVar(ctx, attackerEntity, "attackRange") ?? 100) as any);
+    const damage = resolveValue(ctx, (params.damage ?? getNumberVar(ctx, attackerEntity, "attack") ?? 10) as any);
 
     let targetIds: string[] = [];
     let targetId = ((params.targetId as string) ?? "").trim() || undefined;
@@ -340,7 +357,7 @@ ActionRegistry.register("Attack", (ctx: ActionContext, params: Record<string, un
 
         if (distance <= Number(range)) {
             const targetEntity = getEntityById(ctx, id);
-            const hp = getNumberVar(targetEntity, "hp");
+            const hp = getNumberVar(ctx, targetEntity, "hp");
             if (hp !== undefined && hp <= 0) continue;
 
             if (applyDamage(ctx, id, Number(damage), renderer)) {
@@ -379,8 +396,8 @@ ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string
     if (!entity) return;
 
     const amount = Number(resolveValue(ctx, (params.amount ?? 1) as any));
-    const hp = getNumberVar(entity, "hp") ?? 0;
-    const maxHp = getNumberVar(entity, "maxHp") ?? hp;
+    const hp = getNumberVar(ctx, entity, "hp") ?? 0;
+    const maxHp = getNumberVar(ctx, entity, "maxHp") ?? hp;
     const nextHp = Math.max(0, hp - amount);
     setVar(ctx, entity, "hp", nextHp);
 
@@ -459,6 +476,13 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
             return val;
         }
 
+        // 2. [FIX] Check RuntimeContext for dynamic variable updates
+        const gameCore = ctx.globals?.gameCore as any;
+        if (gameCore?.getRuntimeContext && ctx.entityId) {
+            const val = gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, src.name);
+            if (val !== undefined) return val;
+        }
+
         const entity = getEntity(ctx);
         const variable = entity?.variables?.find(v => v.name === src.name);
 
@@ -482,6 +506,13 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
         // Check core transform
         if (src.property in targetEntity) {
             return (targetEntity as any)[src.property];
+        }
+
+        // Check RuntimeContext for Property (Variable)
+        const gameCore = ctx.globals?.gameCore as any;
+        if (gameCore?.getRuntimeContext && targetId) {
+            const val = gameCore.getRuntimeContext().getEntityVariable(targetId, src.property);
+            if (val !== undefined) return val;
         }
 
         // Check variables as fallback (e.g. accessing another entity's HP)
