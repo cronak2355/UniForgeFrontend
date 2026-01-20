@@ -163,7 +163,7 @@ export async function generateBaseFrame(
   canvasSize: number
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
-  const prompt = `${characterDescription}, standing pose, neutral stance, front view, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
+  const prompt = `${characterDescription}, standing pose, neutral stance, front view, full body, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
@@ -256,7 +256,7 @@ export async function generateSingleImage(
   // 기존 BedrockService에서는 'pixel art style, solo, single isolated subject, centered'를 강제했음.
   // 이를 여기서 복원함.
 
-  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, ${prompt}, (white background:1.3), simple background`;
+  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, full body, front view, ${prompt}, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: enhancedPrompt,

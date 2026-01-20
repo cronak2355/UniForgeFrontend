@@ -20,7 +20,7 @@ export interface AnimationPreset {
 // ⚠️ 중요: "animation", "spritesheet", "sequence" 같은 단어 절대 사용 금지!
 // AI가 여러 포즈를 한 장에 그리려고 함
 export const CONSISTENCY_KEYWORDS =
-  "single character, solo, one person, full body, side view, (white background:1.3), simple background, pixel art, game asset";
+  "single character, solo, one person, full body, front view, (white background:1.3), simple background, pixel art, game asset";
 
 // 네거티브 프롬프트 (서버에서 사용)
 export const NEGATIVE_KEYWORDS =
