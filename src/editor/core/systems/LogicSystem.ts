@@ -56,9 +56,9 @@ export class LogicSystem implements System {
         };
         EventBus.on(this.OnStartListener);
 
-        // Listen for COLLISION_ENTER events
+        // Listen for COLLISION_ENTER events (OnTriggerEnter style - fires once on collision start)
         this.CollisionListener = (event: any) => {
-            if (event.type === "COLLISION_ENTER" || event.type === "COLLISION_STAY") {
+            if (event.type === "COLLISION_ENTER") {
                 this.handleCollisionEvent(context, event);
             }
         };
@@ -163,20 +163,18 @@ export class LogicSystem implements System {
             targetEvents.push("OnCollisionStay");
         }
 
-        // Get OnCollision logic components for this entity (checking all aliases)
+        // Get OnCollision logic components for this entity (checking all aliases, deduplicated)
         const logicComponents: import("../RuntimeComponent").RuntimeComponent[] = [];
+        const seen = new Set<import("../RuntimeComponent").RuntimeComponent>();
 
         for (const evt of targetEvents) {
             const comps = context.getComponentsByEvent(evt);
             for (const c of comps) {
-                if (c.entityId === entityId) {
+                if (c.entityId === entityId && !seen.has(c)) {
+                    seen.add(c);
                     logicComponents.push(c);
                 }
             }
-        }
-
-        if (logicComponents.length > 1) {
-            console.warn(`[LogicSystem] Entity ${entityId} has ${logicComponents.length} collision logic components! Duplicate execution likely.`);
         }
 
         for (const comp of logicComponents) {

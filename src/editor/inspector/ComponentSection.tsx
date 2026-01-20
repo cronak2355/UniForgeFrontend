@@ -50,7 +50,9 @@ export const ACTION_LABELS: Record<string, string> = {
     RunModule: "모듈 실행",
 
     SpawnEntity: "엔티티 생성",
+    SpawnIfClear: "스폰 (겹침방지)",
     PlayAnimation: "애니메이션 동작",
+
 };
 
 export const CONDITION_TYPES = [
@@ -694,11 +696,16 @@ function ConditionEditor({
                         style={styles.smallSelect}
                     >
                         <option value="">(variable)</option>
-                        {variables.map((v) => (
-                            <option key={v.id} value={v.name}>
-                                {v.name}
-                            </option>
-                        ))}
+                        {variables.flatMap((v) => {
+                            if (v.type === "vector2") {
+                                return [
+                                    <option key={v.id} value={v.name}>{v.name} (vector2)</option>,
+                                    <option key={`${v.id}.x`} value={`${v.name}.x`}>{v.name}.x</option>,
+                                    <option key={`${v.id}.y`} value={`${v.name}.y`}>{v.name}.y</option>,
+                                ];
+                            }
+                            return [<option key={v.id} value={v.name}>{v.name}</option>];
+                        })}
                     </select>
                 )}
 

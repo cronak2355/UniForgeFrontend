@@ -218,9 +218,18 @@ export function ActionEditor({
                 style={{ ...styles.selectField, flex: 1, minWidth: 0 }}
               >
                 <option value="" disabled>Select Variable</option>
-                {variables.map((v) => (
-                  <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
-                ))}
+                <optgroup label="Transform">
+                  <option value="x">x (position)</option>
+                  <option value="y">y (position)</option>
+                  <option value="scaleX">scaleX</option>
+                  <option value="scaleY">scaleY</option>
+                  <option value="rotation">rotation</option>
+                </optgroup>
+                <optgroup label="Variables">
+                  {variables.map((v) => (
+                    <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
@@ -463,6 +472,8 @@ export function ActionEditor({
               </>
             )}
             {/* Prefab Initial Variables Override UI */}
+            <ParamInput label="cooldown" value={(action as any).cooldown} onChange={(v) => onUpdate({ ...action, cooldown: v })} variables={variables} entities={entities} listId={listId} />
+
             {spawnSourceType === "prefab" && spawnAssetId && (
               (() => {
                 const prefabAsset = prefabAssets.find(a => a.id === spawnAssetId);
@@ -593,6 +604,43 @@ export function ActionEditor({
               })()
             )}
           </>
+        )}
+
+        {action.type === "SpawnIfClear" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <select
+              value={(action.templateId as string) || ""}
+              onChange={(e) => onUpdate({ ...action, templateId: e.target.value })}
+              style={styles.smallSelect}
+            >
+              <option value="">(template)</option>
+              {entities.map((ent) => (
+                <option key={ent.id} value={ent.id}>
+                  {ent.name || ent.id}
+                </option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <ParamInput label="Count" value={(action as any).count ?? 1} onChange={(v) => onUpdate({ ...action, count: v })} variables={variables} entities={entities} listId={listId} />
+              <ParamInput label="Radius" value={(action as any).radius ?? 100} onChange={(v) => onUpdate({ ...action, radius: v })} variables={variables} entities={entities} listId={listId} />
+            </div>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <ParamInput label="CheckRad" value={(action as any).checkRadius ?? 30} onChange={(v) => onUpdate({ ...action, checkRadius: v })} variables={variables} entities={entities} listId={listId} />
+              <ParamInput label="Cooldown" value={(action as any).cooldown ?? 0} onChange={(v) => onUpdate({ ...action, cooldown: v })} variables={variables} entities={entities} listId={listId} />
+            </div>
+            <select
+              value={(action.role as string) || "neutral"}
+              onChange={(e) => onUpdate({ ...action, role: e.target.value })}
+              style={styles.smallSelect}
+            >
+              <option value="neutral">neutral</option>
+              <option value="player">player</option>
+              <option value="hostile">hostile</option>
+              <option value="friendly">friendly</option>
+              <option value="consumable">consumable</option>
+              <option value="wall">wall</option>
+            </select>
+          </div>
         )}
 
         {action.type === "Enable" && (

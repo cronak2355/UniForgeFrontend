@@ -59,6 +59,8 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
     EmitEventSignal: "이벤트 신호 전송해서 특정 컴포넌트를 실행시킬 수 있습니다.",
     RunModule: "모듈(비쥬얼 스크립트)을 실행합니다.",
     SpawnEntity: "엔티티를 생성합니다.",
+    SpawnIfClear: "빈 공간을 찾아 엔티티를 생성합니다. (뭉침 방지)",
+
     PlayAnimation: "애니메이션을 재생합니다.",
 
 
