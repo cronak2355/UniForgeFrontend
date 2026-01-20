@@ -206,36 +206,37 @@ export async function generateAnimationFromBase(
 
     onProgress?.(i + 1, preset.frameCount);
 
-    const response = await SagemakerService.generateAsset({
-      prompt: prompt,
-      negative_prompt: NEGATIVE_KEYWORDS,
-      asset_type: 'character',
-      width: 512,
-      height: 512,
-      mode: 'text-to-image',
-      seed: baseSeed // 모든 프레임에 같은 seed 강제
-    });
+    try {
+      const response = await SagemakerService.generateAsset({
+        prompt: prompt,
+        negative_prompt: NEGATIVE_KEYWORDS,
+        asset_type: 'character',
+        width: 512,
+        height: 512,
+        mode: 'text-to-image',
+        seed: baseSeed // 모든 프레임에 같은 seed 강제
+      });
 
-    if (!response.success || !response.image) {
-      throw new Error(response.error || "Frame generation failed");
+      if (!response.success || !response.image) {
+        throw new Error(response.error || "Frame generation failed");
+      }
+
+      generatedFrames.push({
+        frameIndex: i,
+        imageData: response.image,
+        prompt,
+      });
+      onFrameGenerated?.(i, response.image);
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
+      throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
     }
 
-    generatedFrames.push({
-      frameIndex: i,
-      imageData: response.image,
-      prompt,
-    });
-    onFrameGenerated?.(i, response.image);
-
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
-    throw new Error(`프레임 ${i + 1} 생성 실패: ${errorMsg}`);
+    await delay(200);
   }
 
-  await delay(200);
-}
-
-return generatedFrames;
+  return generatedFrames;
 }
 
 /**
