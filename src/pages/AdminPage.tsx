@@ -19,6 +19,7 @@ export default function AdminPage() {
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('');
+    const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
 
     useEffect(() => {
         loadData();
@@ -119,6 +120,36 @@ export default function AdminPage() {
 
     const handleSearch = () => {
         loadData();
+    };
+
+    const handleSelectGame = (gameId: string) => {
+        setSelectedGameIds(prev =>
+            prev.includes(gameId)
+                ? prev.filter(id => id !== gameId)
+                : [...prev, gameId]
+        );
+    };
+
+    const handleSelectAllGames = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedGameIds(games.map(g => g.gameId));
+        } else {
+            setSelectedGameIds([]);
+        }
+    };
+
+    const handleDeleteSelectedGames = async () => {
+        if (selectedGameIds.length === 0) return;
+        if (!confirm(`선택한 ${selectedGameIds.length}개의 게임을 삭제하시겠습니까?`)) return;
+
+        try {
+            await adminService.deleteGames(selectedGameIds);
+            alert('선택한 게임이 삭제되었습니다.');
+            setSelectedGameIds([]);
+            loadData();
+        } catch (e: any) {
+            alert('일괄 삭제 실패: ' + e.message);
+        }
     };
 
     return (
@@ -516,6 +547,25 @@ export default function AdminPage() {
                                             <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }}></i>
                                             게임 전체 삭제
                                         </button>
+                                        {selectedGameIds.length > 0 && (
+                                            <button
+                                                onClick={handleDeleteSelectedGames}
+                                                style={{
+                                                    marginLeft: '12px',
+                                                    padding: '8px 16px',
+                                                    backgroundColor: '#dc2626',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    color: 'white',
+                                                    fontSize: '0.9rem',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                <i className="fa-solid fa-trash-check" style={{ marginRight: '8px' }}></i>
+                                                선택 삭제 ({selectedGameIds.length})
+                                            </button>
+                                        )}
                                     </h1>
 
                                     {/* Search Bar */}
@@ -542,6 +592,14 @@ export default function AdminPage() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '1px solid #222' }}>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', width: '40px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={games.length > 0 && selectedGameIds.length === games.length}
+                                                            onChange={handleSelectAllGames}
+                                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                        />
+                                                    </th>
                                                     <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>게임명</th>
                                                     <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>작성자 ID</th>
                                                     <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>상태</th>
@@ -552,6 +610,14 @@ export default function AdminPage() {
                                             <tbody>
                                                 {games.map(g => (
                                                     <tr key={g.gameId} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedGameIds.includes(g.gameId)}
+                                                                onChange={() => handleSelectGame(g.gameId)}
+                                                                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                            />
+                                                        </td>
                                                         <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                             <div style={{
                                                                 width: '64px', height: '36px', borderRadius: '6px',
@@ -606,7 +672,7 @@ export default function AdminPage() {
                                                 ))}
                                                 {games.length === 0 && (
                                                     <tr>
-                                                        <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#666' }}>
+                                                        <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#666' }}>
                                                             등록된 게임이 없습니다.
                                                         </td>
                                                     </tr>

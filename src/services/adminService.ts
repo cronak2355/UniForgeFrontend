@@ -117,6 +117,12 @@ class AdminService {
         });
     }
 
+
+    async deleteGames(gameIds: string[]): Promise<void> {
+        // Since backend doesn't support batch delete yet, we run parallel requests
+        await Promise.all(gameIds.map(id => this.deleteGame(id)));
+    }
+
     async deleteAllGames(): Promise<void> {
         return apiClient.request('/games/all', {
             method: 'DELETE'
