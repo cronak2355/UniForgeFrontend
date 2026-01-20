@@ -8,19 +8,50 @@ function getEntityVariables(ctx: ActionContext): VariableEntry[] {
     return entities?.get(ctx.entityId)?.variables ?? [];
 }
 
-// Get variable value with support for "varName.x" or "varName.y" for vector2 variables
+// Helper to coerce values to boolean logic
+function coerceBool(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") return value.toLowerCase() === "true";
+    return Boolean(value);
+}
+
+// Get variable value with support for "varName.x" or "varName.y" and RuntimeContext
 function getVariableValue(ctx: ActionContext, name: string): unknown {
+    const gameCore = ctx.globals?.gameCore as any;
+
     // Support "varName.x" or "varName.y" for vector2 variables
     if (name.endsWith(".x") || name.endsWith(".y")) {
         const baseName = name.slice(0, -2);
         const axis = name.slice(-1) as "x" | "y";
-        const variable = getEntityVariables(ctx).find((v) => v.name === baseName);
-        if (variable?.value && typeof variable.value === "object" && axis in (variable.value as any)) {
-            return (variable.value as any)[axis];
+
+        let parentValue: unknown = undefined;
+
+        // 1. Try RuntimeContext
+        if (gameCore?.getRuntimeContext && ctx.entityId) {
+            parentValue = gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, baseName);
+        }
+
+        // 2. Fallback to initial state
+        if (parentValue === undefined) {
+            const variable = getEntityVariables(ctx).find((v) => v.name === baseName);
+            parentValue = variable?.value;
+        }
+
+        if (parentValue && typeof parentValue === "object" && axis in (parentValue as any)) {
+            return (parentValue as any)[axis];
         }
         return undefined;
     }
 
+    // Normal variable
+    // 1. Try RuntimeContext
+    if (gameCore?.getRuntimeContext && ctx.entityId) {
+        const val = gameCore.getRuntimeContext().getEntityVariable(ctx.entityId, name);
+        if (val !== undefined) return val;
+    }
+
+    // 2. Fallback
     const variable = getEntityVariables(ctx).find((v) => v.name === name);
     return variable?.value;
 }
@@ -159,6 +190,11 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
         return varX == expX && varY == expY;
     }
 
+    // Boolean comparison with coercion
+    if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
+        return coerceBool(value) === coerceBool(expectedValue);
+    }
+
     if (typeof value === "number") {
         return value == expectedValue;
     }
@@ -194,6 +230,11 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
         const expX = params.x !== undefined ? params.x : params.value;
         const expY = params.y !== undefined ? params.y : params.value;
         return varX != expX || varY != expY;
+    }
+
+    // Boolean comparison with coercion
+    if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
+        return coerceBool(value) !== coerceBool(expectedValue);
     }
 
     if (typeof value === "number") {
