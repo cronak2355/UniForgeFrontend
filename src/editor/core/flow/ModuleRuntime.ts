@@ -367,22 +367,88 @@ export class ModuleRuntime {
   }
 
   private evaluateCondition(instance: ModuleInstance, node: ModuleConditionNode): boolean {
-    const left = this.resolveValueInput(instance, node.id, "left", node.leftLiteral);
-    const right = this.resolveValueInput(instance, node.id, "right", node.rightLiteral);
+    const ctx = this.hooks.getActionContext(instance.entityId, 0); // dt is 0 for condition check usually
+    // Ensure module variables are available in context so resolveNamedValue works if checking entity vars
+    // But resolveNamedValue is internal.
+    // We need to resolve left/right values first for Var* conditions.
+
+    // Helper to resolve a variable name to its value (from Module or Entity)
+    const resolveVar = (name?: string) => name ? this.resolveNamedValue(instance, name) : undefined;
+
+    // Resolve Left/Right for Var* conditions
+    const leftFallback = (node.leftVariable ? resolveVar(node.leftVariable) : node.leftLiteral) ?? null;
+    const left = this.resolveValueInput(instance, node.id, "left", leftFallback);
+
+    const rightFallback = (node.rightVariable ? resolveVar(node.rightVariable) : node.rightLiteral) ?? null;
+    const right = this.resolveValueInput(instance, node.id, "right", rightFallback);
 
     switch (node.condition) {
       case "IfVariableEquals":
-        return left === right;
+      case "VarEquals":
+        return left == right; // loose equality for parity
+      case "VarNotEquals":
+        return left != right;
       case "IfVariableGreaterThan":
+      case "VarGreaterThan":
         return Number(left ?? 0) > Number(right ?? 0);
+      case "VarGreaterOrEqual":
+        return Number(left ?? 0) >= Number(right ?? 0);
       case "IfVariableLessThan":
+      case "VarLessThan":
         return Number(left ?? 0) < Number(right ?? 0);
+      case "VarLessOrEqual":
+        return Number(left ?? 0) <= Number(right ?? 0);
+
       case "IfVariableChanged": {
         const key = `${node.id}:left`;
         const prev = instance.valueSnapshots.get(key);
         instance.valueSnapshots.set(key, left ?? null);
         return prev !== undefined && prev !== left;
       }
+
+      // -- Input Conditions --
+      case "InputKey": {
+        const key = node.key ?? "";
+        if (!key) return false;
+        // Check input from context
+        if (ctx.input?.keys?.[key] === true) return true;
+        // Check legacy mapping if needed (simplified here)
+        return false;
+      }
+      case "InputDown": {
+        const key = node.key ?? "";
+        if (!key) return false;
+        return ctx.input?.keysDown?.[key] === true;
+      }
+
+      // -- Tag / Signal --
+      case "CompareTag": {
+        const targetTag = node.tag ?? "";
+        if (!targetTag) return false;
+        // Tag comparison logic relies on event data which might not be present in a simple polling condition
+        // Unless this module flow was triggered by an Event.
+        // If triggered by event, ctx.eventData should be populated.
+        const eventData = ctx.eventData as any;
+        if (eventData) {
+          if (eventData.tag === targetTag) return true;
+          if (eventData.otherTag === targetTag) return true;
+        }
+        return false;
+      }
+
+      case "SignalKeyEquals": {
+        const expected = node.signalKey ?? node.key ?? "";
+        if (!expected) return true;
+        return ctx.eventData?.signal === expected;
+      }
+
+      // -- Status --
+      case "IsGrounded":
+        return ctx.entityContext?.collisions.grounded === true;
+      case "IsAlive":
+        const hp = this.resolveNamedValue(instance, "hp");
+        return Number(hp ?? 0) > 0;
+
       default:
         return false;
     }

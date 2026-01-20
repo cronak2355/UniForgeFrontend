@@ -75,13 +75,22 @@ export function ModuleGraphEditor({
   const [newVarX, setNewVarX] = useState("0");
   const [newVarY, setNewVarY] = useState("0");
   const moduleVariables = module.variables ?? [];
-  const combinedVariables = useMemo(() => {
-    const moduleVars = moduleVariables.map((v) => ({
-      id: v.id,
-      name: v.name,
-      type: v.type,
-      value: v.value,
-    }));
+  const combinedVariables = useMemo<EditorVariable[]>(() => {
+    const moduleVars = moduleVariables.map((v) => {
+      let safeValue = v.value;
+      if (safeValue === null || safeValue === undefined) {
+        if (v.type === 'vector2') safeValue = { x: 0, y: 0 };
+        else if (v.type === 'int' || v.type === 'float') safeValue = 0;
+        else if (v.type === 'bool') safeValue = false;
+        else safeValue = "";
+      }
+      return {
+        id: v.id,
+        name: v.name,
+        type: v.type,
+        value: safeValue as EditorVariable['value'],
+      };
+    });
     const moduleNames = new Set(moduleVars.map((v) => v.name));
     const entityOnly = variables.filter((v) => !moduleNames.has(v.name));
     return [...moduleVars, ...entityOnly];
@@ -337,8 +346,6 @@ export function ModuleGraphEditor({
         return {
           inputs: [
             { id: "in", label: "in", kind: "flow", dir: "in", offsetY: 24 },
-            { id: "left", label: "left", kind: "value", dir: "in", offsetY: 60 },
-            { id: "right", label: "right", kind: "value", dir: "in", offsetY: 90 },
           ],
           outputs: [
             { id: "true", label: "true", kind: "flow", dir: "out", offsetY: 52 },
@@ -621,6 +628,7 @@ export function ModuleGraphEditor({
                 {node.kind === "Condition" && (
                   <ConditionNodeEditor
                     node={node}
+                    variables={combinedVariables}
                     hasValueEdge={(portId) => hasValueEdge(node.id, portId)}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                   />
@@ -707,7 +715,7 @@ function FlowNodeEditor({
   onUpdate: (patch: Partial<ModuleFlowNode>) => void;
 }) {
   const selectedAction = node.blockType || availableActions[0] || "";
-  const action = useMemo(() => ({ type: selectedAction, ...(node.params ?? {}) }), [selectedAction, node.params]);
+  const action = useMemo(() => ({ type: selectedAction, ...(node.params ?? {}) } as { type: string;[key: string]: unknown }), [selectedAction, node.params]);
 
   useEffect(() => {
     if (node.blockType === "Wait" && node.params?.seconds === undefined) {
@@ -729,7 +737,7 @@ function FlowNodeEditor({
         onUpdate={(next) => {
           const { type, ...params } = next;
           const nextFlowType = type === "Wait" ? "Async" : "Instant";
-          onUpdate({ blockType: type, flowType: nextFlowType, params });
+          onUpdate({ blockType: type, flowType: nextFlowType, params: params as Record<string, ModuleLiteral> });
         }}
         onRemove={() => undefined}
         showRemove={false}
@@ -738,54 +746,232 @@ function FlowNodeEditor({
   );
 }
 
+// Define matched condition types for dropdown
+const AVAILABLE_CONDITIONS: { value: string; label: string }[] = [
+  { value: "VarEquals", label: "== (Equals)" },
+  { value: "VarNotEquals", label: "!= (Not Equals)" },
+  { value: "VarGreaterThan", label: "> (Greater)" },
+  { value: "VarLessThan", label: "< (Less)" },
+  { value: "VarGreaterOrEqual", label: ">= (GreaterOrEqual)" },
+  { value: "VarLessOrEqual", label: "<= (LessOrEqual)" },
+  { value: "IfVariableChanged", label: "Changed" },
+  { value: "InputKey", label: "Input Key" },
+  { value: "InputDown", label: "Input Down" },
+  { value: "CompareTag", label: "Compare Tag" },
+  { value: "SignalKeyEquals", label: "Signal Key" },
+  { value: "IsGrounded", label: "Is Grounded" },
+  { value: "IsAlive", label: "Is Alive" },
+];
+
+const INPUT_KEY_OPTIONS = [
+  { label: "Left / A", value: "KeyA" },
+  { label: "Right / D", value: "KeyD" },
+  { label: "Up / W", value: "KeyW" },
+  { label: "Down / S", value: "KeyS" },
+  { label: "Space", value: "Space" },
+  { label: "Enter", value: "Enter" },
+  { label: "Z (Interact)", value: "KeyZ" },
+  { label: "ArrowLeft", value: "ArrowLeft" },
+  { label: "ArrowRight", value: "ArrowRight" },
+  { label: "ArrowUp", value: "ArrowUp" },
+  { label: "ArrowDown", value: "ArrowDown" },
+];
+
 function ConditionNodeEditor({
   node,
+  variables,
   hasValueEdge,
   onUpdate,
 }: {
   node: ModuleConditionNode;
+  variables: EditorVariable[];
   hasValueEdge: (portId: string) => boolean;
   onUpdate: (patch: Partial<ModuleConditionNode>) => void;
 }) {
-  const rightDisabled = node.condition === "IfVariableChanged" || hasValueEdge("right");
-  const leftDisabled = hasValueEdge("left");
+  const isInputCondition = node.condition === "InputKey" || node.condition === "InputDown";
+  const isSignalKeyCondition = node.condition === "SignalKeyEquals";
+  const isValueFreeCondition = isInputCondition || isSignalKeyCondition || node.condition === "IsGrounded" || node.condition === "IsAlive" || node.condition === "CompareTag";
+
+  // Style mimicking Component Inspector row but stacked for Node width
+  const rowStyle: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    width: "100%",
+  };
+
+  const smallSelectStyle: CSSProperties = {
+    ...selectStyle,
+    width: "100%",
+    padding: "4px",
+    fontSize: 11
+  };
+
+  const inputStyleCompact: CSSProperties = {
+    ...inputStyle,
+    width: "100%",
+    padding: "4px",
+    fontSize: 11
+  };
+
+  // Helper for rendering variable dropdowns
+  const renderVarSelect = (
+    currentValue: string | undefined,
+    onChange: (val: string) => void,
+    placeholder = "(Select Variable)",
+    disabled = false
+  ) => (
+    <select
+      value={currentValue ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ ...smallSelectStyle, opacity: disabled ? 0.6 : 1 }}
+      disabled={disabled}
+    >
+      <option value="">{placeholder}</option>
+      {variables.flatMap((v) => {
+        if (v.type === "vector2") {
+          return [
+            <option key={v.id} value={v.name}>{v.name} (vector2)</option>,
+            <option key={`${v.id}.x`} value={`${v.name}.x`}>{v.name}.x</option>,
+            <option key={`${v.id}.y`} value={`${v.name}.y`}>{v.name}.y</option>,
+          ];
+        }
+        return [<option key={v.id} value={v.name}>{v.name}</option>];
+      })}
+    </select>
+  );
+
+  const selectedVar = variables.find(v => v.name === node.leftVariable);
+
   return (
-    <>
-      <label style={labelStyle}>Condition</label>
-      <select
-        value={node.condition}
-        onChange={(e) => onUpdate({ condition: e.target.value as ModuleConditionNode["condition"] })}
-        style={selectStyle}
-      >
-        {Object.entries(CONDITION_LABELS).map(([key, label]) => (
-          <option key={key} value={key}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <label style={labelStyle}>
-        left
-        <input
-          type="number"
-          value={node.leftLiteral ?? 0}
-          disabled={leftDisabled}
-          onChange={(e) => onUpdate({ leftLiteral: Number(e.target.value) })}
-          style={{ ...inputStyle, opacity: leftDisabled ? 0.6 : 1 }}
-        />
-      </label>
-      {node.condition !== "IfVariableChanged" && (
-        <label style={labelStyle}>
-          right
-          <input
-            type="number"
-            value={node.rightLiteral ?? 0}
-            disabled={rightDisabled}
-            onChange={(e) => onUpdate({ rightLiteral: Number(e.target.value) })}
-            style={{ ...inputStyle, opacity: rightDisabled ? 0.6 : 1 }}
-          />
-        </label>
-      )}
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: "100%" }}>
+      {/* Container with column layout */}
+      <div style={rowStyle}>
+
+        {/* Left Operand (Variable) - Hidden for Input/Tag/etc */}
+        {!isValueFreeCondition && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>Variable</span>
+            {renderVarSelect(node.leftVariable, (v) => onUpdate({ leftVariable: v }), "(Select Variable)")}
+          </div>
+        )}
+
+        {/* Condition Type */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 10, color: colors.textSecondary }}>Condition</span>
+          <select
+            value={node.condition}
+            onChange={(e) => {
+              const nextType = e.target.value as ModuleConditionType;
+              const patch: Partial<ModuleConditionNode> = { condition: nextType };
+              if ((nextType === "InputKey" || nextType === "InputDown") && !node.key) {
+                patch.key = "KeyA";
+              }
+              onUpdate(patch);
+            }}
+            style={smallSelectStyle}
+          >
+            {AVAILABLE_CONDITIONS.map((op) => (
+              <option key={op.value} value={op.value}>
+                {op.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Right Operand - Context Sensitive */}
+
+        {isInputCondition && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>Key</span>
+            <select
+              value={node.key || "KeyA"}
+              onChange={(e) => onUpdate({ key: e.target.value })}
+              style={smallSelectStyle}
+            >
+              {INPUT_KEY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {node.condition === "CompareTag" && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>Tag</span>
+            <input
+              type="text"
+              placeholder="Tag"
+              value={node.tag || ""}
+              onChange={(e) => onUpdate({ tag: e.target.value })}
+              style={inputStyleCompact}
+            />
+          </div>
+        )}
+
+        {isSignalKeyCondition && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>Signal Key</span>
+            <input
+              type="text"
+              placeholder="Signal Key"
+              value={node.signalKey || ""}
+              onChange={(e) => onUpdate({ signalKey: e.target.value })}
+              style={inputStyleCompact}
+            />
+          </div>
+        )}
+
+        {/* Standard Comparison (Right Value) */}
+        {!isValueFreeCondition && node.condition !== "IfVariableChanged" && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>Target Value</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {/* Toggle Button for Var/Value */}
+              <div
+                onClick={() => onUpdate({ rightVariable: node.rightVariable ? undefined : variables[0]?.name })}
+                style={{
+                  fontSize: 10,
+                  cursor: "pointer",
+                  color: node.rightVariable ? colors.accent : colors.textDim,
+                  border: `1px solid ${colors.border}`,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: node.rightVariable ? colors.accentVariables : "transparent"
+                }}
+                title="Toggle Variable/Value"
+              >
+                {node.rightVariable ? "Var" : "Val"}
+              </div>
+
+              {selectedVar?.type === "bool" && !node.rightVariable ? (
+                <select
+                  value={String(node.rightLiteral) === "true" || node.rightLiteral === true ? "true" : "false"}
+                  onChange={(e) => onUpdate({ rightLiteral: e.target.value === "true" })}
+                  style={smallSelectStyle}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              ) : node.rightVariable ? (
+                renderVarSelect(node.rightVariable, (v) => onUpdate({ rightVariable: v }), "(var)")
+              ) : (
+                <input
+                  type={selectedVar?.type === "string" ? "text" : "number"}
+                  value={String(node.rightLiteral ?? "")}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onUpdate({ rightLiteral: selectedVar?.type === "string" ? val : Number(val) });
+                  }}
+                  style={{ ...inputStyleCompact, flex: 1 }}
+                  placeholder="Value"
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

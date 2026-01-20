@@ -1348,6 +1348,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         const currentAssets = Array.from(core.getAssets());
                                         core.setAssets(currentAssets.filter(a => a.id !== asset.id));
                                     }}
+                                    onDeleteModule={(module) => {
+                                        core.removeModule(module.id);
+                                    }}
                                 />
                             )}
                         </div>
