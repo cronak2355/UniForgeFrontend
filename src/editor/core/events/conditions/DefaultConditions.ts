@@ -167,13 +167,57 @@ ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<str
     return distance > range;
 });
 
+ConditionRegistry.register("DistanceLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < limit;
+});
+
+ConditionRegistry.register("DistanceGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance > limit;
+});
+
 // --- Variable Conditions ---
 
 ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return false;
+    // if (value === undefined) return false; // [Modified] Allow undefined to flow down for boolean coercion (undefined == false)
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -192,7 +236,10 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) === coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        // console.log(`[VarEquals] ${varName} (${value}) vs ${expectedValue} -> ${boolVal} == ${boolExp}?`);
+        return boolVal === boolExp;
     }
 
     if (typeof value === "number") {
@@ -215,7 +262,7 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return true; // Variable doesn't exist = not equal
+    // if (value === undefined) return true; // [Modified] Allow undefined to flow down for boolean coercion
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -234,7 +281,9 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) !== coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        return boolVal !== boolExp;
     }
 
     if (typeof value === "number") {

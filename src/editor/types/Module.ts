@@ -8,7 +8,21 @@ export type ModuleConditionType =
   | "IfVariableEquals"
   | "IfVariableGreaterThan"
   | "IfVariableLessThan"
-  | "IfVariableChanged";
+  | "IfVariableChanged"
+  | "InputKey"
+  | "InputDown"
+  | "CompareTag"
+  | "SignalKeyEquals"
+  | "IsGrounded"
+  | "IsAlive"
+  | "VarEquals"
+  | "VarGreaterThan"
+  | "VarLessThan"
+  | "VarNotEquals"
+  | "VarGreaterOrEqual"
+  | "VarLessOrEqual"
+  | "DistanceLessThan"
+  | "DistanceGreaterThan";
 
 export type ModuleNodeKind =
   | "Entry"
@@ -53,6 +67,11 @@ export interface ModuleConditionNode extends ModuleNodeBase {
   condition: ModuleConditionType;
   leftLiteral: ModuleLiteral;
   rightLiteral: ModuleLiteral;
+  leftVariable?: string;
+  rightVariable?: string;
+  key?: string;
+  tag?: string;
+  signalKey?: string;
 }
 
 export interface ModuleSwitchCase {
