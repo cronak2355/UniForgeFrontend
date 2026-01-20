@@ -228,7 +228,7 @@ export async function generateBaseFrame(
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
   const translatedDesc = await translatePromptAsync(characterDescription);
-  const prompt = `${translatedDesc}, standing pose, neutral stance, front view, full body, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
+  const prompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedDesc}, standing pose, neutral stance, front view, full body, centered, (game asset sprite:1.2), pixel art, game asset, single character, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
@@ -319,14 +319,14 @@ export async function generateSingleImage(
   console.log(`[AnimationService] Translated Prompt: "${translatedPrompt}"`);
 
   // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
-  // FULL BODY를 가장 앞에 강하게 배치
-  const enhancedPrompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), ${translatedPrompt}, pixel art style, solo, single isolated subject, centered, (white background:1.3), simple background`;
+  // FULL BODY, VISIBLE FEET, GROUND를 강하게 배치하여 모델이 잘라내지 않도록 유도
+  const enhancedPrompt = `(full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedPrompt}, (game asset sprite:1.2), pixel art style, solo, single isolated subject, centered, (white background:1.3), simple background`;
 
   console.log(`[AnimationService] Final Prompt to SageMaker: "${enhancedPrompt}"`);
 
   const response = await SagemakerService.generateAsset({
     prompt: enhancedPrompt,
-    negative_prompt: NEGATIVE_KEYWORDS + ", chopped off, cropped, close up, portrait, face only, bust shot",
+    negative_prompt: NEGATIVE_KEYWORDS + ", chopped off, cropped, close up, portrait, face only, bust shot, partial body, head only, torso only, out of frame, feet out of frame, cut off",
     asset_type: assetType,
     width: 512,  // Force 512
     height: 512, // Force 512
