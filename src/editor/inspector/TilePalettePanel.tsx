@@ -16,19 +16,12 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
     const [tileAssets, setTileAssets] = useState<Asset[]>([]);
 
     useEffect(() => {
-        const filtered = assets.filter(a => a.tag === "Tile");
+        // [Logic Fix] Case-insensitive matching for "Tile" tag
+        const filtered = assets.filter(a => a.tag?.toLowerCase() === "tile");
         console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`);
 
-        // Deep comparison to avoid re-renders if assets didn't change
-        const prev = JSON.stringify(tileAssets.map(a => a.id));
-        const next = JSON.stringify(filtered.map(a => a.id));
-
-        if (prev !== next) {
-            console.log("[TilePalettePanel] Tile assets changed. Updating state.");
-            setTileAssets(filtered);
-        } else {
-            console.log("[TilePalettePanel] No change in tile assets detected.");
-        }
+        // Always update state when assets prop changes to ensure sync
+        setTileAssets(filtered);
     }, [assets]); // assets array reference changes often, but contents might be same
 
     useEffect(() => {

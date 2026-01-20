@@ -1652,7 +1652,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                             tag: libItem.assetType || "Character",
                             name: libItem.title,
                             url: libItem.thumbnail, // Use the image URL
-                            idx: 0, // Default index
+                            idx: -1, // [Fix] Use -1 to trigger auto-indexing in EditorCore (was hardcoded 0)
                             metadata: libItem.metadata, // Pass the parsed metadata!
                             description: libItem.description // Pass description for recovery
                         };
