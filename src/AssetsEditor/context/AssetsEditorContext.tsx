@@ -830,18 +830,57 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
         blob = input;
       }
 
-      const imageBitmap = await createImageBitmap(blob);
-      setOriginalAIImage(imageBitmap);
-      setFeatherAmount(0);
+      // Convert to Image Element for Floating Mode
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.src = url;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
 
-      await processAndApplyImage(imageBitmap, 0);
+      // Maintain Aspect Ratio & Center
+      const resolution = pixelSize;
+      const aspectRatio = img.width / img.height;
+      let width = img.width;
+      let height = img.height;
+
+      // Fit logic
+      if (width > resolution || height > resolution) {
+        if (width > height) {
+          width = resolution;
+          height = width / aspectRatio;
+        } else {
+          height = resolution;
+          width = height * aspectRatio;
+        }
+      }
+
+      // Center logic
+      const x = (resolution - width) / 2;
+      const y = (resolution - height) / 2;
+
+      setFloatingImage({
+        element: img,
+        src: url,
+        x,
+        y,
+        width,
+        height,
+        aspectRatio
+      });
+
+      // Clear original reference as we are now in floating mode
+      setOriginalAIImage(null);
+      setFeatherAmount(0);
 
     } catch (e) {
       console.error("Failed to load/process AI image", e);
+      alert("이미지 로드 실패");
     } finally {
       setIsLoading(false);
     }
-  }, [processAndApplyImage]);
+  }, [pixelSize]);
 
   const applyImageData = useCallback((imageData: ImageData) => {
     if (!engineRef.current) return;
