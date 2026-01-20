@@ -19,6 +19,7 @@ export default function AdminPage() {
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('');
+    const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
 
     useEffect(() => {
         loadData();
@@ -39,7 +40,6 @@ export default function AdminPage() {
                 setAssets(assetsData);
             } else if (activeTab === 'games') {
                 const gamesData = await adminService.getGames();
-                // Client-side search filtering for now as API might not support it yet
                 const filtered = searchTerm
                     ? gamesData.filter(g => g.title.toLowerCase().includes(searchTerm.toLowerCase()))
                     : gamesData;
@@ -120,6 +120,36 @@ export default function AdminPage() {
 
     const handleSearch = () => {
         loadData();
+    };
+
+    const handleSelectGame = (gameId: string) => {
+        setSelectedGameIds(prev =>
+            prev.includes(gameId)
+                ? prev.filter(id => id !== gameId)
+                : [...prev, gameId]
+        );
+    };
+
+    const handleSelectAllGames = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedGameIds(games.map(g => g.gameId));
+        } else {
+            setSelectedGameIds([]);
+        }
+    };
+
+    const handleDeleteSelectedGames = async () => {
+        if (selectedGameIds.length === 0) return;
+        if (!confirm(`선택한 ${selectedGameIds.length}개의 게임을 삭제하시겠습니까?`)) return;
+
+        try {
+            await adminService.deleteGames(selectedGameIds);
+            alert('선택한 게임이 삭제되었습니다.');
+            setSelectedGameIds([]);
+            loadData();
+        } catch (e: any) {
+            alert('일괄 삭제 실패: ' + e.message);
+        }
     };
 
     return (
@@ -490,6 +520,165 @@ export default function AdminPage() {
                                             준비 중인 기능
                                         </h2>
                                         <p style={{ color: '#666' }}>추가적인 시스템 관리 도구가 여기에 표시됩니다.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Games Tab */}
+                            {activeTab === 'games' && (
+                                <div>
+                                    <h1 style={{ fontSize: '1.8rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center' }}>
+                                        <i className="fa-solid fa-gamepad" style={{ marginRight: '12px', color: '#f59e0b' }}></i>
+                                        게임 관리
+                                        <button
+                                            onClick={handleDeleteAllGames}
+                                            style={{
+                                                marginLeft: 'auto',
+                                                padding: '8px 16px',
+                                                backgroundColor: '#ef4444',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'white',
+                                                fontSize: '0.9rem',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }}></i>
+                                            게임 전체 삭제
+                                        </button>
+                                        {selectedGameIds.length > 0 && (
+                                            <button
+                                                onClick={handleDeleteSelectedGames}
+                                                style={{
+                                                    marginLeft: '12px',
+                                                    padding: '8px 16px',
+                                                    backgroundColor: '#dc2626',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    color: 'white',
+                                                    fontSize: '0.9rem',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                <i className="fa-solid fa-trash-check" style={{ marginRight: '8px' }}></i>
+                                                선택 삭제 ({selectedGameIds.length})
+                                            </button>
+                                        )}
+                                    </h1>
+
+                                    {/* Search Bar */}
+                                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="게임 제목 검색..."
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                                            style={{
+                                                flex: 1, padding: '10px 16px', backgroundColor: '#111',
+                                                border: '1px solid #333', borderRadius: '8px', color: 'white'
+                                            }}
+                                        />
+                                        <button onClick={handleSearch} style={{
+                                            padding: '10px 20px', backgroundColor: '#2563eb', border: 'none',
+                                            borderRadius: '8px', color: 'white', cursor: 'pointer'
+                                        }}>검색</button>
+                                    </div>
+
+                                    {/* Games Table */}
+                                    <div style={{ backgroundColor: '#0a0a0a', borderRadius: '12px', border: '1px solid #222', overflow: 'hidden' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid #222' }}>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', width: '40px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={games.length > 0 && selectedGameIds.length === games.length}
+                                                            onChange={handleSelectAllGames}
+                                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                        />
+                                                    </th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>게임명</th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#888' }}>작성자 ID</th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>상태</th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>생성일</th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#888' }}>작업</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {games.map(g => (
+                                                    <tr key={g.gameId} style={{ borderBottom: '1px solid #1a1a1a' }}>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedGameIds.includes(g.gameId)}
+                                                                onChange={() => handleSelectGame(g.gameId)}
+                                                                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <div style={{
+                                                                width: '64px', height: '36px', borderRadius: '6px',
+                                                                backgroundColor: '#222', overflow: 'hidden', position: 'relative'
+                                                            }}>
+                                                                {g.thumbnailUrl ? (
+                                                                    <img
+                                                                        src={getCloudFrontUrl(g.thumbnailUrl)}
+                                                                        alt=""
+                                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                        onError={e => (e.target as HTMLImageElement).src = 'https://placehold.co/64x36/1a1a1a/666?text=No+Img'}
+                                                                    />
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666', fontSize: '0.8rem' }}>
+                                                                        <i className="fa-solid fa-gamepad"></i>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span style={{ fontWeight: 500 }}>{g.title}</span>
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', color: '#888', fontSize: '0.9rem' }}>
+                                                            {g.authorId.substring(0, 8)}...
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            <span style={{
+                                                                color: g.isPublic ? '#10b981' : '#888',
+                                                                border: `1px solid ${g.isPublic ? 'rgba(16, 185, 129, 0.3)' : 'rgba(136, 136, 136, 0.3)'}`,
+                                                                padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem'
+                                                            }}>
+                                                                {g.isPublic ? 'Public' : 'Private'}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#888', fontSize: '0.9rem' }}>
+                                                            {g.createdAt ? new Date(g.createdAt).toLocaleDateString() : '-'}
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            <button
+                                                                onClick={() => handleDeleteGame(g.gameId, g.title)}
+                                                                style={{
+                                                                    padding: '6px 12px', fontSize: '0.8rem', border: 'none',
+                                                                    backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444',
+                                                                    borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s'
+                                                                }}
+                                                                onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.3)'}
+                                                                onMouseOut={e => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.2)'}
+                                                            >
+                                                                <i className="fa-solid fa-trash" style={{ marginRight: '6px' }}></i>
+                                                                삭제
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {games.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#666' }}>
+                                                            등록된 게임이 없습니다.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}

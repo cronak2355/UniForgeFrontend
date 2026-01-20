@@ -347,10 +347,19 @@ export class GameCore {
             this.renderer.setScale(id, entity.scaleX, entity.scaleY, entity.scaleZ);
         }
 
-        // 2. Physics Reg (Immediate) - Skip for cameras and global entities
+        // 2. Physics Reg (Immediate) - Skip for cameras, global entities, and UI
         const isCamera = entity.name?.toLowerCase().includes("camera");
         const isGlobalEntity = id.startsWith("global-");
-        if (!isCamera && !isGlobalEntity) {
+
+        // [FIX] Skip Physics for UI Entities to prevent collision conflicts using checking IS_UI variable
+        const isUI = options.variables?.some(v => v.name === "isUI" && (v.value === true || String(v.value) === "true"));
+        const uiType = options.variables?.find(v => v.name === "uiType")?.value;
+        const hasUIText = options.variables?.some(v => v.name === "uiText");
+
+        // Broaden known types (added 'image') and consider ANY valid uiType string as potential UI
+        const isKnownUIType = typeof uiType === "string" && ["button", "text", "panel", "scrollPanel", "bar", "image"].includes(uiType);
+
+        if (!isCamera && !isGlobalEntity && !isUI && !isKnownUIType && !hasUIText) {
             const baseWidth = options.width ?? 40;
             const baseHeight = options.height ?? 40;
             // [FIX] Use first tag from tags array, fallback to type
