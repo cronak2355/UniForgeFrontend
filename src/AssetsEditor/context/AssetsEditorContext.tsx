@@ -124,6 +124,12 @@ export interface AssetsEditorContextType {
   loadAsset: (id: string) => Promise<void>;
   triggerBackgroundRemoval: () => void;
 
+  // Floating Image (Free Transform)
+  floatingImage: FloatingImage | null;
+  setFloatingImage: (image: FloatingImage | null) => void;
+  confirmFloatingImage: () => void;
+  cancelFloatingImage: () => void;
+
   // Animation Management (Refactored)
   animationMap: Record<string, AnimationData>;
   activeAnimationName: string;
@@ -140,6 +146,16 @@ export interface AssetsEditorContextType {
 }
 
 export type Tool = 'brush' | 'eraser' | 'eyedropper' | 'fill';
+
+export interface FloatingImage {
+  element: HTMLImageElement;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  aspectRatio: number;
+}
 
 interface Asset {
   id: string;
@@ -458,6 +474,9 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [executeToolAt]);
+
+  // Floating Image State
+  const [floatingImage, setFloatingImage] = useState<FloatingImage | null>(null);
 
   // ==================== Pointer Events ====================
 
@@ -829,70 +848,79 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     return tempCanvas;
   }, [pixelSize]);
 
-  // ==================== Local File Import ====================
+  // ==================== Import / Export ====================
 
-  const importLocalImage = useCallback(async (file: File) => {
-    if (!engineRef.current) return;
+  const confirmFloatingImage = () => {
+    if (!floatingImage || !engineRef.current) return;
 
-    setIsLoading(true);
+    engineRef.current.drawImage(
+      floatingImage.element,
+      Math.round(floatingImage.x),
+      Math.round(floatingImage.y),
+      Math.round(floatingImage.width),
+      Math.round(floatingImage.height)
+    );
+    updateHistoryState();
+    syncFrameState();
+    setHasUnsavedChanges(true);
+    setFloatingImage(null);
+  };
+
+  const cancelFloatingImage = () => {
+    setFloatingImage(null);
+  };
+
+  const importLocalImage = async (file: File) => {
     try {
-      const slicingResult = await detectAndSliceSpritesheet(file, pixelSize);
+      if (!engineRef.current) return;
 
-      if (slicingResult.isSpriteSheet && slicingResult.frameCount > 1) {
-        const confirmed = window.confirm(
-          `Detected ${slicingResult.frameCount} frames in this sprite sheet. ` +
-          `Import all frames? (Cancel to import as single image)`
-        );
+      // 1. Create Image Element to read dimensions
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = url;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
 
-        if (confirmed) {
-          // Import all frames
-          engineRef.current.clearAllFrames();
+      // 2. Initial Fit Logic (Center and Fit within Resolution)
+      const resolution = engineRef.current.getResolution();
+      const aspectRatio = img.width / img.height;
 
-          for (let i = 0; i < slicingResult.frames.length; i++) {
-            if (i === 0) {
-              const firstFrame = engineRef.current.getAllFrames()[0];
-              if (firstFrame) {
-                firstFrame.data.set(slicingResult.frames[i].data);
-              }
-            } else {
-              const newFrame = engineRef.current.addFrame();
-              if (newFrame) {
-                await new Promise(r => setTimeout(r, 30));
-                engineRef.current.selectFrame(i);
-                newFrame.data.set(slicingResult.frames[i].data);
-              }
-            }
-          }
+      let width = img.width;
+      let height = img.height;
 
-          engineRef.current.selectFrame(0);
-          syncFrameState();
-          updateHistoryState();
-          setHasUnsavedChanges(true);
-          setIsLoading(false);
-          return;
+      // If image is larger than canvas, scale down to fit
+      if (width > resolution || height > resolution) {
+        if (width > height) {
+          width = resolution;
+          height = width / aspectRatio;
+        } else {
+          height = resolution;
+          width = height * aspectRatio;
         }
       }
 
-      // Single frame import (or user cancelled) - Import into CURRENT frame
-      const currentIdx = engineRef.current.getCurrentFrameIndex();
-      const frames = engineRef.current.getAllFrames();
-      const targetFrame = frames[currentIdx];
+      // Center
+      const x = (resolution - width) / 2;
+      const y = (resolution - height) / 2;
 
-      if (targetFrame && slicingResult.frames[0]) {
-        targetFrame.data.set(slicingResult.frames[0].data);
-      }
-
-      syncFrameState();
-      updateHistoryState();
-      setHasUnsavedChanges(true);
+      // 3. Set Floating Image State
+      setFloatingImage({
+        element: img,
+        src: url,
+        x,
+        y,
+        width,
+        height,
+        aspectRatio
+      });
 
     } catch (e) {
-      console.error("Failed to import local image:", e);
-      alert("Failed to import image: " + (e as Error).message);
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to load image for import', e);
+      alert('Failed to load image.');
     }
-  }, [pixelSize, syncFrameState, updateHistoryState]);
+  };
 
   const loadAssetForEditing = useCallback(async (assetId: string) => {
     setIsLoading(true);
@@ -1302,6 +1330,10 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     deleteAsset,
     loadAsset,
     triggerBackgroundRemoval,
+    floatingImage,
+    setFloatingImage,
+    confirmFloatingImage,
+    cancelFloatingImage,
     animationMap,
     activeAnimationName,
     setActiveAnimation,
