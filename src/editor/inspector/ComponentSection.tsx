@@ -52,7 +52,32 @@ export const ACTION_LABELS: Record<string, string> = {
     SpawnEntity: "엔티티 생성",
     SpawnIfClear: "스폰 (겹침방지)",
     PlayAnimation: "애니메이션 동작",
+    Enable: "활성화/비활성화",
+};
 
+// 액션 타입별 기본 파라미터
+export const DEFAULT_ACTION_PARAMS: Record<string, Record<string, unknown>> = {
+    Move: { x: 0, y: 0, speed: 100 },
+    Jump: { power: 300 },
+    Wait: { duration: 1 },
+    MoveToward: { targetX: 0, targetY: 0, speed: 100 },
+    Attack: { damage: 10, range: 50 },
+    TakeDamage: { amount: 10 },
+    SetVar: { variable: "", operation: "set", operand1: 0 },
+    ChangeScene: { sceneId: "" },
+    Rotate: { speed: 100 },
+    Pulse: { speed: 2, minScale: 0.9, maxScale: 1.1 },
+    ShowDialogue: { text: "", duration: 3 },
+    PlaySound: { sound: "" },
+    EmitEventSignal: { key: "", value: "" },
+    Disable: {},
+    Enable: { enabled: true },
+    PlayParticle: { particleType: "spark" },
+    If: { conditionType: "VarEquals", variable: "", value: "", then: [], else: [] },
+    RunModule: { moduleId: "" },
+    SpawnEntity: { prefabId: "", offsetX: 0, offsetY: 0 },
+    SpawnIfClear: { prefabId: "", offsetX: 0, offsetY: 0, checkRadius: 50 },
+    PlayAnimation: { animationName: "" },
 };
 
 export const CONDITION_TYPES = [
@@ -444,7 +469,7 @@ const RuleItem = memo(function RuleItem({
         const actionType = availableActions[0] || "Move";
         onUpdate({
             ...rule,
-            actions: [...rule.actions, { type: actionType }],
+            actions: [...rule.actions, { type: actionType, ...(DEFAULT_ACTION_PARAMS[actionType] || {}) }],
         });
     };
 
@@ -587,7 +612,7 @@ const RuleItem = memo(function RuleItem({
                                         const actionType = availableActions[0] || "Move";
                                         onUpdate({
                                             ...rule,
-                                            elseActions: [...(rule.elseActions || []), { type: actionType }],
+                                            elseActions: [...(rule.elseActions || []), { type: actionType, ...(DEFAULT_ACTION_PARAMS[actionType] || {}) }],
                                         });
                                     }}
                                     style={{
