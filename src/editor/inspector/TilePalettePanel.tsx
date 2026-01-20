@@ -59,6 +59,7 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         let loadedCount = 0;
         tileAssets.forEach((asset, idx) => {
             const img = new Image();
+            img.crossOrigin = "Anonymous";
             img.onload = () => {
                 const x = (idx % TILESET_COLS) * TILE_SIZE;
                 const y = Math.floor(idx / TILESET_COLS) * TILE_SIZE;
