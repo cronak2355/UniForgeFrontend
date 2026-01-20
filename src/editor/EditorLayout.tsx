@@ -435,6 +435,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     // Loading State
     const [isLoading, setIsLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState("초기화 중...");
+    const [isDraggingFile, setIsDraggingFile] = useState(false);
+    const dragCounterRef = useRef(0);
+
 
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
@@ -1047,15 +1050,89 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     */
 
     return (
-        <div style={{
-            width: '100vw',
-            height: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            background: colors.bgPrimary,
-            color: colors.textPrimary,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
-        }}>
+        <div
+            onDragEnterCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCounterRef.current++;
+                if (e.dataTransfer && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                    setIsDraggingFile(true);
+                }
+            }}
+            onDragLeaveCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCounterRef.current--;
+                if (dragCounterRef.current === 0) {
+                    setIsDraggingFile(false);
+                }
+            }}
+            onDragOverCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }}
+            onDropCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingFile(false);
+                dragCounterRef.current = 0;
+
+                if (isPlayMode) return;
+
+                const files = e.dataTransfer.files;
+                if (!files || files.length === 0) return;
+
+                // Support common image types
+                const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+                const validFiles: File[] = [];
+
+                for (let i = 0; i < files.length; i++) {
+                    if (allowedTypes.has(files[i].type)) {
+                        validFiles.push(files[i]);
+                    }
+                }
+
+                if (validFiles.length > 0) {
+                    setDropModalFiles(validFiles);
+                }
+            }}
+            style={{
+                width: '100vw',
+                height: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: colors.bgPrimary,
+                color: colors.textPrimary,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+                position: 'relative' // Ensure overlay is positioned relative to this
+            }}
+        >
+            {/* Full Screen Drag Overlay */}
+            {isDraggingFile && !isPlayMode && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 9999,
+                    background: 'rgba(59, 130, 246, 0.2)', // Blue tint
+                    backdropFilter: 'blur(4px)',
+                    border: '4px dashed #3b82f6',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'none', // Allow drop to pass through
+                    transition: 'all 0.2s'
+                }}>
+                    <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '64px', color: '#3b82f6', marginBottom: '24px', filter: 'drop-shadow(0 4px 12px rgba(59, 130, 246, 0.5))' }}></i>
+                    <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                        파일을 여기에 놓으세요 (Drop files here)
+                    </h2>
+                    <p style={{ fontSize: '16px', color: '#bfdbfe', marginTop: '8px' }}>
+                        에셋을 추가하려면 이미지를 드롭하세요.
+                    </p>
+                </div>
+            )}
+
             {/* ===== UNIFIED TOP BAR ===== */}
             {!isPlayMode && (
                 <div style={{
