@@ -220,8 +220,13 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         dirX /= len;
         dirY /= len;
 
-        gameObject.x += dirX * step;
-        gameObject.y += dirY * step;
+        // [FIX] Use ResolveCollision to prevent walking into walls
+        const nextX = gameObject.x + dirX * step;
+        const nextY = gameObject.y + dirY * step;
+        const resolved = collisionSystem.resolveCollision(entityId, nextX, nextY);
+
+        gameObject.x = resolved.x;
+        gameObject.y = resolved.y;
     }
 
     if (entity) {

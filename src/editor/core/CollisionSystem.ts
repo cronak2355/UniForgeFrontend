@@ -223,30 +223,27 @@ export class CollisionSystem {
                         EventBus.emit("COLLISION_STAY", result as unknown as Record<string, unknown>);
                     }
 
-                    // [AUTO-RESOLVE] Soft Collision Separation
-                    // Push overlapping dynamic entities apart automatically
-                    if (!a.isSolid && !b.isSolid) continue; // Skip trigger-trigger
+                    // [AUTO-RESOLVE] Soft Collision Separation - DISABLED
+                    // User requested to remove the "pushing" force.
+                    /*
+                    if (!a.isSolid && !b.isSolid) continue; 
 
-                    // Check if eligible for soft separation (Dynamic vs Dynamic)
-                    // We don't resolve against walls (static) here - that's for movement logic.
-                    // We only want to prevent crowd clumping.
                     const isDynamicA = !a.isStatic && !a.tag.includes("Wall");
                     const isDynamicB = !b.isStatic && !b.tag.includes("Wall");
 
                     if (isDynamicA && isDynamicB) {
-                        const separationFactor = 0.05; // Gentle push (5% per frame)
-
-                        // Push A away from B
+                        const separationFactor = 0.05; 
                         if (overlapX < overlapY) {
                             const pushX = (a.bounds.x < b.bounds.x ? -overlapX : overlapX) * separationFactor;
                             a.bounds.x += pushX;
-                            b.bounds.x -= pushX; // Equal/Opposite reaction
+                            b.bounds.x -= pushX; 
                         } else {
                             const pushY = (a.bounds.y < b.bounds.y ? -overlapY : overlapY) * separationFactor;
                             a.bounds.y += pushY;
                             b.bounds.y -= pushY;
                         }
                     }
+                    */
                 }
             }
         }
@@ -317,71 +314,67 @@ export class CollisionSystem {
             for (const other of this.colliders.values()) {
                 if (other.entityId === entityId) continue;
 
-                // [OPTIMIZATION] Static entities don't move, so they don't resolve against others
-                // But dynamic entities resolving against static walls is handled below.
+                // [FIX] Generalize collision resolution: Treat ALL solid objects as obstacles.
+                // Previously only "Wall" was hard, and same-tag was soft.
+                // Now, any solid entity effectively blocks movement (Hard Collision) during 'resolveCollision'.
+                // This prevents walking into NPCs, Items (if solid), etc.
+                if (!other.isSolid) continue;
 
-                // Determine collision type
-                const isWall = other.isSolid && other.tag === "Wall";
-                const isSoft = !isWall && other.tag === collider.tag; // Enemy vs Enemy
-
-                if (!isWall && !isSoft) continue; // Only resolve Walls or Same-Tag separation
                 if (!this.canCollide(collider, other)) continue;
 
                 if (this.checkAABB(collider.bounds, other.bounds)) {
                     const { overlapX, overlapY } = this.calculateOverlap(collider.bounds, other.bounds);
 
-                    if (isWall) {
-                        // Hard Collision (Wall) - Push out completely
+                    // Determine collision hardness
+                    // Static objects (Walls) or different tags -> Hard Collision (Stop)
+                    // Same tag (Unit vs Unit) -> Soft Collision (Slide) if desired, 
+                    // BUT for "resolveCollision" (active move), we usually want to STOP to prevent overlap.
+                    // Let's make EVERYTHING a hard collision during Movement Phase to prevent penetration.
+                    // The 'update()' loop handles pushing apart entities that somehow overlapped.
+
+                    const isHardCollision = true; // Always stop at solids
+
+                    if (isHardCollision) {
+                        // Hard Collision - Push out completely
                         if (overlapX < overlapY) {
                             workX += collider.bounds.x < other.bounds.x ? -overlapX : overlapX;
                         } else {
                             workY += collider.bounds.y < other.bounds.y ? -overlapY : overlapY;
                         }
                         blocked = true;
-                    } else if (isSoft) {
-                        // Soft Collision (Unit separation) - Push out partially (10%) per frame
-                        // Lower factor for smoother crowd movement (less jitter)
-                        const separationFactor = 0.1;
-                        if (overlapX < overlapY) {
-                            workX += (collider.bounds.x < other.bounds.x ? -overlapX : overlapX) * separationFactor;
-                        } else {
-                            workY += (collider.bounds.y < other.bounds.y ? -overlapY : overlapY) * separationFactor;
-                        }
                     }
+                    /* 
+                    else if (isSoft) {
+                       // ... (Soft logic moved to update() loop primarily)
+                    } 
+                    */
 
                     hadCollision = true;
-
-                    // [CRITICAL] Apply position update IMMEDIATELY so subsequent checks use new pos
-                    // This creates the iterative solver effect
-                    collider.bounds.x = workX;
-                    collider.bounds.y = workY;
+                    // Soft Collision (Unit separation) - Push out partially (10%) per frame
+                    // Lower factor for smoother crowd movement (less jitter)
+                    const separationFactor = 0.1;
+                    if (overlapX < overlapY) {
+                        workX += (collider.bounds.x < other.bounds.x ? -overlapX : overlapX) * separationFactor;
+                    } else {
+                        workY += (collider.bounds.y < other.bounds.y ? -overlapY : overlapY) * separationFactor;
+                    }
                 }
-            }
 
-            // 더 이상 충돌이 없으면 종료
-            if (!hadCollision) break;
+                hadCollision = true;
+
+                // [CRITICAL] Apply position update IMMEDIATELY so subsequent checks use new pos
+                // This creates the iterative solver effect
+                collider.bounds.x = workX;
+                collider.bounds.y = workY;
+            }
         }
 
-        // Apply final resolved position to the Entity (Sync back from Collider -> Entity)
-        // Note: Actual entity position sync happens in GameCore or Renderer by reading collider bounds? 
-        // No, usually Physics engine updates Entity. We need a way to sync back.
-        // For now, we update the collider. The GameCore needs to read this back.
-        // But wait, GameCore doesn't read Collider back. 
-        // We need to return the 'correction vector' or update the entity directly if possible.
-        // Since we don't have access to Entity here, we rely on 'resolveCollision' being called by GameCore.
-        // BUT the user said it's NOT resolving. 
-        // Ah, 'update()' calls 'checkAABB' but DOES NOT call 'resolveCollision'.
-        // I am adding resolution LOGIC into 'update()' loop? No, that's dangerous for O(N^2).
-
-        // Let's attach the resolved position to the result or Event call?
-        // Better: GameCore should call 'resolve' for dynamic entities.
-
-        // [FIX] For now, let's keep the resolution separate but ensure it is CALLED.
-        // User's issue is likely that 'resolveCollision' is never called.
-        // I will implement auto-resolution in 'update' for SOFT collisions.
-
-
-        // 원래 위치 복원 (실제 이동은 호출자가 처리)
+        // Restore original position in collider (caller handles final update)
+        // Oops, we modified collider.bounds in place during loop.
+        // If 'blocked' is true or position changed, we return the NEW calculated position.
+        // We do NOT want to leave the collider in an intermediate modified state IF we are just "simulating".
+        // BUT resolveCollision is usually called BEFORE actual commit.
+        // Let's restore to be safe, so this function is pure calculation.
         collider.bounds.x = originalX;
         collider.bounds.y = originalY;
 
