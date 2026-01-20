@@ -120,20 +120,28 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
             // Sort by ID (color-TIMESTAMP) to find the oldest
             const oldest = [...colorTiles].sort((a, b) => a.id.localeCompare(b.id))[0];
 
-            // Replace/Update existing asset
-            const updatedAsset: Asset = {
-                ...oldest,
-                name: `Color ${color}`,
-                url: dataUrl,
-                metadata: { ...oldest.metadata, color }
-            };
-            editorCore.updateAsset(updatedAsset);
+            // Delete the oldest asset
+            editorCore.removeAsset(oldest.id);
 
-            // Selection will stay at the same index if we just updated content
-            const index = tileAssets.findIndex(a => a.id === oldest.id);
-            if (index !== -1) {
-                onSelectTile(index);
-            }
+            // Add new asset (so it appears at the end)
+            const newAssetId = `color-${Date.now()}`;
+            editorCore.addAsset({
+                id: newAssetId,
+                name: `Color ${color}`,
+                tag: "Tile",
+                url: dataUrl,
+                idx: -1,
+                metadata: { isColorTile: true, color }
+            });
+
+            // Auto Select the new asset (it will be the last one)
+            // We can't know the index immediately if state update is async, 
+            // but here state update is synchronous in EditorCore (just calls notify).
+            // However, tileAssets state in THIS component updates via useEffect.
+            // We can optimistically set selection to (MAX_COLOR_TILES - 1) or wait.
+            // Given the useEffect logic, it will re-render.
+            // Let's set index to the last one.
+            onSelectTile(MAX_COLOR_TILES - 1);
         } else {
             const newAssetId = `color-${Date.now()}`;
             // Add virtual asset to core
