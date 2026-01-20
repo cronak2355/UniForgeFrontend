@@ -1,0 +1,111 @@
+﻿diff --git a/src/editor/core/events/actions/DefaultActions.ts b/src/editor/core/events/actions/DefaultActions.ts
+index 1c58845..7614a74 100644
+--- a/src/editor/core/events/actions/DefaultActions.ts
++++ b/src/editor/core/events/actions/DefaultActions.ts
+@@ -160,6 +160,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
+ 
+     let dirX = 0;
+     let dirY = 0;
++    let targetPos: { x: number; y: number } | undefined;
+ 
+     if (params.direction) {
+         const rawDir = params.direction as ValueSource;
+@@ -177,6 +178,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
+         ) {
+             const targetX = Number((direction as any).x ?? 0);
+             const targetY = Number((direction as any).y ?? 0);
++            targetPos = { x: targetX, y: targetY };
+             direction = {
+                 x: targetX - gameObject.x,
+                 y: targetY - gameObject.y
+@@ -198,15 +200,20 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
+ 
+     // Normalize direction vector so speed is consistent
+     const len = Math.sqrt(dirX * dirX + dirY * dirY);
+-    if (len > 0) {
++    const step = Number(speed) * dt;
++    const shouldSnap = params.snap === true;
++
++    if (shouldSnap && targetPos && len <= step) {
++        // [FIX] Snap to target to prevent jitter if close enough (Only if enabled)
++        gameObject.x = targetPos.x;
++        gameObject.y = targetPos.y;
++    } else if (len > 0) {
+         dirX /= len;
+         dirY /= len;
+-    }
+-
+-    // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
+ 
+-    gameObject.x += dirX * Number(speed) * dt;
+-    gameObject.y += dirY * Number(speed) * dt;
++        gameObject.x += dirX * step;
++        gameObject.y += dirY * step;
++    }
+ 
+     if (entity) {
+         entity.x = gameObject.x;
+@@ -531,15 +538,6 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
+     // If exact same operation happens on same entity/var within 1 frame (~1ms), we block it.
+     // We use a safe margin (e.g., 2ms) to catch double-loops but allow 60fps updates (16ms).
+     const opKey = `${ctx.entityId}:${varName}:${operation}:${JSON.stringify(operand1)}:${JSON.stringify(operand2)}`;
+-    const now = performance.now();
+-    const lastTime = setVarGlobalCooldowns.get(opKey) ?? 0;
+-
+-    // 2ms throttle: Blocks almost-instant duplicates (same microtask/frame)
+-    // but allows next-frame updates (16ms+).
+-    if (now - lastTime < 2) {
+-        return;
+-    }
+-    setVarGlobalCooldowns.set(opKey, now);
+ 
+     // Enhanced SetVar: Variable = Op1 [Operation] Op2
+     // Check if using legacy mode (simple value param)
+diff --git a/src/editor/core/systems/LogicSystem.ts b/src/editor/core/systems/LogicSystem.ts
+index c3a88fe..9c7823e 100644
+--- a/src/editor/core/systems/LogicSystem.ts
++++ b/src/editor/core/systems/LogicSystem.ts
+@@ -92,10 +92,11 @@ export class LogicSystem implements System {
+         this.runtimeContext = undefined;
+     }
+ 
++    // [FIX] Cooldown map for collisions to allow 10-frame debounce
++    private collisionCooldowns = new Map<string, number>();
++
+     private handleCollisionEvent(context: RuntimeContext, event: any) {
+         // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
+-        if (this.gameCore?.isDestroyed) return;
+-
+         const renderer = this.gameCore?.getRenderer();
+         const isRuntime = renderer?.isRuntimeMode;
+ 
+@@ -115,15 +116,13 @@ export class LogicSystem implements System {
+ 
+         // Use a frame-based or unique key. Since we clear set on update, 
+         // we just need A|B|Type unique key.
+-        // Sort IDs to ensure A|B is same as B|A for the Pair Execution check?
+-        // No, we want to execute Logic for A vs B, and B vs A. 
+-        // But we want to ensure we don't do A vs B TWICE.
+-
+         const collisionKey = `${entityA}:${entityB}:${type}`;
++
++        // [FIX] Deduplicate Collision Events per Frame
+         if (this.executedCollisions.has(collisionKey)) {
+-            // console.warn(`[LogicSystem] Skipping duplicate collision event: ${collisionKey}`);
+             return;
+         }
++
+         this.executedCollisions.add(collisionKey);
+ 
+         // Execute OnCollision logic for both entities involved
+@@ -300,10 +299,6 @@ export class LogicSystem implements System {
+     }
+ 
+     onUpdate(context: RuntimeContext, dt: number) {
+-        // [GUARD] Stop if GameCore is destroyed
+-        if (this.gameCore?.isDestroyed) return;
+-
+-
+         // [FIX] Reset collision duplicate tracker every frame
+         this.executedCollisions.clear();
+         // [FIX] Reset component execution tracker every frame
