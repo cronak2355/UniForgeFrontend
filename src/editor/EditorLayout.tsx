@@ -146,6 +146,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     const [saveToast, setSaveToast] = useState<string | null>(null); // Toast message
     const [isEditorReady, setIsEditorReady] = useState(false);
 
+    // Canvas container ref for scoped right-click prevention
+    const canvasContainerRef = useRef<HTMLDivElement>(null);
+
     // Asset Panel Resize State (Removed - layout changed to Sidebar Tabs)
     // const [assetPanelHeight, setAssetPanelHeight] = useState(280); 
     // const [isResizingAssetPanel, setIsResizingAssetPanel] = useState(false);
@@ -328,7 +331,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         };
     }, [core, isDirty]);
 
-    // Prevent context menu (right-click) globally in the editor
+    // Prevent context menu (right-click) on canvas only
     useEffect(() => {
         const handleContextMenu = (e: MouseEvent) => {
             e.preventDefault();
@@ -336,11 +339,15 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             return false;
         };
 
-        // Add listener with capture: true to intercept before children
-        window.addEventListener("contextmenu", handleContextMenu, { capture: true }); // [Modified] Use capture phase
+        const container = canvasContainerRef.current;
+        if (container) {
+            container.addEventListener("contextmenu", handleContextMenu);
+        }
 
         return () => {
-            window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
+            if (container) {
+                container.removeEventListener("contextmenu", handleContextMenu);
+            }
         };
     }, []);
 
@@ -1397,7 +1404,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     )}
 
                     {/* Canvas Area - FULL HEIGHT */}
-                    <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
+                    <div ref={canvasContainerRef} style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
                         {/* Loading Overlay inside Canvas */}
                         <LoadingOverlay isVisible={isLoading} message={loadingMessage} />
 
