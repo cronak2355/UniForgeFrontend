@@ -74,7 +74,8 @@ jobs:
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "index.html" \
-            --exclude "*.json"
+            --exclude "*.json" \
+            --exclude "uploads/*"
           
           # index.html과 JSON 파일은 캐시 안 함
           aws s3 cp dist/index.html s3://${{ env.S3_BUCKET }}/index.html \

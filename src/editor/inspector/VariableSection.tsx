@@ -39,11 +39,9 @@ export function VariableSection({
   };
 
   const coerceValue = (variable: EditorVariable, raw: string): number | string => {
-    if (variable.type === "int") {
-      const next = parseInt(raw, 10);
-      return Number.isNaN(next) ? 0 : next;
-    }
-    if (variable.type === "float") {
+    if (variable.type === "int" || variable.type === "float") {
+      // Allow intermediate states like "1." or "-" for better UX
+      if (raw.endsWith('.') || raw === '-' || raw === '-.') return raw;
       const next = Number(raw);
       return Number.isNaN(next) ? 0 : next;
     }
@@ -176,6 +174,12 @@ export function VariableSection({
                   onChange={e =>
                     onUpdate({ ...v, value: coerceValue(v, e.target.value) })
                   }
+                  onBlur={() => {
+                    if (v.type === "int" || v.type === "float") {
+                      const num = Number(v.value);
+                      onUpdate({ ...v, value: Number.isNaN(num) ? 0 : num });
+                    }
+                  }}
                 />
               )}
               <button
