@@ -593,7 +593,22 @@ export function AssetsEditorProvider({ children }: { children: ReactNode }) {
     if (!tempCtx) return;
 
     tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(baseImage, 0, 0, pixelSize, pixelSize);
+
+    // Advanced Scaling: Maintain Aspect Ratio & Center
+    const sw = baseImage.width;
+    const sh = baseImage.height;
+
+    // Fit within pixelSize x pixelSize
+    const scale = Math.min(pixelSize / sw, pixelSize / sh);
+    const dw = Math.round(sw * scale);
+    const dh = Math.round(sh * scale);
+
+    // Center it
+    const dx = Math.round((pixelSize - dw) / 2);
+    const dy = Math.round((pixelSize - dh) / 2);
+
+    tempCtx.clearRect(0, 0, pixelSize, pixelSize); // Clear to transparency
+    tempCtx.drawImage(baseImage, 0, 0, sw, sh, dx, dy, dw, dh);
 
     const imageData = tempCtx.getImageData(0, 0, pixelSize, pixelSize);
     engineRef.current.applyAIImage(imageData);
