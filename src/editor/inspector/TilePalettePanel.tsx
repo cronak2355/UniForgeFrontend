@@ -59,6 +59,8 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         canvas.width = PALETTE_COLS * TILE_SIZE;
         canvas.height = Math.max(rows, 1) * TILE_SIZE;
 
+        console.log(`[TilePalettePanel] Layout: ${PALETTE_COLS} cols, Canvas Size: ${canvas.width}x${canvas.height}`);
+
         // Clear
         ctx.fillStyle = colors.bgPrimary;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -190,16 +192,17 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
             <div style={{
                 flex: 1,
-                overflowX: "hidden",
+                overflowX: "auto", // [FIX] Allow horizontal scroll if canvas is wider than sidebar
                 overflowY: "auto",
                 position: "relative",
-                padding: "4px"
+                padding: "4px",
+                border: "1px dashed rgba(255,0,0,0.3)" // [DEBUG] Show container bounds
             }}>
                 <div style={{ position: "relative", width: "fit-content" }}>
                     <canvas
                         ref={canvasRef}
                         onClick={handleCanvasClick}
-                        style={{ cursor: "pointer", display: "block" }}
+                        style={{ cursor: "pointer", display: "block", background: colors.bgTertiary }}
                     />
                     {/* Selection Highlight Overlay */}
                     {selectedTileIndex >= 0 && (
