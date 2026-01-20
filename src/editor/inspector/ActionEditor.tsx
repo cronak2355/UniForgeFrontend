@@ -143,6 +143,17 @@ export function ActionEditor({
               targetType="vector2"
             />
             <ParamInput label="speed" value={action.speed} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: '#888', width: 60 }}>Snap</span>
+              <select
+                value={action.snap === true ? "true" : "false"}
+                onChange={(e) => onUpdate({ ...action, snap: e.target.value === "true" })}
+                style={{ ...styles.smallSelect, flex: 1 }}
+              >
+                <option value="false">Off</option>
+                <option value="true">On</option>
+              </select>
+            </div>
           </>
         )}
 
@@ -472,6 +483,8 @@ export function ActionEditor({
               </>
             )}
             {/* Prefab Initial Variables Override UI */}
+            <ParamInput label="cooldown" value={(action as any).cooldown} onChange={(v) => onUpdate({ ...action, cooldown: v })} variables={variables} entities={entities} listId={listId} />
+
             {spawnSourceType === "prefab" && spawnAssetId && (
               (() => {
                 const prefabAsset = prefabAssets.find(a => a.id === spawnAssetId);
@@ -602,6 +615,43 @@ export function ActionEditor({
               })()
             )}
           </>
+        )}
+
+        {action.type === "SpawnIfClear" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <select
+              value={(action.templateId as string) || ""}
+              onChange={(e) => onUpdate({ ...action, templateId: e.target.value })}
+              style={styles.smallSelect}
+            >
+              <option value="">(template)</option>
+              {entities.map((ent) => (
+                <option key={ent.id} value={ent.id}>
+                  {ent.name || ent.id}
+                </option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <ParamInput label="Count" value={(action as any).count ?? 1} onChange={(v) => onUpdate({ ...action, count: v })} variables={variables} entities={entities} listId={listId} />
+              <ParamInput label="Radius" value={(action as any).radius ?? 100} onChange={(v) => onUpdate({ ...action, radius: v })} variables={variables} entities={entities} listId={listId} />
+            </div>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <ParamInput label="CheckRad" value={(action as any).checkRadius ?? 30} onChange={(v) => onUpdate({ ...action, checkRadius: v })} variables={variables} entities={entities} listId={listId} />
+              <ParamInput label="Cooldown" value={(action as any).cooldown ?? 0} onChange={(v) => onUpdate({ ...action, cooldown: v })} variables={variables} entities={entities} listId={listId} />
+            </div>
+            <select
+              value={(action.role as string) || "neutral"}
+              onChange={(e) => onUpdate({ ...action, role: e.target.value })}
+              style={styles.smallSelect}
+            >
+              <option value="neutral">neutral</option>
+              <option value="player">player</option>
+              <option value="hostile">hostile</option>
+              <option value="friendly">friendly</option>
+              <option value="consumable">consumable</option>
+              <option value="wall">wall</option>
+            </select>
+          </div>
         )}
 
         {action.type === "Enable" && (

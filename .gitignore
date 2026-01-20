@@ -3,3 +3,4 @@ dist/
 *.log
 build_result*.txt
 .env.local
+.env

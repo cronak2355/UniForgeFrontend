@@ -43,60 +43,28 @@ function coerceBool(value: unknown): boolean {
     return Boolean(value);
 }
 
-function setVar(entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
+function setVar(ctx: ActionContext, entity: RuntimeEntity | undefined, name: string, value: number | string | boolean | { x: number; y: number }): void {
     if (!entity) return;
-    if (!entity.variables) entity.variables = [];
-    const existing = entity.variables.find((v) => v.name === name);
-    if (existing) {
-        if (existing.type === "int" || existing.type === "float") {
-            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
-                // [Auto-Upgrade] Assigning Vector2 to Number -> Upgrade variable to vector2
-                existing.type = "vector2";
-                existing.value = { x: Number((value as any).x), y: Number((value as any).y) };
-                return;
-            }
-            const num = typeof value === "number" ? value : Number(value);
-            existing.value = Number.isNaN(num) ? 0 : num;
-        } else if (existing.type === "bool") {
-            existing.value = coerceBool(value);
-        } else if (existing.type === "vector2") {
-            // Handle vector2 type
-            if (typeof value === 'object' && value !== null && 'x' in value && 'y' in value) {
-                existing.value = { x: Number(value.x), y: Number(value.y) };
-            } else {
-                // Fallback: treat as uniform scalar
-                const num = typeof value === 'number' ? value : Number(value);
-                existing.value = { x: num, y: num };
-            }
-        } else {
-            existing.value = String(value);
+
+    // [FIX] Use RuntimeContext.setEntityVariable to avoid direct mutation
+    // This prevents runtime state from leaking back to editor
+    const gameCore = ctx.globals?.gameCore as any;
+    const entityId = entity.id ?? ctx.entityId;
+
+    if (gameCore?.getRuntimeContext && entityId) {
+        // Determine type from value
+        let type = "any";
+        if (typeof value === "boolean") {
+            type = "bool";
+        } else if (typeof value === "number") {
+            type = Number.isInteger(value) ? "int" : "float";
+        } else if (typeof value === "string") {
+            type = "string";
+        } else if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
+            type = "vector2";
         }
-        return;
-    }
-    if (typeof value === "boolean" || (typeof value === "string" && (value === "true" || value === "false"))) {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "bool",
-            value: coerceBool(value),
-        });
-        return;
-    }
-    const numeric = typeof value === "number" ? value : Number(value);
-    if (!Number.isNaN(numeric)) {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "float",
-            value: numeric,
-        });
-    } else {
-        entity.variables.push({
-            id: crypto.randomUUID(),
-            name,
-            type: "string",
-            value: String(value),
-        });
+
+        gameCore.getRuntimeContext().setEntityVariable(entityId, name, value, type);
     }
 }
 
@@ -154,11 +122,11 @@ function applyDamage(
         // Auto-initialize HP if missing so Attack works by default
         hp = 100;
         maxHp = 100;
-        setVar(target, "maxHp", 100);
-        setVar(target, "hp", 100);
+        setVar(ctx, target, "maxHp", 100);
+        setVar(ctx, target, "hp", 100);
     }
     const nextHp = Math.max(0, (hp ?? maxHp ?? 100) - damage);
-    setVar(target, "hp", nextHp);
+    setVar(ctx, target, "hp", nextHp);
 
 
 
@@ -192,6 +160,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 
     let dirX = 0;
     let dirY = 0;
+    let targetPos: { x: number; y: number } | undefined;
 
     if (params.direction) {
         const rawDir = params.direction as ValueSource;
@@ -209,6 +178,7 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         ) {
             const targetX = Number((direction as any).x ?? 0);
             const targetY = Number((direction as any).y ?? 0);
+            targetPos = { x: targetX, y: targetY };
             direction = {
                 x: targetX - gameObject.x,
                 y: targetY - gameObject.y
@@ -230,15 +200,20 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
 
     // Normalize direction vector so speed is consistent
     const len = Math.sqrt(dirX * dirX + dirY * dirY);
-    if (len > 0) {
+    const step = Number(speed) * dt;
+    const shouldSnap = params.snap === true;
+
+    if (shouldSnap && targetPos && len <= step) {
+        // [FIX] Snap to target to prevent jitter if close enough (Only if enabled)
+        gameObject.x = targetPos.x;
+        gameObject.y = targetPos.y;
+    } else if (len > 0) {
         dirX /= len;
         dirY /= len;
+
+        gameObject.x += dirX * step;
+        gameObject.y += dirY * step;
     }
-
-    // console.log(`[Move Debug] dirX: ${dirX}, dirY: ${dirY}, speed: ${speed}, dt: ${dt}, Entity: ${entityId}`);
-
-    gameObject.x += dirX * Number(speed) * dt;
-    gameObject.y += dirY * Number(speed) * dt;
 
     if (entity) {
         entity.x = gameObject.x;
@@ -407,7 +382,7 @@ ActionRegistry.register("TakeDamage", (ctx: ActionContext, params: Record<string
     const hp = getNumberVar(entity, "hp") ?? 0;
     const maxHp = getNumberVar(entity, "maxHp") ?? hp;
     const nextHp = Math.max(0, hp - amount);
-    setVar(entity, "hp", nextHp);
+    setVar(ctx, entity, "hp", nextHp);
 
     EventBus.emit("HP_CHANGED", {
         entityId: ctx.entityId,
@@ -576,7 +551,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     // Check if using legacy mode (simple value param)
     if (params.value !== undefined && params.operand1 === undefined) {
-        setVar(entity, varName, params.value as number | string);
+        setVar(ctx, entity, varName, params.value as number | string);
         return;
     }
 
@@ -704,7 +679,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
         return;
     }
 
-    setVar(entity, varName, result as any);
+    setVar(ctx, entity, varName, result as any);
 
     // Sync to RuntimeContext map (for Modules/Global access)
     const gameCore = ctx.globals?.gameCore as any;
@@ -730,11 +705,34 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     gameCore.startModule(ctx.entityId, moduleId, overrides);
 });
 
+// Static map to track spawn cooldowns (EntityId -> LastSpawnTime)
+const spawnCooldowns = new Map<string, number>();
+
 ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {
     const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
     if (!gameCore?.createEntity) {
         console.error("[SpawnEntity] gameCore.createEntity not found!", ctx.globals);
         return;
+    }
+
+    // [THROTTLE] Prevent excessive spawning ONLY IF cooldown param is set
+    // Default: 0 (No limit)
+    const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
+
+    // [DEBUG] Trace why cooldown fails
+    if (params.cooldown) {
+        console.log(`[SpawnThrottle] ID: ${ctx.entityId} Cooldown: ${cooldownInfo} Last: ${spawnCooldowns.get(ctx.entityId)} Now: ${performance.now() / 1000} Diff: ${(performance.now() / 1000) - (spawnCooldowns.get(ctx.entityId) ?? 0)}`);
+    }
+
+    if (cooldownInfo > 0) {
+        const now = performance.now() / 1000; // seconds
+        if (spawnCooldowns.has(ctx.entityId)) {
+            const lastSpawn = spawnCooldowns.get(ctx.entityId)!;
+            if (now - lastSpawn < cooldownInfo) {
+                return; // Cooldown active
+            }
+        }
+        spawnCooldowns.set(ctx.entityId, now);
     }
 
     const entities = ctx.globals?.entities as Map<string, any> | undefined;
@@ -1041,7 +1039,66 @@ ActionRegistry.register("If", (ctx: ActionContext, params: Record<string, unknow
     }
 });
 
+// 21. SpawnIfClear (Anti-Clump Spawning)
+ActionRegistry.register("SpawnIfClear", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
+    if (!gameCore?.createEntity) return;
+
+    // [THROTTLE]
+    const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
+    if (cooldownInfo > 0) {
+        const now = performance.now() / 1000;
+        if (spawnCooldowns.has(ctx.entityId)) {
+            const lastSpawn = spawnCooldowns.get(ctx.entityId)!;
+            if (now - lastSpawn < cooldownInfo) return;
+        }
+        spawnCooldowns.set(ctx.entityId, now);
+    }
+
+    // Params
+    const templateId = String(params.templateId || "");
+    const count = Number(params.count ?? 1);
+    const radius = Number(params.radius ?? 100);
+    const checkRadius = Number(params.checkRadius ?? 30);
+
+    // Center calc
+    let centerX = 0;
+    let centerY = 0;
+
+    const entity = ctx.globals?.entities?.get(ctx.entityId);
+    if (!entity) return;
+
+    // Fallback to current entity pos
+    centerX = entity.x ?? 0;
+    centerY = entity.y ?? 0;
+
+    for (let i = 0; i < count; i++) {
+        let spawnX = centerX;
+        let spawnY = centerY;
+        let isValid = false;
+        let attempts = 0;
+
+        while (!isValid && attempts < 10) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * radius;
+            spawnX = centerX + Math.cos(angle) * dist;
+            spawnY = centerY + Math.sin(angle) * dist;
+
+            if (!collisionSystem.checkOverlap(spawnX, spawnY, checkRadius)) {
+                isValid = true;
+            }
+            attempts++;
+        }
+
+        if (isValid) {
+            const id = crypto.randomUUID();
+            const options: any = { role: params.role };
+            gameCore.createEntity(id, templateId, spawnX, spawnY, options);
+        }
+    }
+});
+
 console.log(
-    "[DefaultActions] 19 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal, Rotate, Pulse, PlayParticle, StartParticleEmitter, StopParticleEmitter, If"
+    "[DefaultActions] 21 actions registered"
 );
 

@@ -621,8 +621,10 @@ export class GameCore {
     }
 
     // Compatibility stub
+    public isDestroyed = false;
     validateIdSync() { return true; }
     destroy() {
+        this.isDestroyed = true;
         if (this.eventHandler) EventBus.off(this.eventHandler);
         this.pipeline.destroy(); // Cleanup systems (LogicSystem listeners etc)
         this.runtimeContext.clearEntities();

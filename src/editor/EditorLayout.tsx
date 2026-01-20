@@ -33,6 +33,7 @@ import { saveGameVersion, updateGameInfo } from "../services/gameService";
 import { AiWizardModal } from "../AssetsEditor/components/AiWizardModal";
 import { generateSingleImage } from "../AssetsEditor/services/AnimationService";
 import { ComponentHelper } from "./inspector/ComponentHelper";
+import { LoadingOverlay } from "./ui/LoadingOverlay";
 
 // Entry Style Color Palette
 // const colors = { ... } replaced by import
@@ -175,12 +176,16 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         let saveTimer: any = null;
 
         const initEditor = async () => {
+            setIsLoading(true);
+            setLoadingMessage("서버 연결 확인 중...");
+
             try {
                 // 1. Try key loading from server first
                 let loadedFromServer = false;
                 if (gameId && gameId !== "undefined") {
+                    setLoadingMessage(`게임 데이터 로드 중... (ID: ${gameId})`);
                     if (gameId === 'new') {
-
+                        setLoadingMessage("새 게임 생성 중...");
                         core.clear();
                         loadedFromServer = true;
                         setIsDirty(false);
@@ -188,23 +193,24 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                         try {
                             console.log("[EditorLayout] Loading scene for gameId:", gameId);
                             const sceneJson = await loadScene(gameId);
+                            setLoadingMessage("씬 데이터 해석 중...");
                             console.log("[EditorLayout] Scene loaded:", sceneJson ? "success" : "null");
                             if (sceneJson) {
-
+                                setLoadingMessage("씬 데이터 적용 중...");
                                 core.clear();
                                 SceneSerializer.deserialize(sceneJson, core);
                                 loadedFromServer = true;
                             } else {
                                 // Loaded but empty (New Game)
-
+                                setLoadingMessage("빈 프로젝트 초기화 중...");
                                 core.clear();
                                 loadedFromServer = true; // Mark as loaded so we don't fall back to autosave (which is for scratchpad)
                             }
                         } catch (e) {
                             console.warn("[EditorLayout] Server load failed:", e);
+                            setLoadingMessage("서버 로드 실패 (새 게임으로 시작)");
                             // If server load fails (e.g. 404 Not Found because no version exists yet), 
                             // we should treat it as a fresh new game, NOT fall back to local autosave.
-
                             core.clear();
                             loadedFromServer = true;
                         }
@@ -214,6 +220,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
                 if (!loadedFromServer) {
                     // 2. Fallback to local autosave
+                    setLoadingMessage("로컬 저장소 확인 중...");
                     const saved = localStorage.getItem("editor_autosave");
                     if (saved) {
                         try {
@@ -282,38 +289,60 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             } catch (err) {
                 console.error("[EditorLayout] Critical error in initEditor", err);
             } finally {
-                setIsEditorReady(true);
+                console.log("[EditorLayout] Entering finally block. message:", loadingMessage);
+                // Minimum loading time for better UX (prevent flicker)
+                setTimeout(() => {
+                    console.log("[EditorLayout] First timeout executed. Setting message to 'Complete'");
+                    setLoadingMessage("에디터 초기화 완료!");
+                    setTimeout(() => {
+                        console.log("[EditorLayout] Second timeout executed. Setting isLoading to false");
+                        setIsLoading(false);
+                    }, 500);
+                }, 500);
             }
         };
 
-        initEditor();
-
-        // 3. Setup Auto-save subscription
-        const saveState = () => {
-            // Local auto-save only for crash recovery
-            const json = SceneSerializer.serialize(core);
-            localStorage.setItem("editor_autosave", JSON.stringify(json));
-        };
-
-        const unsubscribe = core.subscribe(() => {
-            if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveState, 1000);
-        });
-
-        const onBeforeUnload = () => {
-            if (saveTimer) clearTimeout(saveTimer);
-            saveState();
-        };
-        window.addEventListener("beforeunload", onBeforeUnload);
+        if (core) {
+            initEditor();
+        }
 
         return () => {
-            unsubscribe();
-            window.removeEventListener("beforeunload", onBeforeUnload);
-            if (saveTimer) clearTimeout(saveTimer);
-            saveState();
+            window.removeEventListener('beforeunload', () => { });
         };
-    }, [gameId]); // Re-run if gameId changes
+    }, [core, gameId]);
 
+    // Auto-save Logic
+    useEffect(() => {
+        let saveTimer: any = null;
+
+        saveTimer = setInterval(() => {
+            if (isDirty && core) {
+                const json = SceneSerializer.serialize(core);
+                localStorage.setItem("editor_autosave", JSON.stringify(json));
+                // console.log("[EditorLayout] Auto-saved to local storage");
+            }
+        }, 5000); // 5 seconds
+
+        return () => {
+            if (saveTimer) clearInterval(saveTimer);
+        };
+    }, [core, isDirty]);
+
+    // Prevent context menu (right-click) globally in the editor
+    useEffect(() => {
+        const handleContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        };
+
+        // Add listener with capture: true to intercept before children
+        window.addEventListener("contextmenu", handleContextMenu, { capture: true }); // [Modified] Use capture phase
+
+        return () => {
+            window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
+        };
+    }, []);
 
     const [mode, setMode] = useState<Mode>("dev");
     const prevModeRef = useRef<Mode>(mode);
@@ -335,10 +364,41 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
         }
     }, [isPlayMode]);
 
+    // [New] Show loading screen when switching to Run Mode
+    useEffect(() => {
+        if (mode === 'run') {
+            setIsLoading(true);
+            setLoadingMessage("런타임 환경 구성 중...");
+
+            // Brief artificial delay sequence to show loading messages
+            setTimeout(() => setLoadingMessage("게임 데이터 동기화 중..."), 400);
+
+            // Note: We DO NOT auto-dismiss here. We wait for <RunTimeCanvas onLoaded /> to trigger.
+        }
+    }, [mode]);
+
     // Persist recent assets
     useEffect(() => {
         localStorage.setItem("editor_recent_assets", JSON.stringify(recentAssets));
     }, [recentAssets]);
+
+    // [New] Show loading screen during scene switch
+    useEffect(() => {
+        if (!currentSceneId) return;
+
+        // Skip loading screen on initial load (handled by initEditor)
+        // We can check if isLoading is already true, or use a ref to skip first mount
+        // logic: if isLoading is false, and scene ID changes, it's a switch.
+
+        // Simple heuristic: Scene ID changed and we are not in simple init
+        // But initEditor sets isLoading true anyway.
+        // Let's just trigger it. If it overlaps with init, no harm.
+
+        // However, to avoid "double flash", we might want to check.
+        // The user specifically asked for scene switching feedback.
+
+        console.log(`[EditorLayout] Scene Switched to: ${currentSceneId}`);
+    }, [currentSceneId]);
 
     // const [isFileMenuOpen, setIsFileMenuOpen] = useState(false); // REMOVED
     const navigate = useNavigate();
@@ -362,7 +422,13 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
     // Tiling Tools State
     const [tilingTool, setTilingTool] = useState<"" | "drawing" | "erase" | "bucket" | "shape" | "connected_erase">("");
-    const [selectedTileIndex, setSelectedTileIndex] = useState(0);
+    const [selectedObject, setSelectedObject] = useState<string | null>(null);
+    const [selectedTileIndex, setSelectedTileIndex] = useState<number>(0);
+
+    // Loading State
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadingMessage, setLoadingMessage] = useState("초기화 중...");
+
 
     const handleAiGenerate = async (prompt: string, category: string, metadata: any) => {
         setIsGeneratingAi(true);
@@ -959,6 +1025,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
 
 
+    /* Legacy loading screen removed - controlled by LoadingOverlay now
     if (!isEditorReady) {
         return (
             <div style={{
@@ -970,6 +1037,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             </div>
         );
     }
+    */
 
     return (
         <div style={{
@@ -1330,6 +1398,9 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
 
                     {/* Canvas Area - FULL HEIGHT */}
                     <div style={{ flex: 1, position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
+                        {/* Loading Overlay inside Canvas */}
+                        <LoadingOverlay isVisible={isLoading} message={loadingMessage} />
+
                         {mode === "dev" ? (
                             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                                 <EditorCanvas
@@ -1354,6 +1425,11 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                     key={`run-${runSession}-${currentSceneId}`}
                                     onRuntimeEntitySync={handleRuntimeEntitySync}
                                     onGameReady={setRuntimeCore}
+                                    onLoaded={() => {
+                                        // Dismiss loading screen when runtime reports ready
+                                        setLoadingMessage("실행 준비 완료!");
+                                        setTimeout(() => setIsLoading(false), 200);
+                                    }}
                                 />
                             </div>
                         )}
@@ -1438,34 +1514,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     </div>
                 )}
 
-                {/* Play Mode Overlay */}
-                {isPlayMode && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '20px',
-                        right: '20px',
-                        zIndex: 1000
-                    }}>
-                        <button
-                            onClick={() => navigate(-1)}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: 'rgba(0,0,0,0.7)',
-                                color: 'white',
-                                border: '1px solid rgba(255,255,255,0.3)',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                backdropFilter: 'blur(4px)'
-                            }}
-                        >
-                            <i className="fa-solid fa-arrow-left"></i>
-                            나가기 (Exit)
-                        </button>
-                    </div>
-                )}
+                {/* Play Mode Overlay removed as requested */}
             </div>
 
             <ComponentHelper
@@ -1779,6 +1828,7 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                     <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#a1a1aa' }}>잠시만 기다려 주세요. 변경 사항을 서버에 동기화하고 있습니다.</p>
                 </div>
             )}
+
         </div>
     );
 }
