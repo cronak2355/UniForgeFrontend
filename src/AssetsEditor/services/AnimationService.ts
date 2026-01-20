@@ -35,12 +35,64 @@ function getAuthHeaders() {
   };
 }
 
+// Basic Korean-to-English translation map (Support map)
+const TRANSLATION_MAP: Record<string, string> = {
+  "해골기사": "Skeleton Knight",
+  "픽셀 아트": "pixel art",
+  "호러": "horror",
+  "웅장한": "epic, grand",
+  "기사": "knight",
+  "전사": "warrior",
+  "마법사": "mage",
+  "몬스터": "monster",
+  "배경 제거": "background removal",
+  "정면": "front view",
+  "전신": "full body",
+  "오크": "orc",
+  "고블린": "goblin",
+  "슬라임": "slime",
+  "드래곤": "dragon"
+};
+
+/**
+ * Translates prompt via Backend API (AWS Translate) with fallback to local map
+ */
+async function translatePromptAsync(text: string): Promise<string> {
+  try {
+    const response = await fetch('/api/ai/translate', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        targetLang: 'en'
+      })
+    });
+
+    if (!response.ok) {
+      console.warn(`Translation failed [${response.status}], using fallback map.`);
+      // Fallback to local map
+      let translated = text;
+      Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+        translated = translated.replace(new RegExp(ko, 'g'), en);
+      });
+      return translated;
+    }
+
+    const data = await response.json();
+    return data.translatedText || text;
+  } catch (e) {
+    console.error("Translation API error:", e);
+    // Fallback to local map
+    let translated = text;
+    Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+      translated = translated.replace(new RegExp(ko, 'g'), en);
+    });
+    return translated;
+  }
+}
+
 /**
  * 애니메이션 프레임들을 순차적으로 생성 (SageMaker Direct)
- * 
- * 핵심 변경: 모든 프레임을 txt2img로 생성하되, 같은 seed 사용
- * - seed가 같으면 캐릭터 스타일이 일관되게 유지됨
- * - 프롬프트가 다르면 포즈가 달라짐 (걷기, 뛰기 등)
  */
 export async function generateAnimation(
   options: GenerateOptions
@@ -67,7 +119,7 @@ export async function generateAnimation(
 
   for (let i = 0; i < preset.frames.length; i++) {
     const frame = preset.frames[i];
-    const prompt = buildFramePrompt(translatePrompt(characterDescription), preset, i);
+    const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, i);
 
     onProgress?.(i + 1, preset.frameCount);
     console.log(`   프레임 ${i + 1}/${preset.frameCount}: ${frame.description}`);
@@ -121,7 +173,6 @@ export async function generateAnimation(
 
 /**
  * 단일 프레임만 재생성 (특정 프레임만 다시 만들고 싶을 때)
- * seed를 지정하면 스타일 일관성 유지
  */
 export async function regenerateFrame(
   characterDescription: string,
@@ -135,7 +186,7 @@ export async function regenerateFrame(
     throw new Error(`프레임 인덱스가 유효하지 않습니다: ${frameIndex}`);
   }
 
-  const prompt = buildFramePrompt(translatePrompt(characterDescription), preset, frameIndex);
+  const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, frameIndex);
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
@@ -156,14 +207,13 @@ export async function regenerateFrame(
 
 /**
  * 첫 프레임(기준 프레임)만 생성 (SageMaker)
- * 반환된 seed를 저장해서 나머지 프레임에 사용
  */
 export async function generateBaseFrame(
   characterDescription: string,
   canvasSize: number
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
-  const translatedDesc = translatePrompt(characterDescription);
+  const translatedDesc = await translatePromptAsync(characterDescription);
   const prompt = `${translatedDesc}, standing pose, neutral stance, front view, full body, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
@@ -203,7 +253,7 @@ export async function generateAnimationFromBase(
   console.log(`🎬 Seed ${baseSeed} 기반 애니메이션 확장 (SageMaker)`);
 
   for (let i = 0; i < preset.frames.length; i++) {
-    const prompt = buildFramePrompt(translatePrompt(characterDescription), preset, i);
+    const prompt = buildFramePrompt(await translatePromptAsync(characterDescription), preset, i);
 
     onProgress?.(i + 1, preset.frameCount);
 
@@ -243,42 +293,25 @@ export async function generateAnimationFromBase(
 /**
  * 단일 이미지 생성 (애니메이션 아닌 일반 생성) (SageMaker)
  */
-// Basic Korean-to-English translation map (Ported from Backend)
-const TRANSLATION_MAP: Record<string, string> = {
-  "해골기사": "Skeleton Knight",
-  "픽셀 아트": "pixel art",
-  "호러": "horror",
-  "웅장한": "epic, grand",
-  "기사": "knight",
-  "전사": "warrior",
-  "마법사": "mage",
-  "몬스터": "monster",
-  "배경 제거": "background removal",
-  "정면": "front view",
-  "전신": "full body",
-  "오크": "orc",
-  "고블린": "goblin",
-  "슬라임": "slime",
-  "드래곤": "dragon"
-};
 
-function translatePrompt(prompt: string): string {
-  let translated = prompt;
-  Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
-    translated = translated.replace(new RegExp(ko, 'g'), en);
-  });
-  return translated;
-}
 
 export async function generateSingleImage(
   prompt: string,
   canvasSize: number,
   assetType: 'character' | 'object' | 'tile' | 'effect' = 'character'
 ): Promise<string> {
-  const translatedPrompt = translatePrompt(prompt);
+  const translatedPrompt = await translatePromptAsync(prompt);
 
   // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
-  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, full body, front view, ${translatedPrompt}, (white background:1.3), simple background`;
+  // 단, assetTypes가 'tile'이나 'effect'일 경우 다를 수 있으나, 
+  // 여기서는 사용자가 '캐릭터/오브젝트' 생성 시 주로 사용하므로 기본적으로 pixel art, game asset 등은 추가하는게 안전.
+  // 다만 AnimationPresets의 CONSISTENCY_KEYWORDS는 캐릭터 전용이므로,
+  // 여기서는 prompt에 기본적으로 'pixel art, game asset' 정도만 보장하거나, 
+  // 입력된 prompt를 그대로 신뢰하되 SagemakerService가 처리.
+  // 기존 BedrockService에서는 'pixel art style, solo, single isolated subject, centered'를 강제했음.
+  // 이를 여기서 복원함.
+
+  const enhancedPrompt = `pixel art style, solo, single isolated subject, centered, ${translatedPrompt}, (white background:1.3), simple background`;
 
   const response = await SagemakerService.generateAsset({
     prompt: enhancedPrompt,
