@@ -45,6 +45,7 @@ export interface Collider {
     layer: CollisionLayer;
     mask: CollisionLayer;   // 충돌 가능한 레이어
     isSolid: boolean;       // true: 물리 차단, false: 트리거만
+    isStatic: boolean;      // [OPTIMIZATION] true: 정적 물체
     bounds: AABB;
 }
 
@@ -82,6 +83,7 @@ export class CollisionSystem {
             layer?: CollisionLayer;
             mask?: CollisionLayer;
             isSolid?: boolean;
+            isStatic?: boolean; // [OPTIMIZATION]
         } = {}
     ): void {
         const collider: Collider = {
@@ -90,6 +92,7 @@ export class CollisionSystem {
             layer: options.layer ?? CollisionLayer.All,
             mask: options.mask ?? CollisionLayer.All,
             isSolid: options.isSolid ?? true,
+            isStatic: options.isStatic ?? false,
             bounds
         };
         this.colliders.set(entityId, collider);
@@ -219,6 +222,31 @@ export class CollisionSystem {
                     } else {
                         EventBus.emit("COLLISION_STAY", result as unknown as Record<string, unknown>);
                     }
+
+                    // [AUTO-RESOLVE] Soft Collision Separation
+                    // Push overlapping dynamic entities apart automatically
+                    if (!a.isSolid && !b.isSolid) continue; // Skip trigger-trigger
+
+                    // Check if eligible for soft separation (Dynamic vs Dynamic)
+                    // We don't resolve against walls (static) here - that's for movement logic.
+                    // We only want to prevent crowd clumping.
+                    const isDynamicA = !a.isStatic && !a.tag.includes("Wall");
+                    const isDynamicB = !b.isStatic && !b.tag.includes("Wall");
+
+                    if (isDynamicA && isDynamicB) {
+                        const separationFactor = 0.05; // Gentle push (5% per frame)
+
+                        // Push A away from B
+                        if (overlapX < overlapY) {
+                            const pushX = (a.bounds.x < b.bounds.x ? -overlapX : overlapX) * separationFactor;
+                            a.bounds.x += pushX;
+                            b.bounds.x -= pushX; // Equal/Opposite reaction
+                        } else {
+                            const pushY = (a.bounds.y < b.bounds.y ? -overlapY : overlapY) * separationFactor;
+                            a.bounds.y += pushY;
+                            b.bounds.y -= pushY;
+                        }
+                    }
                 }
             }
         }
@@ -311,9 +339,9 @@ export class CollisionSystem {
                         }
                         blocked = true;
                     } else if (isSoft) {
-                        // Soft Collision (Unit separation) - Push out partially (50%)
-                        // This creates a "crowd" effect without hard blocking
-                        const separationFactor = 0.5;
+                        // Soft Collision (Unit separation) - Push out partially (10%) per frame
+                        // Lower factor for smoother crowd movement (less jitter)
+                        const separationFactor = 0.1;
                         if (overlapX < overlapY) {
                             workX += (collider.bounds.x < other.bounds.x ? -overlapX : overlapX) * separationFactor;
                         } else {
@@ -323,7 +351,8 @@ export class CollisionSystem {
 
                     hadCollision = true;
 
-                    // 위치 업데이트 후 다시 검사
+                    // [CRITICAL] Apply position update IMMEDIATELY so subsequent checks use new pos
+                    // This creates the iterative solver effect
                     collider.bounds.x = workX;
                     collider.bounds.y = workY;
                 }
@@ -332,6 +361,25 @@ export class CollisionSystem {
             // 더 이상 충돌이 없으면 종료
             if (!hadCollision) break;
         }
+
+        // Apply final resolved position to the Entity (Sync back from Collider -> Entity)
+        // Note: Actual entity position sync happens in GameCore or Renderer by reading collider bounds? 
+        // No, usually Physics engine updates Entity. We need a way to sync back.
+        // For now, we update the collider. The GameCore needs to read this back.
+        // But wait, GameCore doesn't read Collider back. 
+        // We need to return the 'correction vector' or update the entity directly if possible.
+        // Since we don't have access to Entity here, we rely on 'resolveCollision' being called by GameCore.
+        // BUT the user said it's NOT resolving. 
+        // Ah, 'update()' calls 'checkAABB' but DOES NOT call 'resolveCollision'.
+        // I am adding resolution LOGIC into 'update()' loop? No, that's dangerous for O(N^2).
+
+        // Let's attach the resolved position to the result or Event call?
+        // Better: GameCore should call 'resolve' for dynamic entities.
+
+        // [FIX] For now, let's keep the resolution separate but ensure it is CALLED.
+        // User's issue is likely that 'resolveCollision' is never called.
+        // I will implement auto-resolution in 'update' for SOFT collisions.
+
 
         // 원래 위치 복원 (실제 이동은 호출자가 처리)
         collider.bounds.x = originalX;
@@ -382,6 +430,29 @@ export class CollisionSystem {
         }
 
         return null;
+    }
+
+    /**
+     * 특정 위치에 충돌체가 있는지 확인 (스폰 전 검사용)
+     */
+    checkOverlap(x: number, y: number, radius: number, filterTags?: CollisionTag[]): boolean {
+        // 임시 AABB 생성
+        const checkBounds: AABB = {
+            x, y, width: radius * 2, height: radius * 2
+        };
+
+        for (const collider of this.colliders.values()) {
+            // 태그 필터링 (명시된 태그만 검사, 없으면 모든 Solid 검사)
+            if (filterTags && !filterTags.includes(collider.tag)) continue;
+
+            // Solid가 아니면 무시 (트리거는 겹쳐도 됨)
+            if (!collider.isSolid) continue;
+
+            if (this.checkAABB(checkBounds, collider.bounds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

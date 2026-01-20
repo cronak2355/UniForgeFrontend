@@ -50,7 +50,9 @@ export const ACTION_LABELS: Record<string, string> = {
     RunModule: "모듈 실행",
 
     SpawnEntity: "엔티티 생성",
+    SpawnIfClear: "스폰 (겹침방지)",
     PlayAnimation: "애니메이션 동작",
+
 };
 
 export const CONDITION_TYPES = [

@@ -730,11 +730,26 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     gameCore.startModule(ctx.entityId, moduleId, overrides);
 });
 
+// Static map to track spawn cooldowns (EntityId -> LastSpawnTime)
+const spawnCooldowns = new Map<string, number>();
+
 ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<string, unknown>) => {
     const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
     if (!gameCore?.createEntity) {
         console.error("[SpawnEntity] gameCore.createEntity not found!", ctx.globals);
         return;
+    }
+
+    // [THROTTLE] Prevent excessive spawning ONLY IF cooldown param is set
+    // Default: 0 (No limit)
+    const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
+    if (cooldownInfo > 0) {
+        const lastSpawn = spawnCooldowns.get(ctx.entityId) ?? 0;
+        const now = performance.now() / 1000; // seconds
+        if (now - lastSpawn < cooldownInfo) {
+            return; // Cooldown active
+        }
+        spawnCooldowns.set(ctx.entityId, now);
     }
 
     const entities = ctx.globals?.entities as Map<string, any> | undefined;
@@ -1041,7 +1056,68 @@ ActionRegistry.register("If", (ctx: ActionContext, params: Record<string, unknow
     }
 });
 
+// 21. SpawnIfClear (Anti-Clump Spawning)
+ActionRegistry.register("SpawnIfClear", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const gameCore = ctx.globals?.gameCore as { createEntity?: (...args: unknown[]) => boolean } | undefined;
+    if (!gameCore?.createEntity) return;
+
+    // [THROTTLE]
+    const cooldownInfo = params.cooldown ? Number(params.cooldown) : 0;
+    if (cooldownInfo > 0) {
+        // Use a unique key for spawnifclear to avoid conflict with standard spawn if needed? 
+        // Or same key "EntityId" works because one entity usually spawns one thing.
+        const lastSpawn = spawnCooldowns.get(ctx.entityId) ?? 0;
+        const now = performance.now() / 1000;
+        if (now - lastSpawn < cooldownInfo) {
+            return;
+        }
+        spawnCooldowns.set(ctx.entityId, now);
+    }
+
+    // Params
+    const templateId = String(params.templateId || "");
+    const count = Number(params.count ?? 1);
+    const radius = Number(params.radius ?? 100);
+    const checkRadius = Number(params.checkRadius ?? 30);
+
+    // Center calc
+    let centerX = 0;
+    let centerY = 0;
+
+    const entity = ctx.globals?.entities?.get(ctx.entityId);
+    if (!entity) return;
+
+    // Fallback to current entity pos
+    centerX = entity.x ?? 0;
+    centerY = entity.y ?? 0;
+
+    for (let i = 0; i < count; i++) {
+        let spawnX = centerX;
+        let spawnY = centerY;
+        let isValid = false;
+        let attempts = 0;
+
+        while (!isValid && attempts < 10) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * radius;
+            spawnX = centerX + Math.cos(angle) * dist;
+            spawnY = centerY + Math.sin(angle) * dist;
+
+            if (!collisionSystem.checkOverlap(spawnX, spawnY, checkRadius)) {
+                isValid = true;
+            }
+            attempts++;
+        }
+
+        if (isValid) {
+            const id = crypto.randomUUID();
+            const options: any = { role: params.role };
+            gameCore.createEntity(id, templateId, spawnX, spawnY, options);
+        }
+    }
+});
+
 console.log(
-    "[DefaultActions] 19 actions registered: Move, Jump, MoveToward, ChaseTarget, Attack, FireProjectile, TakeDamage, Heal, SetVar, RunModule, Enable, Disable, ChangeScene, ClearSignal, Rotate, Pulse, PlayParticle, StartParticleEmitter, StopParticleEmitter, If"
+    "[DefaultActions] 21 actions registered"
 );
 
