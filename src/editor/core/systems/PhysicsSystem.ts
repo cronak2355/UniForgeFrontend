@@ -6,6 +6,17 @@ export class PhysicsSystem implements System {
     name = "PhysicsSystem";
 
     onUpdate(context: RuntimeContext, dt: number) {
+        // [SYNC] Sync RuntimeContext entity positions TO CollisionSystem
+        // This ensures that any movement logic (LogicSystem, Scripts) is reflected in the collision world
+        // BEFORE collision detection runs.
+        for (const [id, entity] of context.entities) {
+            // Optimization: Only update if changed? 
+            // CollisionSystem.updatePosition is cheap (Map lookup + assignment)
+            // But we need to filter for entities that HAVE colliders?
+            // collisionSystem.updatePosition handles "if collider exists" check.
+            collisionSystem.updatePosition(id, entity.x, entity.y);
+        }
+
         // Delegate physics update to the global CollisionSystem (Legacy Wrapper)
         // In a pure ECS, this would iterate components and solve physics.
         // For now, we maintain the existing behavior.

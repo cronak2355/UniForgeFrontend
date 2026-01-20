@@ -117,12 +117,12 @@ export class GameCore {
         });
 
         // 3. Register Systems
-        this.pipeline.addSystem(new TransformSystem());
-        this.pipeline.addSystem(new PhysicsSystem());
-
         const logicSystem = new LogicSystem(this.moduleRuntime);
         logicSystem.setGameCore(this);
         this.pipeline.addSystem(logicSystem);
+
+        this.pipeline.addSystem(new TransformSystem());
+        this.pipeline.addSystem(new PhysicsSystem());
 
         // 4. Setup Global Events
         this.setupEventHandlers();
