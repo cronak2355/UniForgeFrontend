@@ -262,8 +262,35 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                 type="number"
                 style={inputStyle}
                 value={localEntity.z ?? 0}
-                onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // Allow intermediate state like "-" or empty
+                  if (raw === '' || raw === '-') {
+                    setLocalEntity({ ...localEntity, z: raw as unknown as number });
+                    return;
+                  }
+                  const num = parseFloat(raw);
+                  if (!Number.isNaN(num)) {
+                    updateTransform('z', num);
+                  }
+                }}
+                onBlur={() => {
+                  // Finalize intermediate state on blur
+                  const z = localEntity.z;
+                  if (typeof z === 'string' || Number.isNaN(z)) {
+                    handleUpdate({ ...localEntity, z: 0 });
+                  }
+                }}
               />
+            </div>
+            <div style={{ ...rowStyle, marginTop: 4 }}>
+              <span style={labelStyle}>🔒</span>
+              <input
+                type="checkbox"
+                checked={localEntity.locked ?? false}
+                onChange={(e) => handleUpdate({ ...localEntity, locked: e.target.checked })}
+              />
+              <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>이동 잠금</span>
             </div>
           </div>
           <div style={transformGroupStyle}>
