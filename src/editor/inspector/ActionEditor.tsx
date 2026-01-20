@@ -143,6 +143,17 @@ export function ActionEditor({
               targetType="vector2"
             />
             <ParamInput label="speed" value={action.speed} defaultValue={200} onChange={(v) => onUpdate({ ...action, speed: v })} variables={variables} entities={entities} listId={listId} />
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: '#888', width: 60 }}>Snap</span>
+              <select
+                value={action.snap === true ? "true" : "false"}
+                onChange={(e) => onUpdate({ ...action, snap: e.target.value === "true" })}
+                style={{ ...styles.smallSelect, flex: 1 }}
+              >
+                <option value="false">Off</option>
+                <option value="true">On</option>
+              </select>
+            </div>
           </>
         )}
 
