@@ -1442,9 +1442,6 @@ export class PhaserRenderer implements IRenderer {
                         else (bg as any).setFillStyle(bgColorInt);
                     });
                     container.on('pointerdown', () => {
-                        // [DEBUG] Log user request
-                        console.log(`[Button] Clicked entity: ${id}`);
-
                         if ('setTint' in bg) (bg as any).setTint(0x888888);
                         else (bg as any).setFillStyle(0x1abc9c);
 

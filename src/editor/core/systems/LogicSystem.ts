@@ -442,9 +442,6 @@ export class LogicSystem implements System {
 
         // Only log details when actions will actually execute
         if (actionsToRun.length > 0) {
-            if (actionsToRun.length > 1) {
-                console.warn(`[LogicSystem] ⚠️ MULTIPLE ACTIONS:`, actionsToRun.map((a, i) => `${i}: ${a.type}`));
-            }
 
             for (const action of actionsToRun) {
                 const { type, ...params } = action;
@@ -453,12 +450,10 @@ export class LogicSystem implements System {
                 const actionSignature = `${comp.entityId}:${type}:${JSON.stringify(params)}`;
 
                 if (this.executedActions.has(actionSignature)) {
-                    console.warn(`[LogicSystem] ⛔ Blocked duplicate action: ${type} for entity ${comp.entityId}`);
                     continue;
                 }
                 this.executedActions.add(actionSignature);
 
-                console.log(`[LogicSystem #${this.instanceId}] ▶️ Action: ${type} on entity ${comp.entityId}`);
                 ActionRegistry.run(type, ctx, params);
             }
         }

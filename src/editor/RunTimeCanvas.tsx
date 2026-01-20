@@ -353,13 +353,10 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady }: RunTimeCanva
 
         const globalEntities = Array.from(core.getGlobalEntities().values());
         const sceneEntities = Array.from(core.getEntities().values());
-        console.log("[RunTimeCanvas] Checking entities for spawn. Global:", globalEntities.length, "Scene:", sceneEntities.length);
         if (globalEntities.length === 0 && sceneEntities.length === 0) {
-            console.warn("[RunTimeCanvas] No entities to spawn yet.");
             return;
         }
 
-        console.log("[RunTimeCanvas] Spawning entities...", globalEntities.length + sceneEntities.length);
         gameRuntime.resetRuntime();
         spawnRuntimeEntities(gameRuntime, [...globalEntities, ...sceneEntities]);
 
