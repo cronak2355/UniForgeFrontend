@@ -450,7 +450,10 @@ export class EditorState implements IGameState {
 
     addAsset(asset: Asset) {
         // [Logic Fix] Case-insensitive check for Tile tag to prevent mismatches
-        const isTile = asset.tag?.toLowerCase() === "tile";
+        const normalizedTag = asset.tag?.trim().toLowerCase();
+        const isTile = normalizedTag === "tile";
+
+        console.log(`[EditorCore] Adding Asset: ${asset.name}, Tag: ${asset.tag}, IsTile: ${isTile}, Idx: ${asset.idx}`);
 
         if (isTile && (asset.idx === undefined || asset.idx === -1)) {
             // Find next available index

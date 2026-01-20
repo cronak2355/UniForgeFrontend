@@ -17,8 +17,8 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
     useEffect(() => {
         // [Logic Fix] Case-insensitive matching for "Tile" tag
-        const filtered = assets.filter(a => a.tag?.toLowerCase() === "tile");
-        console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`);
+        const filtered = assets.filter(a => a.tag?.trim().toLowerCase() === "tile");
+        console.log(`[TilePalettePanel] Assets updated. Total: ${assets.length}, Tiles: ${filtered.length}`, filtered.map(a => `${a.name}(${a.idx})`));
 
         // Always update state when assets prop changes to ensure sync
         setTileAssets(filtered);
@@ -76,6 +76,10 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
 
                 const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
                 const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
+
+                // [DEBUG] Log detailed render info
+                console.log(`[TilePalettePanel] Drawing ${asset.name} (Tag:${asset.tag}) at Idx:${tileIdx} [${x}, ${y}]`);
+
                 ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
 
                 // Draw grid

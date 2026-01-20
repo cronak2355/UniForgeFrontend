@@ -1014,7 +1014,11 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             results.forEach((result, index) => {
                 // [FIX] Use the user-selected tag from uploads array instead of server-returned tag
                 // to ensure "Tile" tag is preserved for tile palette recognition
-                const selectedTag = uploads[index]?.tag ?? result.tag;
+                const rawTag = uploads[index]?.tag ?? result.tag ?? "Default";
+                const selectedTag = rawTag.trim(); // Ensure no whitespace
+
+                console.log(`[EditorLayout] Adding Asset: ${result.name}, Tag: ${selectedTag}`);
+
                 core.addAsset({
                     id: result.id,
                     tag: selectedTag,
