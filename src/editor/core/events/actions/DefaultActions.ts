@@ -759,7 +759,14 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     // Extract variable overrides from initialVariables property
     const overrides = (params.initialVariables as Record<string, any>) ?? {};
 
-    gameCore.startModule(ctx.entityId, moduleId, overrides);
+    // [FIX] Resolve values before passing to module
+    // This ensures that if we pass a variable reference, we send the VALUE, not the reference object.
+    const resolvedOverrides: Record<string, any> = {};
+    for (const [key, val] of Object.entries(overrides)) {
+        resolvedOverrides[key] = resolveValue(ctx, val);
+    }
+
+    gameCore.startModule(ctx.entityId, moduleId, resolvedOverrides);
 });
 
 // Static map to track spawn cooldowns (EntityId -> LastSpawnTime)

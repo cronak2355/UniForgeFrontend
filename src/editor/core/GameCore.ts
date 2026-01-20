@@ -109,7 +109,7 @@ export class GameCore {
             setVar: (entityId, name, value) => {
                 // Determine type if possible, or default to check existing
                 // Since this is runtime set, we might infer type or just set "any"
-                this.pipeline.queueSetVariable(entityId, name, value);
+                this.runtimeContext.setEntityVariable(entityId, name, value);
             },
             getActionContext: (entityId, dt) => this.buildActionContext(entityId, dt),
             onModuleVarChange: (entityId, moduleId, name, value) =>
