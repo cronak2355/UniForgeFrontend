@@ -430,6 +430,13 @@ class PhaserRenderScene extends Phaser.Scene {
                             if (Math.abs(cam.zoom - targetZoom) > 0.001) {
                                 cam.setZoom(targetZoom);
                             }
+                        } else {
+                            // [FIX] Use Scale X as Zoom if no zoom variable is present
+                            // This maps the Editor "Size" (Scale) to Runtime Zoom
+                            const scaleX = Number(cameraEntity.scaleX) || 1;
+                            if (Math.abs(cam.zoom - scaleX) > 0.001) {
+                                cam.setZoom(scaleX);
+                            }
                         }
                     }
 

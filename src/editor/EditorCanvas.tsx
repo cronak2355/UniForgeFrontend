@@ -12,6 +12,7 @@ import { assetToEntity } from "./utils/assetToEntity";
 import { getCloudFrontUrl } from "../utils/imageUtils";
 
 import { TILE_SIZE, TILESET_COLS } from "./constants/tileConfig";
+import { parseResolution } from "./utils/resolutionUtils";
 
 type Props = {
     assets: Asset[];
@@ -797,16 +798,7 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         const renderer = rendererRef.current;
         if (!renderer || !isRendererReady) return;
 
-        let w = 0;
-        let h = 0;
-        switch (aspectRatio) {
-            case "1280x720": w = 1280; h = 720; break;
-            case "1920x1080": w = 1920; h = 1080; break;
-            case "1024x768": w = 1024; h = 768; break;
-            case "720x1280": w = 720; h = 1280; break;
-            case "1080x1920": w = 1080; h = 1920; break;
-            default: w = 0; h = 0; break;
-        }
+        const { width: w, height: h } = parseResolution(aspectRatio);
         // Find Main Camera and use its position as the CENTER of the guide frame
         const mainCamera = entities.find(e => e.name === "Main Camera");
         const camX = mainCamera?.x ?? 0;
