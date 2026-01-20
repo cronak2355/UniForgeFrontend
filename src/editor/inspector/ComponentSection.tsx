@@ -694,11 +694,16 @@ function ConditionEditor({
                         style={styles.smallSelect}
                     >
                         <option value="">(variable)</option>
-                        {variables.map((v) => (
-                            <option key={v.id} value={v.name}>
-                                {v.name}
-                            </option>
-                        ))}
+                        {variables.flatMap((v) => {
+                            if (v.type === "vector2") {
+                                return [
+                                    <option key={v.id} value={v.name}>{v.name} (vector2)</option>,
+                                    <option key={`${v.id}.x`} value={`${v.name}.x`}>{v.name}.x</option>,
+                                    <option key={`${v.id}.y`} value={`${v.name}.y`}>{v.name}.y</option>,
+                                ];
+                            }
+                            return [<option key={v.id} value={v.name}>{v.name}</option>];
+                        })}
                     </select>
                 )}
 

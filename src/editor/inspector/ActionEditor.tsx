@@ -218,9 +218,18 @@ export function ActionEditor({
                 style={{ ...styles.selectField, flex: 1, minWidth: 0 }}
               >
                 <option value="" disabled>Select Variable</option>
-                {variables.map((v) => (
-                  <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
-                ))}
+                <optgroup label="Transform">
+                  <option value="x">x (position)</option>
+                  <option value="y">y (position)</option>
+                  <option value="scaleX">scaleX</option>
+                  <option value="scaleY">scaleY</option>
+                  <option value="rotation">rotation</option>
+                </optgroup>
+                <optgroup label="Variables">
+                  {variables.map((v) => (
+                    <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
@@ -462,24 +471,6 @@ export function ActionEditor({
                 <ParamInput label="dy" value={action.offsetY} onChange={(v) => onUpdate({ ...action, offsetY: v })} variables={variables} entities={entities} listId={listId} />
               </>
             )}
-            {spawnSourceType === "texture" && (
-              <>
-                <input
-                  type="text"
-                  placeholder="texture"
-                  value={(action.texture as string) || ""}
-                  onChange={(e) => onUpdate({ ...action, texture: e.target.value })}
-                  list={`${listId}-textures`}
-                  style={styles.textInput}
-                />
-                <datalist id={`${listId}-textures`}>
-                  {assets?.map((a) => (
-                    <option key={a.id} value={a.name} />
-                  ))}
-                </datalist>
-              </>
-            )}
-
             {/* Prefab Initial Variables Override UI */}
             {spawnSourceType === "prefab" && spawnAssetId && (
               (() => {

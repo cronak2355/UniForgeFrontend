@@ -842,10 +842,6 @@ export class PhaserRenderer implements IRenderer {
                 const rendererCount = this.entities.size;
                 const runtimeCount = this.gameCore?.getRuntimeContext?.()?.entities.size ?? 0;
 
-                console.log(`[PhaserRenderer Debug]`);
-                console.log(`  - Mode: Runtime=${this.isRuntimeMode}, HasMainCameraEntity=${!!mainCameraEntity}`);
-                console.log(`  - Camera: Scroll(${cam.scrollX.toFixed(1)}, ${cam.scrollY.toFixed(1)}), Zoom=${cam.zoom}`);
-                console.log(`  - Entities: Renderer=${rendererCount}, Runtime=${runtimeCount}`);
             } // END DEBUG
         }
 

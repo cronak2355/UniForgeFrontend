@@ -542,6 +542,10 @@ function resolveValue(ctx: ActionContext, source: ValueSource | number | string)
     return 0;
 }
 
+
+// Static Cooldown Map to prevent duplicate execution of SetVar
+const setVarGlobalCooldowns = new Map<string, number>();
+
 ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, unknown>) => {
     const entity = getEntity(ctx);
     if (!entity) return;
@@ -549,24 +553,35 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     const varName = params.name as string;
     if (!varName) return;
 
-    // [DEBUG] Trace SetVar Execution
-    console.log(`[SetVar] Executing: ${varName} (Entity: ${ctx.entityId}) Event: ${(ctx.eventData as any)?.type || 'unknown'}`);
-
-
     // Enhanced SetVar: Variable = Op1 [Operation] Op2
     const operation = (params.operation as string) ?? "Set";
-    const operand1 = params.operand1 as ValueSource | number | string;
-    const operand2 = params.operand2 as ValueSource | number | string;
+    const operand1 = params.operand1;
+    const operand2 = params.operand2;
 
+    // [GUARD] Duplicate Execution Prevention
+    // Key based on Entity, Variable, Operation, and Operands.
+    // If exact same operation happens on same entity/var within 1 frame (~1ms), we block it.
+    // We use a safe margin (e.g., 2ms) to catch double-loops but allow 60fps updates (16ms).
+    const opKey = `${ctx.entityId}:${varName}:${operation}:${JSON.stringify(operand1)}:${JSON.stringify(operand2)}`;
+    const now = performance.now();
+    const lastTime = setVarGlobalCooldowns.get(opKey) ?? 0;
 
+    // 2ms throttle: Blocks almost-instant duplicates (same microtask/frame)
+    // but allows next-frame updates (16ms+).
+    if (now - lastTime < 2) {
+        return;
+    }
+    setVarGlobalCooldowns.set(opKey, now);
+
+    // Enhanced SetVar: Variable = Op1 [Operation] Op2
     // Check if using legacy mode (simple value param)
     if (params.value !== undefined && params.operand1 === undefined) {
         setVar(entity, varName, params.value as number | string);
         return;
     }
 
-    const val1 = resolveValue(ctx, operand1 ?? 0);
-    const val2 = resolveValue(ctx, operand2 ?? 0);
+    const val1 = resolveValue(ctx, (operand1 ?? 0) as any);
+    const val2 = resolveValue(ctx, (operand2 ?? 0) as any);
 
     // console.log(`[SetVar] ${varName} = ${JSON.stringify(val1)} (Op: ${operation}), Source: ${JSON.stringify(operand1)}`);
 
@@ -615,6 +630,79 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
     }
 
 
+
+    // Handle special entity properties (position, scale, rotation)
+    const specialProperties = ["x", "y", "position.x", "position.y", "scaleX", "scaleY", "scale.x", "scale.y", "rotation"];
+    const normalizedName = varName.toLowerCase();
+
+    if (specialProperties.includes(varName) || specialProperties.includes(normalizedName)) {
+        const renderer = ctx.globals?.renderer;
+        const gameObj = renderer?.getGameObject?.(ctx.entityId);
+        const numValue = typeof result === 'number' ? result : Number(result);
+
+        switch (varName) {
+            case "x":
+            case "position.x":
+                entity.x = numValue;
+                if (gameObj) (gameObj as any).x = numValue;
+                break;
+            case "y":
+            case "position.y":
+                entity.y = numValue;
+                if (gameObj) (gameObj as any).y = numValue;
+                break;
+            case "scaleX":
+            case "scale.x":
+                entity.scaleX = numValue;
+                if (gameObj?.setScale) {
+                    const currentScaleY = entity.scaleY ?? 1;
+                    (gameObj as any).setScale(numValue, currentScaleY);
+                }
+                break;
+            case "scaleY":
+            case "scale.y":
+                entity.scaleY = numValue;
+                if (gameObj?.setScale) {
+                    const currentScaleX = entity.scaleX ?? 1;
+                    (gameObj as any).setScale(currentScaleX, numValue);
+                }
+                break;
+            case "rotation":
+                entity.rotation = numValue;
+                if (gameObj) (gameObj as any).rotation = numValue;
+                break;
+        }
+
+        // Also sync to RuntimeContext
+        const gameCore = ctx.globals?.gameCore as any;
+        if (gameCore?.getRuntimeContext) {
+            const runtimeEntity = gameCore.getRuntimeContext().entities.get(ctx.entityId);
+            if (runtimeEntity) {
+                switch (varName) {
+                    case "x":
+                    case "position.x":
+                        runtimeEntity.x = numValue;
+                        break;
+                    case "y":
+                    case "position.y":
+                        runtimeEntity.y = numValue;
+                        break;
+                    case "scaleX":
+                    case "scale.x":
+                        runtimeEntity.scaleX = numValue;
+                        break;
+                    case "scaleY":
+                    case "scale.y":
+                        runtimeEntity.scaleY = numValue;
+                        break;
+                    case "rotation":
+                        runtimeEntity.rotation = numValue;
+                        break;
+                }
+            }
+        }
+        return;
+    }
 
     setVar(entity, varName, result as any);
 
@@ -752,9 +840,9 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
             }
             return baseVars;
         })(),
-        components: sourceComponents ? cloneJson(sourceComponents) : [],
+        components: sourceType === "prefab" && sourceComponents ? cloneJson(sourceComponents) : [],
         role: ((params.role as string) ?? source?.role ?? "neutral"),
-        modules: source?.modules ? cloneJson(source.modules) : [],
+        modules: sourceType === "prefab" && source?.modules ? cloneJson(source.modules) : [],
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,
