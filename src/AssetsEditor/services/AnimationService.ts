@@ -35,9 +35,12 @@ function getAuthHeaders() {
   };
 }
 
-// Basic Korean-to-English translation map (Support map)
+// Extended Korean-to-English translation map
 const TRANSLATION_MAP: Record<string, string> = {
   "해골기사": "Skeleton Knight",
+  "전설의 기사": "Legendary Knight", // Add specific compound
+  "전설의": "legendary",
+  "전설": "legend",
   "픽셀 아트": "pixel art",
   "호러": "horror",
   "웅장한": "epic, grand",
@@ -54,10 +57,15 @@ const TRANSLATION_MAP: Record<string, string> = {
   "드래곤": "dragon"
 };
 
+function hasKorean(text: string): boolean {
+  return /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
+}
+
 /**
  * Translates prompt via Backend API (AWS Translate) with fallback to local map
  */
 async function translatePromptAsync(text: string): Promise<string> {
+  // 1. Try API Translation
   try {
     const response = await fetch('/api/ai/translate', {
       method: 'POST',
@@ -68,27 +76,33 @@ async function translatePromptAsync(text: string): Promise<string> {
       })
     });
 
-    if (!response.ok) {
-      console.warn(`Translation failed [${response.status}], using fallback map.`);
-      // Fallback to local map
-      let translated = text;
-      Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
-        translated = translated.replace(new RegExp(ko, 'g'), en);
-      });
-      return translated;
-    }
+    if (response.ok) {
+      const data = await response.json();
+      const translated = data.translatedText || text;
 
-    const data = await response.json();
-    return data.translatedText || text;
+      // Double-check: If API returns text that still has Korean, it likely failed silently
+      if (hasKorean(translated)) {
+        console.warn("API returned Korean text, applying fallback map.");
+        return applyFallbackMap(translated);
+      }
+      return translated;
+    } else {
+      console.warn(`Translation failed [${response.status}], using fallback map.`);
+    }
   } catch (e) {
     console.error("Translation API error:", e);
-    // Fallback to local map
-    let translated = text;
-    Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
-      translated = translated.replace(new RegExp(ko, 'g'), en);
-    });
-    return translated;
   }
+
+  // 2. Fallback (If API failed or threw error)
+  return applyFallbackMap(text);
+}
+
+function applyFallbackMap(text: string): string {
+  let translated = text;
+  Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+    translated = translated.replace(new RegExp(ko, 'g'), en);
+  });
+  return translated;
 }
 
 /**
