@@ -36,8 +36,22 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         if (!ctx) return;
 
         // Calculate required height based on max index
-        const maxIdx = tileAssets.reduce((max, a) => Math.max(max, a.idx ?? 0), 0);
-        const rows = Math.ceil((maxIdx + 1) / TILESET_COLS);
+        // Calculate max index to place unindexed tiles at the end
+        let maxExistingIdx = -1;
+        let unindexedCount = 0;
+        tileAssets.forEach(a => {
+            if (typeof a.idx === 'number' && a.idx !== -1) {
+                maxExistingIdx = Math.max(maxExistingIdx, a.idx);
+            } else {
+                unindexedCount++;
+            }
+        });
+
+        // Ensure enough space for existing keyed tiles + unindexed fallbacks
+        const finalMaxIdx = Math.max(maxExistingIdx, -1) + unindexedCount;
+        const rows = Math.ceil((finalMaxIdx + 1) / TILESET_COLS);
+
+        let nextVirtualIdx = maxExistingIdx + 1;
 
         canvas.width = TILESET_COLS * TILE_SIZE;
         canvas.height = Math.max(rows, 1) * TILE_SIZE;
@@ -50,9 +64,16 @@ export const TilePalettePanel: React.FC<TilePalettePanelProps> = ({ assets, sele
         let loadedCount = 0;
         tileAssets.forEach((asset) => {
             const img = new Image();
-            // img.crossOrigin = "Anonymous"; // Removed to prevent CORS errors on proxy images
+            // img.crossOrigin = "Anonymous"; 
             img.onload = () => {
-                const tileIdx = asset.idx ?? 0;
+                let tileIdx = asset.idx ?? -1;
+
+                // [Safety Net] If idx is invalid, assign virtual index for display
+                if (tileIdx === -1) {
+                    tileIdx = nextVirtualIdx++;
+                    console.warn(`[TilePalettePanel] Asset ${asset.name} has idx -1, rendering at virtual index ${tileIdx}`);
+                }
+
                 const x = (tileIdx % TILESET_COLS) * TILE_SIZE;
                 const y = Math.floor(tileIdx / TILESET_COLS) * TILE_SIZE;
                 ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
