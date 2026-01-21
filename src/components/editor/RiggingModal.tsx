@@ -477,6 +477,28 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                     className="w-full accent-amber-500"
                                 />
                             </div>
+
+                        )}
+
+                        {/* Add Part Button (Setup Mode Only) */}
+                        {step === 'setup' && (
+                            <button
+                                onClick={() => {
+                                    const newId = `part_${Date.now()}`;
+                                    const color = COLORS[parts.length % COLORS.length];
+                                    setParts([...parts, {
+                                        id: newId,
+                                        name: `부위 ${parts.length + 1}`,
+                                        color: color,
+                                        maskData: null,
+                                        isVisible: true
+                                    }]);
+                                    setActivePartId(newId);
+                                }}
+                                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-sm font-medium border border-zinc-700 border-dashed transition-colors flex items-center justify-center gap-2"
+                            >
+                                <i className="fa-solid fa-plus"></i> 부위 추가
+                            </button>
                         )}
 
                         {/* Animation Frame List */}
@@ -585,7 +607,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
