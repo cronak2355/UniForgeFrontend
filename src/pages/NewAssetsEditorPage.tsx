@@ -29,6 +29,7 @@ const NewAssetsEditorPage: React.FC = () => {
         rotate: 0
     });
     const imageRef = useRef<HTMLImageElement>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Refs
     const canvasRef = useRef<DrawingCanvasRef>(null);
@@ -37,7 +38,6 @@ const NewAssetsEditorPage: React.FC = () => {
     // Undo/Redo Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore input fields
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
             if (e.ctrlKey || e.metaKey) {
@@ -63,10 +63,65 @@ const NewAssetsEditorPage: React.FC = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [importedImage]);
 
+    // --- Actions ---
     const handleSizeSelect = (size: number) => {
         setCanvasSize({ width: size, height: size });
         setZoom(1);
         setPan({ x: 0, y: 0 });
+    };
+
+    const handleClearCanvas = () => {
+        if (confirm("캔버스를 초기화하시겠습니까? 모든 작업이 삭제됩니다.")) {
+            canvasRef.current?.clear();
+        }
+    };
+
+    const handleRemoveBackground = async () => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+
+        setIsLoading(true);
+        try {
+            // 1. Get Base64
+            const base64Image = canvas.toDataURL('image/png').split(',')[1];
+
+            // 2. Call API
+            const token = authService.getToken();
+
+            const response = await fetch('/api/remove-background', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : '',
+                },
+                body: JSON.stringify({ image: base64Image }),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Failed: ${text}`);
+            }
+
+            const data = await response.json();
+            const cleanBase64 = data.image;
+
+            // 3. Draw back
+            const img = new Image();
+            img.onload = () => {
+                canvasRef.current?.setImage(img);
+                setIsLoading(false);
+            };
+            img.onerror = () => {
+                alert("이미지 처리 중 오류가 발생했습니다.");
+                setIsLoading(false);
+            };
+            img.src = `data:image/png;base64,${cleanBase64}`;
+
+        } catch (error) {
+            console.error(error);
+            alert("배경 제거 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+            setIsLoading(false);
+        }
     };
 
     // Pan Handlers
@@ -105,14 +160,13 @@ const NewAssetsEditorPage: React.FC = () => {
         }
     };
 
-    // Image Upload Logic (Fixed Size Issue)
+    // Image Upload Logic
     const handleImageUpload = (file: File) => {
         if (!canvasSize) return;
 
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
-            // Target Size: 80% of canvas
             const targetRatio = 0.8;
             const maxWidth = canvasSize.width * targetRatio;
             const maxHeight = canvasSize.height * targetRatio;
@@ -120,7 +174,6 @@ const NewAssetsEditorPage: React.FC = () => {
             let newWidth = img.width;
             let newHeight = img.height;
 
-            // Logic: If image is larger than target, scale down. If smaller, scale up to target.
             const scaleX = maxWidth / newWidth;
             const scaleY = maxHeight / newHeight;
             const optimalScale = Math.min(scaleX, scaleY);
@@ -173,7 +226,6 @@ const NewAssetsEditorPage: React.FC = () => {
 
         ctx.restore();
 
-        // Ensure History is saved
         canvasRef.current.saveHistory();
 
         setImportedImage(null);
@@ -238,14 +290,38 @@ const NewAssetsEditorPage: React.FC = () => {
             <div className="flex-1 flex flex-col relative bg-[#121212]">
                 {/* Header */}
                 <div className="h-10 border-b border-[#282828] flex items-center justify-between px-4 bg-[#1e1e1e] z-10 shadow-sm shrink-0">
-                    <div className="flex gap-4 text-[11px] text-gray-500 font-mono">
+                    <div className="flex gap-4 text-[11px] text-gray-500 font-mono items-center">
                         <span>{canvasSize.width}x{canvasSize.height}</span>
                         <span className="text-gray-700">|</span>
                         <span>{Math.round(zoom * 100)}%</span>
                         <span className="text-gray-700">|</span>
                         <span className="uppercase text-gray-400">{selectedTool === 'move' && importedImage ? '이미지 변형 모드' : selectedTool}</span>
+                        {/* Status Message */}
+                        {isLoading && <span className="text-blue-400 ml-4 animate-pulse"><i className="fa-solid fa-spinner fa-spin mr-1"></i>처리 중...</span>}
                     </div>
                     <div className="flex gap-3">
+                        {/* Extra Actions */}
+                        {!importedImage && (
+                            <>
+                                <button
+                                    onClick={handleRemoveBackground}
+                                    disabled={isLoading}
+                                    className={`px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333] flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    title="AI 배경 제거"
+                                >
+                                    <i className="fa-solid fa-wand-magic-sparkles text-purple-400"></i> 배경 제거
+                                </button>
+                                <button
+                                    onClick={handleClearCanvas}
+                                    className="px-3 py-1 bg-[#2a2a2a] hover:bg-red-900/30 hover:text-red-400 text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333]"
+                                    title="전체 지우기"
+                                >
+                                    <i className="fa-regular fa-trash-can"></i>
+                                </button>
+                                <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
+                            </>
+                        )}
+
                         {importedImage && (
                             <button
                                 onClick={handleBakeImage}

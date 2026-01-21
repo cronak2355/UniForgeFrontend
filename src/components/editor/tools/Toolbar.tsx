@@ -44,8 +44,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 <i className="fa-solid fa-toolbox md:hidden text-gray-400"></i>
             </div>
 
+            {/* Scrollable Tools Area */}
             <div className="p-2 flex flex-col gap-4 overflow-y-auto custom-scrollbar flex-1">
-
                 {/* Tools Grid - Adaptive */}
                 <div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-1">
@@ -95,61 +95,59 @@ const Toolbar: React.FC<ToolbarProps> = ({
                         />
                     </div>
                 </div>
-
             </div>
-        </div>
 
-            {/* Color Picker (Fixed at Bottom) */ }
-    <div className="p-2 border-t border-[#1a1a1a] bg-[#262626]">
-        <div className="mt-auto md:mt-0">
-            <div className="mb-2 hidden md:block">색상</div>
-            <div className="flex flex-col gap-2 relative group">
-                {/* Foreground Color */}
-                <div
-                    className="w-full aspect-square md:aspect-auto md:h-12 rounded-[2px] border border-[#444] shadow-inner cursor-pointer relative bg-checkboard"
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                >
-                    <div className="absolute inset-0" style={{ backgroundColor: brushColor }}></div>
-                    <div className="absolute inset-0 ring-1 ring-inset ring-black/10 pointer-events-none"></div>
-                </div>
-
-                {/* Quick Colors */}
-                <div className="flex justify-between px-0.5">
-                    <button
-                        onClick={() => onColorChange('#000000')}
-                        title="검은색"
-                        className="w-5 h-5 bg-black border border-[#444] rounded-[2px] hover:scale-105 transition-transform shadow-sm"
-                    ></button>
-                    <button
-                        onClick={() => onColorChange('#ffffff')}
-                        title="흰색"
-                        className="w-5 h-5 bg-white border border-[#444] rounded-[2px] hover:scale-105 transition-transform shadow-sm"
-                    ></button>
-                </div>
-
-                {/* Popover */}
-                {showColorPicker && (
-                    <div className="absolute bottom-0 left-full ml-4 z-50 bg-[#2b2b2b] p-2 rounded-[4px] border border-[#111] shadow-[0_4px_20px_rgba(0,0,0,0.5)] w-[200px]">
-                        <div className="mb-2" onClick={(e) => e.stopPropagation()}>
-                            <HexColorPicker color={brushColor} onChange={onColorChange} />
+            {/* Fixed Bottom Area for Color Picker */}
+            <div className="p-2 border-t border-[#1a1a1a] bg-[#262626] relative">
+                <div className="mt-auto md:mt-0">
+                    <div className="mb-2 hidden md:block">색상</div>
+                    <div className="flex flex-col gap-2 relative group">
+                        {/* Foreground Color */}
+                        <div
+                            className="w-full aspect-square md:aspect-auto md:h-12 rounded-[2px] border border-[#444] shadow-inner cursor-pointer relative bg-checkboard"
+                            onClick={() => setShowColorPicker(!showColorPicker)}
+                        >
+                            <div className="absolute inset-0" style={{ backgroundColor: brushColor }}></div>
+                            <div className="absolute inset-0 ring-1 ring-inset ring-black/10 pointer-events-none"></div>
                         </div>
-                        <div className="flex gap-2">
-                            <div className="flex-1 h-6 bg-[#161616] border border-[#333] text-gray-300 px-2 flex items-center text-[10px] font-mono shadow-inner rounded-[2px]">
-                                {brushColor.toUpperCase()}
-                            </div>
+
+                        {/* Quick Colors */}
+                        <div className="flex justify-between px-0.5">
                             <button
-                                onClick={() => setShowColorPicker(false)}
-                                className="px-3 bg-[#444] hover:bg-[#505050] text-white text-[10px] rounded-[2px] transition-colors border border-[#555]"
-                            >
-                                확인
-                            </button>
+                                onClick={() => onColorChange('#000000')}
+                                title="검은색"
+                                className="w-5 h-5 bg-black border border-[#444] rounded-[2px] hover:scale-105 transition-transform shadow-sm"
+                            ></button>
+                            <button
+                                onClick={() => onColorChange('#ffffff')}
+                                title="흰색"
+                                className="w-5 h-5 bg-white border border-[#444] rounded-[2px] hover:scale-105 transition-transform shadow-sm"
+                            ></button>
                         </div>
+
+                        {/* Popover - Now escapes the scroll container because it's in a sibling div */}
+                        {showColorPicker && (
+                            <div className="absolute bottom-full left-0 mb-2 z-50 bg-[#2b2b2b] p-2 rounded-[4px] border border-[#111] shadow-[0_4px_20px_rgba(0,0,0,0.5)] w-[200px]">
+                                <div className="mb-2" onClick={(e) => e.stopPropagation()}>
+                                    <HexColorPicker color={brushColor} onChange={onColorChange} />
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 h-6 bg-[#161616] border border-[#333] text-gray-300 px-2 flex items-center text-[10px] font-mono shadow-inner rounded-[2px]">
+                                        {brushColor.toUpperCase()}
+                                    </div>
+                                    <button
+                                        onClick={() => setShowColorPicker(false)}
+                                        className="px-3 bg-[#444] hover:bg-[#505050] text-white text-[10px] rounded-[2px] transition-colors border border-[#555]"
+                                    >
+                                        확인
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
-    </div>
-        </div >
     );
 };
 
