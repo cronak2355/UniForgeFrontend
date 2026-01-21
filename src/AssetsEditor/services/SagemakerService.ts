@@ -15,6 +15,11 @@ export interface GenerateAssetRequest {
     strength?: number; // 0.0 to 1.0 (Refine strength)
     mode?: 'text-to-image' | 'image-to-image' | 'remove_background';
     seed?: number;
+    // SDXL Parameters
+    steps?: number;
+    cfg_scale?: number;
+    sampler?: string;
+    style_preset?: string; // e.g., 'pixel-art'
 }
 
 export interface GenerateAssetResponse {
@@ -73,6 +78,11 @@ export async function generateAsset(request: GenerateAssetRequest): Promise<Gene
                 strength: request.strength,
                 mode: request.mode,
                 seed: request.seed,
+                // SDXL Params
+                steps: request.steps || 30,
+                cfg_scale: request.cfg_scale || 7.0,
+                sampler: request.sampler || "DPM++ 2M Karras",
+                style_preset: request.style_preset
             }),
         });
 
