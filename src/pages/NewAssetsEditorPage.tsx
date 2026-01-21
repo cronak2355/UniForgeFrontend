@@ -6,6 +6,8 @@ import { authService } from '../services/authService';
 import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
+import { SkeletonPreview, useSkeletonPreview } from '../AssetsEditor/phaser/skeleton';
+import type { MotionType } from '../AssetsEditor/phaser/skeleton/SkeletonController';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -44,12 +46,11 @@ const NewAssetsEditorPage: React.FC = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiStyle, setAiStyle] = useState('pixel-art');
 
-    // AI Animation State
-    const [isAnimModalOpen, setIsAnimModalOpen] = useState(false);
-    const [animPrompt, setAnimPrompt] = useState('');
-
-    // Sprite Sheet Mode (1024x512 when true, normal size when false)
-    const [isSpriteMode, setIsSpriteMode] = useState(false);
+    // AI Animation State -> Skeleton Animation Panel State
+    const [isSkeletonPanelOpen, setIsSkeletonPanelOpen] = useState(false);
+    const skeleton = useSkeletonPreview();
+    const [currentMotion, setCurrentMotion] = useState<MotionType | null>(null);
+    const [motionConfig, setMotionConfig] = useState({ speed: 1, intensity: 1 });
 
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
@@ -242,48 +243,38 @@ const NewAssetsEditorPage: React.FC = () => {
         }
     };
 
-    const handleAnimGenerate = async () => {
+
+    // Load current canvas image into skeleton preview
+    const handleLoadToSkeleton = () => {
         const canvas = canvasRef.current?.getCanvas();
-        if (!canvas) {
-            alert("캔버스를 찾을 수 없습니다.");
-            return;
-        }
+        if (!canvas) return;
 
-        setIsLoading(true);
-        try {
-            const base64Image = canvas.toDataURL('image/png').split(',')[1];
-            const response = await SagemakerService.generateAnimationSheet(animPrompt, base64Image);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-            if (!response.success || !response.image) {
-                throw new Error(response.error || "Animation generation failed");
-            }
-
-            // Switch to sprite mode (1024x512 for 2 frames)
-            setIsSpriteMode(true);
-            setCanvasSize({ width: 1024, height: 512 });
-
-            const img = new Image();
-            img.onload = async () => {
-                // Wait a tick for canvas to resize
-                setTimeout(() => {
-                    canvasRef.current?.setImage(img);
-                    setIsAnimModalOpen(false);
-                    setIsLoading(false);
-                }, 100);
-            };
-            img.src = `data:image/png;base64,${response.image}`;
-
-        } catch (error) {
-            console.error(error);
-            alert("애니메이션 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
-            setIsLoading(false);
-        }
+        // Get image data from canvas
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        skeleton.loadFromImageData(imageData);
+        setIsSkeletonPanelOpen(true);
     };
 
-    // Exit sprite mode and return to normal canvas
-    const handleExitSpriteMode = () => {
-        setIsSpriteMode(false);
-        setCanvasSize({ width: 512, height: 512 });
+    // Play motion on skeleton
+    const handlePlayMotion = (motionType: MotionType) => {
+        setCurrentMotion(motionType);
+        skeleton.playMotion(motionType);
+    };
+
+    // Stop motion on skeleton
+    const handleStopMotion = () => {
+        setCurrentMotion(null);
+        skeleton.stopMotion();
+    };
+
+    // Update motion config
+    const handleUpdateConfig = (newConfig: Partial<{ speed: number; intensity: number }>) => {
+        const updated = { ...motionConfig, ...newConfig };
+        setMotionConfig(updated);
+        skeleton.updateConfig(updated);
     };
 
     const handleRemoveBackground = async () => {
@@ -581,23 +572,8 @@ const NewAssetsEditorPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* AI Buttons */}
+                    {/* AI & Animation Buttons */}
                     <div className="flex items-center gap-2">
-                        {/* Sprite Mode Indicator */}
-                        {isSpriteMode && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-lg">
-                                <i className="fa-solid fa-film text-amber-400"></i>
-                                <span className="text-amber-400 text-xs font-medium">스프라이트 모드</span>
-                                <button
-                                    onClick={handleExitSpriteMode}
-                                    className="ml-1 text-amber-400 hover:text-amber-300"
-                                    title="스프라이트 모드 종료"
-                                >
-                                    <i className="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        )}
-
                         <button
                             onClick={() => setIsAiModalOpen(true)}
                             disabled={isLoading}
@@ -608,12 +584,12 @@ const NewAssetsEditorPage: React.FC = () => {
                         </button>
 
                         <button
-                            onClick={() => setIsAnimModalOpen(true)}
+                            onClick={handleLoadToSkeleton}
                             disabled={isLoading}
-                            className={`h-9 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`h-9 px-4 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            <i className="fa-solid fa-film"></i>
-                            <span className="hidden sm:inline">AI 애니메이션</span>
+                            <i className="fa-solid fa-person-running"></i>
+                            <span className="hidden sm:inline">리깅 애니메이션</span>
                         </button>
                     </div>
 
@@ -913,38 +889,80 @@ const NewAssetsEditorPage: React.FC = () => {
                 </div>
             )}
 
-            {/* AI Animation Modal */}
-            {isAnimModalOpen && (
+            {/* Skeleton Animation Panel */}
+            {isSkeletonPanelOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={(e) => { if (e.target === e.currentTarget) setIsAnimModalOpen(false); }}>
-                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-[400px] overflow-hidden animate-in zoom-in-95 duration-200">
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsSkeletonPanelOpen(false); }}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-[500px] overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-zinc-800/50 p-4 border-b border-zinc-700 flex justify-between items-center">
                             <h3 className="font-bold text-sm text-zinc-100 flex items-center gap-2">
-                                <i className="fa-solid fa-film text-indigo-400"></i> AI 애니메이션
+                                <i className="fa-solid fa-person-running text-amber-400"></i> 리깅 애니메이션
                             </h3>
-                            <button onClick={() => setIsAnimModalOpen(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors"><i className="fa-solid fa-xmark"></i></button>
+                            <button onClick={() => setIsSkeletonPanelOpen(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors"><i className="fa-solid fa-xmark"></i></button>
                         </div>
                         <div className="p-5 space-y-4">
-                            <div className="bg-indigo-900/10 p-3 rounded-lg border border-indigo-500/20 text-xs text-indigo-200 flex items-start gap-3">
-                                <i className="fa-solid fa-circle-info mt-0.5 text-indigo-400"></i>
-                                <div>현재 캔버스의 캐릭터를 기반으로 <strong className="text-indigo-300">4프레임 동작 시트</strong>를 생성합니다. (걷기, 공격 등)</div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-zinc-400 mb-2">동작 설명 (한글 가능)</label>
-                                <input
-                                    type="text"
-                                    value={animPrompt}
-                                    onChange={(e) => setAnimPrompt(e.target.value)}
-                                    placeholder="예: 오른쪽으로 걷는 동작, 점프하는 동작..."
-                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-sm text-zinc-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                            {/* Skeleton Preview */}
+                            <div className="flex justify-center bg-zinc-950 rounded-lg p-4 border border-zinc-800">
+                                <SkeletonPreview
+                                    ref={skeleton.ref}
+                                    width={300}
+                                    height={300}
+                                    className="rounded"
                                 />
                             </div>
+
+                            {/* Motion Buttons */}
+                            <div className="grid grid-cols-3 gap-2">
+                                {(['idle', 'walk', 'jump', 'attack', 'hit', 'rotate'] as MotionType[]).map((motion) => (
+                                    <button
+                                        key={motion}
+                                        onClick={() => handlePlayMotion(motion)}
+                                        className={`px-3 py-2 text-xs font-medium rounded-lg transition-all capitalize ${currentMotion === motion
+                                                ? 'bg-amber-600 text-white'
+                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                            }`}
+                                    >
+                                        {motion}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Controls */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-zinc-400 w-16">Speed</span>
+                                    <input
+                                        type="range"
+                                        min="0.25"
+                                        max="2"
+                                        step="0.25"
+                                        value={motionConfig.speed}
+                                        onChange={(e) => handleUpdateConfig({ speed: parseFloat(e.target.value) })}
+                                        className="flex-1"
+                                    />
+                                    <span className="text-xs text-zinc-300 w-8">{motionConfig.speed}x</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-zinc-400 w-16">Intensity</span>
+                                    <input
+                                        type="range"
+                                        min="0.25"
+                                        max="2"
+                                        step="0.25"
+                                        value={motionConfig.intensity}
+                                        onChange={(e) => handleUpdateConfig({ intensity: parseFloat(e.target.value) })}
+                                        className="flex-1"
+                                    />
+                                    <span className="text-xs text-zinc-300 w-8">{motionConfig.intensity}x</span>
+                                </div>
+                            </div>
                         </div>
-                        <div className="p-4 bg-zinc-800/30 flex justify-end gap-2 border-t border-zinc-800">
-                            <button onClick={() => setIsAnimModalOpen(false)} className="px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200 font-medium">취소</button>
-                            <button onClick={handleAnimGenerate} disabled={!animPrompt.trim() || isLoading}
-                                className={`px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg flex items-center gap-2 font-bold transition-all shadow-lg shadow-indigo-600/20 ${(!animPrompt.trim() || isLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-film"></i>} 생성하기
+                        <div className="p-4 bg-zinc-800/30 flex justify-between gap-2 border-t border-zinc-800">
+                            <button onClick={handleStopMotion} className="px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200 font-medium bg-zinc-800 rounded-lg">
+                                <i className="fa-solid fa-stop mr-1"></i> 정지
+                            </button>
+                            <button onClick={() => setIsSkeletonPanelOpen(false)} className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg font-bold transition-all shadow-lg shadow-amber-600/20">
+                                완료
                             </button>
                         </div>
                     </div>
