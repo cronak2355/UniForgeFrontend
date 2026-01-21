@@ -65,13 +65,40 @@ export async function generateAsset(request: GenerateAssetRequest): Promise<Gene
     }
 }
 
-/**
- * 프롬프트 번역 (Backend handles this now, keeping for compatibility if needed or removing)
- * -> Removing as backend handles it.
- */
+export async function generateAnimationSheet(prompt: string, imageBase64: string): Promise<GenerateAssetResponse> {
+    try {
+        const response = await fetch(`/api/generate-animation-sheet`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                prompt,
+                image: imageBase64
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Animation API failed: ${errorText}`);
+        }
+
+        const data = await response.json();
+        return {
+            success: true,
+            image: data.image
+        };
+
+    } catch (error) {
+        console.error('Animation generation failed:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred',
+        };
+    }
+}
 
 export const SagemakerService = {
     generateAsset,
+    generateAnimationSheet,
 };
 
 export default SagemakerService;

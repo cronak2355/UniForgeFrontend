@@ -20,6 +20,10 @@ const NewAssetsEditorPage: React.FC = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiStyle, setAiStyle] = useState('pixel-art');
 
+    // AI Animation State
+    const [isAnimModalOpen, setIsAnimModalOpen] = useState(false);
+    const [animPrompt, setAnimPrompt] = useState('');
+
     // ... Viewport State (Zoom/Pan)
 
     // Viewport State (Zoom/Pan)
@@ -224,6 +228,44 @@ const NewAssetsEditorPage: React.FC = () => {
         } catch (error) {
             console.error(error);
             alert("AI 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+            setIsLoading(false);
+        }
+    };
+
+    const handleAnimGenerate = async () => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) {
+            alert("캔버스를 찾을 수 없습니다.");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            // 1. Capture current canvas
+            const base64Image = canvas.toDataURL('image/png').split(',')[1];
+
+            // 2. Call API
+            const response = await SagemakerService.generateAnimationSheet(animPrompt, base64Image);
+
+            if (!response.success || !response.image) {
+                throw new Error(response.error || "Animation generation failed");
+            }
+
+            // 3. Load Result
+            const img = new Image();
+            img.onload = async () => {
+                canvasRef.current?.setImage(img);
+                setIsAnimModalOpen(false);
+
+                // Optional: Auto Remove Background for the sheet?
+                // Might be risky for a sheet, but let's try it if the prompt forces white background.
+                await handleRemoveBackground();
+            };
+            img.src = `data:image/png;base64,${response.image}`;
+
+        } catch (error) {
+            console.error(error);
+            alert("애니메이션 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
             setIsLoading(false);
         }
     };
@@ -636,6 +678,15 @@ const NewAssetsEditorPage: React.FC = () => {
                             title="AI 에셋 생성 (SDXL)"
                         >
                             <i className="fa-solid fa-wand-magic-sparkles"></i> AI 생성
+                        </button>
+
+                        <button
+                            onClick={() => setIsAnimModalOpen(true)}
+                            disabled={isLoading}
+                            className={`ml-1 px-3 py-1 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-200 text-[11px] rounded-[2px] transition-colors border border-indigo-500/30 flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="기존 캐릭터로 애니메이션 시트 생성"
+                        >
+                            <i className="fa-solid fa-film"></i> AI 애니메이션
                         </button>
                         <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
 
