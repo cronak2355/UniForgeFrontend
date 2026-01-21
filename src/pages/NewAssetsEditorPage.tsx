@@ -776,6 +776,61 @@ const NewAssetsEditorPage: React.FC = () => {
                             </div>
                         )}
 
+                        {/* AI Animation Modal */}
+                        {isAnimModalOpen && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                                onClick={(e) => {
+                                    if (e.target === e.currentTarget) setIsAnimModalOpen(false);
+                                }}>
+                                <div className="bg-[#1e1e1e] border border-[#333] rounded-lg shadow-2xl w-[400px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="bg-[#252525] px-4 py-3 border-b border-[#333] flex justify-between items-center">
+                                        <h3 className="font-bold text-sm text-gray-200 flex items-center gap-2">
+                                            <i className="fa-solid fa-film text-indigo-400"></i>
+                                            AI 애니메이션 생성
+                                        </h3>
+                                        <button onClick={() => setIsAnimModalOpen(false)} className="text-gray-500 hover:text-gray-300">
+                                            <i className="fa-solid fa-xmark"></i>
+                                        </button>
+                                    </div>
+
+                                    <div className="p-4 space-y-4">
+                                        <div className="bg-indigo-900/20 p-3 rounded border border-indigo-500/20 text-xs text-indigo-200">
+                                            <i className="fa-solid fa-circle-info mr-2"></i>
+                                            현재 캔버스의 캐릭터를 기반으로 <strong>4프레임 동작</strong>을 생성합니다.
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1.5">동작 설명 (한글 가능)</label>
+                                            <input
+                                                type="text"
+                                                value={animPrompt}
+                                                onChange={(e) => setAnimPrompt(e.target.value)}
+                                                placeholder="예: 걷는 동작, 공격하는 모습, 점프..."
+                                                className="w-full bg-[#121212] border border-[#333] rounded p-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 border-t border-[#333] bg-[#222] flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setIsAnimModalOpen(false)}
+                                            className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200"
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            onClick={handleAnimGenerate}
+                                            disabled={!animPrompt.trim() || isLoading}
+                                            className={`px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded flex items-center gap-2 font-medium transition-colors ${(!animPrompt.trim() || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+                                                }`}
+                                        >
+                                            {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic"></i>}
+                                            {isLoading ? '생성 중...' : '생성하기'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {importedImage && (
                             <button
                                 onClick={handleBakeImage}
