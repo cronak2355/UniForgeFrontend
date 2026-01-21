@@ -6,8 +6,6 @@ import { authService } from '../services/authService';
 import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
-import { SkeletonPreview, useSkeletonPreview } from '../AssetsEditor/phaser/skeleton';
-import type { MotionType } from '../AssetsEditor/phaser/skeleton/SkeletonController';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -46,11 +44,10 @@ const NewAssetsEditorPage: React.FC = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiStyle, setAiStyle] = useState('pixel-art');
 
-    // AI Animation State -> Skeleton Animation Panel State
-    const [isSkeletonPanelOpen, setIsSkeletonPanelOpen] = useState(false);
-    const skeleton = useSkeletonPreview();
-    const [currentMotion, setCurrentMotion] = useState<MotionType | null>(null);
-    const [motionConfig, setMotionConfig] = useState({ speed: 1, intensity: 1 });
+    // Frame-based Sprite State (4 frames for sprite sheet)
+    const [currentFrame, setCurrentFrame] = useState(0); // 0-3
+    const [frames, setFrames] = useState<(ImageData | null)[]>([null, null, null, null]);
+    const [isSpriteMode, setIsSpriteMode] = useState(false);
 
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
@@ -244,37 +241,124 @@ const NewAssetsEditorPage: React.FC = () => {
     };
 
 
-    // Load current canvas image into skeleton preview
-    const handleLoadToSkeleton = () => {
+    // === Frame-based Sprite Functions ===
+
+    // Enter sprite mode (4-frame editing)
+    const handleEnterSpriteMode = () => {
+        // Save current canvas to frame 0
+        const canvas = canvasRef.current?.getCanvas();
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const newFrames = [...frames];
+                newFrames[0] = imageData;
+                setFrames(newFrames);
+            }
+        }
+        setIsSpriteMode(true);
+        setCurrentFrame(0);
+    };
+
+    // Exit sprite mode
+    const handleExitSpriteMode = () => {
+        setIsSpriteMode(false);
+        // Load frame 0 back to canvas
+        if (frames[0]) {
+            const canvas = canvasRef.current?.getCanvas();
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.putImageData(frames[0], 0, 0);
+                }
+            }
+        }
+    };
+
+    // Switch between frames
+    const handleFrameSwitch = (newFrame: number) => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
-
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Get image data from canvas
+        // Save current frame
+        const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const newFrames = [...frames];
+        newFrames[currentFrame] = currentImageData;
+
+        // Load new frame (or clear if empty)
+        if (newFrames[newFrame]) {
+            ctx.putImageData(newFrames[newFrame]!, 0, 0);
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        setFrames(newFrames);
+        setCurrentFrame(newFrame);
+    };
+
+    // Copy current frame to clipboard (internal)
+    const [copiedFrame, setCopiedFrame] = useState<ImageData | null>(null);
+
+    const handleCopyFrame = () => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        skeleton.loadFromImageData(imageData);
-        setIsSkeletonPanelOpen(true);
+        setCopiedFrame(imageData);
     };
 
-    // Play motion on skeleton
-    const handlePlayMotion = (motionType: MotionType) => {
-        setCurrentMotion(motionType);
-        skeleton.playMotion(motionType);
+    const handlePasteFrame = () => {
+        if (!copiedFrame) return;
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.putImageData(copiedFrame, 0, 0);
     };
 
-    // Stop motion on skeleton
-    const handleStopMotion = () => {
-        setCurrentMotion(null);
-        skeleton.stopMotion();
-    };
+    // Save sprite sheet (2048x512)
+    const handleSaveSpriteSheet = () => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    // Update motion config
-    const handleUpdateConfig = (newConfig: Partial<{ speed: number; intensity: number }>) => {
-        const updated = { ...motionConfig, ...newConfig };
-        setMotionConfig(updated);
-        skeleton.updateConfig(updated);
+        // Save current frame first
+        const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const finalFrames = [...frames];
+        finalFrames[currentFrame] = currentImageData;
+
+        // Create sprite sheet canvas (2048x512)
+        const spriteCanvas = document.createElement('canvas');
+        spriteCanvas.width = 2048;
+        spriteCanvas.height = 512;
+        const spriteCtx = spriteCanvas.getContext('2d');
+        if (!spriteCtx) return;
+
+        // Draw each frame
+        for (let i = 0; i < 4; i++) {
+            if (finalFrames[i]) {
+                // Create temp canvas to convert ImageData to drawable
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 512;
+                tempCanvas.height = 512;
+                const tempCtx = tempCanvas.getContext('2d');
+                if (tempCtx) {
+                    tempCtx.putImageData(finalFrames[i]!, 0, 0);
+                    spriteCtx.drawImage(tempCanvas, i * 512, 0);
+                }
+            }
+        }
+
+        // Download
+        spriteCanvas.toBlob((blob) => {
+            if (blob) {
+                saveAs(blob, `sprite_sheet_${Date.now()}.png`);
+            }
+        }, 'image/png');
     };
 
     const handleRemoveBackground = async () => {
@@ -572,7 +656,7 @@ const NewAssetsEditorPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* AI & Animation Buttons */}
+                    {/* AI & Sprite Buttons */}
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setIsAiModalOpen(true)}
@@ -583,14 +667,65 @@ const NewAssetsEditorPage: React.FC = () => {
                             <span className="hidden sm:inline">AI 생성</span>
                         </button>
 
-                        <button
-                            onClick={handleLoadToSkeleton}
-                            disabled={isLoading}
-                            className={`h-9 px-4 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <i className="fa-solid fa-person-running"></i>
-                            <span className="hidden sm:inline">리깅 애니메이션</span>
-                        </button>
+                        {!isSpriteMode ? (
+                            <button
+                                onClick={handleEnterSpriteMode}
+                                disabled={isLoading}
+                                className={`h-9 px-4 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <i className="fa-solid fa-film"></i>
+                                <span className="hidden sm:inline">스프라이트 모드</span>
+                            </button>
+                        ) : (
+                            <>
+                                {/* Frame Tabs */}
+                                <div className="flex items-center bg-zinc-950/50 rounded-lg border border-zinc-800 p-0.5">
+                                    {[0, 1, 2, 3].map((frame) => (
+                                        <button
+                                            key={frame}
+                                            onClick={() => handleFrameSwitch(frame)}
+                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${currentFrame === frame
+                                                ? 'bg-amber-600 text-white'
+                                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                                                }`}
+                                        >
+                                            F{frame + 1}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Frame Actions */}
+                                <button
+                                    onClick={handleCopyFrame}
+                                    className="h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg"
+                                    title="프레임 복사"
+                                >
+                                    <i className="fa-regular fa-copy"></i>
+                                </button>
+                                <button
+                                    onClick={handlePasteFrame}
+                                    disabled={!copiedFrame}
+                                    className={`h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg ${!copiedFrame ? 'opacity-50' : ''}`}
+                                    title="프레임 붙여넣기"
+                                >
+                                    <i className="fa-regular fa-clipboard"></i>
+                                </button>
+                                <button
+                                    onClick={handleSaveSpriteSheet}
+                                    className="h-9 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg shadow-lg flex items-center gap-2"
+                                >
+                                    <i className="fa-solid fa-download"></i>
+                                    <span className="hidden sm:inline">스프라이트 저장</span>
+                                </button>
+                                <button
+                                    onClick={handleExitSpriteMode}
+                                    className="h-9 px-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs rounded-lg"
+                                    title="스프라이트 모드 종료"
+                                >
+                                    <i className="fa-solid fa-xmark"></i>
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     <div className="h-6 w-[1px] bg-zinc-800 mx-1"></div>
@@ -889,85 +1024,6 @@ const NewAssetsEditorPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Skeleton Animation Panel */}
-            {isSkeletonPanelOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={(e) => { if (e.target === e.currentTarget) setIsSkeletonPanelOpen(false); }}>
-                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-[500px] overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-zinc-800/50 p-4 border-b border-zinc-700 flex justify-between items-center">
-                            <h3 className="font-bold text-sm text-zinc-100 flex items-center gap-2">
-                                <i className="fa-solid fa-person-running text-amber-400"></i> 리깅 애니메이션
-                            </h3>
-                            <button onClick={() => setIsSkeletonPanelOpen(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors"><i className="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            {/* Skeleton Preview */}
-                            <div className="flex justify-center bg-zinc-950 rounded-lg p-4 border border-zinc-800">
-                                <SkeletonPreview
-                                    ref={skeleton.ref}
-                                    width={300}
-                                    height={300}
-                                    className="rounded"
-                                />
-                            </div>
-
-                            {/* Motion Buttons */}
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['idle', 'walk', 'jump', 'attack', 'hit', 'rotate'] as MotionType[]).map((motion) => (
-                                    <button
-                                        key={motion}
-                                        onClick={() => handlePlayMotion(motion)}
-                                        className={`px-3 py-2 text-xs font-medium rounded-lg transition-all capitalize ${currentMotion === motion
-                                                ? 'bg-amber-600 text-white'
-                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                                            }`}
-                                    >
-                                        {motion}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Controls */}
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs text-zinc-400 w-16">Speed</span>
-                                    <input
-                                        type="range"
-                                        min="0.25"
-                                        max="2"
-                                        step="0.25"
-                                        value={motionConfig.speed}
-                                        onChange={(e) => handleUpdateConfig({ speed: parseFloat(e.target.value) })}
-                                        className="flex-1"
-                                    />
-                                    <span className="text-xs text-zinc-300 w-8">{motionConfig.speed}x</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs text-zinc-400 w-16">Intensity</span>
-                                    <input
-                                        type="range"
-                                        min="0.25"
-                                        max="2"
-                                        step="0.25"
-                                        value={motionConfig.intensity}
-                                        onChange={(e) => handleUpdateConfig({ intensity: parseFloat(e.target.value) })}
-                                        className="flex-1"
-                                    />
-                                    <span className="text-xs text-zinc-300 w-8">{motionConfig.intensity}x</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4 bg-zinc-800/30 flex justify-between gap-2 border-t border-zinc-800">
-                            <button onClick={handleStopMotion} className="px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200 font-medium bg-zinc-800 rounded-lg">
-                                <i className="fa-solid fa-stop mr-1"></i> 정지
-                            </button>
-                            <button onClick={() => setIsSkeletonPanelOpen(false)} className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg font-bold transition-all shadow-lg shadow-amber-600/20">
-                                완료
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
