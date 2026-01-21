@@ -45,6 +45,7 @@ type ModuleInstance = {
   nodeState: Record<string, Record<string, unknown>>;
   valueSnapshots: Map<string, ModuleLiteral>;
   moduleVariables: Map<string, ModuleLiteral>;
+  eventData?: any;
 };
 
 const MAX_STEPS_PER_TICK = 64;
@@ -57,7 +58,7 @@ export class ModuleRuntime {
     this.hooks = hooks;
   }
 
-  startModule(entityId: string, module: ModuleGraph, initialVariables?: Record<string, any>): ModuleInstance | null {
+  startModule(entityId: string, module: ModuleGraph, initialVariables?: Record<string, any>, eventData?: any): ModuleInstance | null {
     const entry = module.nodes.find((n) => n.id === module.entryNodeId && n.kind === "Entry");
     if (!entry) {
       console.error("[ModuleRuntime] Missing entry node", { entityId, moduleId: module.id });
@@ -79,6 +80,7 @@ export class ModuleRuntime {
         moduleVariables: new Map(
           (module.variables ?? []).map((v) => [v.name, (v.value as ModuleLiteral) ?? null])
         ),
+        eventData,
       });
       return null;
     }
@@ -112,6 +114,7 @@ export class ModuleRuntime {
           return [v.name, (v.value as ModuleLiteral) ?? null];
         })
       ),
+      eventData,
     };
     this.instances.push(instance);
     return instance;
@@ -166,14 +169,21 @@ export class ModuleRuntime {
 
       if (node.kind === "Entry") {
         const next = this.getNextNodeId(instance.graph, node.id, "out");
-        if (!next) return this.fail(instance, "MissingNext", node.id);
+        if (!next) {
+          // Implicit Stop
+          instance.status = "success";
+          return { status: "success" };
+        }
         instance.cursorNodeId = next;
         continue;
       }
 
       if (node.kind === "Merge") {
         const next = this.getNextNodeId(instance.graph, node.id, "out");
-        if (!next) return this.fail(instance, "MissingNext", node.id);
+        if (!next) {
+          instance.status = "success";
+          return { status: "success" };
+        }
         instance.cursorNodeId = next;
         continue;
       }
@@ -190,14 +200,20 @@ export class ModuleRuntime {
         const passed = this.evaluateCondition(instance, node);
         const port = passed ? "true" : "false";
         const next = this.getNextNodeId(instance.graph, node.id, port);
-        if (!next) return this.fail(instance, "MissingBranch", node.id);
+        if (!next) {
+          instance.status = "success";
+          return { status: "success" };
+        }
         instance.cursorNodeId = next;
         continue;
       }
 
       if (node.kind === "Switch") {
         const next = this.evaluateSwitch(instance, node);
-        if (!next) return this.fail(instance, "MissingBranch", node.id);
+        if (!next) {
+          instance.status = "success";
+          return { status: "success" };
+        }
         instance.cursorNodeId = next;
         continue;
       }
@@ -211,7 +227,10 @@ export class ModuleRuntime {
           return this.fail(instance, "FlowFailed", node.id);
         }
         const next = this.getNextNodeId(instance.graph, node.id, "out");
-        if (!next) return this.fail(instance, "MissingNext", node.id);
+        if (!next) {
+          instance.status = "success";
+          return { status: "success" };
+        }
         instance.cursorNodeId = next;
         continue;
       }
@@ -236,13 +255,22 @@ export class ModuleRuntime {
       case "SetVariable": {
         const target = String(node.params.target ?? "").trim();
         if (!target) return false;
-        const value = this.resolveValueInput(instance, node.id, "value", node.params.value ?? null);
+        // [FIX] Resolve the input value (Handles Edge Connection) AND then Resolve the Value Source (Handles Raw Params)
+        const rawValue = this.resolveValueInput(instance, node.id, "value", node.params.value ?? null);
+        const value = this.resolveValue(ctx, rawValue);
+
+
         const entity = this.hooks.getEntity(instance.entityId);
         const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === target));
+
+        // [FIX] Priority: Entity (Global) > Module (Local) to ensure external updates are reflected
         if (hasEntityVar) {
           this.hooks.setVar(instance.entityId, target, value);
         } else if (instance.moduleVariables.has(target)) {
           this.setModuleVariable(instance, target, value);
+        } else {
+          // [FIX] Fallback: Create/Set on Entity even if not exists (Upsert)
+          this.hooks.setVar(instance.entityId, target, value);
         }
         return true;
       }
@@ -252,18 +280,57 @@ export class ModuleRuntime {
         const params = { ...(node.params ?? {}) } as Record<string, ModuleLiteral>;
         if (actionName === "SetVar") {
           const name = String(params.name ?? "").trim();
-          params.value = this.resolveValueInput(instance, node.id, "value", params.value ?? null);
+
+          // [FIX] Support Enhanced SetVar (Operations)
+          // 1. Resolve Operands
+          let result: any = null;
+
+          // Check for Operation Mode
+          if (params.operation || params.operand1 !== undefined) {
+            const op = String(params.operation ?? "Set");
+            const rawOp1 = this.resolveValueInput(instance, node.id, "operand1", params.operand1 ?? null);
+            const rawOp2 = this.resolveValueInput(instance, node.id, "operand2", params.operand2 ?? null);
+
+            const val1 = this.resolveValue(ctx, rawOp1) ?? 0;
+            const val2 = this.resolveValue(ctx, rawOp2) ?? 0;
+
+            const v1 = Number(val1);
+            const v2 = Number(val2);
+
+            // Simple Math Implementation (Parallels DefaultActions.ts)
+            switch (op) {
+              case "Add": result = v1 + v2; break;
+              case "Sub": result = v1 - v2; break;
+              case "Multiply": result = v1 * v2; break;
+              case "Divide": result = v1 / (v2 !== 0 ? v2 : 1); break;
+              case "Set": default: result = val1; break;
+            }
+          } else {
+            // Simple Mode
+            const rawValue = this.resolveValueInput(instance, node.id, "value", params.value ?? null);
+            result = this.resolveValue(ctx, rawValue);
+          }
+
+          params.value = result;
+
           if (name) {
             const entity = this.hooks.getEntity(instance.entityId);
             const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === name));
+
+            console.log(`[ModuleRuntime] SetVar Action: name='${name}' result=`, result, "hasEntityVar:", hasEntityVar);
+
+            // [FIX] Priority: Entity (Global) > Module (Local)
             if (hasEntityVar) {
-              this.hooks.setVar(instance.entityId, name, params.value ?? null);
+              this.hooks.setVar(instance.entityId, name, result);
               return true;
             }
             if (instance.moduleVariables.has(name)) {
-              this.setModuleVariable(instance, name, params.value ?? null);
+              this.setModuleVariable(instance, name, result);
               return true;
             }
+            // [FIX] Fallback: Create/Set on Entity
+            this.hooks.setVar(instance.entityId, name, result);
+            return true;
           }
         }
         ActionRegistry.run(actionName, ctx, params as Record<string, unknown>);
@@ -278,11 +345,55 @@ export class ModuleRuntime {
 
     const src = val as any;
     if (src.type === "literal") return src.value;
+
+    // [FIX] Enhanced Variable Resolution
     if (src.type === "variable") {
       if (!src.name) return 0;
+      // 1. Module Scope
       if (ctx.scope?.has(src.name)) return ctx.scope.get(src.name);
-      return 0; // Fallback
+
+      // 2. System Scope
+      if (src.name === "Mouse") return ctx.input;
+      if (src.name === "Time") return (ctx.eventData as any) ?? { dt: 0 };
+
+      // 3. Entity Scope
+      const entity = this.hooks.getEntity(ctx.entityId);
+      const output = entity?.variables?.find(v => v.name === src.name)?.value;
+      return output ?? 0;
     }
+
+    // [FIX] Mouse Resolution
+    if (src.type === "mouse") {
+      const input = ctx.input;
+      let x = input?.mouseX ?? 0;
+      let y = input?.mouseY ?? 0;
+
+      if (src.mode === "screen") {
+        x = input?.mouseScreenX ?? 0;
+        y = input?.mouseScreenY ?? 0;
+      } else if (src.mode === "relative") {
+        const entity = this.hooks.getEntity(ctx.entityId);
+        if (entity) {
+          x -= (entity.x ?? 0);
+          y -= (entity.y ?? 0);
+        }
+      }
+
+      if (src.axis === "x") return x;
+      if (src.axis === "y") return y;
+      return { x, y };
+    }
+
+    // [FIX] Property Resolution
+    if (src.type === "property") {
+      const entity = this.hooks.getEntity(ctx.entityId);
+      if (!entity || !src.property) return 0;
+      if (src.property === "position") return { x: entity.x ?? 0, y: entity.y ?? 0 };
+      // Basic properties
+      if (src.property in entity) return (entity as any)[src.property];
+      return 0;
+    }
+
     // Simple property/vector support if needed
     if ('x' in src && 'y' in src) return src;
 
@@ -368,6 +479,9 @@ export class ModuleRuntime {
 
   private evaluateCondition(instance: ModuleInstance, node: ModuleConditionNode): boolean {
     const ctx = this.hooks.getActionContext(instance.entityId, 0); // dt is 0 for condition check usually
+    if (instance.eventData) {
+      ctx.eventData = { ...instance.eventData, ...(ctx.eventData || {}) };
+    }
     // Ensure module variables are available in context so resolveNamedValue works if checking entity vars
     // But resolveNamedValue is internal.
     // We need to resolve left/right values first for Var* conditions.
@@ -429,10 +543,30 @@ export class ModuleRuntime {
         // Unless this module flow was triggered by an Event.
         // If triggered by event, ctx.eventData should be populated.
         const eventData = ctx.eventData as any;
+
+        console.log(`[ModuleRuntime] CompareTag Check: Target='${targetTag}' EventData=`, eventData);
+
         if (eventData) {
-          if (eventData.tag === targetTag) return true;
-          if (eventData.otherTag === targetTag) return true;
+          if (eventData.tag === targetTag) {
+            console.log(`[ModuleRuntime] Matched 'tag' property.`);
+            return true;
+          }
+          if (eventData.otherTag === targetTag) {
+            console.log(`[ModuleRuntime] Matched 'otherTag' property.`);
+            return true;
+          }
+          // Also check explicit tagA/tagB if available (EntityA vs EntityB)
+          const myId = instance.entityId;
+          if (eventData.entityA === myId && eventData.tagB === targetTag) {
+            console.log(`[ModuleRuntime] Matched tagB (I am A)`);
+            return true;
+          }
+          if (eventData.entityB === myId && eventData.tagA === targetTag) {
+            console.log(`[ModuleRuntime] Matched tagA (I am B)`);
+            return true;
+          }
         }
+        console.log(`[ModuleRuntime] CompareTag Failed.`);
         return false;
       }
 
@@ -506,14 +640,30 @@ export class ModuleRuntime {
   }
 
   private resolveNamedValue(instance: ModuleInstance, name: string): ModuleLiteral {
+    // [FIX] System Variables (Top Priority)
+    if (name === "Mouse") {
+      const ctx = this.hooks.getActionContext(instance.entityId, 0);
+      return ctx.input as any;
+    }
+    if (name === "Time") {
+      const ctx = this.hooks.getActionContext(instance.entityId, 0);
+      return (ctx.eventData as any) ?? { dt: 0 };
+    }
+
+    // [FIX] Priority: Entity (Global) > Module (Local)
+    // This allows "Live" updates from Entity variables to be seen by the module
     const entity = this.hooks.getEntity(instance.entityId);
     const variable = entity?.variables?.find((v) => v.name === name);
     if (variable) {
       return (variable.value as ModuleLiteral) ?? null;
     }
+
     if (instance.moduleVariables.has(name)) {
+      // console.log(`[ModuleRuntime] Resolved '${name}' from Module:`, instance.moduleVariables.get(name));
       return instance.moduleVariables.get(name) ?? null;
     }
+
+    console.warn(`[ModuleRuntime] Failed to resolve variable: '${name}'`);
     return null;
   }
 
@@ -546,14 +696,12 @@ export class ModuleRuntime {
     if (!edge) return fallback;
     const valueNode = instance.graph.nodes.find((n) => n.id === edge.fromNodeId);
     if (!valueNode || valueNode.kind !== "Value") return fallback;
-    const entity = this.hooks.getEntity(instance.entityId);
-    const variable = entity?.variables?.find((v) => v.name === valueNode.variableName);
-    if (variable) {
-      return (variable.value as ModuleLiteral) ?? null;
-    }
-    if (instance.moduleVariables.has(valueNode.variableName)) {
-      return instance.moduleVariables.get(valueNode.variableName) ?? null;
-    }
+    if (!valueNode || valueNode.kind !== "Value") return fallback;
+
+    // [FIX] Use unified resolver
+    const resolved = this.resolveNamedValue(instance, valueNode.variableName);
+    if (resolved !== null) return resolved;
+
     return null;
   }
 

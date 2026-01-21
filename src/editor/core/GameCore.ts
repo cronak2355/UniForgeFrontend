@@ -109,7 +109,7 @@ export class GameCore {
             setVar: (entityId, name, value) => {
                 // Determine type if possible, or default to check existing
                 // Since this is runtime set, we might infer type or just set "any"
-                this.pipeline.queueSetVariable(entityId, name, value);
+                this.runtimeContext.setEntityVariable(entityId, name, value);
             },
             getActionContext: (entityId, dt) => this.buildActionContext(entityId, dt),
             onModuleVarChange: (entityId, moduleId, name, value) =>
@@ -117,12 +117,12 @@ export class GameCore {
         });
 
         // 3. Register Systems
-        this.pipeline.addSystem(new TransformSystem());
-        this.pipeline.addSystem(new PhysicsSystem());
-
         const logicSystem = new LogicSystem(this.moduleRuntime);
         logicSystem.setGameCore(this);
         this.pipeline.addSystem(logicSystem);
+
+        this.pipeline.addSystem(new TransformSystem());
+        this.pipeline.addSystem(new PhysicsSystem());
 
         // 4. Setup Global Events
         this.setupEventHandlers();
@@ -324,6 +324,8 @@ export class GameCore {
             modules: options.modules,
             // Variables (CRITICAL: must copy from options)
             variables: options.variables ?? [],
+            // [FIX] Ensure tags are copied from options
+            tags: options.tags ?? [],
         };
 
         // Queue Creation
@@ -360,8 +362,16 @@ export class GameCore {
         const isKnownUIType = typeof uiType === "string" && ["button", "text", "panel", "scrollPanel", "bar", "image"].includes(uiType);
 
         if (!isCamera && !isGlobalEntity && !isUI && !isKnownUIType && !hasUIText) {
-            const baseWidth = options.width ?? 40;
-            const baseHeight = options.height ?? 40;
+            // [FIX] Get actual sprite bounds from renderer instead of using default 40x40
+            const actualBounds = this.renderer.getEntityBounds?.(id);
+            const baseWidth = options.width ?? actualBounds?.width ?? 40;
+            const baseHeight = options.height ?? actualBounds?.height ?? 40;
+
+            // [DEBUG] Log hitbox size for debugging
+            if (actualBounds) {
+                console.log(`[GameCore] Hitbox for ${id}: ${baseWidth}x${baseHeight} (from renderer: ${actualBounds.width}x${actualBounds.height})`);
+            }
+
             // [FIX] Use first tag from tags array, fallback to type
             const collisionTag = (options.tags && options.tags.length > 0) ? options.tags[0] : type;
             collisionSystem.register(
@@ -464,7 +474,7 @@ export class GameCore {
      * Start a module for an entity by module ID or name.
      * Called by RunModule action.
      */
-    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>): boolean {
+    startModule(entityId: string, moduleIdOrName: string, initialVariables?: Record<string, any>, eventData?: any): boolean {
         // Find the module from moduleLibrary
         const module = this.moduleLibrary.find(
             (m) => m.id === moduleIdOrName || m.name === moduleIdOrName
@@ -474,7 +484,7 @@ export class GameCore {
             return false;
         }
 
-        this.moduleRuntime.startModule(entityId, module, initialVariables);
+        this.moduleRuntime.startModule(entityId, module, initialVariables, eventData);
         return true;
     }
 

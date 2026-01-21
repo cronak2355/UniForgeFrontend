@@ -386,27 +386,43 @@ ConditionRegistry.register("CompareTag", (ctx: ActionContext, params: Record<str
     // Collision Event Check
     const eventData = ctx.eventData as any;
 
+    console.log(`[CompareTag] Checking against '${targetTag}' for Entity ${ctx.entityId}. EventData:`, eventData ? "Present" : "Missing");
+
     if (eventData) {
         const myId = ctx.entityId;
 
-        // Case A: Event has direct tagA/tagB (from CollisionSystem)
+        // Helper to check single or array tags
+        const hasTag = (tag: string | undefined, tags: string[] | undefined, target: string) => {
+            if (tag === target) return true;
+            if (tags && Array.isArray(tags) && tags.includes(target)) return true;
+            return false;
+        };
+
+        const tagA = eventData.tagA;
+        const tagsA = eventData.tagsA; // New array from LogicSystem
+        const tagB = eventData.tagB;
+        const tagsB = eventData.tagsB; // New array from LogicSystem
+
+        // console.log(`[CompareTag] MyId: ${myId}, Event EntA: ${eventData.entityA}, EntB: ${eventData.entityB}, TagA: ${eventData.tagA}, TagB: ${eventData.tagB}`);
+
+        // Case A: Entity A vs Entity B
         if (eventData.entityA && eventData.entityB) {
             if (eventData.entityA === myId) {
-                return eventData.tagB === targetTag;
+                // I am A, check B
+                if (hasTag(tagB, tagsB, targetTag)) return true;
+                console.log(`[CompareTag] Failed (I am A): TagB '${tagB}'/'${tagsB}' !== '${targetTag}'`);
             } else if (eventData.entityB === myId) {
-                return eventData.tagA === targetTag;
+                // I am B, check A
+                if (hasTag(tagA, tagsA, targetTag)) return true;
+                console.log(`[CompareTag] Failed (I am B): TagA '${tagA}'/'${tagsA}' !== '${targetTag}'`);
             }
         }
 
-        // Case B: Event might have otherTag (some systems pre-process it)
-        if (eventData.otherTag) {
-            return eventData.otherTag === targetTag;
-        }
+        // Case B: otherTag / otherTags
+        if (hasTag(eventData.otherTag, eventData.otherTags, targetTag)) return true;
 
         // Case C: Explicit tag property
-        if (eventData.tag === targetTag) {
-            return true;
-        }
+        if (eventData.tag === targetTag) return true;
     }
 
     // 2. Fallback: RaycastHit or other context that might supply 'hitTag'

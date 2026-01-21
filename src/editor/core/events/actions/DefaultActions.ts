@@ -220,8 +220,13 @@ ActionRegistry.register("Move", (ctx: ActionContext, params: Record<string, unkn
         dirX /= len;
         dirY /= len;
 
-        gameObject.x += dirX * step;
-        gameObject.y += dirY * step;
+        // [FIX] Use ResolveCollision to prevent walking into walls
+        const nextX = gameObject.x + dirX * step;
+        const nextY = gameObject.y + dirY * step;
+        const resolved = collisionSystem.resolveCollision(entityId, nextX, nextY);
+
+        gameObject.x = resolved.x;
+        gameObject.y = resolved.y;
     }
 
     if (entity) {
@@ -751,7 +756,7 @@ ActionRegistry.register("SetVar", (ctx: ActionContext, params: Record<string, un
 
 
 ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string, unknown>) => {
-    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>) => boolean } | undefined;
+    const gameCore = ctx.globals?.gameCore as { startModule?: (entityId: string, moduleId: string, initialVariables?: Record<string, any>, eventData?: any) => boolean } | undefined;
     if (!gameCore?.startModule) return;
     const moduleId = (params.moduleId as string) ?? (params.moduleName as string) ?? (params.name as string);
     if (!moduleId) return;
@@ -759,7 +764,14 @@ ActionRegistry.register("RunModule", (ctx: ActionContext, params: Record<string,
     // Extract variable overrides from initialVariables property
     const overrides = (params.initialVariables as Record<string, any>) ?? {};
 
-    gameCore.startModule(ctx.entityId, moduleId, overrides);
+    // [FIX] Resolve values before passing to module
+    // This ensures that if we pass a variable reference, we send the VALUE, not the reference object.
+    const resolvedOverrides: Record<string, any> = {};
+    for (const [key, val] of Object.entries(overrides)) {
+        resolvedOverrides[key] = resolveValue(ctx, val);
+    }
+
+    gameCore.startModule(ctx.entityId, moduleId, resolvedOverrides, ctx.eventData);
 });
 
 // Static map to track spawn cooldowns (EntityId -> LastSpawnTime)
@@ -901,7 +913,8 @@ ActionRegistry.register("SpawnEntity", (ctx: ActionContext, params: Record<strin
         width: source?.width ?? (params.width as number | undefined),
         height: source?.height ?? (params.height as number | undefined),
         texture: texture || undefined,
-        tags: source?.tags ? [...source.tags] : [],
+        // [REF] Use reference to tags array as requested by user
+        tags: source?.tags,
     };
 
     const type = (source?.type as string) ?? (params.type as string) ?? "sprite";

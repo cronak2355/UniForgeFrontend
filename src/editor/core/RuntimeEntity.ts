@@ -33,4 +33,7 @@ export interface RuntimeEntity {
     // NOTE: Variables are stored in RuntimeContext, but we keep a reference 
     // here for easy initialization or editor sync if needed. 
     variables: EditorVariable[];
+
+    // Tags
+    tags?: string[];
 }

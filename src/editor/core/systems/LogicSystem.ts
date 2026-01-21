@@ -63,6 +63,7 @@ export class LogicSystem implements System {
             }
         };
         EventBus.on(this.CollisionListener);
+        console.log(`[LogicSystem] CollisionListener registered`);
 
         // Listen for OnClick events (UI Buttons, etc.)
         this.OnClickListener = (event: any) => {
@@ -96,13 +97,19 @@ export class LogicSystem implements System {
     private collisionCooldowns = new Map<string, number>();
 
     private handleCollisionEvent(context: RuntimeContext, event: any) {
+        // [DEBUG] Log all collision events
+        console.log(`[LogicSystem] handleCollisionEvent received:`, event.type, event.data?.entityA, event.data?.entityB);
+
         // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
         if (this.gameCore?.isDestroyed) return;
 
         const renderer = this.gameCore?.getRenderer();
         const isRuntime = renderer?.isRuntimeMode;
 
-        if (!isRuntime) return;
+        if (!isRuntime) {
+            console.log(`[LogicSystem] Skipping collision - not in runtime mode`);
+            return;
+        }
 
         const data = event.data || event;
         const entityA = data.entityA as string;
@@ -138,6 +145,7 @@ export class LogicSystem implements System {
         this.collisionCooldowns.set(collisionKey, now);
 
         // Execute OnCollision logic for both entities involved
+        console.log(`[LogicSystem] Collision Detected: ${entityA} (${tagA}) <-> ${entityB} (${tagB}) Type: ${type}`);
         this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
         this.executeCollisionLogic(context, entityB, entityA, tagB, tagA, data);
     }
@@ -146,12 +154,27 @@ export class LogicSystem implements System {
         context: RuntimeContext,
         entityId: string,
         otherId: string,
-        myTag: string,
-        otherTag: string,
+        _unusedMyTag: string, // [FIX] Ignore stale/asset-based tag from event
+        _unusedOtherTag: string, // [FIX] Ignore stale/asset-based tag from event
         collisionData: any
     ) {
         const entity = context.entities.get(entityId);
         if (!entity || !entity.active) return;
+
+        // [FIX] Retrieve actual Runtime Entity tags
+        // CollisionSystem might return the Asset Tag (e.g. "character"), but we need the Entity Tag (e.g. "Player" or "1")
+        // Since an entity can have multiple tags, but the condition expects a single tag comparison,
+        // we can pass the Array of tags if the condition supports it, OR we can stick to the primary logic.
+        // The previous system assumed a single tag string. 
+        // We will pass the arrays to the event data so CompareTag can check against ANY of them.
+
+        const myTags = entity.tags ?? [];
+        const otherEntity = context.entities.get(otherId);
+        const otherTags = otherEntity?.tags ?? [];
+
+        // For backward compatibility with single-tag logic, we might pick the first one?
+        // But better yet, let's pass the arrays in the event data, 
+        // and update DefaultConditions to check if 'targetTag' exists in 'tagA[]' or 'tagB[]'.
 
         // Determine which event types to look for based on the actual event
         const eventType = collisionData.type || "COLLISION_ENTER"; // Fallback if type missing
@@ -177,6 +200,14 @@ export class LogicSystem implements System {
             }
         }
 
+        if (logicComponents.length > 0) {
+            console.log(`[LogicSystem] Found ${logicComponents.length} Collision Logic Comps for ${entityId} (Events: ${targetEvents.join(",")})`);
+        } else {
+            // [DEBUG] Log when no components found
+            const allEvents = Array.from(context.componentsByEvent.keys());
+            console.log(`[LogicSystem] No OnCollision components for ${entityId}. Available events: [${allEvents.join(", ")}]`);
+        }
+
         for (const comp of logicComponents) {
             const logicData = comp.data as import("../../types/Component").LogicComponent;
 
@@ -188,9 +219,18 @@ export class LogicSystem implements System {
                     type: eventType, // Ensure type is explicitly passed
                     entityA: collisionData.entityA,
                     entityB: collisionData.entityB,
-                    tagA: collisionData.tagA,
-                    tagB: collisionData.tagB,
-                    otherTag,
+                    // [FIX] Update tags with runtime entity tags (Joined as string for logging, or Array for logic?)
+                    // Existing CompareTag expects string equality usually.
+                    // If we want to support "HasTag", we should provide the array.
+                    // But to fix the specific bug "tag is character not 1", simply providing the Entity tags should work.
+                    // We'll expose them as 'tagsA' (array) and 'tagsB' (array) AND override 'tagA'/'tagB' with the first tag or joined string?
+                    // Let's rely on modifying conditions to check the array if present.
+                    tagA: myTags[0] ?? "", // Fallback to first tag for strict equality checks
+                    tagB: otherTags[0] ?? "",
+                    tagsA: myTags,
+                    tagsB: otherTags,
+                    otherTag: otherTags[0] ?? "", // Fallback
+                    otherTags: otherTags,
                     otherId,
                     dt: 0
                 },
@@ -202,6 +242,8 @@ export class LogicSystem implements System {
                     gameCore: this.gameCore,
                 }
             };
+
+            // console.log(`[LogicSystem] Executing Collision Logic for ${entityId}. Action Count: ${logicData.actions?.length}`);
 
             // Execute using the same logic as executeLogicComponent
             const conditions = logicData.conditions ?? [];
@@ -243,12 +285,21 @@ export class LogicSystem implements System {
                 }
             }
 
+            if (!pass) {
+                console.log(`[LogicSystem] Condition Failed for ${entityId}`);
+            }
+
             const actionsToRun = pass
                 ? (logicData.actions ?? [])
                 : (logicData.elseActions ?? []);
 
+            if (pass && actionsToRun.length > 0) {
+                console.log(`[LogicSystem] Running ${actionsToRun.length} actions for ${entityId}`);
+            }
+
             for (const action of actionsToRun) {
                 const { type, ...params } = action;
+                console.log(`[LogicSystem] >> Running Action: ${type}`, params);
                 ActionRegistry.run(type, ctx, params);
             }
         }

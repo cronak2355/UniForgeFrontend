@@ -46,6 +46,9 @@ export interface IRenderer {
     // Animation
     playAnim(id: string, animName: string, loop?: boolean): void;
 
+    // Bounds
+    getEntityBounds(id: string): { width: number; height: number } | null;
+
     // Assets
     setPreloadAssets(assets: any[]): void;
     updateAssets?(assets: any[]): void;

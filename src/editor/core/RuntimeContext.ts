@@ -122,6 +122,10 @@ export class RuntimeContext {
                     this.componentsByEvent.set(eventType, []);
                 }
                 this.componentsByEvent.get(eventType)!.push(component);
+                // [DEBUG] Log OnCollision component registration
+                if (eventType === "OnCollision" || eventType === "OnCollisionEnter") {
+                    console.log(`[RuntimeContext] Registered ${eventType} component for entity: ${component.entityId}`);
+                }
             }
         }
     }
@@ -255,6 +259,7 @@ export class RuntimeContext {
         this.entities.clear();
         this.componentsByType.clear();
         this.componentsByEntity.clear();
+        this.componentsByEvent.clear(); // [FIX] Clear event-indexed components to prevent stale OnCollision etc.
         this.entityVariables.clear();
         this.entityContexts.clear();
         this.variables.clear();
