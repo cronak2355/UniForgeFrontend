@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import DrawingCanvas from '../components/editor/canvas/DrawingCanvas';
 import Toolbar from '../components/editor/tools/Toolbar';
 import { saveAs } from 'file-saver';
+import Moveable from 'react-moveable';
 
 const NewAssetsEditorPage: React.FC = () => {
     // Canvas State
@@ -16,6 +17,17 @@ const NewAssetsEditorPage: React.FC = () => {
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+
+    // Image Import State
+    const [importedImage, setImportedImage] = useState<string | null>(null);
+    const [imageTransform, setImageTransform] = useState({
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        rotate: 0
+    });
+    const imageRef = useRef<HTMLImageElement>(null);
 
     // Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,8 +45,12 @@ const NewAssetsEditorPage: React.FC = () => {
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (e.button === 2) { // Right Click
-            setIsPanning(true);
+        if (e.button === 2 || selectedTool === 'move') { // Right Click or Move Tool for Pan
+            if (e.button === 2) {
+                setIsPanning(true);
+            } else if (selectedTool === 'move' && !importedImage) {
+                setIsPanning(true);
+            }
         }
     };
 
@@ -55,33 +71,102 @@ const NewAssetsEditorPage: React.FC = () => {
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            setZoom(prev => Math.min(Math.max(prev * delta, 0.1), 5));
+            setZoom(prev => Math.min(Math.max(prev * delta, 0.1), 10));
+        }
+    };
+
+    // Image Upload Logic
+    const handleImageUpload = (file: File) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            // Center image initially
+            const initialSize = 100;
+            setImportedImage(url);
+            setImageTransform({
+                x: (canvasSize!.width - initialSize) / 2,
+                y: (canvasSize!.height - initialSize) / 2,
+                width: initialSize,
+                height: initialSize * (img.height / img.width),
+                rotate: 0
+            });
+            setSelectedTool('move'); // Switch to move tool
+        };
+        img.src = url;
+    };
+
+    // Bake Image to Canvas
+    const handleBakeImage = () => {
+        if (!importedImage || !canvasRef.current || !imageRef.current) return;
+
+        const ctx = canvasRef.current.getContext('2d');
+        if (!ctx) return;
+
+        const img = imageRef.current;
+
+        // Save Context State
+        ctx.save();
+
+        // Pixelate effect: Turn off smoothing
+        ctx.imageSmoothingEnabled = false;
+
+        // Apply Transform
+        // We need to carefully handle rotation and position
+        // The imageTransform x,y is relative to the container. 
+        // We need to draw it onto the canvas which matches the container size.
+
+        const centerX = imageTransform.x + imageTransform.width / 2;
+        const centerY = imageTransform.y + imageTransform.height / 2;
+
+        ctx.translate(centerX, centerY);
+        ctx.rotate((imageTransform.rotate * Math.PI) / 180);
+        ctx.translate(-centerX, -centerY);
+
+        // Draw Image
+        ctx.drawImage(
+            img,
+            imageTransform.x,
+            imageTransform.y,
+            imageTransform.width,
+            imageTransform.height
+        );
+
+        ctx.restore();
+
+        // Clear Import State
+        setImportedImage(null);
+        setSelectedTool('pen'); // Return to pen
+    };
+
+    // Click outside to bake
+    const handleBackgroundClick = (e: React.MouseEvent) => {
+        if (importedImage && selectedTool === 'move') {
+            // Baking Logic on background click is tricky because click propagation.
+            // Let's rely on explicit bake button or tool switch for now to avoid accidents.
+            // Or allow baking if clicked on the 'void' area.
         }
     };
 
     if (!canvasSize) {
         return (
-            <div className="flex flex-col items-center justify-center h-screen bg-[#050505] text-white select-none">
+            <div className="flex flex-col items-center justify-center h-screen bg-[#1e1e1e] text-gray-200 select-none font-sans">
                 <div className="text-center mb-12">
-                    <h1 className="text-5xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">
-                        Asset Forge
+                    <h1 className="text-4xl font-bold mb-3 text-gray-100 tracking-tight">
+                        자산 에디터
                     </h1>
-                    <p className="text-gray-400 text-lg">Create stunning pixel art and assets.</p>
+                    <p className="text-gray-500 text-sm">캔버스 크기를 선택하여 시작하세요.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[512, 256, 128].map((size) => (
                         <button
                             key={size}
                             onClick={() => handleSizeSelect(size)}
-                            className="group relative p-8 bg-[#111] rounded-2xl border border-[#222] hover:border-blue-500 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1"
+                            className="group relative w-40 h-40 bg-[#252525] rounded-[4px] border border-[#333] hover:border-[#666] hover:bg-[#2a2a2a] transition-all flex flex-col items-center justify-center shadow-lg"
                         >
-                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-blue-400">✨</span>
-                            </div>
-                            <div className="text-3xl font-bold mb-3 font-mono">{size}</div>
-                            <div className="text-sm text-gray-500 group-hover:text-blue-300 transition-colors uppercase tracking-widest">
-                                {size === 512 ? 'High Definition' : size === 256 ? 'Standard' : 'Pixel Art'}
+                            <div className="text-2xl font-bold mb-2 font-mono text-gray-300">{size}</div>
+                            <div className="text-[10px] text-gray-600 group-hover:text-gray-400 transition-colors uppercase tracking-widest">
+                                {size === 512 ? 'High Detail' : size === 256 ? 'Standard' : 'Pixel Art'}
                             </div>
                         </button>
                     ))}
@@ -92,46 +177,72 @@ const NewAssetsEditorPage: React.FC = () => {
 
     return (
         <div
-            className="flex h-screen bg-[#050505] text-white overflow-hidden"
+            className="flex h-screen bg-[#1e1e1e] text-gray-200 overflow-hidden font-sans select-none"
             onMouseUp={handleMouseUp}
             onContextMenu={handleContextMenu}
         >
             {/* Toolbar Side */}
             <Toolbar
                 selectedTool={selectedTool}
-                onToolChange={setSelectedTool}
+                onToolChange={(tool) => {
+                    // If switching away from move tool while image exists, bake it?
+                    // Or just keep it. Let's keep it for now but warn.
+                    if (importedImage && tool !== 'move') {
+                        if (confirm("이미지가 적용되지 않았습니다. 현재 이미지를 캔버스에 적용하시겠습니까?")) {
+                            handleBakeImage();
+                        } else {
+                            // Cancel switch? Or just discard?
+                            // Let's discard if no.
+                            setImportedImage(null);
+                        }
+                    }
+                    setSelectedTool(tool);
+                }}
                 brushColor={brushColor}
                 onColorChange={setBrushColor}
                 brushSize={brushSize}
                 onBrushSizeChange={setBrushSize}
+                onImageUpload={handleImageUpload}
             />
 
-            {/* Canvas Validation Area */}
-            <div className="flex-1 flex flex-col relative bg-[#1a1a1a]">
-                {/* Header/Top Bar */}
-                <div className="h-14 border-b border-[#222] flex items-center justify-between px-6 bg-[#050505] z-10">
-                    <span className="font-mono text-xs text-gray-500">
-                        {canvasSize.width}x{canvasSize.height} • {selectedTool.toUpperCase()} • {Math.round(brushSize)}px • {(zoom * 100).toFixed(0)}%
-                    </span>
-                    <div className="flex gap-4">
+            {/* Canvas Area */}
+            <div className="flex-1 flex flex-col relative bg-[#121212]">
+                {/* Header */}
+                <div className="h-10 border-b border-[#282828] flex items-center justify-between px-4 bg-[#1e1e1e] z-10 shadow-sm shrink-0">
+                    <div className="flex gap-4 text-[11px] text-gray-500 font-mono">
+                        <span>{canvasSize.width}x{canvasSize.height}</span>
+                        <span className="text-gray-700">|</span>
+                        <span>{Math.round(zoom * 100)}%</span>
+                        <span className="text-gray-700">|</span>
+                        <span className="uppercase text-gray-400">{selectedTool === 'move' && importedImage ? '이미지 변형 모드' : selectedTool}</span>
+                    </div>
+                    <div className="flex gap-3">
+                        {importedImage && (
+                            <button
+                                onClick={handleBakeImage}
+                                className="px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-[11px] rounded-[2px] transition-colors"
+                            >
+                                <i className="fa-solid fa-check mr-1.5"></i>적용 (Enter)
+                            </button>
+                        )}
                         <button
                             onClick={() => {
                                 if (canvasRef.current) {
                                     canvasRef.current.toBlob((blob) => {
-                                        if (blob) saveAs(blob, 'my-asset.png');
+                                        if (blob) saveAs(blob, 'my_asset.png');
                                     });
                                 }
                             }}
-                            className="text-xs text-blue-400 hover:text-blue-300 font-bold bg-blue-500/10 px-4 py-2 rounded-lg hover:bg-blue-500/20 transition-all"
+                            className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white text-[11px] rounded-[2px] transition-colors"
                         >
-                            <i className="fa-solid fa-download mr-2"></i>
-                            Save Asset
+                            <i className="fa-solid fa-download mr-1.5"></i>
+                            저장
                         </button>
                         <button
                             onClick={() => setCanvasSize(null)}
-                            className="text-xs text-gray-400 hover:text-white transition-colors"
+                            className="px-3 py-1 bg-[#222] hover:bg-[#333] text-gray-400 text-[11px] rounded-[2px] transition-colors"
                         >
-                            Exit
+                            나가기
                         </button>
                     </div>
                 </div>
@@ -139,38 +250,83 @@ const NewAssetsEditorPage: React.FC = () => {
                 {/* Canvas Viewport */}
                 <div
                     ref={containerRef}
-                    className="flex-1 overflow-hidden relative bg-[url('https://transparenttextures.com/patterns/dark-matter.png')] cursor-default"
+                    className="flex-1 overflow-hidden relative bg-[#0a0a0a] cursor-default"
                     onMouseDown={handleMouseDown}
+                    onClick={handleBackgroundClick}
                     onMouseMove={handleMouseMove}
                     onWheel={handleWheel}
                 >
+                    {/* Viewport Content Wrapper */}
                     <div
-                        className="absolute shadow-2xl shadow-black ring-1 ring-white/10"
+                        className="absolute shadow-2xl shadow-black origin-center"
                         style={{
                             width: canvasSize.width,
                             height: canvasSize.height,
-                            // Centering logic + Pan/Zoom
                             top: `calc(50% - ${canvasSize.height / 2}px + ${pan.y}px)`,
                             left: `calc(50% - ${canvasSize.width / 2}px + ${pan.x}px)`,
                             transform: `scale(${zoom})`,
-                            transformOrigin: 'center center'
                         }}
                     >
+                        {/* Drawing Canvas */}
                         <DrawingCanvas
                             ref={canvasRef}
                             width={canvasSize.width}
                             height={canvasSize.height}
                             brushColor={brushColor}
                             brushSize={brushSize}
-                            selectedTool={selectedTool}
+                            selectedTool={selectedTool === 'move' ? 'none' : selectedTool}
                         />
-                    </div>
 
-                    {/* Controls Overlay */}
-                    <div className="absolute bottom-6 right-6 flex flex-col gap-2">
-                        <button onClick={() => setZoom(z => z + 0.1)} className="w-10 h-10 bg-[#222] border border-[#333] rounded-lg text-white hover:bg-[#333] transition-colors flex items-center justify-center">+</button>
-                        <button onClick={() => setZoom(1)} className="w-10 h-10 bg-[#222] border border-[#333] rounded-lg text-white hover:bg-[#333] transition-colors flex items-center justify-center text-xs">1:1</button>
-                        <button onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} className="w-10 h-10 bg-[#222] border border-[#333] rounded-lg text-white hover:bg-[#333] transition-colors flex items-center justify-center">-</button>
+                        {/* Imported Image Layer (Overlay) */}
+                        {importedImage && (
+                            <>
+                                <img
+                                    ref={imageRef}
+                                    src={importedImage}
+                                    alt="Imported"
+                                    className="absolute top-0 left-0 select-none pointer-events-none"
+                                    style={{
+                                        transform: `translate(${imageTransform.x}px, ${imageTransform.y}px) rotate(${imageTransform.rotate}deg)`,
+                                        width: imageTransform.width,
+                                        height: imageTransform.height,
+                                        // While transforming, we want to see it clearly? Or pixelated?
+                                        // User asked for pixelation matching screen.
+                                        imageRendering: 'pixelated'
+                                    }}
+                                />
+                                {/* Moveable Controller */}
+                                <Moveable
+                                    target={imageRef.current}
+                                    container={null}
+                                    origin={true}
+                                    edge={true}
+                                    draggable={true}
+                                    resizable={true}
+                                    rotatable={true}
+                                    keepRatio={false}
+                                    snappable={true}
+
+                                    onDrag={({ left, top }) => {
+                                        setImageTransform(prev => ({ ...prev, x: left, y: top }));
+                                    }}
+                                    onResize={({ width, height, drag }) => {
+                                        setImageTransform(prev => ({
+                                            ...prev,
+                                            width,
+                                            height,
+                                            x: drag.left,
+                                            y: drag.top
+                                        }));
+                                    }}
+                                    onRotate={({ rotate }) => {
+                                        setImageTransform(prev => ({ ...prev, rotate }));
+                                    }}
+
+                                    // Customizing Control Style for "Photoshop" feel
+                                    className="moveable-control-box"
+                                />
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
