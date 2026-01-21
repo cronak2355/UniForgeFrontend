@@ -307,18 +307,19 @@ const NewAssetsEditorPage: React.FC = () => {
         setCurrentFrame(newFrame);
     };
 
-    // Add new frame
+    // Add new frame (Copy previous)
     const handleAddFrame = () => {
         if (frames.length >= 32) {
             alert("최대 32프레임까지만 생성 가능합니다.");
             return;
         }
-        setFrames([...frames, null]); // Add empty frame at end
-        // Option: Duplicate current frame?
-        // setFrames([...frames, frames[currentFrame]]); 
 
-        // Let's just switch to the new frame immediately? 
-        // No, let user choose.
+        // Copy the last frame
+        const lastFrame = frames[frames.length - 1];
+        setFrames([...frames, lastFrame]);
+
+        // Switch to the new frame? Optional, but usually good UX.
+        setCurrentFrame(frames.length);
     };
 
     // Delete current frame
