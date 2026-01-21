@@ -907,41 +907,7 @@ const NewAssetsEditorPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Frame Tabs (Scrollable) */}
-                                <div className="flex items-center gap-1 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1 max-w-[400px] overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
-                                    {frames.map((_, index) => (
-                                        <div key={index} className="relative group/frame">
-                                            <button
-                                                onClick={() => handleFrameSwitch(index)}
-                                                className={`px-3 py-1.5 min-w-[3rem] text-xs font-medium rounded-md transition-all whitespace-nowrap ${currentFrame === index
-                                                    ? 'bg-amber-600 text-white'
-                                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-                                                    }`}
-                                            >
-                                                F{index + 1}
-                                            </button>
-                                            {/* Delete Button (hover only, distinct from click) */}
-                                            {frames.length > 1 && (
-                                                <button
-                                                    onClick={(e) => handleDeleteFrame(index, e)}
-                                                    className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] opacity-0 group-hover/frame:opacity-100 transition-opacity shadow-sm hover:scale-110 z-10"
-                                                    title="프레임 삭제"
-                                                >
-                                                    <i className="fa-solid fa-xmark"></i>
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
 
-                                    {/* Add Frame Button */}
-                                    <button
-                                        onClick={handleAddFrame}
-                                        className="px-2 py-1.5 h-full text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
-                                        title="프레임 추가"
-                                    >
-                                        <i className="fa-solid fa-plus text-xs"></i>
-                                    </button>
-                                </div>
 
                                 {/* Presets Button Group */}
                                 <div className="relative group">
@@ -1149,8 +1115,58 @@ const NewAssetsEditorPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Floating Zoom Controls */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full px-4 py-2 flex items-center gap-4 shadow-xl z-20">
+                    {/* Timeline (Sprite Mode Only) */}
+                    {isSpriteMode && (
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-xl p-3 flex items-center gap-3 shadow-2xl z-30 animate-in slide-in-from-bottom-10 fade-in duration-300">
+
+                            {/* Frame List (Scrollable) */}
+                            <div className="flex-1 overflow-x-auto flex items-center gap-2 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-1">
+                                {frames.map((_, index) => (
+                                    <div key={index} className="relative group/frame shrink-0">
+                                        <button
+                                            onClick={() => handleFrameSwitch(index)}
+                                            className={`w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 transition-all ${currentFrame === index
+                                                ? 'bg-zinc-800 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                                : 'bg-zinc-950/50 border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800'
+                                                }`}
+                                        >
+                                            <span className={`text-xs font-bold ${currentFrame === index ? 'text-amber-500' : 'text-zinc-500'}`}>
+                                                {index + 1}
+                                            </span>
+                                            {/* Preview Placeholder? Real preview needs canvas toDataURL which is expensive to do reactive. 
+                                                Maybe just show "Frame N" nicely. */}
+                                            <div className="w-8 h-8 mt-1 rounded bg-zinc-800/50 flex items-center justify-center">
+                                                <i className="fa-solid fa-image text-zinc-600 text-[10px]"></i>
+                                            </div>
+                                        </button>
+
+                                        {/* Delete Button */}
+                                        {frames.length > 1 && (
+                                            <button
+                                                onClick={(e) => handleDeleteFrame(index, e)}
+                                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/frame:opacity-100 transition-all shadow-md hover:scale-110 z-10"
+                                                title="프레임 삭제"
+                                            >
+                                                <i className="fa-solid fa-xmark"></i>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Add Frame Button */}
+                                <button
+                                    onClick={handleAddFrame}
+                                    className="w-16 h-16 shrink-0 flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-600 hover:text-zinc-400 transition-all"
+                                    title="프레임 추가"
+                                >
+                                    <i className="fa-solid fa-plus text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Floating Zoom Controls (Adjusted position) */}
+                    <div className="absolute bottom-6 right-6 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full px-4 py-2 flex items-center gap-4 shadow-xl z-20">
                         <button onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} className="text-zinc-400 hover:text-white transition-colors">
                             <i className="fa-solid fa-minus"></i>
                         </button>
