@@ -919,19 +919,20 @@ const NewAssetsEditorPage: React.FC = () => {
                                         <i className="fa-solid fa-wand-magic-sparkles"></i>
                                         <span className="hidden sm:inline">프리셋</span>
                                     </button>
-                                    <div className="absolute top-full left-0 mt-1 w-32 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block z-50">
-                                        <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            😮‍💨 숨쉬기
-                                        </button>
-                                        <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            🦘 점프
-                                        </button>
-                                        <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            🫨 흔들림
-                                        </button>
+                                    <div className="absolute top-full left-0 pt-1 w-32 hidden group-hover:block z-50">
+                                        <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                                            <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                😮‍💨 숨쉬기
+                                            </button>
+                                            <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                🦘 점프
+                                            </button>
+                                            <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                🫨 흔들림
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-
                                 {/* Frame Actions */}
                                 {/* Rigging Button */}
                                 <button

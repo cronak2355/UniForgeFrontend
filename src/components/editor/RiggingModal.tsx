@@ -598,12 +598,20 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                             다음 단계로 <i className="fa-solid fa-arrow-right"></i>
                         </button>
                     ) : (
-                        <button
-                            onClick={handleFinalApply}
-                            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2"
-                        >
-                            <i className="fa-solid fa-check"></i> 적용 완료
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setStep('setup')}
+                                className="px-4 py-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                <i className="fa-solid fa-arrow-left"></i> 뒤로
+                            </button>
+                            <button
+                                onClick={handleFinalApply}
+                                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2"
+                            >
+                                <i className="fa-solid fa-check"></i> 적용 완료
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
