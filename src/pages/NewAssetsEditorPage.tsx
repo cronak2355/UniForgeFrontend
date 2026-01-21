@@ -44,10 +44,15 @@ const NewAssetsEditorPage: React.FC = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiStyle, setAiStyle] = useState('pixel-art');
 
-    // Frame-based Sprite State (4 frames for sprite sheet)
-    const [currentFrame, setCurrentFrame] = useState(0); // 0-3
-    const [frames, setFrames] = useState<(ImageData | null)[]>([null, null, null, null]);
+    // Frame-based Sprite State (Dynamic)
+    const [currentFrame, setCurrentFrame] = useState(0);
+    const [frames, setFrames] = useState<(ImageData | null)[]>([null]); // Start with 1 frame
+    const [copiedFrame, setCopiedFrame] = useState<ImageData | null>(null);
     const [isSpriteMode, setIsSpriteMode] = useState(false);
+
+    // Playback State
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [fps, setFps] = useState(8);
 
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
@@ -298,8 +303,98 @@ const NewAssetsEditorPage: React.FC = () => {
         setCurrentFrame(newFrame);
     };
 
+    // Add new frame
+    const handleAddFrame = () => {
+        if (frames.length >= 32) {
+            alert("최대 32프레임까지만 생성 가능합니다.");
+            return;
+        }
+        setFrames([...frames, null]); // Add empty frame at end
+        // Option: Duplicate current frame?
+        // setFrames([...frames, frames[currentFrame]]); 
+
+        // Let's just switch to the new frame immediately? 
+        // No, let user choose.
+    };
+
+    // Delete current frame
+    const handleDeleteFrame = (index: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (frames.length <= 1) {
+            alert("최소 1개의 프레임은 있어야 합니다.");
+            return;
+        }
+
+        if (!confirm(`${index + 1}번 프레임을 삭제하시겠습니까?`)) return;
+
+        const newFrames = frames.filter((_, i) => i !== index);
+        setFrames(newFrames);
+
+        // Adjust currentFrame if needed
+        if (currentFrame >= newFrames.length) {
+            setCurrentFrame(newFrames.length - 1);
+            // We need to load this frame to canvas
+            const targetFrame = newFrames[newFrames.length - 1];
+            loadFrameToCanvas(targetFrame);
+        } else if (currentFrame === index) {
+            // Deleted currently viewed frame
+            const targetFrame = newFrames[currentFrame]; // same index, now next frame
+            loadFrameToCanvas(targetFrame);
+        }
+    };
+
+    const loadFrameToCanvas = (imageData: ImageData | null) => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (imageData) {
+            ctx.putImageData(imageData, 0, 0);
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    };
+
+    // Playback Loop
+    useEffect(() => {
+        let intervalId: any;
+
+        if (isPlaying) {
+            intervalId = setInterval(() => {
+                setCurrentFrame(prev => {
+                    const next = (prev + 1) % frames.length;
+                    // Load frame logic here inside the loop effectively requires effect on currentFrame change
+                    // But we can't easily trigger loadFrameToCanvas from state update callback.
+                    // So we rely on effect below.
+                    return next;
+                });
+            }, 1000 / fps);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [isPlaying, fps, frames.length]);
+
+    // Effect to update canvas when currentFrame changes (Only during playback?)
+    // Or always? If we switch frame manually, we call handleFrameSwitch which does both.
+    // If playback switches frame, we need this effect.
+    // BUT handleFrameSwitch logic also saves current frame. 
+    // Playback should NOT save current frame every tick, just DISPLAY.
+
+    // Changing approach:
+    // Manual switch -> Saves current, loads new.
+    // Playback switch -> Just loads new.
+
+    useEffect(() => {
+        if (isPlaying) {
+            const targetFrame = frames[currentFrame];
+            loadFrameToCanvas(targetFrame);
+        }
+    }, [currentFrame, isPlaying]);
+
     // Copy current frame to clipboard (internal)
-    const [copiedFrame, setCopiedFrame] = useState<ImageData | null>(null);
 
     const handleCopyFrame = () => {
         const canvas = canvasRef.current?.getCanvas();
@@ -323,6 +418,11 @@ const NewAssetsEditorPage: React.FC = () => {
     const handleApplyPreset = (type: 'breathing' | 'jump' | 'shake') => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
+
+        // Reset to 4 frames if not already
+        if (frames.length !== 4) {
+            alert(`프리셋 적용을 위해 프레임 수가 4개로 초기화됩니다.`);
+        }
 
         // Ensure we capture latest changes to current frame
         const ctx = canvas.getContext('2d');
@@ -349,9 +449,8 @@ const NewAssetsEditorPage: React.FC = () => {
             return c;
         };
 
-        const newFrames = [...frames];
-        // Ensure Frame 0 is set
-        newFrames[0] = baseImageData;
+        // Force 4 frames
+        const newFrames = [baseImageData, null, null, null];
 
         const processFrame = (frameIndex: number, transform: (ctx: CanvasRenderingContext2D, img: HTMLCanvasElement) => void) => {
             const c = document.createElement('canvas');
@@ -423,7 +522,7 @@ const NewAssetsEditorPage: React.FC = () => {
     };
 
 
-    // Save sprite sheet (2048x512)
+    // Save sprite sheet (Dynamic width)
     const handleSaveSpriteSheet = () => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
@@ -435,15 +534,19 @@ const NewAssetsEditorPage: React.FC = () => {
         const finalFrames = [...frames];
         finalFrames[currentFrame] = currentImageData;
 
-        // Create sprite sheet canvas (2048x512)
+        const frameCount = finalFrames.length;
+        const width = frameCount * 512;
+        const height = 512;
+
+        // Create sprite sheet canvas
         const spriteCanvas = document.createElement('canvas');
-        spriteCanvas.width = 2048;
-        spriteCanvas.height = 512;
+        spriteCanvas.width = width;
+        spriteCanvas.height = height;
         const spriteCtx = spriteCanvas.getContext('2d');
         if (!spriteCtx) return;
 
         // Draw each frame
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < frameCount; i++) {
             if (finalFrames[i]) {
                 // Create temp canvas to convert ImageData to drawable
                 const tempCanvas = document.createElement('canvas');
@@ -460,7 +563,7 @@ const NewAssetsEditorPage: React.FC = () => {
         // Download
         spriteCanvas.toBlob((blob) => {
             if (blob) {
-                saveAs(blob, `sprite_sheet_${Date.now()}.png`);
+                saveAs(blob, `sprite_sheet_${frames.length}x_${Date.now()}.png`);
             }
         }, 'image/png');
     };
@@ -782,20 +885,62 @@ const NewAssetsEditorPage: React.FC = () => {
                             </button>
                         ) : (
                             <>
-                                {/* Frame Tabs */}
-                                <div className="flex items-center bg-zinc-950/50 rounded-lg border border-zinc-800 p-0.5">
-                                    {[0, 1, 2, 3].map((frame) => (
-                                        <button
-                                            key={frame}
-                                            onClick={() => handleFrameSwitch(frame)}
-                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${currentFrame === frame
-                                                ? 'bg-amber-600 text-white'
-                                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-                                                }`}
-                                        >
-                                            F{frame + 1}
-                                        </button>
+                                {/* Playback Controls */}
+                                <div className="flex items-center gap-2 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1 mr-2">
+                                    <button
+                                        onClick={() => setIsPlaying(!isPlaying)}
+                                        className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${isPlaying ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
+                                        title={isPlaying ? "정지" : "재생"}
+                                    >
+                                        <i className={`fa-solid ${isPlaying ? 'fa-stop' : 'fa-play'}`}></i>
+                                    </button>
+                                    <div className="flex items-center gap-1 px-1">
+                                        <span className="text-[10px] text-zinc-500 font-mono">FPS</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            value={fps}
+                                            onChange={(e) => setFps(Number(e.target.value))}
+                                            className="w-8 h-5 bg-zinc-900 border border-zinc-700 rounded text-[10px] text-center text-zinc-300 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Frame Tabs (Scrollable) */}
+                                <div className="flex items-center gap-1 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1 max-w-[400px] overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                                    {frames.map((_, index) => (
+                                        <div key={index} className="relative group/frame">
+                                            <button
+                                                onClick={() => handleFrameSwitch(index)}
+                                                className={`px-3 py-1.5 min-w-[3rem] text-xs font-medium rounded-md transition-all whitespace-nowrap ${currentFrame === index
+                                                    ? 'bg-amber-600 text-white'
+                                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                                                    }`}
+                                            >
+                                                F{index + 1}
+                                            </button>
+                                            {/* Delete Button (hover only, distinct from click) */}
+                                            {frames.length > 1 && (
+                                                <button
+                                                    onClick={(e) => handleDeleteFrame(index, e)}
+                                                    className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] opacity-0 group-hover/frame:opacity-100 transition-opacity shadow-sm hover:scale-110 z-10"
+                                                    title="프레임 삭제"
+                                                >
+                                                    <i className="fa-solid fa-xmark"></i>
+                                                </button>
+                                            )}
+                                        </div>
                                     ))}
+
+                                    {/* Add Frame Button */}
+                                    <button
+                                        onClick={handleAddFrame}
+                                        className="px-2 py-1.5 h-full text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
+                                        title="프레임 추가"
+                                    >
+                                        <i className="fa-solid fa-plus text-xs"></i>
+                                    </button>
                                 </div>
 
                                 {/* Presets Button Group */}
