@@ -73,7 +73,10 @@ class PhaserRenderScene extends Phaser.Scene {
                         frameHeight: metadata.frameHeight
                     });
                 }
-            } else if (asset.tag === "Sound" || asset.tag === "Audio" || asset.tag === "BGM" || asset.tag === "SFX") {
+            } else if (
+                asset.tag === "Sound" || asset.tag === "Audio" || asset.tag === "BGM" || asset.tag === "SFX" ||
+                asset.tag === "sound" || asset.tag === "audio" || asset.tag === "bgm" || asset.tag === "sfx"
+            ) {
                 // [NEW] Load Audio Assets
                 this.load.audio(asset.name, asset.url);
                 if (asset.id !== asset.name) {

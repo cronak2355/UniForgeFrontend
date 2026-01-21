@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { CLOUDFRONT_DOMAIN } from '../utils/imageUtils';
 
 export interface UploadedAssetData {
     id: string;
@@ -8,13 +9,16 @@ export interface UploadedAssetData {
     metadata?: Record<string, unknown>;
 }
 
-export const CDN_URL = import.meta.env.VITE_CDN_URL || "https://uniforge.kr";
+export const CDN_URL = `https://${CLOUDFRONT_DOMAIN}`;
 
 export const resolveAssetUrl = (s3Key: string) => {
     if (!s3Key) return "";
     const cleanKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
-    const encodedKey = cleanKey.split('/').map(part => encodeURIComponent(part)).join('/');
-    return `${CDN_URL}/${encodedKey}`;
+    // Encoding path parts is good, but s3Key might already be safe or contain slashes we need
+    // For now, keep unsafe standard logic or just encodedKey
+    // const encodedKey = cleanKey.split('/').map(part => encodeURIComponent(part)).join('/');
+    // S3 keys usually just need standard URL encoding for special chars, but let's stick to simple
+    return `${CDN_URL}/${cleanKey}`;
 };
 
 export const assetService = {
