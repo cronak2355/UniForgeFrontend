@@ -48,7 +48,7 @@ const NewAssetsEditorPage: React.FC = () => {
     const [isAnimModalOpen, setIsAnimModalOpen] = useState(false);
     const [animPrompt, setAnimPrompt] = useState('');
 
-    // Sprite Sheet Mode (2048x512 when true, normal size when false)
+    // Sprite Sheet Mode (1024x512 when true, normal size when false)
     const [isSpriteMode, setIsSpriteMode] = useState(false);
 
     // Viewport State (Zoom/Pan)
@@ -258,9 +258,9 @@ const NewAssetsEditorPage: React.FC = () => {
                 throw new Error(response.error || "Animation generation failed");
             }
 
-            // Switch to sprite mode (2048x512)
+            // Switch to sprite mode (1024x512 for 2 frames)
             setIsSpriteMode(true);
-            setCanvasSize({ width: 2048, height: 512 });
+            setCanvasSize({ width: 1024, height: 512 });
 
             const img = new Image();
             img.onload = async () => {

@@ -93,7 +93,7 @@ export async function generateAnimationSheet(prompt: string, imageBase64: string
             throw new Error('No images returned from server');
         }
 
-        // Stitch 4 images into one 2048x512 sprite sheet using Canvas
+        // Stitch images into sprite sheet using Canvas (dynamic based on frame count)
         const stitchedImage = await stitchImagesClientSide(images);
 
         return {
