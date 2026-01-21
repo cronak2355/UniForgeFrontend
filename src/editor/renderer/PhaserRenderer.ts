@@ -104,6 +104,11 @@ class PhaserRenderScene extends Phaser.Scene {
         // [FIX] Create animations for all preloaded spritesheet assets
         for (const asset of this.assetsToPreload) {
             if (asset.tag === "Tile") continue;
+            // [FIX] Skip Audio assets for texture processing
+            if (asset.tag === "Sound" || asset.tag === "Audio" || asset.tag === "BGM" || asset.tag === "SFX" ||
+                asset.tag === "sound" || asset.tag === "audio" || asset.tag === "bgm" || asset.tag === "sfx") {
+                continue;
+            }
 
             const key = asset.name;
             let metadata = asset.metadata;
