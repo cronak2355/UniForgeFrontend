@@ -898,16 +898,19 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     const files = e.dataTransfer?.files;
                     if (!files || files.length === 0) return;
 
-                    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-                    let hasImage = false;
+                    const allowedTypes = new Set([
+                        "image/png", "image/jpeg", "image/webp",
+                        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3", "audio/x-m4a"
+                    ]);
+                    let hasValidFile = false;
                     for (let i = 0; i < files.length; i++) {
                         if (allowedTypes.has(files[i].type)) {
-                            hasImage = true;
+                            hasValidFile = true;
                             break;
                         }
                     }
 
-                    if (!hasImage) return;
+                    if (!hasValidFile) return;
                     onExternalImageDrop?.(files);
                 }}
                 onMouseLeave={() => {

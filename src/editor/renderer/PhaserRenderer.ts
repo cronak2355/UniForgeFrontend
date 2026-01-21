@@ -73,9 +73,16 @@ class PhaserRenderScene extends Phaser.Scene {
                         frameHeight: metadata.frameHeight
                     });
                 }
+            } else if (asset.tag === "Sound" || asset.tag === "Audio" || asset.tag === "BGM" || asset.tag === "SFX") {
+                // [NEW] Load Audio Assets
+                this.load.audio(asset.name, asset.url);
+                if (asset.id !== asset.name) {
+                    this.load.audio(asset.id, asset.url);
+                }
             } else {
                 // Load as regular image
                 this.load.image(asset.name, asset.url);
+
                 if (asset.id !== asset.name) {
                     this.load.image(asset.id, asset.url);
                 }
@@ -238,6 +245,29 @@ class PhaserRenderScene extends Phaser.Scene {
                     }
                 }
             }
+
+            // [Action Event] Play Sound
+            if (event.type === "PLAY_SOUND") {
+                const data = event.data || {};
+                // Support both soundKey and soundId
+                const soundKey = (data.soundKey as string) || (data.soundId as string);
+                const volume = (data.volume as number) ?? 1.0;
+                const loop = (data.loop as boolean) ?? false;
+
+                if (soundKey) {
+                    try {
+                        this.sound.play(soundKey, { volume, loop });
+                    } catch (e) {
+                        console.warn(`[PhaserRenderer] Failed to play sound '${soundKey}':`, e);
+                    }
+                }
+            }
+
+            // [Action Event] Stop Sound
+            if (event.type === "STOP_SOUND") {
+                this.sound.stopAll();
+            }
+
 
             // [Optimized] TICK event is now ignored here to prevent GC overhead.
             // It is handled directly in the update() loop using reusable objects.
@@ -764,8 +794,9 @@ export class PhaserRenderer implements IRenderer {
             },
             parent: container,
             scene: [scene],
-            audio: { noAudio: true },
+            audio: { noAudio: false },
         };
+
 
         this.game = new Phaser.Game(config);
 

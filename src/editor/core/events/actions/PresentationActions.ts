@@ -30,11 +30,13 @@ ActionRegistry.register("PlaySound", (ctx: ActionContext, params: Record<string,
     }
 
     const volume = (params.volume as number) ?? 1.0;
+    const loop = (params.loop as boolean) ?? false;
 
     EventBus.emit("PLAY_SOUND", {
         entityId: ctx.entityId,
         soundKey,
-        volume
+        volume,
+        loop
     });
 });
 
@@ -56,4 +58,14 @@ ActionRegistry.register("EmitEventSignal", (ctx: ActionContext, params: Record<s
     });
 });
 
-console.log("[PresentationActions] 3 actions registered: ShowDialogue, PlaySound, EmitEventSignal");
+/**
+ * StopSound - 모든 소리 정지
+ * params: {} (현재는 모든 소리 정지)
+ */
+ActionRegistry.register("StopSound", (ctx: ActionContext, params: Record<string, unknown>) => {
+    EventBus.emit("STOP_SOUND", {
+        entityId: ctx.entityId
+    });
+});
+
+console.log("[PresentationActions] Actions registered: ShowDialogue, PlaySound, EmitEventSignal, StopSound");
