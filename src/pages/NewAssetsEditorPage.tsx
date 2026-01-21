@@ -3,6 +3,7 @@ import DrawingCanvas, { DrawingCanvasRef } from '../components/editor/canvas/Dra
 import Toolbar from '../components/editor/tools/Toolbar';
 import { saveAs } from 'file-saver';
 import Moveable from 'react-moveable';
+import { authService } from '../services/authService';
 
 const NewAssetsEditorPage: React.FC = () => {
     // Canvas State
