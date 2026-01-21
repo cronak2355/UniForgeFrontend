@@ -25,11 +25,9 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
     // Expose Main Canvas to parent (for saving)
     useImperativeHandle(ref, () => mainCanvasRef.current!, []);
 
-    // Initial Setup & Resize Handling
+    // Initial Setup
     useEffect(() => {
-        // Here we could handle resizing logic if needed, 
-        // ensuring 'mainCanvas' content is preserved. 
-        // For now, size is fixed per session.
+        // No resize handling needed for fixed size canvas
     }, [width, height]);
 
     // --- Drawing Logic (Temp Canvas) ---
@@ -47,47 +45,14 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
             streamline: 0.5,
         });
 
-        // Clear temp canvas every frame to avoid stacking opacity
+        // Clear temp canvas every frame
         ctx.clearRect(0, 0, width, height);
 
         if (points.length > 0) {
-            // Setup composite operation for temp canvas
-            // If eraser, we visualize it as white or special color?
-            // Actually, for Eraser, "Previewing" on a separate layer is tricky because it needs to erase the underlying layer.
-            // Standard solution: draw on temp layer, but for eraser, we might need to draw directly to main?
-            // OR: render composite of Main + Temp(EraserLoop) every frame? Expensive.
-            // Simple approach: Eraser draws directly on Main? No, undo will be hard later.
-            // Let's stick to: Eraser works on MAIN canvas for "Validation" but for "Preview" we might just show cursor.
-            // Wait, users expect to see the erasing trail. 
-            // For Eraser, we will update the MAIN canvas in realtime? That breaks the "Temp Layer" benefit for transparency.
-            // But Eraser usually has 100% opacity in simple apps.
-            // Let's make Eraser draw directly to Main Canvas nicely, OR keep points and re-run destination-out on Main.
-            // If we re-run destination-out on Main for every point update, we are erasing more and more.
-            // Correct way: With points, we have the WHOLE stroke. 
-            // So we can undo the last "erase" frame? No.
-            // Let's TRY: Eraser draws on Temp Canvas as "White" (or background color) if we assume opacity.
-            // But we need transparency.
-            // Better: Use Temp Canvas for Pen/Brush. Use Main Canvas (incremental) for Eraser?
-            // Let's try drawing Eraser on Temp with 'source-over' showing a "Eraser Color" (e.g. pink) for debug, 
-            // then apply 'destination-out' to Main on pointerUp?
-            // No, user needs to see what's being erased.
-            // Pivot: For Eraser, we apply to Main Canvas incrementally? 
-            // Or just keep simple single-layer behavior for Eraser, and 2-layer for Brush.
-
-            if (selectedTool === 'eraser') {
-                // Eraser Preview on Temp? 
-                // Let's leave Eraser as "Direct to Main" logic for now (simpler), or 'destination-out' on Main.
-                // But 'perfect-freehand' gives entire path. 
-                // We will use the 2-layer system for Additive Drawing (Pen). 
-                // For Subtractive (Eraser), let's render strictly to Temp, using 'destination-out' on ... Temp? No (Temp is empty).
-                // We'll skip Eraser special handling for a second and focus on Pen.
-            }
-
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle = brushColor;
             if (selectedTool === 'eraser') {
-                ctx.fillStyle = '#ffffff'; // visuals only
-                // Real erasing happens on Main?
+                ctx.fillStyle = '#ffffff'; // Visuals only for temp layer
             }
 
             ctx.beginPath();
@@ -144,29 +109,23 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
 
         // BFS
         const stack = [[startX, startY]];
-        const seen = new Set(); // To prevent loops if needed, though color check usually handles it
 
-        // We can modify 'data' directly
         while (stack.length > 0) {
             const [x, y] = stack.pop()!;
             const idx = (y * width + x) * 4;
 
-            // Boundary check
             if (x < 0 || x >= width || y < 0 || y >= height) continue;
 
-            // Check match
             if (data[idx] === startRgba[0] &&
                 data[idx + 1] === startRgba[1] &&
                 data[idx + 2] === startRgba[2] &&
                 data[idx + 3] === startRgba[3]) {
 
-                // Set color
                 data[idx] = targetRgba[0];
                 data[idx + 1] = targetRgba[1];
                 data[idx + 2] = targetRgba[2];
                 data[idx + 3] = targetRgba[3];
 
-                // Push neighbors
                 stack.push([x + 1, y]);
                 stack.push([x - 1, y]);
                 stack.push([x, y + 1]);
@@ -178,17 +137,21 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
     };
 
 
-    // --- Event Handlers ---
+    // --- Event Handlers (Fixed Coordinates) ---
     const handlePointerDown = (e: React.PointerEvent) => {
         if (e.buttons !== 1) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = Math.floor(e.clientX - rect.left);
-        const y = Math.floor(e.clientY - rect.top);
+        // Calculate scale factor in case displayed size != actual canvas size (Zoomed)
+        const scaleX = width / rect.width;
+        const scaleY = height / rect.height;
+
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
         // Bucket Logic
         if (selectedTool === 'bucket') {
-            floodFill(x, y, brushColor);
+            floodFill(Math.floor(x), Math.floor(y), brushColor);
             return;
         }
 
@@ -205,8 +168,12 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
         if (e.buttons !== 1) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const scaleX = width / rect.width;
+        const scaleY = height / rect.height;
+
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
         setPoints(prev => [...prev, [x, y, e.pressure]]);
     };
 
@@ -220,16 +187,7 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
 
         if (mainCtx && tempCanvas) {
             if (selectedTool === 'eraser') {
-                // For eraser, we use the stroke path to 'cut' mainly.
-                // Re-calculate the full stroke one last time to be sure? 
-                // Or just use the 'tempCanvas' mask?
-                // Problem: TempCanvas has 'White' pixels for Eraser (per my hack above).
-                // We want to use those pixels to Erase on Main.
-
-                // Composite Logic:
                 mainCtx.globalCompositeOperation = 'destination-out';
-                // Draw the 'shape' of the eraser stroke on Main
-                // We can redraw the path directly on Main!
 
                 const stroke = getStroke(points, {
                     size: brushSize,
@@ -250,8 +208,6 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, DrawingCanvasProps>(({
                 mainCtx.globalCompositeOperation = 'source-over'; // Reset
 
             } else {
-                // Standard Draw
-                // Draw the temp canvas onto the main canvas
                 mainCtx.drawImage(tempCanvas, 0, 0);
             }
 
