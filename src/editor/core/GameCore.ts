@@ -362,8 +362,16 @@ export class GameCore {
         const isKnownUIType = typeof uiType === "string" && ["button", "text", "panel", "scrollPanel", "bar", "image"].includes(uiType);
 
         if (!isCamera && !isGlobalEntity && !isUI && !isKnownUIType && !hasUIText) {
-            const baseWidth = options.width ?? 40;
-            const baseHeight = options.height ?? 40;
+            // [FIX] Get actual sprite bounds from renderer instead of using default 40x40
+            const actualBounds = this.renderer.getEntityBounds?.(id);
+            const baseWidth = options.width ?? actualBounds?.width ?? 40;
+            const baseHeight = options.height ?? actualBounds?.height ?? 40;
+
+            // [DEBUG] Log hitbox size for debugging
+            if (actualBounds) {
+                console.log(`[GameCore] Hitbox for ${id}: ${baseWidth}x${baseHeight} (from renderer: ${actualBounds.width}x${actualBounds.height})`);
+            }
+
             // [FIX] Use first tag from tags array, fallback to type
             const collisionTag = (options.tags && options.tags.length > 0) ? options.tags[0] : type;
             collisionSystem.register(

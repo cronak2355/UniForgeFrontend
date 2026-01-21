@@ -63,6 +63,7 @@ export class LogicSystem implements System {
             }
         };
         EventBus.on(this.CollisionListener);
+        console.log(`[LogicSystem] CollisionListener registered`);
 
         // Listen for OnClick events (UI Buttons, etc.)
         this.OnClickListener = (event: any) => {
@@ -96,13 +97,19 @@ export class LogicSystem implements System {
     private collisionCooldowns = new Map<string, number>();
 
     private handleCollisionEvent(context: RuntimeContext, event: any) {
+        // [DEBUG] Log all collision events
+        console.log(`[LogicSystem] handleCollisionEvent received:`, event.type, event.data?.entityA, event.data?.entityB);
+
         // [GUARD] Stop if GameCore is destroyed (Zombie Listener Protection)
         if (this.gameCore?.isDestroyed) return;
 
         const renderer = this.gameCore?.getRenderer();
         const isRuntime = renderer?.isRuntimeMode;
 
-        if (!isRuntime) return;
+        if (!isRuntime) {
+            console.log(`[LogicSystem] Skipping collision - not in runtime mode`);
+            return;
+        }
 
         const data = event.data || event;
         const entityA = data.entityA as string;
@@ -138,7 +145,7 @@ export class LogicSystem implements System {
         this.collisionCooldowns.set(collisionKey, now);
 
         // Execute OnCollision logic for both entities involved
-        // console.log(`[LogicSystem] Collision Detected: ${entityA} (${tagA}) <-> ${entityB} (${tagB}) Type: ${type}`);
+        console.log(`[LogicSystem] Collision Detected: ${entityA} (${tagA}) <-> ${entityB} (${tagB}) Type: ${type}`);
         this.executeCollisionLogic(context, entityA, entityB, tagA, tagB, data);
         this.executeCollisionLogic(context, entityB, entityA, tagB, tagA, data);
     }
@@ -195,6 +202,10 @@ export class LogicSystem implements System {
 
         if (logicComponents.length > 0) {
             console.log(`[LogicSystem] Found ${logicComponents.length} Collision Logic Comps for ${entityId} (Events: ${targetEvents.join(",")})`);
+        } else {
+            // [DEBUG] Log when no components found
+            const allEvents = Array.from(context.componentsByEvent.keys());
+            console.log(`[LogicSystem] No OnCollision components for ${entityId}. Available events: [${allEvents.join(", ")}]`);
         }
 
         for (const comp of logicComponents) {

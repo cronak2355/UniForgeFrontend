@@ -1870,6 +1870,51 @@ export class PhaserRenderer implements IRenderer {
         }
     }
 
+    // ===== Bounds =====
+
+    /**
+     * Get the actual display bounds of an entity (for collision sync)
+     */
+    getEntityBounds(id: string): { width: number; height: number } | null {
+        const obj = this.entities.get(id);
+        if (!obj) return null;
+
+        // For sprites, use displayWidth/displayHeight which accounts for scale
+        if (obj instanceof Phaser.GameObjects.Sprite) {
+            return {
+                width: obj.displayWidth,
+                height: obj.displayHeight
+            };
+        }
+
+        // For containers, use the set size
+        if (obj instanceof Phaser.GameObjects.Container) {
+            return {
+                width: obj.width || 40,
+                height: obj.height || 40
+            };
+        }
+
+        // For rectangles
+        if (obj instanceof Phaser.GameObjects.Rectangle) {
+            return {
+                width: obj.displayWidth,
+                height: obj.displayHeight
+            };
+        }
+
+        // Fallback: try to get getBounds
+        if ('getBounds' in obj && typeof obj.getBounds === 'function') {
+            const bounds = obj.getBounds();
+            return {
+                width: bounds.width,
+                height: bounds.height
+            };
+        }
+
+        return null;
+    }
+
     // ===== UI Methods =====
 
     setText(id: string, text: string): void {
