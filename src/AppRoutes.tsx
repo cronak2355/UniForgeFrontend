@@ -10,6 +10,7 @@ import MarketplacePage from './pages/MarketplacePage';
 import ExplorePage from './pages/ExplorePage';
 import LibraryPage from './pages/LibraryPage';
 import AdminPage from './pages/AdminPage';
+import SimpleGame from './pages/SimpleGame';
 import Loading from './components/common/Loading';
 import { useAuth } from './contexts/AuthContext';
 import "./App.css";
@@ -54,6 +55,9 @@ function AppRoutes() {
             {/* Play Mode Route */}
             <Route path="/play" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
             <Route path="/play/:gameId" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
+
+            {/* Simple Game Demo */}
+            <Route path="/simple-game" element={<SimpleGame />} />
         </Routes>
     );
 }
