@@ -113,21 +113,28 @@ export const assetService = {
             throw new Error("S3 key missing in response.");
         }
 
-        // Step D: Register Image
-        await apiClient.request('/images', {
-            method: 'POST',
-            body: JSON.stringify({
-                ownerType: "ASSET",
-                ownerId: assetId,
-                imageType,
-                s3Key,
-                contentType,
-            })
-        });
+        // Step D & E: Register Image OR Use Direct URL
+        let finalAssetUrl = "";
 
-        // Step E: Update Asset with the Proxy URL (Method 2)
-        const finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
-        // const finalAssetUrl = resolveAssetUrl(s3Key);
+        if (contentType.startsWith('audio/')) {
+            // [Audio Path] Skip Image Registration, use Direct CDN URL
+            finalAssetUrl = resolveAssetUrl(s3Key);
+        } else {
+            // [Image Path] Register Image and use Proxy URL
+            await apiClient.request('/images', {
+                method: 'POST',
+                body: JSON.stringify({
+                    ownerType: "ASSET",
+                    ownerId: assetId,
+                    imageType,
+                    s3Key,
+                    contentType,
+                })
+            });
+
+            // Proxy URL (Method 2)
+            finalAssetUrl = `/api/assets/s3/${encodeURIComponent(assetId)}?imageType=${encodeURIComponent(imageType)}`;
+        }
 
         try {
             await apiClient.request(`/assets/${assetId}`, {
