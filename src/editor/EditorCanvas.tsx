@@ -14,6 +14,9 @@ import { getCloudFrontUrl } from "../utils/imageUtils";
 import { TILE_SIZE, TILESET_COLS } from "./constants/tileConfig";
 import { parseResolution } from "./utils/resolutionUtils";
 
+// [FIX] Audio Tag Helper
+const isAudioTag = (tag: string) => ["Sound", "Audio", "BGM", "SFX", "sound", "audio", "bgm", "sfx"].includes(tag);
+
 type Props = {
     assets: Asset[];
     selected_asset: Asset | null;
@@ -532,6 +535,10 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             }
 
 
+            // [FIX] Audio Tag Helper
+            const isAudioTag = (tag: string) => ["Sound", "Audio", "BGM", "SFX", "sound", "audio", "bgm", "sfx"].includes(tag);
+
+            // ... (In drop handler)
             // [FIX] Add lock to prevent duplicate drops (double-click/bounce) causing "Entity already exists" error
             if (activeDragged && activeDragged.tag !== "Tile" && !isProcessingDropRef.current) {
                 isProcessingDropRef.current = true;
@@ -542,25 +549,22 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                     ghostIdRef.current = null;
                 }
 
-                // Clear drag state to prevent further drops
                 core.setDraggedAsset(null);
 
                 const entity = assetToEntity(activeDragged, worldX, worldY);
-                // [FIX] Load texture BEFORE adding entity to ensure animations are ready when OnStart fires
                 const textureKey = entity.texture ?? entity.name;
                 (async () => {
                     try {
-                        // Ensure texture is loaded first to fix Animation Playback issues
-                        await renderer.loadTexture(textureKey, activeDragged.url, activeDragged.metadata);
-                        console.log(`[EditorCanvas] Texture loaded for drag-and-drop: ${textureKey}`);
+                        // [FIX] Skip texture loading for Audio assets
+                        if (!isAudioTag(activeDragged.tag)) {
+                            // Ensure texture is loaded first to fix Animation Playback issues
+                            await renderer.loadTexture(textureKey, activeDragged.url, activeDragged.metadata);
+                            console.log(`[EditorCanvas] Texture loaded for drag-and-drop: ${textureKey}`);
+                        }
                     } catch (error) {
                         console.error(`[EditorCanvas] Failed to load texture for dropped entity:`, error);
                     } finally {
-                        // Now add entity - synced to GameCore automatically
-                        // Lock is released after entity is added to prevent race conditions
                         addEntityRef.current(entity);
-
-                        // DEV Logic: Sync to GameCore immediately
                         if (gameCore) {
                             gameCore.createEntity(entity.id, entity.type, entity.x, entity.y, {
                                 name: entity.name,
@@ -569,9 +573,9 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                                 components: splitLogicItems(entity.logic),
                                 logic: entity.logic,
                                 modules: entity.modules,
-                                tags: entity.tags, // [ADD] Pass entity tags
+                                tags: entity.tags,
                             });
-                            gameCore.flush(); // Sync Context immediately
+                            gameCore.flush();
                         }
                         isProcessingDropRef.current = false;
                     }
@@ -630,7 +634,8 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         if (!renderer || !isRendererReady) return;
 
         const nextSignature = buildTileSignature(assets);
-        const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile");
+        // [FIX] Skip Audio from texture loading list
+        const nextNonTileAssets = assets.filter((asset) => asset.tag !== "Tile" && !isAudioTag(asset.tag));
         const assetLookup = new Map<string, Asset>();
         for (const asset of assets) {
             assetLookup.set(asset.name, asset);
@@ -641,7 +646,6 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
         (async () => {
             for (const asset of nextNonTileAssets) {
-                // Allow renderer to decide if reload is needed (e.g. metadata change)
                 await renderer.loadTexture(asset.name, asset.url, asset.metadata);
                 if (cancelled) return;
             }
@@ -666,10 +670,12 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
 
                 const asset = assetLookup.get(textureKey);
                 if (asset) {
-                    // [FIX] Only load texture if not already properly loaded
-                    // This prevents reload during drag operations
+                    // [FIX] Check tag again before loading logic
+                    if (isAudioTag(asset.tag)) continue;
+
                     const scene = renderer.getScene();
                     const textureExists = scene?.textures.exists(textureKey);
+
                     const texture = textureExists ? scene?.textures.get(textureKey) : null;
                     const hasFrames = texture && (texture.frameTotal > 1 || texture.getFrameNames().length > 1);
 
