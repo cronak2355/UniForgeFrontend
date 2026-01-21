@@ -1102,8 +1102,11 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                 const files = e.dataTransfer.files;
                 if (!files || files.length === 0) return;
 
-                // Support common image types
-                const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+                // Support common image and audio types
+                const allowedTypes = new Set([
+                    "image/png", "image/jpeg", "image/webp", "image/gif",
+                    "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3", "audio/x-m4a"
+                ]);
                 const validFiles: File[] = [];
 
                 for (let i = 0; i < files.length; i++) {
