@@ -6,6 +6,7 @@ import { authService } from '../services/authService';
 import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
+import RiggingModal from '../components/editor/RiggingModal';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -58,6 +59,9 @@ const NewAssetsEditorPage: React.FC = () => {
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+
+    // Rigging State
+    const [isRiggingModalOpen, setIsRiggingModalOpen] = useState(false);
 
     // Image Import State
     const [importedImage, setImportedImage] = useState<string | null>(null);
@@ -929,6 +933,29 @@ const NewAssetsEditorPage: React.FC = () => {
                                 </div>
 
                                 {/* Frame Actions */}
+                                {/* Rigging Button */}
+                                <button
+                                    onClick={() => {
+                                        // 1. Ensure current frame has data
+                                        const canvas = canvasRef.current?.getCanvas();
+                                        if (!canvas) return;
+                                        const ctx = canvas.getContext('2d');
+                                        if (!ctx) return;
+
+                                        // Capture current rendering to update frames state
+                                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                        const newFrames = [...frames];
+                                        newFrames[currentFrame] = imageData;
+                                        setFrames(newFrames);
+
+                                        setIsRiggingModalOpen(true);
+                                    }}
+                                    className="h-9 px-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-500 hover:text-amber-400 text-xs rounded-lg flex items-center gap-2 border border-amber-500/30"
+                                >
+                                    <i className="fa-solid fa-bone"></i>
+                                    <span className="hidden sm:inline">리깅</span>
+                                </button>
+
                                 <button
                                     onClick={handleCopyFrame}
                                     className="h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg"
@@ -1263,6 +1290,23 @@ const NewAssetsEditorPage: React.FC = () => {
                     </div>
                 </aside>
             </div>
+
+            {/* Rigging Modal */}
+            <RiggingModal
+                isOpen={isRiggingModalOpen}
+                onClose={() => setIsRiggingModalOpen(false)}
+                onApply={(newFrames) => {
+                    setFrames(newFrames);
+                    setCurrentFrame(0);
+                    // Load first frame to canvas
+                    const canvas = canvasRef.current?.getCanvas();
+                    if (canvas && newFrames[0]) {
+                        canvas.getContext('2d')?.putImageData(newFrames[0], 0, 0);
+                    }
+                    setIsRiggingModalOpen(false);
+                }}
+                baseImageData={frames[currentFrame] || (frames[0] as ImageData)}
+            />
 
             {/* AI Generation Modal */}
             {isAiModalOpen && (
