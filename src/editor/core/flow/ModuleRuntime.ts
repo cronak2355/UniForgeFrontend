@@ -122,19 +122,16 @@ export class ModuleRuntime {
     // ONLY if the variable doesn't already exist in Entity (first-time initialization)
     // This prevents repeated RunModule calls from resetting values modified by the module.
     if (initialVariables) {
-      // console.log(`[ModuleRuntime] startModule: Syncing initialVariables to Entity`, { entityId, initialVariables });
       for (const [name, value] of Object.entries(initialVariables)) {
         // Check if this variable already exists in Entity (from previous runs or other sources)
         const existingEntityVar = entity?.variables?.find(v => v.name === name);
 
         if (existingEntityVar === undefined) {
           // Variable doesn't exist in Entity yet - initialize it
-          console.log(`[ModuleRuntime] startModule: Creating new var '${name}' = ${JSON.stringify(value)}`);
           this.hooks.setVar(entityId, name, value as ModuleLiteral);
           instance.moduleVariables.set(name, value as ModuleLiteral);
         } else {
           // Variable already exists - use the current value, don't overwrite
-          console.log(`[ModuleRuntime] startModule: Var '${name}' already exists with value ${JSON.stringify(existingEntityVar.value)}, not overwriting`);
           instance.moduleVariables.set(name, existingEntityVar.value as ModuleLiteral);
         }
       }
@@ -285,11 +282,8 @@ export class ModuleRuntime {
         const entity = this.hooks.getEntity(instance.entityId);
         const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === target));
 
-        console.log(`[ModuleRuntime] SetVariable: target='${target}' value=${JSON.stringify(value)} hasEntityVar=${hasEntityVar} moduleVarsHas=${instance.moduleVariables.has(target)}`);
-
         // [FIX] Priority: Entity (Global) > Module (Local) to ensure external updates are reflected
         if (hasEntityVar) {
-          console.log(`[ModuleRuntime] SetVariable: Writing to Entity AND moduleVariables`);
           this.hooks.setVar(instance.entityId, target, value);
           // [FIX] Also update moduleVariables to keep ctx.scope in sync
           // This prevents stale reads when resolveValue checks scope first
@@ -297,10 +291,8 @@ export class ModuleRuntime {
             instance.moduleVariables.set(target, value);
           }
         } else if (instance.moduleVariables.has(target)) {
-          console.log(`[ModuleRuntime] SetVariable: Writing to moduleVariables only`);
           this.setModuleVariable(instance, target, value);
         } else {
-          console.log(`[ModuleRuntime] SetVariable: Fallback - Creating new Entity variable`);
           // [FIX] Fallback: Create/Set on Entity even if not exists (Upsert)
           this.hooks.setVar(instance.entityId, target, value);
         }
@@ -354,8 +346,6 @@ export class ModuleRuntime {
           if (name) {
             const entity = this.hooks.getEntity(instance.entityId);
             const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === name));
-
-            console.log(`[ModuleRuntime] SetVar Action: name='${name}' result=`, result, "hasEntityVar:", hasEntityVar);
 
             // [FIX] Priority: Entity (Global) > Module (Local)
             if (hasEntityVar) {
@@ -586,29 +576,22 @@ export class ModuleRuntime {
         // If triggered by event, ctx.eventData should be populated.
         const eventData = ctx.eventData as any;
 
-        console.log(`[ModuleRuntime] CompareTag Check: Target='${targetTag}' EventData=`, eventData);
-
         if (eventData) {
           if (eventData.tag === targetTag) {
-            console.log(`[ModuleRuntime] Matched 'tag' property.`);
             return true;
           }
           if (eventData.otherTag === targetTag) {
-            console.log(`[ModuleRuntime] Matched 'otherTag' property.`);
             return true;
           }
           // Also check explicit tagA/tagB if available (EntityA vs EntityB)
           const myId = instance.entityId;
           if (eventData.entityA === myId && eventData.tagB === targetTag) {
-            console.log(`[ModuleRuntime] Matched tagB (I am A)`);
             return true;
           }
           if (eventData.entityB === myId && eventData.tagA === targetTag) {
-            console.log(`[ModuleRuntime] Matched tagA (I am B)`);
             return true;
           }
         }
-        console.log(`[ModuleRuntime] CompareTag Failed.`);
         return false;
       }
 
@@ -697,19 +680,14 @@ export class ModuleRuntime {
     const entity = this.hooks.getEntity(instance.entityId);
     const variable = entity?.variables?.find((v) => v.name === name);
 
-    console.log(`[ModuleRuntime] resolveNamedValue('${name}'): entity vars=`, entity?.variables?.map(v => `${v.name}=${JSON.stringify(v.value)}`), `moduleVars has=${instance.moduleVariables.has(name)} moduleVal=${JSON.stringify(instance.moduleVariables.get(name))}`);
-
     if (variable) {
-      console.log(`[ModuleRuntime] resolveNamedValue('${name}'): Found in Entity -> ${JSON.stringify(variable.value)}`);
       return (variable.value as ModuleLiteral) ?? null;
     }
 
     if (instance.moduleVariables.has(name)) {
-      console.log(`[ModuleRuntime] resolveNamedValue('${name}'): Found in Module -> ${JSON.stringify(instance.moduleVariables.get(name))}`);
       return instance.moduleVariables.get(name) ?? null;
     }
 
-    console.warn(`[ModuleRuntime] Failed to resolve variable: '${name}'`);
     return null;
   }
 
