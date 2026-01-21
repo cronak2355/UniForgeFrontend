@@ -83,11 +83,21 @@ class PhaserRenderScene extends Phaser.Scene {
                     this.load.audio(asset.id, asset.url);
                 }
             } else {
-                // Load as regular image
-                this.load.image(asset.name, asset.url);
+                // [FIX] Fallback: Check extension if tag is not explicit audio
+                const ext = asset.url.split('?')[0].split('.').pop()?.toLowerCase();
+                if (ext && ["mp3", "wav", "ogg", "m4a"].includes(ext)) {
+                    console.warn(`[PhaserRenderer] Asset '${asset.name}' (Tag: ${asset.tag}) has audio extension. Loading as audio.`);
+                    this.load.audio(asset.name, asset.url);
+                    if (asset.id !== asset.name) {
+                        this.load.audio(asset.id, asset.url);
+                    }
+                } else {
+                    // Load as regular image
+                    this.load.image(asset.name, asset.url);
 
-                if (asset.id !== asset.name) {
-                    this.load.image(asset.id, asset.url);
+                    if (asset.id !== asset.name) {
+                        this.load.image(asset.id, asset.url);
+                    }
                 }
             }
         }

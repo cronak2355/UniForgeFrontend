@@ -47,6 +47,26 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
     }
   }
 
+  // Determine if asset is Audio
+  const isAudio = ["Sound", "Audio", "BGM", "SFX", "sound", "audio", "bgm", "sfx"].includes(asset.tag);
+
+  let logicComponents: any[] = [];
+  // [NEW] Auto-add PlaySound capability for audio assets
+  if (isAudio) {
+    logicComponents.push({
+      id: crypto.randomUUID(),
+      type: "Logic",
+      event: "OnStart",
+      eventParams: {},
+      conditions: [],
+      actions: [{
+        type: "PlaySound",
+        soundKey: asset.id,
+        loop: asset.tag.toLowerCase() === "bgm" // Auto-loop BGM
+      }]
+    });
+  }
+
   return {
     id: crypto.randomUUID(),
     type: asset.tag as EditorEntity["type"],
@@ -62,7 +82,7 @@ export function assetToEntity(asset: Asset, x = 0, y = 0): EditorEntity {
     tags: [asset.tag], // Initialize tags with asset type
     variables: [],
     events: [],
-    logic: buildLogicItems({ components: [] }),
+    logic: buildLogicItems({ components: logicComponents }),
     components: [],
     modules: [createDefaultModuleGraph()],
   };
