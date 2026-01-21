@@ -48,6 +48,9 @@ const NewAssetsEditorPage: React.FC = () => {
     const [isAnimModalOpen, setIsAnimModalOpen] = useState(false);
     const [animPrompt, setAnimPrompt] = useState('');
 
+    // Sprite Sheet Mode (2048x512 when true, normal size when false)
+    const [isSpriteMode, setIsSpriteMode] = useState(false);
+
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -255,11 +258,18 @@ const NewAssetsEditorPage: React.FC = () => {
                 throw new Error(response.error || "Animation generation failed");
             }
 
+            // Switch to sprite mode (2048x512)
+            setIsSpriteMode(true);
+            setCanvasSize({ width: 2048, height: 512 });
+
             const img = new Image();
             img.onload = async () => {
-                canvasRef.current?.setImage(img);
-                setIsAnimModalOpen(false);
-                await handleRemoveBackground();
+                // Wait a tick for canvas to resize
+                setTimeout(() => {
+                    canvasRef.current?.setImage(img);
+                    setIsAnimModalOpen(false);
+                    setIsLoading(false);
+                }, 100);
             };
             img.src = `data:image/png;base64,${response.image}`;
 
@@ -268,6 +278,12 @@ const NewAssetsEditorPage: React.FC = () => {
             alert("애니메이션 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
             setIsLoading(false);
         }
+    };
+
+    // Exit sprite mode and return to normal canvas
+    const handleExitSpriteMode = () => {
+        setIsSpriteMode(false);
+        setCanvasSize({ width: 512, height: 512 });
     };
 
     const handleRemoveBackground = async () => {
@@ -549,6 +565,21 @@ const NewAssetsEditorPage: React.FC = () => {
 
                     {/* AI Buttons */}
                     <div className="flex items-center gap-2">
+                        {/* Sprite Mode Indicator */}
+                        {isSpriteMode && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-lg">
+                                <i className="fa-solid fa-film text-amber-400"></i>
+                                <span className="text-amber-400 text-xs font-medium">스프라이트 모드</span>
+                                <button
+                                    onClick={handleExitSpriteMode}
+                                    className="ml-1 text-amber-400 hover:text-amber-300"
+                                    title="스프라이트 모드 종료"
+                                >
+                                    <i className="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        )}
+
                         <button
                             onClick={() => setIsAiModalOpen(true)}
                             disabled={isLoading}
