@@ -319,6 +319,110 @@ const NewAssetsEditorPage: React.FC = () => {
         ctx.putImageData(copiedFrame, 0, 0);
     };
 
+    // Apply procedural animation preset
+    const handleApplyPreset = (type: 'breathing' | 'jump' | 'shake') => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+
+        // Ensure we capture latest changes to current frame
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // 1. Get base frame (Frame 0 or current frame if 0)
+        let baseImageData: ImageData;
+        if (currentFrame === 0) {
+            baseImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        } else if (frames[0]) {
+            baseImageData = frames[0];
+        } else {
+            alert("Frame 1(원본)이 비어있습니다. 먼저 그림을 그려주세요.");
+            return;
+        }
+
+        // Helper: Create temp canvas with base image
+        const createTempCanvas = () => {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 512;
+            const cx = c.getContext('2d');
+            if (cx) cx.putImageData(baseImageData, 0, 0);
+            return c;
+        };
+
+        const newFrames = [...frames];
+        // Ensure Frame 0 is set
+        newFrames[0] = baseImageData;
+
+        const processFrame = (frameIndex: number, transform: (ctx: CanvasRenderingContext2D, img: HTMLCanvasElement) => void) => {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 512;
+            const cx = c.getContext('2d');
+            if (!cx) return null;
+
+            // Draw transformed image
+            cx.save();
+            transform(cx, createTempCanvas());
+            cx.restore();
+
+            return cx.getImageData(0, 0, 512, 512);
+        };
+
+        // 2. Generate frames based on type
+        if (type === 'breathing') {
+            // Frame 0: Normal
+            // Frame 1: Squash (Height 98%, Width 102%)
+            // Frame 2: Normal
+            // Frame 3: Stretch (Height 102%, Width 98%)
+            newFrames[1] = processFrame(1, (cx, img) => {
+                cx.translate(256, 512); // Pivot bottom center
+                cx.scale(1.02, 0.98);
+                cx.translate(-256, -512);
+                cx.drawImage(img, 0, 0);
+            });
+            newFrames[2] = baseImageData; // Normal
+            newFrames[3] = processFrame(3, (cx, img) => {
+                cx.translate(256, 512);
+                cx.scale(0.98, 1.02);
+                cx.translate(-256, -512);
+                cx.drawImage(img, 0, 0);
+            });
+
+        } else if (type === 'jump') {
+            // Frame 0: Normal
+            // Frame 1: Up 10px
+            // Frame 2: Up 20px
+            // Frame 3: Up 10px
+            newFrames[1] = processFrame(1, (cx, img) => cx.drawImage(img, 0, -15));
+            newFrames[2] = processFrame(2, (cx, img) => cx.drawImage(img, 0, -30));
+            newFrames[3] = processFrame(3, (cx, img) => cx.drawImage(img, 0, -15));
+
+        } else if (type === 'shake') {
+            // Frame 0: Normal
+            // Frame 1: Left 5px
+            // Frame 2: Right 5px
+            // Frame 3: Normal
+            newFrames[1] = processFrame(1, (cx, img) => cx.drawImage(img, -8, 0));
+            newFrames[2] = processFrame(2, (cx, img) => cx.drawImage(img, 8, 0));
+            newFrames[3] = baseImageData;
+        }
+
+        // 3. Update state
+        setFrames(newFrames);
+
+        // Show animation result (switch to next frame to see effect, or stay)
+        // Let's reload current frame to reflect changes if we modified it (unlikely here as we modify 1-3)
+        // If user is on frame 0, they see no change. Maybe switch to 1?
+        // Let's stick to current frame but refresh logic.
+
+        if (newFrames[currentFrame]) {
+            ctx.putImageData(newFrames[currentFrame]!, 0, 0);
+        }
+
+        alert(`⚡ '${type}' 프리셋이 적용되었습니다! F1~F4 탭을 눌러 확인해보세요.`);
+    };
+
+
     // Save sprite sheet (2048x512)
     const handleSaveSpriteSheet = () => {
         const canvas = canvasRef.current?.getCanvas();
@@ -692,6 +796,25 @@ const NewAssetsEditorPage: React.FC = () => {
                                             F{frame + 1}
                                         </button>
                                     ))}
+                                </div>
+
+                                {/* Presets Button Group */}
+                                <div className="relative group">
+                                    <button className="h-9 px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded-lg flex items-center gap-2 border border-indigo-500/30">
+                                        <i className="fa-solid fa-wand-magic-sparkles"></i>
+                                        <span className="hidden sm:inline">프리셋</span>
+                                    </button>
+                                    <div className="absolute top-full left-0 mt-1 w-32 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block z-50">
+                                        <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                            😮‍💨 숨쉬기
+                                        </button>
+                                        <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                            🦘 점프
+                                        </button>
+                                        <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                            🫨 흔들림
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Frame Actions */}
