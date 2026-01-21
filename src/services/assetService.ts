@@ -31,7 +31,6 @@ export const assetService = {
         // 1. DEV MODE: Local Mock (localStorage 저장)
 
         // 1. DEV MODE: Local Mock (localStorage 저장)
-        /*
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
             console.warn("[assetService] Using Local Mock for Upload");
             const mockId = `mock-${Date.now()}`;
@@ -52,7 +51,6 @@ export const assetService = {
 
             return mockAsset;
         }
-        */
 
         // 2. PROD/API MODE: Full Chain via apiClient
 
