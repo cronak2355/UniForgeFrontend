@@ -619,30 +619,12 @@ const NewAssetsEditorPage: React.FC = () => {
             // We assume background is connected to (0,0)
             // If (0,0) is transparent, maybe it's already done, but we check anyway.
 
-            const queue: number[] = [0, 0]; // x, y
-            const visited = new Uint8Array(w * h); // 0: unvisited, 1: visited
-
-            // Check if top-left is actually the background (if it's not transparent)
+            // Global Color Replacement (Scan all pixels)
+            // Removes "islands" like gaps between arms/legs
             if (bgA !== 0) {
-                while (queue.length > 0) {
-                    const y = queue.pop()!;
-                    const x = queue.pop()!;
-
-                    const idx = (y * w + x) * 4;
-                    const visitIdx = y * w + x;
-
-                    if (visited[visitIdx]) continue;
-                    visited[visitIdx] = 1;
-
-                    if (isMatch(idx)) {
-                        // Make transparent
-                        data[idx + 3] = 0;
-
-                        // Add neighbors
-                        if (x > 0) { queue.push(x - 1, y); }
-                        if (x < w - 1) { queue.push(x + 1, y); }
-                        if (y > 0) { queue.push(x, y - 1); }
-                        if (y < h - 1) { queue.push(x, y + 1); }
+                for (let i = 0; i < data.length; i += 4) {
+                    if (isMatch(i)) {
+                        data[i + 3] = 0; // Make transparent
                     }
                 }
             }
