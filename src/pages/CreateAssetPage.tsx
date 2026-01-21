@@ -298,7 +298,12 @@ const CreateAssetPage = () => {
 
             if (mainS3Key) {
                 const isImageFile = file.type.startsWith('image/');
-                console.log(`[CreateAssetPage] Main File Type: ${file.type}, isImage: ${isImageFile}, Key: ${mainS3Key}`);
+                const isAudioFile = file.type.startsWith('audio/');
+                console.log(`[CreateAssetPage] Main File Type: ${file.type}, isImage: ${isImageFile}, isAudio: ${isAudioFile}, Key: ${mainS3Key}`);
+
+                // If audio or other file, update the version with the s3Key
+                // NOTE: We update the version with the s3RootPath (which is the s3Key for the main file in this context)
+                await marketplaceService.updateVersion(version.id, { s3RootPath: mainS3Key });
 
                 // Only register as "base" image if it IS an image
                 if (isImageFile) {
@@ -313,11 +318,11 @@ const CreateAssetPage = () => {
                     // Update asset with PROXY URL (Method 2)
                     // The backend proxy endpoint: /api/assets/s3/:id?imageType=base
                     const proxyUrl = `/api/assets/s3/${assetId}?imageType=base`;
-
-                    console.log(`[CreateAssetPage] Updating Asset Image URL to: ${proxyUrl}`);
                     await marketplaceService.updateAsset(assetId, { imageUrl: proxyUrl });
+                } else if (isAudioFile) {
+                    console.log("[CreateAssetPage] Main file is audio, version updated with s3RootPath.");
                 } else {
-                    console.log("[CreateAssetPage] Main file is not an image, skipping imageUrl update.");
+                    console.log("[CreateAssetPage] Main file is generic, version updated with s3RootPath.");
                 }
             }
 
@@ -455,7 +460,7 @@ const CreateAssetPage = () => {
                                     type="file"
                                     onChange={handleFileSelect}
                                     style={{ display: 'none' }}
-                                    accept=".zip,.rar,.7z,.png,.jpg,.jpeg,.glb,.gltf,.fbx,.obj"
+                                    accept=".zip,.rar,.7z,.png,.jpg,.jpeg,.glb,.gltf,.fbx,.obj,.mp3,.wav,.ogg,.m4a"
                                 />
 
                                 {file ? (

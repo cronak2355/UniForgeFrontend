@@ -101,6 +101,13 @@ class MarketplaceService {
         });
     }
 
+    async updateVersion(versionId: string, data: { s3RootPath: string }): Promise<AssetVersion> {
+        return apiClient.request<AssetVersion>(`/assets/versions/${versionId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    }
+
     async getUploadUrl(assetId: string, versionId: string, fileName: string, contentType: string): Promise<{ uploadUrl: string; s3Key?: string }> {
         return apiClient.request<{ uploadUrl: string; s3Key?: string }>(`/assets/${assetId}/versions/${versionId}/upload-url?fileName=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(contentType)}`);
     }
