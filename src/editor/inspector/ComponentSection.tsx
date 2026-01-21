@@ -52,6 +52,7 @@ export const ACTION_LABELS: Record<string, string> = {
     SpawnEntity: "엔티티 생성",
     SpawnIfClear: "스폰 (겹침방지)",
     PlayAnimation: "애니메이션 동작",
+    StopSound: "사운드 종료 (StopSound)",
 
 };
 

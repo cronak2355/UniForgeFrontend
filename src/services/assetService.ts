@@ -30,11 +30,28 @@ export const assetService = {
 
         // 1. DEV MODE: Local Mock (localStorage 저장)
 
-        // 1. DEV MODE: Mock Logic Removed - Always use Real API
-        /* 
+        // 1. DEV MODE: Local Mock (localStorage 저장)
+        /*
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-           // Mock logic removed to force real S3 tests
-        } 
+            console.warn("[assetService] Using Local Mock for Upload");
+            const mockId = `mock-${Date.now()}`;
+            const mockUrl = URL.createObjectURL(file);
+
+            const mockAsset = {
+                id: mockId,
+                url: mockUrl,
+                name: name,
+                tag: tag,
+                metadata: metadata
+            };
+
+            // Save to localStorage for persistence across reloads (optional but helpful)
+            const localAssets = this.getLocalAssets();
+            localAssets.push(mockAsset);
+            localStorage.setItem('uniforge_local_assets', JSON.stringify(localAssets));
+
+            return mockAsset;
+        }
         */
 
         // 2. PROD/API MODE: Full Chain via apiClient

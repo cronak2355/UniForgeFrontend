@@ -974,12 +974,28 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
     useEffect(() => {
         if (dropModalFiles.length === 0) return;
         if (dropModalFiles.length === 1) {
-            const base = dropModalFiles[0].name.replace(/\.[^/.]+$/, "");
+            const file = dropModalFiles[0];
+            const base = file.name.replace(/\.[^/.]+$/, "");
             setDropAssetName(base);
+
+            // Auto-detect type
+            if (file.type.startsWith("audio/")) {
+                setDropAssetTag("Sound");
+            } else if (file.type.startsWith("image/")) {
+                // Keep default or previous logic, but maybe default to Character is fine
+                // If it was already set to something else by user interaction, this effect runs on dropModalFiles change
+                // preventing override if user changes files. 
+                // Since this runs only when dropModalFiles changes, it's safe to set default.
+                if (dropAssetTag === "Sound") setDropAssetTag("Character");
+            }
         } else {
             setDropAssetName(`${dropModalFiles.length} files`);
+            // Check if all are audio
+            const allAudio = dropModalFiles.every(f => f.type.startsWith("audio/"));
+            if (allAudio) setDropAssetTag("Sound");
         }
     }, [dropModalFiles]);
+
 
     const handleAddAsset = async () => {
         if (dropModalFiles.length === 0 || isUploadingAsset) return;
@@ -1649,12 +1665,19 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
                                         objectFit: 'contain'
                                     }}
                                 />
+                            ) : dropModalFiles[0].type.startsWith('audio/') ? (
+                                <div style={{ textAlign: 'center', color: '#71717a' }}>
+                                    <i className="fa-solid fa-music" style={{ fontSize: '48px', marginBottom: '12px', color: '#a855f7' }}></i>
+                                    <p style={{ fontSize: '13px', color: '#e4e4e7' }}>{dropModalFiles[0].name}</p>
+                                    <audio controls src={URL.createObjectURL(dropModalFiles[0])} style={{ marginTop: '12px', height: '32px' }} />
+                                </div>
                             ) : (
                                 <div style={{ textAlign: 'center', color: '#71717a' }}>
                                     <i className="fa-solid fa-file-code" style={{ fontSize: '48px', marginBottom: '12px', color: '#52525b' }}></i>
                                     <p style={{ fontSize: '13px' }}>{dropModalFiles[0].name}</p>
                                 </div>
                             ))}
+
                         </div>
 
                         {/* Form Area */}

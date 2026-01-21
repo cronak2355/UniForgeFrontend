@@ -389,19 +389,48 @@ export function ActionEditor({
         )}
 
         {action.type === "PlaySound" && (
-          <input
-            type="text"
-            placeholder="soundId"
-            value={(action.soundId as string) || ""}
-            onChange={(e) => onUpdate({ ...action, soundId: e.target.value })}
-            style={styles.textInput}
-          />
+          <>
+            <select
+              value={(action.soundKey as string) || (action.soundId as string) || ""}
+              onChange={(e) => onUpdate({ ...action, soundKey: e.target.value, soundId: undefined })}
+              style={styles.selectField}
+            >
+              <option value="">(Select Sound)</option>
+              {(assets ?? [])
+                .filter((a) => ["Sound", "Audio", "BGM", "SFX"].includes(a.tag))
+                .map((asset) => (
+                  <option key={asset.id} value={asset.name}>
+                    {asset.name}
+                  </option>
+                ))
+              }
+              {(assets ?? []).filter((a) => ["Sound", "Audio", "BGM", "SFX"].includes(a.tag)).length === 0 && (
+                <option disabled>No sound assets found</option>
+              )}
+            </select>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: '#888', width: 60 }}>Loop</span>
+              <input
+                type="checkbox"
+                checked={(action.loop as boolean) ?? false}
+                onChange={(e) => onUpdate({ ...action, loop: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+            </div>
+          </>
+        )}
+
+        {action.type === "StopSound" && (
+          <div style={{ padding: '8px 0', fontSize: '12px', color: '#888', fontStyle: 'italic' }}>
+            * 모든 소리 재생을 멈춥니다. (Stops all sounds)
+          </div>
         )}
 
         {action.type === "EmitEventSignal" && (
           <input
             type="text"
             placeholder="signalKey"
+
             value={(action.signalKey as string) || ""}
             onChange={(e) => onUpdate({ ...action, signalKey: e.target.value })}
             style={styles.textInput}
