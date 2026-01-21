@@ -332,7 +332,7 @@ export class CollisionSystem {
                     // Let's make EVERYTHING a hard collision during Movement Phase to prevent penetration.
                     // The 'update()' loop handles pushing apart entities that somehow overlapped.
 
-                    const isHardCollision = true; // Always stop at solids
+                    const isHardCollision = other.tag === "Wall" || other.isStatic; // Only stop at Walls/Static objects
 
                     if (isHardCollision) {
                         // Hard Collision - Push out completely
@@ -343,24 +343,7 @@ export class CollisionSystem {
                         }
                         blocked = true;
                     }
-                    /* 
-                    else if (isSoft) {
-                       // ... (Soft logic moved to update() loop primarily)
-                    } 
-                    */
-
-                    hadCollision = true;
-                    // Soft Collision (Unit separation) - Push out partially (10%) per frame
-                    // Lower factor for smoother crowd movement (less jitter)
-                    const separationFactor = 0.1;
-                    if (overlapX < overlapY) {
-                        workX += (collider.bounds.x < other.bounds.x ? -overlapX : overlapX) * separationFactor;
-                    } else {
-                        workY += (collider.bounds.y < other.bounds.y ? -overlapY : overlapY) * separationFactor;
-                    }
                 }
-
-                hadCollision = true;
 
                 // [CRITICAL] Apply position update IMMEDIATELY so subsequent checks use new pos
                 // This creates the iterative solver effect

@@ -1,4 +1,5 @@
 import type { EditorEntity } from "../types/Entity";
+import { collisionSystem } from "./CollisionSystem";
 
 export interface InputState {
     left: boolean;
@@ -116,12 +117,6 @@ export class RuntimePhysics {
             y += dy * speed * dt;
         }
 
-        // [FIX] Validate final position with CollisionSystem (Hard Collision Check)
-        // This prevents the entity from entering walls during physics update.
-        // We import collisionSystem dynamically or assume global import?
-        // RuntimePhysics imports are clean. We should rely on the global instance or injection.
-        // For this codebase, 'collisionSystem' is exported from CollisionSystem.ts
-        const { collisionSystem } = require("./CollisionSystem");
         if (collisionSystem) {
             const resolved = collisionSystem.resolveCollision(entity.id, x, y);
             x = resolved.x;
