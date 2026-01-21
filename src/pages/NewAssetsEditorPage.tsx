@@ -227,8 +227,9 @@ const NewAssetsEditorPage: React.FC = () => {
                         )}
                         <button
                             onClick={() => {
-                                if (canvasRef.current) {
-                                    canvasRef.current.toBlob((blob) => {
+                                const canvas = canvasRef.current?.getCanvas();
+                                if (canvas) {
+                                    canvas.toBlob((blob) => {
                                         if (blob) saveAs(blob, 'my_asset.png');
                                     });
                                 }
