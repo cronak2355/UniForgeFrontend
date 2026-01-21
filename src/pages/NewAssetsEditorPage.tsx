@@ -545,6 +545,24 @@ const NewAssetsEditorPage: React.FC = () => {
                 <div className="flex items-center gap-3">
                     {/* Tool Actions */}
                     <div className="flex items-center bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
+                        {/* Save Button */}
+                        <button
+                            onClick={() => {
+                                const canvas = canvasRef.current?.getCanvas();
+                                if (canvas) {
+                                    canvas.toBlob((blob) => {
+                                        if (blob) {
+                                            saveAs(blob, `asset_${Date.now()}.png`);
+                                        }
+                                    }, 'image/png');
+                                }
+                            }}
+                            className="px-3 py-1.5 hover:bg-emerald-800/30 text-emerald-400 hover:text-emerald-300 text-xs rounded-md transition-colors flex items-center gap-2"
+                            title="저장"
+                        >
+                            <i className="fa-solid fa-download"></i> 저장
+                        </button>
+                        <div className="w-[1px] h-3 bg-zinc-800 mx-1"></div>
                         <button
                             onClick={handleRemoveBackground}
                             disabled={isLoading}
