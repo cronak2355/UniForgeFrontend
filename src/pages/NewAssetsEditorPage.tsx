@@ -6,6 +6,7 @@ import { authService } from '../services/authService';
 import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
+import RiggingModal from '../components/editor/RiggingModal';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -44,15 +45,23 @@ const NewAssetsEditorPage: React.FC = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiStyle, setAiStyle] = useState('pixel-art');
 
-    // Frame-based Sprite State (4 frames for sprite sheet)
-    const [currentFrame, setCurrentFrame] = useState(0); // 0-3
-    const [frames, setFrames] = useState<(ImageData | null)[]>([null, null, null, null]);
+    // Frame-based Sprite State (Dynamic)
+    const [currentFrame, setCurrentFrame] = useState(0);
+    const [frames, setFrames] = useState<(ImageData | null)[]>([null]); // Start with 1 frame
+    const [copiedFrame, setCopiedFrame] = useState<ImageData | null>(null);
     const [isSpriteMode, setIsSpriteMode] = useState(false);
+
+    // Playback State
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [fps, setFps] = useState(8);
 
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+
+    // Rigging State
+    const [isRiggingModalOpen, setIsRiggingModalOpen] = useState(false);
 
     // Image Import State
     const [importedImage, setImportedImage] = useState<string | null>(null);
@@ -298,8 +307,98 @@ const NewAssetsEditorPage: React.FC = () => {
         setCurrentFrame(newFrame);
     };
 
+    // Add new frame
+    const handleAddFrame = () => {
+        if (frames.length >= 32) {
+            alert("최대 32프레임까지만 생성 가능합니다.");
+            return;
+        }
+        setFrames([...frames, null]); // Add empty frame at end
+        // Option: Duplicate current frame?
+        // setFrames([...frames, frames[currentFrame]]); 
+
+        // Let's just switch to the new frame immediately? 
+        // No, let user choose.
+    };
+
+    // Delete current frame
+    const handleDeleteFrame = (index: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (frames.length <= 1) {
+            alert("최소 1개의 프레임은 있어야 합니다.");
+            return;
+        }
+
+        if (!confirm(`${index + 1}번 프레임을 삭제하시겠습니까?`)) return;
+
+        const newFrames = frames.filter((_, i) => i !== index);
+        setFrames(newFrames);
+
+        // Adjust currentFrame if needed
+        if (currentFrame >= newFrames.length) {
+            setCurrentFrame(newFrames.length - 1);
+            // We need to load this frame to canvas
+            const targetFrame = newFrames[newFrames.length - 1];
+            loadFrameToCanvas(targetFrame);
+        } else if (currentFrame === index) {
+            // Deleted currently viewed frame
+            const targetFrame = newFrames[currentFrame]; // same index, now next frame
+            loadFrameToCanvas(targetFrame);
+        }
+    };
+
+    const loadFrameToCanvas = (imageData: ImageData | null) => {
+        const canvas = canvasRef.current?.getCanvas();
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (imageData) {
+            ctx.putImageData(imageData, 0, 0);
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    };
+
+    // Playback Loop
+    useEffect(() => {
+        let intervalId: any;
+
+        if (isPlaying) {
+            intervalId = setInterval(() => {
+                setCurrentFrame(prev => {
+                    const next = (prev + 1) % frames.length;
+                    // Load frame logic here inside the loop effectively requires effect on currentFrame change
+                    // But we can't easily trigger loadFrameToCanvas from state update callback.
+                    // So we rely on effect below.
+                    return next;
+                });
+            }, 1000 / fps);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [isPlaying, fps, frames.length]);
+
+    // Effect to update canvas when currentFrame changes (Only during playback?)
+    // Or always? If we switch frame manually, we call handleFrameSwitch which does both.
+    // If playback switches frame, we need this effect.
+    // BUT handleFrameSwitch logic also saves current frame. 
+    // Playback should NOT save current frame every tick, just DISPLAY.
+
+    // Changing approach:
+    // Manual switch -> Saves current, loads new.
+    // Playback switch -> Just loads new.
+
+    useEffect(() => {
+        if (isPlaying) {
+            const targetFrame = frames[currentFrame];
+            loadFrameToCanvas(targetFrame);
+        }
+    }, [currentFrame, isPlaying]);
+
     // Copy current frame to clipboard (internal)
-    const [copiedFrame, setCopiedFrame] = useState<ImageData | null>(null);
 
     const handleCopyFrame = () => {
         const canvas = canvasRef.current?.getCanvas();
@@ -323,6 +422,11 @@ const NewAssetsEditorPage: React.FC = () => {
     const handleApplyPreset = (type: 'breathing' | 'jump' | 'shake') => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
+
+        // Reset to 4 frames if not already
+        if (frames.length !== 4) {
+            alert(`프리셋 적용을 위해 프레임 수가 4개로 초기화됩니다.`);
+        }
 
         // Ensure we capture latest changes to current frame
         const ctx = canvas.getContext('2d');
@@ -349,9 +453,8 @@ const NewAssetsEditorPage: React.FC = () => {
             return c;
         };
 
-        const newFrames = [...frames];
-        // Ensure Frame 0 is set
-        newFrames[0] = baseImageData;
+        // Force 4 frames
+        const newFrames = [baseImageData, null, null, null];
 
         const processFrame = (frameIndex: number, transform: (ctx: CanvasRenderingContext2D, img: HTMLCanvasElement) => void) => {
             const c = document.createElement('canvas');
@@ -423,7 +526,7 @@ const NewAssetsEditorPage: React.FC = () => {
     };
 
 
-    // Save sprite sheet (2048x512)
+    // Save sprite sheet (Dynamic width)
     const handleSaveSpriteSheet = () => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
@@ -435,15 +538,19 @@ const NewAssetsEditorPage: React.FC = () => {
         const finalFrames = [...frames];
         finalFrames[currentFrame] = currentImageData;
 
-        // Create sprite sheet canvas (2048x512)
+        const frameCount = finalFrames.length;
+        const width = frameCount * 512;
+        const height = 512;
+
+        // Create sprite sheet canvas
         const spriteCanvas = document.createElement('canvas');
-        spriteCanvas.width = 2048;
-        spriteCanvas.height = 512;
+        spriteCanvas.width = width;
+        spriteCanvas.height = height;
         const spriteCtx = spriteCanvas.getContext('2d');
         if (!spriteCtx) return;
 
         // Draw each frame
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < frameCount; i++) {
             if (finalFrames[i]) {
                 // Create temp canvas to convert ImageData to drawable
                 const tempCanvas = document.createElement('canvas');
@@ -460,7 +567,7 @@ const NewAssetsEditorPage: React.FC = () => {
         // Download
         spriteCanvas.toBlob((blob) => {
             if (blob) {
-                saveAs(blob, `sprite_sheet_${Date.now()}.png`);
+                saveAs(blob, `sprite_sheet_${frames.length}x_${Date.now()}.png`);
             }
         }, 'image/png');
     };
@@ -782,21 +889,29 @@ const NewAssetsEditorPage: React.FC = () => {
                             </button>
                         ) : (
                             <>
-                                {/* Frame Tabs */}
-                                <div className="flex items-center bg-zinc-950/50 rounded-lg border border-zinc-800 p-0.5">
-                                    {[0, 1, 2, 3].map((frame) => (
-                                        <button
-                                            key={frame}
-                                            onClick={() => handleFrameSwitch(frame)}
-                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${currentFrame === frame
-                                                ? 'bg-amber-600 text-white'
-                                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-                                                }`}
-                                        >
-                                            F{frame + 1}
-                                        </button>
-                                    ))}
+                                {/* Playback Controls */}
+                                <div className="flex items-center gap-2 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1 mr-2">
+                                    <button
+                                        onClick={() => setIsPlaying(!isPlaying)}
+                                        className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${isPlaying ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
+                                        title={isPlaying ? "정지" : "재생"}
+                                    >
+                                        <i className={`fa-solid ${isPlaying ? 'fa-stop' : 'fa-play'}`}></i>
+                                    </button>
+                                    <div className="flex items-center gap-1 px-1">
+                                        <span className="text-[10px] text-zinc-500 font-mono">FPS</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            value={fps}
+                                            onChange={(e) => setFps(Number(e.target.value))}
+                                            className="w-8 h-5 bg-zinc-900 border border-zinc-700 rounded text-[10px] text-center text-zinc-300 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
                                 </div>
+
+
 
                                 {/* Presets Button Group */}
                                 <div className="relative group">
@@ -818,6 +933,29 @@ const NewAssetsEditorPage: React.FC = () => {
                                 </div>
 
                                 {/* Frame Actions */}
+                                {/* Rigging Button */}
+                                <button
+                                    onClick={() => {
+                                        // 1. Ensure current frame has data
+                                        const canvas = canvasRef.current?.getCanvas();
+                                        if (!canvas) return;
+                                        const ctx = canvas.getContext('2d');
+                                        if (!ctx) return;
+
+                                        // Capture current rendering to update frames state
+                                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                        const newFrames = [...frames];
+                                        newFrames[currentFrame] = imageData;
+                                        setFrames(newFrames);
+
+                                        setIsRiggingModalOpen(true);
+                                    }}
+                                    className="h-9 px-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-500 hover:text-amber-400 text-xs rounded-lg flex items-center gap-2 border border-amber-500/30"
+                                >
+                                    <i className="fa-solid fa-bone"></i>
+                                    <span className="hidden sm:inline">리깅</span>
+                                </button>
+
                                 <button
                                     onClick={handleCopyFrame}
                                     className="h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg"
@@ -1004,8 +1142,58 @@ const NewAssetsEditorPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Floating Zoom Controls */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full px-4 py-2 flex items-center gap-4 shadow-xl z-20">
+                    {/* Timeline (Sprite Mode Only) */}
+                    {isSpriteMode && (
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-xl p-3 flex items-center gap-3 shadow-2xl z-30 animate-in slide-in-from-bottom-10 fade-in duration-300">
+
+                            {/* Frame List (Scrollable) */}
+                            <div className="flex-1 overflow-x-auto flex items-center gap-2 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-1">
+                                {frames.map((_, index) => (
+                                    <div key={index} className="relative group/frame shrink-0">
+                                        <button
+                                            onClick={() => handleFrameSwitch(index)}
+                                            className={`w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 transition-all ${currentFrame === index
+                                                ? 'bg-zinc-800 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                                : 'bg-zinc-950/50 border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800'
+                                                }`}
+                                        >
+                                            <span className={`text-xs font-bold ${currentFrame === index ? 'text-amber-500' : 'text-zinc-500'}`}>
+                                                {index + 1}
+                                            </span>
+                                            {/* Preview Placeholder? Real preview needs canvas toDataURL which is expensive to do reactive. 
+                                                Maybe just show "Frame N" nicely. */}
+                                            <div className="w-8 h-8 mt-1 rounded bg-zinc-800/50 flex items-center justify-center">
+                                                <i className="fa-solid fa-image text-zinc-600 text-[10px]"></i>
+                                            </div>
+                                        </button>
+
+                                        {/* Delete Button */}
+                                        {frames.length > 1 && (
+                                            <button
+                                                onClick={(e) => handleDeleteFrame(index, e)}
+                                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/frame:opacity-100 transition-all shadow-md hover:scale-110 z-10"
+                                                title="프레임 삭제"
+                                            >
+                                                <i className="fa-solid fa-xmark"></i>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Add Frame Button */}
+                                <button
+                                    onClick={handleAddFrame}
+                                    className="w-16 h-16 shrink-0 flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-600 hover:text-zinc-400 transition-all"
+                                    title="프레임 추가"
+                                >
+                                    <i className="fa-solid fa-plus text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Floating Zoom Controls (Adjusted position) */}
+                    <div className="absolute bottom-6 right-6 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full px-4 py-2 flex items-center gap-4 shadow-xl z-20">
                         <button onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} className="text-zinc-400 hover:text-white transition-colors">
                             <i className="fa-solid fa-minus"></i>
                         </button>
@@ -1102,6 +1290,23 @@ const NewAssetsEditorPage: React.FC = () => {
                     </div>
                 </aside>
             </div>
+
+            {/* Rigging Modal */}
+            <RiggingModal
+                isOpen={isRiggingModalOpen}
+                onClose={() => setIsRiggingModalOpen(false)}
+                onApply={(newFrames) => {
+                    setFrames(newFrames);
+                    setCurrentFrame(0);
+                    // Load first frame to canvas
+                    const canvas = canvasRef.current?.getCanvas();
+                    if (canvas && newFrames[0]) {
+                        canvas.getContext('2d')?.putImageData(newFrames[0], 0, 0);
+                    }
+                    setIsRiggingModalOpen(false);
+                }}
+                baseImageData={frames[currentFrame] || (frames[0] as ImageData)}
+            />
 
             {/* AI Generation Modal */}
             {isAiModalOpen && (
