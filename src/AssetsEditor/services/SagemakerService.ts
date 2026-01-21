@@ -113,10 +113,32 @@ export async function fetchAssetAsBlob(assetUrl: string): Promise<Blob> {
     return await response.blob();
 }
 
+/**
+ * 프롬프트 번역 (Auto -> English)
+ */
+export async function translatePrompt(text: String): Promise<string> {
+    try {
+        const response = await fetch('/api/ai/translate', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ text, targetLang: 'en' }),
+        });
+
+        if (!response.ok) return text.toString();
+
+        const data = await response.json();
+        return data.translatedText || text.toString();
+    } catch (e) {
+        console.warn('Translation failed, using original text', e);
+        return text.toString();
+    }
+}
+
 export const SagemakerService = {
     checkEndpointStatus,
     generateAsset,
     fetchAssetAsBlob,
+    translatePrompt,
 };
 
 export default SagemakerService;

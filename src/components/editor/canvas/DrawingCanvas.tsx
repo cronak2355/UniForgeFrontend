@@ -6,6 +6,8 @@ export interface DrawingCanvasRef {
     undo: () => void;
     redo: () => void;
     saveHistory: () => void;
+    setImage: (img: HTMLImageElement) => void;
+    clear: () => void;
 }
 
 interface DrawingCanvasProps {
@@ -94,11 +96,35 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(({
         }
     };
 
+    const setImage = (img: HTMLImageElement) => {
+        const canvas = mainCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Clear existing content
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw new image (fill canvas)
+        ctx.drawImage(img, 0, 0, width, height);
+
+        pushHistory();
+    };
+
     useImperativeHandle(ref, () => ({
         getCanvas: () => mainCanvasRef.current,
         undo,
         redo,
-        saveHistory: pushHistory
+        saveHistory: pushHistory,
+        setImage,
+        clear: () => {
+            const canvas = mainCanvasRef.current;
+            const ctx = canvas?.getContext('2d');
+            if (ctx) {
+                ctx.clearRect(0, 0, width, height);
+                pushHistory();
+            }
+        }
     }), [history, historyStep, pushHistory]);
 
     // --- Drawing Logic (Temp Canvas) ---

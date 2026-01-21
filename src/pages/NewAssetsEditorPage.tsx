@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import DrawingCanvas, { DrawingCanvasRef } from '../components/editor/canvas/DrawingCanvas';
 import Toolbar from '../components/editor/tools/Toolbar';
 import { saveAs } from 'file-saver';
-import Moveable from 'react-moveable';
+
 import { authService } from '../services/authService';
+import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 
 const NewAssetsEditorPage: React.FC = () => {
     // Canvas State
@@ -13,6 +14,13 @@ const NewAssetsEditorPage: React.FC = () => {
     const [selectedTool, setSelectedTool] = useState('pen');
     const [brushColor, setBrushColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(5);
+
+    // AI Generation State
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiStyle, setAiStyle] = useState('pixel-art');
+
+    // ... Viewport State (Zoom/Pan)
 
     // Viewport State (Zoom/Pan)
     const [zoom, setZoom] = useState(1);
@@ -30,6 +38,117 @@ const NewAssetsEditorPage: React.FC = () => {
     });
     const imageRef = useRef<HTMLImageElement>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Image Manipulation State
+    const dragRef = useRef<{
+        type: 'move' | 'tl' | 'tr' | 'bl' | 'br' | 'rotate' | null;
+        startX: number;
+        startY: number;
+        initialTransform: typeof imageTransform;
+    }>({ type: null, startX: 0, startY: 0, initialTransform: { x: 0, y: 0, width: 0, height: 0, rotate: 0 } });
+
+    const handleImageMouseDown = (e: React.MouseEvent, type: 'move' | 'tl' | 'tr' | 'bl' | 'br' | 'rotate') => {
+        e.stopPropagation();
+        e.preventDefault(); // Prevent text selection
+        dragRef.current = {
+            type,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialTransform: { ...imageTransform }
+        };
+    };
+
+    // Global Mouse Listeners for Image Drag
+    useEffect(() => {
+        const handleGlobalMouseMove = (e: MouseEvent) => {
+            if (!dragRef.current.type) return;
+
+            e.preventDefault();
+            const { type, startX, startY, initialTransform } = dragRef.current;
+            const dx = (e.clientX - startX) / zoom;
+            const dy = (e.clientY - startY) / zoom;
+
+            if (type === 'move') {
+                setImageTransform(prev => ({
+                    ...prev,
+                    x: initialTransform.x + dx,
+                    y: initialTransform.y + dy
+                }));
+            } else if (type === 'rotate') {
+                // Rotation Logic
+                const centerX = initialTransform.x + initialTransform.width / 2;
+                const centerY = initialTransform.y + initialTransform.height / 2;
+
+                // Get center in screen coordinates
+                // We need to account for canvas pan and zoom to get accurate screen center?
+                // Actually, simplest is to use vectors from center.
+                // But center depends on where the canvas is.
+
+                // Let's rely on simple delta for now, or use arctan2 if we want absolute angle.
+                // Delta is easier for consistency.
+                const sensitivity = 0.5;
+                setImageTransform(prev => ({
+                    ...prev,
+                    rotate: initialTransform.rotate + dx * sensitivity
+                }));
+            } else {
+                // Resize Logic
+                let newX = initialTransform.x;
+                let newY = initialTransform.y;
+                let newW = initialTransform.width;
+                let newH = initialTransform.height;
+
+                switch (type) {
+                    case 'br':
+                        newW = initialTransform.width + dx;
+                        newH = initialTransform.height + dy;
+                        break;
+                    case 'bl':
+                        newW = initialTransform.width - dx;
+                        newX = initialTransform.x + dx;
+                        newH = initialTransform.height + dy;
+                        break;
+                    case 'tr':
+                        newW = initialTransform.width + dx;
+                        newH = initialTransform.height - dy;
+                        newY = initialTransform.y + dy;
+                        break;
+                    case 'tl':
+                        newW = initialTransform.width - dx;
+                        newX = initialTransform.x + dx;
+                        newH = initialTransform.height - dy;
+                        newY = initialTransform.y + dy;
+                        break;
+                }
+
+                // Minimum size check to prevent flipping
+                if (newW < 5) newW = 5;
+                if (newH < 5) newH = 5;
+
+                setImageTransform(prev => ({
+                    ...prev,
+                    x: newX,
+                    y: newY,
+                    width: newW,
+                    height: newH
+                }));
+            }
+        };
+
+        const handleGlobalMouseUp = () => {
+            dragRef.current = { type: null, startX: 0, startY: 0, initialTransform: dragRef.current.initialTransform };
+        };
+
+        if (importedImage) {
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [zoom, importedImage]);
 
     // Refs
     const canvasRef = useRef<DrawingCanvasRef>(null);
@@ -76,50 +195,266 @@ const NewAssetsEditorPage: React.FC = () => {
         }
     };
 
+    const handleAiGenerate = async () => {
+        setIsLoading(true);
+        try {
+            // 1. Translate Prompt
+            const translatedPrompt = await SagemakerService.translatePrompt(aiPrompt);
+            console.log("Translated Prompt:", translatedPrompt);
+
+            // 2. Generate Asset (SDXL)
+            const response = await SagemakerService.generateAsset({
+                prompt: translatedPrompt,
+                asset_type: 'character', // Default, could be parameterized
+                style_preset: aiStyle,
+                steps: 30,
+                cfg_scale: 7.0
+            });
+
+            if (!response.success || !response.image) {
+                throw new Error(response.error || "Image generation failed");
+            }
+
+            // 3. Load Image to Canvas
+            const img = new Image();
+            img.onload = async () => {
+                canvasRef.current?.setImage(img);
+                setIsAiModalOpen(false); // Close Modal
+
+                // 4. Auto Trigger Background Removal
+                // Need a small delay or ensure state is updated? 
+                // setImage is synchronous logic-wise for canvas, safe to call next.
+                await handleRemoveBackground();
+            };
+            img.src = `data:image/png;base64,${response.image}`;
+
+        } catch (error) {
+            console.error(error);
+            alert("AI 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+            setIsLoading(false); // Ensure loading is off on error
+        }
+    };
+
     const handleRemoveBackground = async () => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
 
         setIsLoading(true);
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+        if (!tempCtx) {
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            // 1. Get Base64
+            // 1. Get Base64 for API
             const base64Image = canvas.toDataURL('image/png').split(',')[1];
+            let processSuccess = false;
 
-            // 2. Call API
+            // 2. Try API First
             const token = authService.getToken();
+            try {
+                const response = await fetch('/api/remove-background', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : '',
+                    },
+                    body: JSON.stringify({ image: base64Image }),
+                });
 
-            const response = await fetch('/api/remove-background', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': token ? `Bearer ${token}` : '',
-                },
-                body: JSON.stringify({ image: base64Image }),
-            });
+                if (!response.ok) throw new Error('API Failed');
 
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(`Failed: ${text}`);
+                const data = await response.json();
+                const cleanBase64 = data.image;
+
+                const blob = await (await fetch(`data:image/png;base64,${cleanBase64}`)).blob();
+                const bitmap = await createImageBitmap(blob);
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.drawImage(bitmap, 0, 0, w, h);
+                processSuccess = true;
+
+            } catch (apiError) {
+                console.warn("API Background Removal Failed, using fallback:", apiError);
+
+                // 3. Fallback: Legacy Algorithm
+                tempCtx.drawImage(canvas, 0, 0);
+                const imageData = tempCtx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+
+                // --- Algorithm Helpers (Legacy) ---
+                const detectBackgroundColor = (data: Uint8ClampedArray, w: number, h: number) => {
+                    const candidates: number[] = [];
+                    for (let x = 0; x < w; x += 5) { candidates.push(x); candidates.push((h - 1) * w + x); }
+                    for (let y = 0; y < h; y += 5) { candidates.push(y * w); candidates.push(y * w + w - 1); }
+                    const colorGeneric = (r: number, g: number, b: number) =>
+                        `${Math.floor(r / 15)},${Math.floor(g / 15)},${Math.floor(b / 15)}`;
+                    const counts: Record<string, { count: number, color: { r: number, g: number, b: number, a: number } }> = {};
+                    for (const idx of candidates) {
+                        if (idx >= data.length / 4) continue;
+                        const r = data[idx * 4]; const g = data[idx * 4 + 1]; const b = data[idx * 4 + 2]; const a = data[idx * 4 + 3];
+                        if (a === 0) continue;
+                        const key = colorGeneric(r, g, b);
+                        if (!counts[key]) counts[key] = { count: 0, color: { r, g, b, a } };
+                        counts[key].count++;
+                    }
+                    let maxCount = 0; let winner = null;
+                    for (const key in counts) {
+                        if (counts[key].count > maxCount) { maxCount = counts[key].count; winner = counts[key].color; }
+                    }
+                    return winner;
+                };
+
+                const removeBackgroundAlg = (data: Uint8ClampedArray, w: number, h: number, bgColor: { r: number, g: number, b: number }) => {
+                    const isGreenDominant = bgColor.g > bgColor.r + 30 && bgColor.g > bgColor.b + 30;
+                    const baseTolerance = isGreenDominant ? 25 : 10;
+                    const tolerance = baseTolerance + 10; // Default feather
+
+                    const visited = new Uint8Array(w * h);
+                    const stack: number[] = [];
+                    for (let x = 0; x < w; x++) { stack.push(x); stack.push((h - 1) * w + x); visited[x] = 1; visited[(h - 1) * w + x] = 1; }
+                    for (let y = 1; y < h - 1; y++) { stack.push(y * w); stack.push(y * w + w - 1); visited[y * w] = 1; visited[y * w + w - 1] = 1; }
+                    const toleranceSq = tolerance * tolerance;
+
+                    const getDistSq = (idx: number) => {
+                        const r = data[idx * 4]; const g = data[idx * 4 + 1]; const b = data[idx * 4 + 2];
+                        const dr = r - bgColor.r; const dg = g - bgColor.g; const db = b - bgColor.b;
+                        return dr * dr + dg * dg + db * db;
+                    };
+
+                    // Initial seed filtering
+                    let writePtr = 0;
+                    for (let i = 0; i < stack.length; i++) {
+                        const d2 = getDistSq(stack[i]);
+                        if (d2 < toleranceSq) stack[writePtr++] = stack[i];
+                    }
+                    stack.length = writePtr;
+
+                    while (stack.length > 0) {
+                        const idx = stack.pop()!;
+                        const d2 = getDistSq(idx);
+
+                        // Soft erase
+                        data[idx * 4 + 3] = 0;
+
+                        const x = idx % w; const y = Math.floor(idx / w);
+                        const neighbors = [{ nx: x + 1, ny: y }, { nx: x - 1, ny: y }, { nx: x, ny: y + 1 }, { nx: x, ny: y - 1 }];
+                        for (const { nx, ny } of neighbors) {
+                            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                const nIdx = ny * w + nx;
+                                if (visited[nIdx] === 0) {
+                                    const nd2 = getDistSq(nIdx);
+                                    if (nd2 < toleranceSq) {
+                                        visited[nIdx] = 1;
+                                        stack.push(nIdx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+
+                const bgColor = detectBackgroundColor(data, w, h);
+                if (bgColor) {
+                    removeBackgroundAlg(data, w, h, bgColor);
+                    tempCtx.putImageData(imageData, 0, 0);
+                    processSuccess = true;
+                    console.warn('Fell back to algorithmic removal.');
+                } else {
+                    alert("배경 제거 실패: 단색 배경이 감지되지 않았습니다.");
+                }
             }
 
-            const data = await response.json();
-            const cleanBase64 = data.image;
+            // 4. Smart Crop & Replace Logic
+            if (processSuccess) {
+                const imageData = tempCtx.getImageData(0, 0, w, h);
+                const data = imageData.data;
 
-            // 3. Draw back
-            const img = new Image();
-            img.onload = () => {
-                canvasRef.current?.setImage(img);
+                const getBounds = (data: Uint8ClampedArray, w: number, h: number) => {
+                    let minX = w, minY = h, maxX = 0, maxY = 0;
+                    let hasPixels = false;
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const idx = (y * w + x) * 4;
+                            if (data[idx + 3] > 0) {
+                                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                                hasPixels = true;
+                            }
+                        }
+                    }
+                    return { minX, minY, maxX, maxY, hasPixels };
+                };
+
+                const b = getBounds(data, w, h);
+
+                // Draw back to main canvas
+                const finalImg = new Image();
+                finalImg.onload = () => {
+                    canvasRef.current?.setImage(finalImg);
+                    setIsLoading(false);
+                };
+                finalImg.src = tempCanvas.toDataURL(); // We just use the temp canvas result directly for now without scaling to keep it simple, or we can add scaling if user wants "Smart Crop" specifically. 
+                // Legacy did smart crop. Let's do simple placement for now to ensure stability, or duplicate legacy exactly?
+                // Legacy scaled content to fit canvas. That changes pixel art size.
+                // Let's just put the result back as is to avoid unexpected resizing, unless user explicitly wanted "Centered & Scaled".
+                // Given the context is "Asset Editor", maybe preserving scale is better?
+                // But the user asked to "Check legacy logic". Legacy logic *did* smart scaling.
+                // Let's stick to EXACT legacy behavior: Crop transparent area, then scale content to fit canvas with padding.
+
+                if (b.hasPixels) {
+                    // Smart Crop & Scale logic implementation
+                    const contentW = b.maxX - b.minX + 1;
+                    const contentH = b.maxY - b.minY + 1;
+
+                    // Extract content
+                    const cCanvas = document.createElement('canvas');
+                    cCanvas.width = contentW; cCanvas.height = contentH;
+                    cCanvas.getContext('2d')?.putImageData(tempCtx.getImageData(b.minX, b.minY, contentW, contentH), 0, 0);
+
+                    // Prepare target
+                    const targetCanvas = document.createElement('canvas');
+                    targetCanvas.width = w; targetCanvas.height = h;
+                    const tCtx = targetCanvas.getContext('2d');
+                    if (tCtx) {
+                        tCtx.imageSmoothingEnabled = false;
+
+                        // Calculate safe scale
+                        const safePadding = 2;
+                        const targetSize = w - (safePadding * 2);
+                        const scale = Math.min(targetSize / contentW, targetSize / contentH);
+
+                        const dstW = Math.floor(contentW * scale);
+                        const dstH = Math.floor(contentH * scale);
+                        const offX = Math.floor((w - dstW) / 2);
+                        const offY = Math.floor((h - dstH) / 2);
+
+                        tCtx.drawImage(cCanvas, 0, 0, contentW, contentH, offX, offY, dstW, dstH);
+
+                        const resultImg = new Image();
+                        resultImg.onload = () => {
+                            canvasRef.current?.setImage(resultImg);
+                            setIsLoading(false);
+                        }
+                        resultImg.src = targetCanvas.toDataURL();
+                    }
+                } else {
+                    setIsLoading(false); // Empty result
+                }
+            } else {
                 setIsLoading(false);
-            };
-            img.onerror = () => {
-                alert("이미지 처리 중 오류가 발생했습니다.");
-                setIsLoading(false);
-            };
-            img.src = `data:image/png;base64,${cleanBase64}`;
+            }
 
         } catch (error) {
             console.error(error);
-            alert("배경 제거 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+            alert("배경 제거 오류: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
             setIsLoading(false);
         }
     };
@@ -301,25 +636,102 @@ const NewAssetsEditorPage: React.FC = () => {
                     </div>
                     <div className="flex gap-3">
                         {/* Extra Actions */}
-                        {!importedImage && (
-                            <>
-                                <button
-                                    onClick={handleRemoveBackground}
-                                    disabled={isLoading}
-                                    className={`px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333] flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    title="AI 배경 제거"
-                                >
-                                    <i className="fa-solid fa-wand-magic-sparkles text-purple-400"></i> 배경 제거
-                                </button>
-                                <button
-                                    onClick={handleClearCanvas}
-                                    className="px-3 py-1 bg-[#2a2a2a] hover:bg-red-900/30 hover:text-red-400 text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333]"
-                                    title="전체 지우기"
-                                >
-                                    <i className="fa-regular fa-trash-can"></i>
-                                </button>
-                                <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
-                            </>
+                        <>
+                            <button
+                                onClick={() => setIsAiModalOpen(true)}
+                                disabled={isLoading}
+                                className={`px-3 py-1 bg-purple-900/40 hover:bg-purple-900/60 text-purple-200 text-[11px] rounded-[2px] transition-colors border border-purple-500/30 flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title="AI 에셋 생성 (SDXL)"
+                            >
+                                <i className="fa-solid fa-wand-magic-sparkles"></i> AI 생성
+                            </button>
+                            <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
+
+                            <button
+                                onClick={handleRemoveBackground}
+                                disabled={isLoading}
+                                className={`px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333] flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title="AI 배경 제거"
+                            >
+                                <i className="fa-solid fa-eraser text-gray-400"></i> 배경 제거
+                            </button>
+                            <button
+                                onClick={handleClearCanvas}
+                                className="px-3 py-1 bg-[#2a2a2a] hover:bg-red-900/30 hover:text-red-400 text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333]"
+                                title="전체 지우기"
+                            >
+                                <i className="fa-regular fa-trash-can"></i>
+                            </button>
+                            <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
+                        </>
+                        )}
+
+                        {/* AI Generation Modal */}
+                        {isAiModalOpen && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                                onClick={(e) => {
+                                    if (e.target === e.currentTarget) setIsAiModalOpen(false);
+                                }}>
+                                <div className="bg-[#1e1e1e] border border-[#333] rounded-lg shadow-2xl w-[400px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="bg-[#252525] px-4 py-3 border-b border-[#333] flex justify-between items-center">
+                                        <h3 className="font-bold text-sm text-gray-200 flex items-center gap-2">
+                                            <i className="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+                                            AI 에셋 생성
+                                        </h3>
+                                        <button onClick={() => setIsAiModalOpen(false)} className="text-gray-500 hover:text-gray-300">
+                                            <i className="fa-solid fa-xmark"></i>
+                                        </button>
+                                    </div>
+
+                                    <div className="p-4 space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1.5">프롬프트 (한글 가능)</label>
+                                            <textarea
+                                                value={aiPrompt}
+                                                onChange={(e) => setAiPrompt(e.target.value)}
+                                                placeholder="예: 귀여운 픽셀 아트 고양이, 판타지 검, 붉은 포션..."
+                                                className="w-full bg-[#121212] border border-[#333] rounded p-2 text-sm text-gray-200 focus:border-purple-500 focus:outline-none h-24 resize-none"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1.5">스타일 프리셋</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {['pixel-art', 'anime', '3d-model'].map((style) => (
+                                                    <button
+                                                        key={style}
+                                                        onClick={() => setAiStyle(style)}
+                                                        className={`px-2 py-2 text-xs rounded border transition-colors ${aiStyle === style
+                                                            ? 'bg-purple-900/30 border-purple-500 text-purple-200'
+                                                            : 'bg-[#252525] border-[#333] text-gray-400 hover:bg-[#2a2a2a]'
+                                                            }`}
+                                                    >
+                                                        {style === 'pixel-art' ? '픽셀 아트' : style === 'anime' ? '애니메이션' : '3D 모델'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 border-t border-[#333] bg-[#222] flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setIsAiModalOpen(false)}
+                                            className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200"
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            onClick={handleAiGenerate}
+                                            disabled={!aiPrompt.trim() || isLoading}
+                                            className={`px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded flex items-center gap-2 font-medium transition-colors ${(!aiPrompt.trim() || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+                                                }`}
+                                        >
+                                            {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-bolt"></i>}
+                                            {isLoading ? '생성 중...' : '생성하기'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         {importedImage && (
@@ -400,46 +812,56 @@ const NewAssetsEditorPage: React.FC = () => {
                         {/* Imported Image Overlay */}
                         {importedImage && (
                             <>
-                                <img
-                                    ref={imageRef}
-                                    src={importedImage}
-                                    alt="Imported"
-                                    className="absolute top-0 left-0 select-none pointer-events-none"
-                                    style={{
-                                        transform: `translate(${imageTransform.x}px, ${imageTransform.y}px) rotate(${imageTransform.rotate}deg)`,
-                                        width: imageTransform.width,
-                                        height: imageTransform.height,
-                                        imageRendering: 'pixelated'
-                                    }}
-                                />
-                                <Moveable
-                                    target={imageRef.current}
-                                    container={null}
-                                    origin={true}
-                                    edge={true}
-                                    draggable={true}
-                                    resizable={true}
-                                    rotatable={true}
-                                    keepRatio={false}
-                                    snappable={true}
+                                {/* Custom Moveable Implementation */}
+                                {importedImage && (
+                                    <>
+                                        {/* Image Itself */}
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                left: imageTransform.x,
+                                                top: imageTransform.y,
+                                                width: imageTransform.width,
+                                                height: imageTransform.height,
+                                                transform: `rotate(${imageTransform.rotate}deg)`,
+                                                pointerEvents: 'auto', // Allow interaction
+                                                zIndex: 10
+                                            }}
+                                            onMouseDown={(e) => handleImageMouseDown(e, 'move')}
+                                        >
+                                            <img
+                                                ref={imageRef}
+                                                src={importedImage}
+                                                alt="Imported"
+                                                className="w-full h-full select-none"
+                                                draggable={false}
+                                                style={{
+                                                    imageRendering: 'pixelated',
+                                                    cursor: 'move'
+                                                }}
+                                            />
 
-                                    onDrag={({ left, top }) => {
-                                        setImageTransform(prev => ({ ...prev, x: left, y: top }));
-                                    }}
-                                    onResize={({ width, height, drag }) => {
-                                        setImageTransform(prev => ({
-                                            ...prev,
-                                            width,
-                                            height,
-                                            x: drag.left,
-                                            y: drag.top
-                                        }));
-                                    }}
-                                    onRotate={({ rotate }) => {
-                                        setImageTransform(prev => ({ ...prev, rotate }));
-                                    }}
-                                    className="moveable-control-box"
-                                />
+                                            {/* Resize Handles */}
+                                            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500 cursor-nwse-resize z-20"
+                                                onMouseDown={(e) => handleImageMouseDown(e, 'tl')} />
+                                            <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500 cursor-nesw-resize z-20"
+                                                onMouseDown={(e) => handleImageMouseDown(e, 'tr')} />
+                                            <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500 cursor-nesw-resize z-20"
+                                                onMouseDown={(e) => handleImageMouseDown(e, 'bl')} />
+                                            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500 cursor-nwse-resize z-20"
+                                                onMouseDown={(e) => handleImageMouseDown(e, 'br')} />
+
+                                            {/* Rotation Handle (Top Center) */}
+                                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-grab active:cursor-grabbing z-20 flex items-center justify-center"
+                                                onMouseDown={(e) => handleImageMouseDown(e, 'rotate')}>
+                                                <div className="w-px h-3 bg-blue-500 absolute top-full left-1/2 -translate-x-1/2"></div>
+                                            </div>
+
+                                            {/* Selection Border */}
+                                            <div className="absolute inset-0 border border-blue-500 pointer-events-none"></div>
+                                        </div>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>
