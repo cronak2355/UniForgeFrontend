@@ -198,32 +198,25 @@ const NewAssetsEditorPage: React.FC = () => {
     const handleAiGenerate = async () => {
         setIsLoading(true);
         try {
-            // 1. Translate Prompt
-            const translatedPrompt = await SagemakerService.translatePrompt(aiPrompt);
-            console.log("Translated Prompt:", translatedPrompt);
-
-            // 2. Generate Asset (SDXL)
+            // 1. Generate Asset (SDXL) - Backend handles translation automatically
             const response = await SagemakerService.generateAsset({
-                prompt: translatedPrompt,
-                asset_type: 'character', // Default, could be parameterized
-                style_preset: aiStyle,
-                steps: 30,
-                cfg_scale: 7.0
+                prompt: aiPrompt, // Send Korean directly
+                width: canvasSize?.width || 512,
+                height: canvasSize?.height || 512,
+                style_preset: aiStyle
             });
 
             if (!response.success || !response.image) {
                 throw new Error(response.error || "Image generation failed");
             }
 
-            // 3. Load Image to Canvas
+            // 2. Load Image to Canvas
             const img = new Image();
             img.onload = async () => {
                 canvasRef.current?.setImage(img);
                 setIsAiModalOpen(false); // Close Modal
 
-                // 4. Auto Trigger Background Removal
-                // Need a small delay or ensure state is updated? 
-                // setImage is synchronous logic-wise for canvas, safe to call next.
+                // 3. Auto Trigger Background Removal
                 await handleRemoveBackground();
             };
             img.src = `data:image/png;base64,${response.image}`;
@@ -231,7 +224,7 @@ const NewAssetsEditorPage: React.FC = () => {
         } catch (error) {
             console.error(error);
             alert("AI 생성 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
-            setIsLoading(false); // Ensure loading is off on error
+            setIsLoading(false);
         }
     };
 
@@ -572,13 +565,13 @@ const NewAssetsEditorPage: React.FC = () => {
             <div className="flex flex-col items-center justify-center h-screen bg-[#1e1e1e] text-gray-200 select-none font-sans">
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold mb-3 text-gray-100 tracking-tight">
-                        자산 에디터
+                        에셋 에디터
                     </h1>
                     <p className="text-gray-500 text-sm">캔버스 크기를 선택하여 시작하세요.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[512, 256, 128].map((size) => (
+                    {[128, 256, 512].map((size) => (
                         <button
                             key={size}
                             onClick={() => handleSizeSelect(size)}
@@ -636,35 +629,33 @@ const NewAssetsEditorPage: React.FC = () => {
                     </div>
                     <div className="flex gap-3">
                         {/* Extra Actions */}
-                        <>
-                            <button
-                                onClick={() => setIsAiModalOpen(true)}
-                                disabled={isLoading}
-                                className={`px-3 py-1 bg-purple-900/40 hover:bg-purple-900/60 text-purple-200 text-[11px] rounded-[2px] transition-colors border border-purple-500/30 flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                title="AI 에셋 생성 (SDXL)"
-                            >
-                                <i className="fa-solid fa-wand-magic-sparkles"></i> AI 생성
-                            </button>
-                            <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
+                        <button
+                            onClick={() => setIsAiModalOpen(true)}
+                            disabled={isLoading}
+                            className={`px-3 py-1 bg-purple-900/40 hover:bg-purple-900/60 text-purple-200 text-[11px] rounded-[2px] transition-colors border border-purple-500/30 flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="AI 에셋 생성 (SDXL)"
+                        >
+                            <i className="fa-solid fa-wand-magic-sparkles"></i> AI 생성
+                        </button>
+                        <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
 
-                            <button
-                                onClick={handleRemoveBackground}
-                                disabled={isLoading}
-                                className={`px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333] flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                title="AI 배경 제거"
-                            >
-                                <i className="fa-solid fa-eraser text-gray-400"></i> 배경 제거
-                            </button>
-                            <button
-                                onClick={handleClearCanvas}
-                                className="px-3 py-1 bg-[#2a2a2a] hover:bg-red-900/30 hover:text-red-400 text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333]"
-                                title="전체 지우기"
-                            >
-                                <i className="fa-regular fa-trash-can"></i>
-                            </button>
-                            <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
-                        </>
-                        )}
+                        <button
+                            onClick={handleRemoveBackground}
+                            disabled={isLoading}
+                            className={`px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333] flex items-center gap-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="AI 배경 제거"
+                        >
+                            <i className="fa-solid fa-eraser text-gray-400"></i> 배경 제거
+                        </button>
+                        <button
+                            onClick={handleClearCanvas}
+                            className="px-3 py-1 bg-[#2a2a2a] hover:bg-red-900/30 hover:text-red-400 text-gray-300 text-[11px] rounded-[2px] transition-colors border border-[#333]"
+                            title="전체 지우기"
+                        >
+                            <i className="fa-regular fa-trash-can"></i>
+                        </button>
+                        <div className="w-[1px] h-4 bg-[#333] my-auto mx-1"></div>
+
 
                         {/* AI Generation Modal */}
                         {isAiModalOpen && (

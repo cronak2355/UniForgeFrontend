@@ -1,42 +1,21 @@
 // src/AssetsEditor/services/SagemakerService.ts
-// SageMaker AI Asset Generation Service
+// AI Asset Generation Service (connected to UniforgeBackend)
 
 import { authService } from '../../services/authService';
 
-const API_BASE_URL = 'https://2v95dezrbk.execute-api.ap-northeast-2.amazonaws.com/dev';
-
 export interface GenerateAssetRequest {
     prompt: string;
-    negative_prompt?: string;
-    asset_type: 'character' | 'object' | 'tile' | 'effect';
     width?: number;
     height?: number;
-    image?: string; // Base64 encoded image
-    strength?: number; // 0.0 to 1.0 (Refine strength)
-    mode?: 'text-to-image' | 'image-to-image' | 'remove_background';
+    // Parameters below are reserved for future backend updates
+    style_preset?: string;
     seed?: number;
-    // SDXL Parameters
-    steps?: number;
-    cfg_scale?: number;
-    sampler?: string;
-    style_preset?: string; // e.g., 'pixel-art'
 }
 
 export interface GenerateAssetResponse {
     success: boolean;
-    asset_url?: string;
-    image?: string; // Base64 for direct return
-    asset_id?: string;
-    asset_type?: string;
-    prompt?: string;
-    message?: string;
+    image?: string; // Base64
     error?: string;
-    seed?: number;
-}
-
-export interface EndpointStatusResponse {
-    status: 'InService' | 'Creating' | 'Updating' | 'Failed' | 'OutOfService' | 'Deleting' | 'Unknown';
-    message?: string;
 }
 
 function getAuthHeaders() {
@@ -47,52 +26,36 @@ function getAuthHeaders() {
     };
 }
 
-/**
- * SageMaker 엔드포인트 상태 확인
- */
-export async function checkEndpointStatus(): Promise<EndpointStatusResponse> {
-    try {
-        const response = await fetch(`${API_BASE_URL}/endpoint-status`, {
-            method: 'GET',
-            headers: getAuthHeaders(),
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Endpoint status check failed:', error);
-        return { status: 'Unknown', message: 'Failed to check endpoint status' };
-    }
-}
-
 export async function generateAsset(request: GenerateAssetRequest): Promise<GenerateAssetResponse> {
     try {
-        const response = await fetch(`${API_BASE_URL}/generate-asset`, {
+        const response = await fetch(`/api/AIgenerate`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({
                 prompt: request.prompt,
-                negative_prompt: request.negative_prompt || 'blurry, low quality, distorted',
-                asset_type: request.asset_type,
-                width: request.width || 512,
-                height: request.height || 512,
-                image: request.image,
-                strength: request.strength,
-                mode: request.mode,
-                seed: request.seed,
-                // SDXL Params
-                steps: request.steps || 30,
-                cfg_scale: request.cfg_scale || 7.0,
-                sampler: request.sampler || "DPM++ 2M Karras",
-                style_preset: request.style_preset
+                size: request.width || 512,
+                // Pass other params if backend supports them in future
             }),
         });
 
-        const data = await response.json();
-
         if (!response.ok) {
-            throw new Error(data.error || 'API request failed');
+            const errorText = await response.text();
+            try {
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.error || 'Server error');
+            } catch (e) {
+                throw new Error(`API failed: ${response.status} ${errorText}`);
+            }
         }
 
-        return data;
+        const data = await response.json();
+
+        // Backend returns { "image": "base64...", "seed": ... }
+        return {
+            success: true,
+            image: data.image
+        };
+
     } catch (error) {
         console.error('Asset generation failed:', error);
         return {
@@ -103,42 +66,12 @@ export async function generateAsset(request: GenerateAssetRequest): Promise<Gene
 }
 
 /**
- * S3 URL에서 이미지를 Blob으로 가져오기
+ * 프롬프트 번역 (Backend handles this now, keeping for compatibility if needed or removing)
+ * -> Removing as backend handles it.
  */
-export async function fetchAssetAsBlob(assetUrl: string): Promise<Blob> {
-    const response = await fetch(assetUrl);
-    if (!response.ok) {
-        throw new Error('Failed to fetch asset from S3');
-    }
-    return await response.blob();
-}
-
-/**
- * 프롬프트 번역 (Auto -> English)
- */
-export async function translatePrompt(text: String): Promise<string> {
-    try {
-        const response = await fetch('/api/ai/translate', {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ text, targetLang: 'en' }),
-        });
-
-        if (!response.ok) return text.toString();
-
-        const data = await response.json();
-        return data.translatedText || text.toString();
-    } catch (e) {
-        console.warn('Translation failed, using original text', e);
-        return text.toString();
-    }
-}
 
 export const SagemakerService = {
-    checkEndpointStatus,
     generateAsset,
-    fetchAssetAsBlob,
-    translatePrompt,
 };
 
 export default SagemakerService;
