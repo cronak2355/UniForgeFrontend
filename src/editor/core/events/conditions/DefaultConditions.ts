@@ -167,13 +167,57 @@ ConditionRegistry.register("OutOfRange", (ctx: ActionContext, params: Record<str
     return distance > range;
 });
 
+ConditionRegistry.register("DistanceLessThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < limit;
+});
+
+ConditionRegistry.register("DistanceGreaterThan", (ctx: ActionContext, params: Record<string, unknown>) => {
+    const renderer = ctx.globals?.renderer;
+    if (!renderer) return false;
+
+    const entityId = ctx.entityId;
+    const limit = (params.value as number) ?? 0;
+    const targetObjId = params.targetEntityId as string;
+
+    if (!targetObjId) return false;
+
+    const entityObj = renderer.getGameObject?.(entityId);
+    const targetObj = renderer.getGameObject?.(targetObjId);
+
+    if (!entityObj || !targetObj) return false;
+
+    const dx = targetObj.x - entityObj.x;
+    const dy = targetObj.y - entityObj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance > limit;
+});
+
 // --- Variable Conditions ---
 
 ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<string, unknown>) => {
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return false;
+    // if (value === undefined) return false; // [Modified] Allow undefined to flow down for boolean coercion (undefined == false)
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -192,7 +236,10 @@ ConditionRegistry.register("VarEquals", (ctx: ActionContext, params: Record<stri
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) === coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        // console.log(`[VarEquals] ${varName} (${value}) vs ${expectedValue} -> ${boolVal} == ${boolExp}?`);
+        return boolVal === boolExp;
     }
 
     if (typeof value === "number") {
@@ -215,7 +262,7 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
     const varName = params.name as string;
     const expectedValue = params.value;
     const value = getVariableValue(ctx, varName);
-    if (value === undefined) return true; // Variable doesn't exist = not equal
+    // if (value === undefined) return true; // [Modified] Allow undefined to flow down for boolean coercion
 
     // Vector2 comparison (only for full vector2, not .x/.y access)
     if (typeof value === "object" && value !== null && 'x' in value && 'y' in value) {
@@ -234,7 +281,9 @@ ConditionRegistry.register("VarNotEquals", (ctx: ActionContext, params: Record<s
 
     // Boolean comparison with coercion
     if (typeof value === "boolean" || typeof expectedValue === "boolean" || (typeof expectedValue === "string" && (expectedValue === "true" || expectedValue === "false"))) {
-        return coerceBool(value) !== coerceBool(expectedValue);
+        const boolVal = coerceBool(value);
+        const boolExp = coerceBool(expectedValue);
+        return boolVal !== boolExp;
     }
 
     if (typeof value === "number") {
@@ -337,27 +386,43 @@ ConditionRegistry.register("CompareTag", (ctx: ActionContext, params: Record<str
     // Collision Event Check
     const eventData = ctx.eventData as any;
 
+    console.log(`[CompareTag] Checking against '${targetTag}' for Entity ${ctx.entityId}. EventData:`, eventData ? "Present" : "Missing");
+
     if (eventData) {
         const myId = ctx.entityId;
 
-        // Case A: Event has direct tagA/tagB (from CollisionSystem)
+        // Helper to check single or array tags
+        const hasTag = (tag: string | undefined, tags: string[] | undefined, target: string) => {
+            if (tag === target) return true;
+            if (tags && Array.isArray(tags) && tags.includes(target)) return true;
+            return false;
+        };
+
+        const tagA = eventData.tagA;
+        const tagsA = eventData.tagsA; // New array from LogicSystem
+        const tagB = eventData.tagB;
+        const tagsB = eventData.tagsB; // New array from LogicSystem
+
+        // console.log(`[CompareTag] MyId: ${myId}, Event EntA: ${eventData.entityA}, EntB: ${eventData.entityB}, TagA: ${eventData.tagA}, TagB: ${eventData.tagB}`);
+
+        // Case A: Entity A vs Entity B
         if (eventData.entityA && eventData.entityB) {
             if (eventData.entityA === myId) {
-                return eventData.tagB === targetTag;
+                // I am A, check B
+                if (hasTag(tagB, tagsB, targetTag)) return true;
+                console.log(`[CompareTag] Failed (I am A): TagB '${tagB}'/'${tagsB}' !== '${targetTag}'`);
             } else if (eventData.entityB === myId) {
-                return eventData.tagA === targetTag;
+                // I am B, check A
+                if (hasTag(tagA, tagsA, targetTag)) return true;
+                console.log(`[CompareTag] Failed (I am B): TagA '${tagA}'/'${tagsA}' !== '${targetTag}'`);
             }
         }
 
-        // Case B: Event might have otherTag (some systems pre-process it)
-        if (eventData.otherTag) {
-            return eventData.otherTag === targetTag;
-        }
+        // Case B: otherTag / otherTags
+        if (hasTag(eventData.otherTag, eventData.otherTags, targetTag)) return true;
 
         // Case C: Explicit tag property
-        if (eventData.tag === targetTag) {
-            return true;
-        }
+        if (eventData.tag === targetTag) return true;
     }
 
     // 2. Fallback: RaycastHit or other context that might supply 'hitTag'

@@ -12,6 +12,7 @@ import { EventBus } from "./core/events/EventBus";
 import type { GameEvent } from "./core/events/EventBus";
 import type { InputState } from "./core/RuntimePhysics";
 
+import { parseResolution } from "./utils/resolutionUtils";
 const TILE_SIZE = 100;
 const TILESET_COLS = 16;
 
@@ -76,6 +77,8 @@ function indexTiles(tiles: TilePlacement[]) {
     }
     return map;
 }
+
+
 
 interface RunTimeCanvasProps {
     onRuntimeEntitySync?: (entity: EditorEntity) => void;
@@ -196,13 +199,7 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady, onLoaded }: Ru
             }
 
             // 2. Parse Dimensions
-            let gameWidth = 1280;
-            let gameHeight = 720;
-            if (aspectRatio) {
-                const [wStr, hStr] = aspectRatio.split("x");
-                gameWidth = parseInt(wStr) || 1280;
-                gameHeight = parseInt(hStr) || 720;
-            }
+            const { width: gameWidth, height: gameHeight } = parseResolution(aspectRatio);
 
             // 3. Set assets for preload BEFORE init
             renderer.setPreloadAssets(assets);
@@ -339,10 +336,16 @@ export function RunTimeCanvas({ onRuntimeEntitySync, onGameReady, onLoaded }: Ru
                         zoom = Number(props.zoom);
                     }
                 }
-                // 2. Try Variable
+                // 2. Try Variable or Scale
                 else {
                     const zoomVar = currentContext.getEntityVariable(entity.id, "zoom");
-                    if (zoomVar !== undefined) zoom = Number(zoomVar);
+                    if (zoomVar !== undefined) {
+                        zoom = Number(zoomVar);
+                    } else {
+                        // [FIX] Use Scale X as Zoom if no zoom variable is present
+                        const scaleX = Number(entity.scaleX) || 1;
+                        zoom = scaleX;
+                    }
                 }
 
                 if (zoom > 0) renderer.setZoom(zoom);

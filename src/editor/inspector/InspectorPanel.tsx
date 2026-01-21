@@ -3,6 +3,9 @@ import type { EditorEntity } from "../types/Entity";
 import type { Asset } from "../types/Asset";
 import { colors } from "../constants/colors";
 import { ComponentSection } from "./ComponentSection";
+import { COMPONENT_PRESETS } from "../presets/componentPresets";
+import { splitLogicItems, buildLogicItems } from "../types/Logic";
+import type { LogicComponent } from "../types/Component";
 import { VariableSection } from "./VariableSection";
 import { EventSection } from "./EventSection";
 import type { EditorEvent } from "../types/Event";
@@ -259,8 +262,35 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
                 type="number"
                 style={inputStyle}
                 value={localEntity.z ?? 0}
-                onChange={(e) => updateTransform('z', parseFloat(e.target.value))}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // Allow intermediate state like "-" or empty
+                  if (raw === '' || raw === '-') {
+                    setLocalEntity({ ...localEntity, z: raw as unknown as number });
+                    return;
+                  }
+                  const num = parseFloat(raw);
+                  if (!Number.isNaN(num)) {
+                    updateTransform('z', num);
+                  }
+                }}
+                onBlur={() => {
+                  // Finalize intermediate state on blur
+                  const z = localEntity.z;
+                  if (typeof z === 'string' || Number.isNaN(z)) {
+                    handleUpdate({ ...localEntity, z: 0 });
+                  }
+                }}
               />
+            </div>
+            <div style={{ ...rowStyle, marginTop: 4 }}>
+              <span style={labelStyle}>🔒</span>
+              <input
+                type="checkbox"
+                checked={localEntity.locked ?? false}
+                onChange={(e) => handleUpdate({ ...localEntity, locked: e.target.checked })}
+              />
+              <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>이동 잠금</span>
             </div>
           </div>
           <div style={transformGroupStyle}>
@@ -854,7 +884,58 @@ export function InspectorPanel({ entity, onUpdateEntity }: Props) {
 
       {/* Components Section */}
       <div style={sectionStyle}>
-        <div style={titleStyle}>Components</div>
+        <div style={{ ...titleStyle, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>Components</span>
+          <div style={{ position: 'relative', marginLeft: 'auto', flexShrink: 1, minWidth: 0, display: 'flex' }}>
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value && localEntity) {
+                  const presetId = e.target.value;
+                  const preset = COMPONENT_PRESETS.find(p => p.id === presetId);
+                  if (preset) {
+                    const allComponents = splitLogicItems(localEntity.logic);
+                    const newComponents = preset.components.map(comp => ({
+                      ...comp,
+                      id: crypto.randomUUID(),
+                    })) as LogicComponent[];
+                    const nextLogic = buildLogicItems({ components: [...allComponents, ...newComponents] });
+                    handleUpdate({ ...localEntity, logic: nextLogic });
+                  }
+                }
+              }}
+              style={{
+                background: colors.bgTertiary,
+                color: colors.textSecondary,
+                border: `1px solid ${colors.borderColor}`,
+                borderRadius: "4px",
+                fontSize: "11px",
+                padding: "2px 20px 2px 6px",
+                cursor: "pointer",
+                height: "22px",
+                minWidth: "80px",
+                maxWidth: "120px",
+                textOverflow: "ellipsis"
+              }}
+            >
+              <option value="">📦 프리셋</option>
+              {COMPONENT_PRESETS.map(preset => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.icon} {preset.name}
+                </option>
+              ))}
+            </select>
+            <div style={{
+              position: "absolute",
+              right: "6px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontSize: "8px",
+              color: colors.textSecondary,
+              pointerEvents: "none"
+            }}>▼</div>
+          </div>
+        </div>
         <ComponentSection entity={localEntity} onUpdateEntity={handleUpdate} />
       </div>
     </div>

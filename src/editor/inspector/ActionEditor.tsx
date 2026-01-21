@@ -1037,7 +1037,17 @@ function OperandInput({
 
         {sourceType === 'literal' && (
           <>
-            {isVector2 ? (
+            {targetType === 'bool' ? (
+              <select
+                className="variable-value"
+                style={{ ...styles.smallSelect, width: '100%', minWidth: 0, flex: 1 }}
+                value={source.value === true ? "true" : "false"}
+                onChange={(e) => updateSource({ value: e.target.value === "true" })}
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            ) : isVector2 ? (
               <div className="flex gap-1 items-center flex-1 min-w-0" style={{ minWidth: '100%' }}>
                 <span className="text-[10px] text-gray-500 shrink-0">X</span>
                 <input

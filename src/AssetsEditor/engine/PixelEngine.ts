@@ -327,6 +327,52 @@ export class PixelEngine {
     this.render();
   }
 
+  // ==================== 이미지 드로잉 (Free Transform 확정용) ====================
+
+  drawImage(
+    image: CanvasImageSource,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
+    this.historyManager.beginBatch('image-import');
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = this.resolution;
+    tempCanvas.height = this.resolution;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
+
+    // 1. 임시 캔버스에 이미지 그리기 (스케일링 적용)
+    tempCtx.imageSmoothingEnabled = false; // 픽셀 아트 스타일 유지
+    tempCtx.drawImage(image, x, y, width, height);
+
+    // 2. 그려진 영역의 픽셀 데이터 가져오기
+    const drawnData = tempCtx.getImageData(0, 0, this.resolution, this.resolution);
+
+    // 3. 메인 캔버스에 픽셀 데이터 적용 (투명도 고려)
+    for (let py = 0; py < this.resolution; py++) {
+      for (let px = 0; px < this.resolution; px++) {
+        const idx = (py * this.resolution + px) * 4;
+        const alpha = drawnData.data[idx + 3];
+
+        if (alpha > 0) {
+          const color: RGBA = {
+            r: drawnData.data[idx],
+            g: drawnData.data[idx + 1],
+            b: drawnData.data[idx + 2],
+            a: drawnData.data[idx + 3],
+          };
+          this.setPixelWithHistory(px, py, color);
+        }
+      }
+    }
+
+    this.historyManager.commitBatch();
+    this.render();
+  }
+
   // ==================== Undo / Redo ====================
 
   undo(): boolean {

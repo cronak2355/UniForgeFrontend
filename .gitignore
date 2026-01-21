@@ -4,3 +4,4 @@ dist/
 build_result*.txt
 .env.local
 .env
+.claude

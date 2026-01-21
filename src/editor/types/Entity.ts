@@ -11,6 +11,7 @@ export interface EditorEntity {
   x: number;
   y: number;
   z: number;
+  locked?: boolean;  // 이동 잠금 여부
   rotation: number;
   rotationX?: number;
   rotationY?: number;

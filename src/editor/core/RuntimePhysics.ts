@@ -1,4 +1,5 @@
 import type { EditorEntity } from "../types/Entity";
+import { collisionSystem } from "./CollisionSystem";
 
 export interface InputState {
     left: boolean;
@@ -114,6 +115,19 @@ export class RuntimePhysics {
         x += dx * speed * dt;
         if (!isPlatformer) {
             y += dy * speed * dt;
+        }
+
+        if (collisionSystem) {
+            const resolved = collisionSystem.resolveCollision(entity.id, x, y);
+            x = resolved.x;
+            y = resolved.y;
+
+            // If we hit a wall (blocked), we might want to kill velocity?
+            if (resolved.blocked) {
+                // Simple physics reaction: zero out velocity towards normal?
+                // resolveCollision() doesn't return normal, but we know we were blocked.
+                // For now, just stopping is enough to prevent penetration.
+            }
         }
 
         state.velocityX = dx * speed;

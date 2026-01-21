@@ -32,6 +32,7 @@ type Props = {
     onCreateVariable?: (name: string, value: unknown, type?: "int" | "float" | "string" | "bool") => void;
     onUpdateVariable?: (name: string, value: unknown, type?: "int" | "float" | "string" | "bool") => void;
     onDeleteAsset?: (asset: Asset) => void;
+    onDeleteModule?: (module: ModuleGraph) => void;
 };
 
 type AssetPanelVars = Array<{ id: string; name: string; type: string; value: any }>;
@@ -48,11 +49,12 @@ export function AssetPanelNew({
     onCreateVariable,
     onUpdateVariable,
     onDeleteAsset,
+    onDeleteModule,
 }: Props) {
     const [currentTag, setCurrentTag] = useState<string>("Character");
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
     const dragStateRef = useRef<{ asset: Asset; startX: number; startY: number; hasDragged: boolean } | null>(null);
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; asset: Asset } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Asset | ModuleGraph; type: 'asset' | 'module' } | null>(null);
     const navigate = useNavigate();
     const { gameId } = useParams();
 
@@ -237,6 +239,8 @@ export function AssetPanelNew({
                                         }}
                                         onPointerDown={(e) => {
                                             if (asset.tag === "Tile") return;
+                                            if (e.button !== 0) return; // Only allow Left Click for drag
+
                                             e.preventDefault();
                                             e.stopPropagation();
                                             // Visual feedback for grab
@@ -250,7 +254,7 @@ export function AssetPanelNew({
                                         onContextMenu={(e) => {
                                             e.preventDefault();
                                             if (asset.tag === "Tile") return;
-                                            setContextMenu({ x: e.clientX, y: e.clientY, asset });
+                                            setContextMenu({ x: e.clientX, y: e.clientY, item: asset, type: 'asset' });
                                         }}
                                         onClick={() => handleTileClick(asset)}
                                     >
@@ -328,6 +332,10 @@ export function AssetPanelNew({
                                         background: THEME.itemBg,
                                         fontSize: '13px',
                                         color: THEME.text
+                                    }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setContextMenu({ x: e.clientX, y: e.clientY, item: module, type: 'module' });
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -462,30 +470,58 @@ export function AssetPanelNew({
                         boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
                     }}>
                         <div style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase' }}>
-                            Actions
+                            {contextMenu.type === 'asset' ? 'Asset Actions' : 'Module Actions'}
                         </div>
-                        <div
-                            style={{
-                                padding: '8px 12px',
-                                fontSize: '13px',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                borderRadius: '6px',
-                                transition: 'background 0.1s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = THEME.accent}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            onClick={() => {
-                                const url = `/assets-editor?assetId=${contextMenu.asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
-                                navigate(url);
-                            }}
-                        >
-                            <i className="fa-solid fa-pencil"></i> 에셋 편집
-                        </div>
-                        {/* Future actions here */}
+
+                        {contextMenu.type === 'asset' && (
+                            <div
+                                style={{
+                                    padding: '8px 12px',
+                                    fontSize: '13px',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    borderRadius: '6px',
+                                    transition: 'background 0.1s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = THEME.accent}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                onClick={() => {
+                                    const asset = contextMenu.item as Asset;
+                                    const url = `/assets-editor?assetId=${asset.id}${gameId ? `&gameId=${gameId}` : ''}`;
+                                    navigate(url);
+                                }}
+                            >
+                                <i className="fa-solid fa-pencil"></i> 에셋 편집
+                            </div>
+                        )}
+
+                        {contextMenu.type === 'module' && (
+                            <div
+                                style={{
+                                    padding: '8px 12px',
+                                    fontSize: '13px',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    borderRadius: '6px',
+                                    transition: 'background 0.1s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = THEME.accent}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                onClick={() => {
+                                    setActiveModuleId((contextMenu.item as ModuleGraph).id);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <i className="fa-solid fa-pen-to-square"></i> 모듈 편집
+                            </div>
+                        )}
+
                         <div
                             style={{
                                 padding: '8px 12px',
@@ -501,8 +537,13 @@ export function AssetPanelNew({
                             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             onClick={() => {
-                                if (confirm(`Are you sure you want to delete "${contextMenu.asset.name}"?`)) {
-                                    onDeleteAsset?.(contextMenu.asset);
+                                const name = contextMenu.item.name;
+                                if (confirm(`Are you sure you want to delete "${name}"?`)) {
+                                    if (contextMenu.type === 'asset') {
+                                        onDeleteAsset?.(contextMenu.item as Asset);
+                                    } else {
+                                        onDeleteModule?.(contextMenu.item as ModuleGraph);
+                                    }
                                 }
                                 setContextMenu(null);
                             }}

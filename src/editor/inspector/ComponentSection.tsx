@@ -13,6 +13,7 @@ import type { EditorVariable } from "../types/Variable";
 import { ActionEditor } from "./ActionEditor";
 import type { ModuleGraph } from "../types/Module";
 import type { Asset } from "../types/Asset";
+import { COMPONENT_PRESETS } from "../presets/componentPresets";
 
 type Props = {
     entity: EditorEntity;
@@ -53,7 +54,32 @@ export const ACTION_LABELS: Record<string, string> = {
     SpawnIfClear: "스폰 (겹침방지)",
     PlayAnimation: "애니메이션 동작",
     StopSound: "사운드 종료 (StopSound)",
+    Enable: "활성화/비활성화",
+};
 
+// 액션 타입별 기본 파라미터
+export const DEFAULT_ACTION_PARAMS: Record<string, Record<string, unknown>> = {
+    Move: { x: 0, y: 0, speed: 100 },
+    Jump: { power: 300 },
+    Wait: { duration: 1 },
+    MoveToward: { targetX: 0, targetY: 0, speed: 100 },
+    Attack: { damage: 10, range: 50 },
+    TakeDamage: { amount: 10 },
+    SetVar: { variable: "", operation: "set", operand1: 0 },
+    ChangeScene: { sceneId: "" },
+    Rotate: { speed: 100 },
+    Pulse: { speed: 2, minScale: 0.9, maxScale: 1.1 },
+    ShowDialogue: { text: "", duration: 3 },
+    PlaySound: { sound: "" },
+    EmitEventSignal: { key: "", value: "" },
+    Disable: {},
+    Enable: { enabled: true },
+    PlayParticle: { particleType: "spark" },
+    If: { conditionType: "VarEquals", variable: "", value: "", then: [], else: [] },
+    RunModule: { moduleId: "" },
+    SpawnEntity: { prefabId: "", offsetX: 0, offsetY: 0 },
+    SpawnIfClear: { prefabId: "", offsetX: 0, offsetY: 0, checkRadius: 50 },
+    PlayAnimation: { animationName: "" },
 };
 
 export const CONDITION_TYPES = [
@@ -69,6 +95,8 @@ export const CONDITION_TYPES = [
     { value: "InputDown", label: "키 누름 (Down)" },
     { value: "CompareTag", label: "태그 비교 (CompareTag)" },
     { value: "SignalKeyEquals", label: "신호 키 비교 (SignalKey)" },
+    { value: "DistanceLessThan", label: "거리 비교 (작음) <" },
+    { value: "DistanceGreaterThan", label: "거리 비교 (큼) >" },
 ];
 
 export const INPUT_KEY_OPTIONS = [
@@ -267,6 +295,16 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
         commitLogic([...logicComponents, newComponent]);
     };
 
+    const handleAddPreset = (presetId: string) => {
+        const preset = COMPONENT_PRESETS.find(p => p.id === presetId);
+        if (!preset) return;
+        const newComponents = preset.components.map(comp => ({
+            ...comp,
+            id: crypto.randomUUID(),
+        })) as LogicComponent[];
+        commitLogic([...logicComponents, ...newComponents]);
+    };
+
     const handleUpdateRule = (index: number, rule: LogicComponent, ensureModuleId?: string) => {
         const nextRules = [...logicComponents];
         nextRules[index] = rule;
@@ -353,10 +391,12 @@ export const ComponentSection = memo(function ComponentSection({ entity, onUpdat
     return (
         <div style={styles.sectionContainer}>
             <div style={styles.sectionHeader}>
-                <div style={styles.sectionTitle}>구성 요소 (Components) ({logicComponents.length})</div>
+                <div style={styles.sectionTitle}>
+                    <span style={{ fontSize: "16px" }}>⚡</span> 구성 요소 ({logicComponents.length})
+                </div>
                 <div style={styles.headerButtons}>
-                    <button onClick={handleAddComponent} style={styles.addButton}>
-                        + 요소 추가
+                    <button onClick={handleAddComponent} style={styles.primaryButton}>
+                        <span>+</span> 요소 추가
                     </button>
                 </div>
             </div>
@@ -445,7 +485,7 @@ const RuleItem = memo(function RuleItem({
         const actionType = availableActions[0] || "Move";
         onUpdate({
             ...rule,
-            actions: [...rule.actions, { type: actionType }],
+            actions: [...rule.actions, { type: actionType, ...(DEFAULT_ACTION_PARAMS[actionType] || {}) }],
         });
     };
 
@@ -588,7 +628,7 @@ const RuleItem = memo(function RuleItem({
                                         const actionType = availableActions[0] || "Move";
                                         onUpdate({
                                             ...rule,
-                                            elseActions: [...(rule.elseActions || []), { type: actionType }],
+                                            elseActions: [...(rule.elseActions || []), { type: actionType, ...(DEFAULT_ACTION_PARAMS[actionType] || {}) }],
                                         });
                                     }}
                                     style={{
@@ -673,7 +713,8 @@ function ConditionEditor({
     const selectedVar = variables.find((v) => v.name === (condition.name as string));
     const isInputCondition = condition.type === "InputKey" || condition.type === "InputDown";
     const isSignalKeyCondition = condition.type === "SignalKeyEquals";
-    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag";
+    const isDistanceCondition = condition.type === "DistanceLessThan" || condition.type === "DistanceGreaterThan";
+    const isValueFreeCondition = isInputCondition || isSignalKeyCondition || condition.type === "IsGrounded" || condition.type === "IsAlive" || condition.type === "CompareTag" || isDistanceCondition;
     const thenActions = condition.then || [];
 
     const updateThenActions = (newActions: any[]) => {
@@ -764,6 +805,30 @@ function ConditionEditor({
                         onChange={(e) => onUpdate({ ...condition, signalKey: e.target.value })}
                         style={styles.textInput}
                     />
+                )}
+
+                {isDistanceCondition && (
+                    <div style={{ display: "flex", gap: "4px", width: "100%" }}>
+                        <select
+                            value={(condition.targetEntityId as string) || ""}
+                            onChange={(e) => onUpdate({ ...condition, targetEntityId: e.target.value })}
+                            style={{ ...styles.smallSelect, flex: 1 }}
+                        >
+                            <option value="">(대상 엔티티)</option>
+                            {entities?.map((e) => (
+                                <option key={e.id} value={e.id}>
+                                    {e.name}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="number"
+                            placeholder="거리"
+                            value={(condition.value as number) ?? 0}
+                            onChange={(e) => onUpdate({ ...condition, value: Number(e.target.value) })}
+                            style={{ ...styles.textInput, width: "60px" }}
+                        />
+                    </div>
                 )}
 
                 {!isValueFreeCondition && condition.type !== "CompareTag" && (

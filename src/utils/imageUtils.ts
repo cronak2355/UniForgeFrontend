@@ -9,8 +9,17 @@ export function getCloudFrontUrl(url: string | undefined | null): string {
     if (!url) return "";
 
     // If it's a signed URL (Presigned), do NOT convert to CloudFront
-    if (url.includes("?") || url.includes("X-Amz-Credential")) {
+    if (url.includes("?") && url.includes("X-Amz-Credential")) {
         return url;
+    }
+
+    // 0. Handle absolute API URLs (Fix for uniforge.kr/api/... CORS issue)
+    // Always force relative path for API calls to leverage Vite Proxy or Same-Origin
+    if (url.includes("/api/assets/s3/") || url.includes("/api/games/s3/")) {
+        const idx = url.indexOf("/api/");
+        if (idx !== -1) {
+            return url.substring(idx);
+        }
     }
 
     // 1. Handle S3 URLs

@@ -10,13 +10,15 @@ import MarketplacePage from './pages/MarketplacePage';
 import ExplorePage from './pages/ExplorePage';
 import LibraryPage from './pages/LibraryPage';
 import AdminPage from './pages/AdminPage';
+import SimpleGame from './pages/SimpleGame';
 import Loading from './components/common/Loading';
 import { useAuth } from './contexts/AuthContext';
 import "./App.css";
 import EditorLayout from "./editor/EditorLayout";
 import BuildPage from "./pages/BuildPage";
 import ProjectsPage from "./pages/ProjectsPage";
-import { AssetsEditorPage } from './AssetsEditor';
+// import { AssetsEditorPage } from './AssetsEditor';
+import NewAssetsEditorPage from './pages/NewAssetsEditorPage';
 import AppLayout from './components/layout/AppLayout';
 import AdminRoute from './components/auth/AdminRoute';
 
@@ -46,7 +48,7 @@ function AppRoutes() {
             <Route path="/library/:type" element={isAuthenticated ? <AppLayout><LibraryPage /></AppLayout> : <Navigate to="/auth" replace />} />
             <Route path="/admin" element={isAuthenticated ? <AdminRoute><AppLayout><AdminPage /></AppLayout></AdminRoute> : <Navigate to="/auth" replace />} />
             <Route path="/build" element={isAuthenticated ? <AppLayout><BuildPage /></AppLayout> : <Navigate to="/auth" replace />} />
-            <Route path="/assets-editor" element={isAuthenticated ? <AssetsEditorPage /> : <Navigate to="/auth" replace />} />
+            <Route path="/assets-editor" element={isAuthenticated ? <NewAssetsEditorPage /> : <Navigate to="/auth" replace />} />
 
             {/* Full-screen Editor Routes (no sidebar) */}
             <Route path="/editor" element={isAuthenticated ? <EditorLayout /> : <Navigate to="/auth" replace />} />
@@ -54,6 +56,9 @@ function AppRoutes() {
             {/* Play Mode Route */}
             <Route path="/play" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
             <Route path="/play/:gameId" element={isAuthenticated ? <EditorLayout isPlayMode={true} /> : <Navigate to="/auth" replace />} />
+
+            {/* Simple Game Demo */}
+            <Route path="/simple-game" element={<SimpleGame />} />
         </Routes>
     );
 }
