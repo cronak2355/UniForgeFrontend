@@ -276,73 +276,83 @@ const NewAssetsEditorPage: React.FC = () => {
 
         setIsLoading(true);
 
-        const w = canvas.width;
-        const h = canvas.height;
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-
-        if (!tempCtx) {
-            setIsLoading(false);
-            return;
-        }
-
+        // Client-side Background Removal (Flood Fill from Top-Left)
+        // This is robust, instant, and free.
         try {
-            const base64Image = canvas.toDataURL('image/png').split(',')[1];
-            let processSuccess = false;
+            const w = canvas.width;
+            const h = canvas.height;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const ctx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
-            const token = authService.getToken();
-            try {
-                const response = await fetch('/api/remove-background', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token ? `Bearer ${token}` : '',
-                    },
-                    body: JSON.stringify({ image: base64Image }),
-                });
+            if (!ctx) throw new Error("Could not get canvas context");
 
-                if (!response.ok) throw new Error('API Failed');
+            ctx.drawImage(canvas, 0, 0);
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const data = imageData.data;
 
-                const data = await response.json();
-                const cleanBase64 = data.image;
+            // Get background color from (0,0)
+            const bgR = data[0];
+            const bgG = data[1];
+            const bgB = data[2];
+            const bgA = data[3];
 
-                const blob = await (await fetch(`data:image/png;base64,${cleanBase64}`)).blob();
-                const bitmap = await createImageBitmap(blob);
-                tempCtx.clearRect(0, 0, w, h);
-                tempCtx.drawImage(bitmap, 0, 0, w, h);
-                processSuccess = true;
+            // Helper: Color distance check
+            const isMatch = (idx: number) => {
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                const a = data[idx + 3];
+                // Strict matching for pixel art, or slight tolerance
+                const tolerance = 10;
+                return Math.abs(r - bgR) < tolerance &&
+                    Math.abs(g - bgG) < tolerance &&
+                    Math.abs(b - bgB) < tolerance &&
+                    Math.abs(a - bgA) < tolerance;
+            };
 
-            } catch (apiError) {
-                console.warn("API Background Removal Failed, using fallback:", apiError);
-                tempCtx.drawImage(canvas, 0, 0);
-                const imageData = tempCtx.getImageData(0, 0, w, h);
-                const data = imageData.data;
+            // BFS Flood Fill to remove background
+            // We assume background is connected to (0,0)
+            // If (0,0) is transparent, maybe it's already done, but we check anyway.
 
-                // Simple algorithmic fallback logic integration if needed, 
-                // but for brevity I will omit the huge legacy algo block here and assume API works or simple fallback.
-                // Actually user wants "Check legacy logic". I should include it.
-                // Re-implementing simplified algorithmic removal for safety.
+            const queue: number[] = [0, 0]; // x, y
+            const visited = new Uint8Array(w * h); // 0: unvisited, 1: visited
 
-                // ... (Legacy Algorithm Omitted for Conciseness in this Rewrite Step as per User Request for "UI Redesign" focus, but kept structure)
-                // If the user wants the FULL legacy algo, I should paste it.
-                // Let's assume API is primary. If fails, we just don't process.
-                // Wait, previous file HAD the algo. I should probably keep it if I can.
-                // Due to char limit, I will keep it simple: API or nothing.
-                alert("배경 제거 API 호출에 실패했습니다.");
+            // Check if top-left is actually the background (if it's not transparent)
+            if (bgA !== 0) {
+                while (queue.length > 0) {
+                    const y = queue.pop()!;
+                    const x = queue.pop()!;
+
+                    const idx = (y * w + x) * 4;
+                    const visitIdx = y * w + x;
+
+                    if (visited[visitIdx]) continue;
+                    visited[visitIdx] = 1;
+
+                    if (isMatch(idx)) {
+                        // Make transparent
+                        data[idx + 3] = 0;
+
+                        // Add neighbors
+                        if (x > 0) { queue.push(x - 1, y); }
+                        if (x < w - 1) { queue.push(x + 1, y); }
+                        if (y > 0) { queue.push(x, y - 1); }
+                        if (y < h - 1) { queue.push(x, y + 1); }
+                    }
+                }
             }
 
-            if (processSuccess) {
-                const finalImg = new Image();
-                finalImg.onload = () => {
-                    canvasRef.current?.setImage(finalImg);
-                    setIsLoading(false);
-                };
-                finalImg.src = tempCanvas.toDataURL();
-            } else {
+            ctx.putImageData(imageData, 0, 0);
+
+            // Update Main Canvas
+            const finalImg = new Image();
+            finalImg.onload = () => {
+                canvasRef.current?.setImage(finalImg);
                 setIsLoading(false);
-            }
+            };
+            finalImg.src = tempCanvas.toDataURL();
 
         } catch (error) {
             console.error(error);
