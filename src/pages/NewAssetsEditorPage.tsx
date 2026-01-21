@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import DrawingCanvas from '../components/editor/canvas/DrawingCanvas';
+import DrawingCanvas, { DrawingCanvasRef } from '../components/editor/canvas/DrawingCanvas';
 import Toolbar from '../components/editor/tools/Toolbar';
 import { saveAs } from 'file-saver';
 import Moveable from 'react-moveable';
@@ -30,8 +30,37 @@ const NewAssetsEditorPage: React.FC = () => {
     const imageRef = useRef<HTMLImageElement>(null);
 
     // Refs
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasRef = useRef<DrawingCanvasRef>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Undo/Redo Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore input fields
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        canvasRef.current?.redo();
+                    } else {
+                        canvasRef.current?.undo();
+                    }
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    canvasRef.current?.redo();
+                }
+            }
+
+            if (e.key === 'Enter' && importedImage) {
+                handleBakeImage();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [importedImage]);
 
     const handleSizeSelect = (size: number) => {
         setCanvasSize({ width: size, height: size });
@@ -41,11 +70,11 @@ const NewAssetsEditorPage: React.FC = () => {
 
     // Pan Handlers
     const handleContextMenu = (e: React.MouseEvent) => {
-        e.preventDefault(); // Disable default context menu
+        e.preventDefault();
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (e.button === 2 || selectedTool === 'move') { // Right Click or Move Tool for Pan
+        if (e.button === 2 || selectedTool === 'move') {
             if (e.button === 2) {
                 setIsPanning(true);
             } else if (selectedTool === 'move' && !importedImage) {
@@ -75,22 +104,38 @@ const NewAssetsEditorPage: React.FC = () => {
         }
     };
 
-    // Image Upload Logic
+    // Image Upload Logic (Fixed Size Issue)
     const handleImageUpload = (file: File) => {
+        if (!canvasSize) return;
+
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
-            // Center image initially
-            const initialSize = 100;
+            // Target Size: 80% of canvas
+            const targetRatio = 0.8;
+            const maxWidth = canvasSize.width * targetRatio;
+            const maxHeight = canvasSize.height * targetRatio;
+
+            let newWidth = img.width;
+            let newHeight = img.height;
+
+            // Logic: If image is larger than target, scale down. If smaller, scale up to target.
+            const scaleX = maxWidth / newWidth;
+            const scaleY = maxHeight / newHeight;
+            const optimalScale = Math.min(scaleX, scaleY);
+
+            newWidth *= optimalScale;
+            newHeight *= optimalScale;
+
             setImportedImage(url);
             setImageTransform({
-                x: (canvasSize!.width - initialSize) / 2,
-                y: (canvasSize!.height - initialSize) / 2,
-                width: initialSize,
-                height: initialSize * (img.height / img.width),
+                x: (canvasSize.width - newWidth) / 2,
+                y: (canvasSize.height - newHeight) / 2,
+                width: newWidth,
+                height: newHeight,
                 rotate: 0
             });
-            setSelectedTool('move'); // Switch to move tool
+            setSelectedTool('move');
         };
         img.src = url;
     };
@@ -99,21 +144,16 @@ const NewAssetsEditorPage: React.FC = () => {
     const handleBakeImage = () => {
         if (!importedImage || !canvasRef.current || !imageRef.current) return;
 
-        const ctx = canvasRef.current.getContext('2d');
+        const canvas = canvasRef.current.getCanvas();
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const img = imageRef.current;
 
-        // Save Context State
         ctx.save();
-
-        // Pixelate effect: Turn off smoothing
         ctx.imageSmoothingEnabled = false;
-
-        // Apply Transform
-        // We need to carefully handle rotation and position
-        // The imageTransform x,y is relative to the container. 
-        // We need to draw it onto the canvas which matches the container size.
 
         const centerX = imageTransform.x + imageTransform.width / 2;
         const centerY = imageTransform.y + imageTransform.height / 2;
@@ -122,7 +162,6 @@ const NewAssetsEditorPage: React.FC = () => {
         ctx.rotate((imageTransform.rotate * Math.PI) / 180);
         ctx.translate(-centerX, -centerY);
 
-        // Draw Image
         ctx.drawImage(
             img,
             imageTransform.x,
@@ -133,18 +172,11 @@ const NewAssetsEditorPage: React.FC = () => {
 
         ctx.restore();
 
-        // Clear Import State
-        setImportedImage(null);
-        setSelectedTool('pen'); // Return to pen
-    };
+        // Ensure History is saved
+        canvasRef.current.saveHistory();
 
-    // Click outside to bake
-    const handleBackgroundClick = (e: React.MouseEvent) => {
-        if (importedImage && selectedTool === 'move') {
-            // Baking Logic on background click is tricky because click propagation.
-            // Let's rely on explicit bake button or tool switch for now to avoid accidents.
-            // Or allow baking if clicked on the 'void' area.
-        }
+        setImportedImage(null);
+        setSelectedTool('pen');
     };
 
     if (!canvasSize) {
@@ -181,18 +213,14 @@ const NewAssetsEditorPage: React.FC = () => {
             onMouseUp={handleMouseUp}
             onContextMenu={handleContextMenu}
         >
-            {/* Toolbar Side */}
+            {/* Toolbar */}
             <Toolbar
                 selectedTool={selectedTool}
                 onToolChange={(tool) => {
-                    // If switching away from move tool while image exists, bake it?
-                    // Or just keep it. Let's keep it for now but warn.
                     if (importedImage && tool !== 'move') {
                         if (confirm("이미지가 적용되지 않았습니다. 현재 이미지를 캔버스에 적용하시겠습니까?")) {
                             handleBakeImage();
                         } else {
-                            // Cancel switch? Or just discard?
-                            // Let's discard if no.
                             setImportedImage(null);
                         }
                     }
@@ -205,7 +233,7 @@ const NewAssetsEditorPage: React.FC = () => {
                 onImageUpload={handleImageUpload}
             />
 
-            {/* Canvas Area */}
+            {/* Main Area */}
             <div className="flex-1 flex flex-col relative bg-[#121212]">
                 {/* Header */}
                 <div className="h-10 border-b border-[#282828] flex items-center justify-between px-4 bg-[#1e1e1e] z-10 shadow-sm shrink-0">
@@ -225,6 +253,23 @@ const NewAssetsEditorPage: React.FC = () => {
                                 <i className="fa-solid fa-check mr-1.5"></i>적용 (Enter)
                             </button>
                         )}
+                        <div className="flex gap-1 mr-2">
+                            <button
+                                onClick={() => canvasRef.current?.undo()}
+                                className="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-[10px] rounded-[2px] transition-colors"
+                                title="실행 취소 (Ctrl+Z)"
+                            >
+                                <i className="fa-solid fa-rotate-left"></i>
+                            </button>
+                            <button
+                                onClick={() => canvasRef.current?.redo()}
+                                className="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-[10px] rounded-[2px] transition-colors"
+                                title="다시 실행 (Ctrl+Y)"
+                            >
+                                <i className="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+
                         <button
                             onClick={() => {
                                 const canvas = canvasRef.current?.getCanvas();
@@ -253,11 +298,9 @@ const NewAssetsEditorPage: React.FC = () => {
                     ref={containerRef}
                     className="flex-1 overflow-hidden relative bg-[#0a0a0a] cursor-default"
                     onMouseDown={handleMouseDown}
-                    onClick={handleBackgroundClick}
                     onMouseMove={handleMouseMove}
                     onWheel={handleWheel}
                 >
-                    {/* Viewport Content Wrapper */}
                     <div
                         className="absolute shadow-2xl shadow-black origin-center"
                         style={{
@@ -268,7 +311,6 @@ const NewAssetsEditorPage: React.FC = () => {
                             transform: `scale(${zoom})`,
                         }}
                     >
-                        {/* Drawing Canvas */}
                         <DrawingCanvas
                             ref={canvasRef}
                             width={canvasSize.width}
@@ -278,7 +320,7 @@ const NewAssetsEditorPage: React.FC = () => {
                             selectedTool={selectedTool === 'move' ? 'none' : selectedTool}
                         />
 
-                        {/* Imported Image Layer (Overlay) */}
+                        {/* Imported Image Overlay */}
                         {importedImage && (
                             <>
                                 <img
@@ -290,12 +332,9 @@ const NewAssetsEditorPage: React.FC = () => {
                                         transform: `translate(${imageTransform.x}px, ${imageTransform.y}px) rotate(${imageTransform.rotate}deg)`,
                                         width: imageTransform.width,
                                         height: imageTransform.height,
-                                        // While transforming, we want to see it clearly? Or pixelated?
-                                        // User asked for pixelation matching screen.
                                         imageRendering: 'pixelated'
                                     }}
                                 />
-                                {/* Moveable Controller */}
                                 <Moveable
                                     target={imageRef.current}
                                     container={null}
@@ -322,8 +361,6 @@ const NewAssetsEditorPage: React.FC = () => {
                                     onRotate={({ rotate }) => {
                                         setImageTransform(prev => ({ ...prev, rotate }));
                                     }}
-
-                                    // Customizing Control Style for "Photoshop" feel
                                     className="moveable-control-box"
                                 />
                             </>
