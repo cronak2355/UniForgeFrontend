@@ -31,6 +31,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
     const [parts, setParts] = useState<RiggingPart[]>([]);
     const [activePartId, setActivePartId] = useState<string | null>(null);
     const [brushSize, setBrushSize] = useState(10);
+    const [tool, setTool] = useState<'brush' | 'eraser'>('brush');
 
     // Animation State
     const [transforms, setTransforms] = useState<FrameTransform[]>([{}, {}, {}, {}]); // 4 frames default
@@ -152,7 +153,14 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                 ctx.fillStyle = part.color;
                 ctx.beginPath();
                 ctx.arc(pos.x, pos.y, brushSize, 0, Math.PI * 2);
-                ctx.fill();
+
+                if (tool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.fill();
+                    ctx.globalCompositeOperation = 'source-over';
+                } else {
+                    ctx.fill();
+                }
 
                 return { ...part, maskData: ctx.getImageData(0, 0, w, h) };
             }
@@ -467,16 +475,58 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
 
                         {/* Setup Tools */}
                         {step === 'setup' && (
-                            <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800">
-                                <label className="text-xs text-zinc-500 mb-2 block">브러쉬 크기</label>
-                                <input
-                                    type="range"
-                                    min="1" max="50"
-                                    value={brushSize}
-                                    onChange={(e) => setBrushSize(Number(e.target.value))}
-                                    className="w-full accent-amber-500"
-                                />
+                            <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 space-y-4">
+                                <div>
+                                    <label className="text-xs text-zinc-500 mb-2 block">도구</label>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setTool('brush')}
+                                            className={`flex-1 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-2 ${tool === 'brush' ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-750'}`}
+                                        >
+                                            <i className="fa-solid fa-paintbrush"></i> 브러쉬
+                                        </button>
+                                        <button
+                                            onClick={() => setTool('eraser')}
+                                            className={`flex-1 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-2 ${tool === 'eraser' ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-750'}`}
+                                        >
+                                            <i className="fa-solid fa-eraser"></i> 지우개
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs text-zinc-500 mb-2 block">브러쉬 크기 ({brushSize}px)</label>
+                                    <input
+                                        type="range"
+                                        min="1" max="50"
+                                        value={brushSize}
+                                        onChange={(e) => setBrushSize(Number(e.target.value))}
+                                        className="w-full accent-amber-500"
+                                    />
+                                </div>
                             </div>
+
+                        )}
+
+                        {/* Add Part Button (Setup Mode Only) */}
+                        {step === 'setup' && (
+                            <button
+                                onClick={() => {
+                                    const newId = `part_${Date.now()}`;
+                                    const color = COLORS[parts.length % COLORS.length];
+                                    setParts([...parts, {
+                                        id: newId,
+                                        name: `부위 ${parts.length + 1}`,
+                                        color: color,
+                                        maskData: null,
+                                        isVisible: true
+                                    }]);
+                                    setActivePartId(newId);
+                                }}
+                                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-sm font-medium border border-zinc-700 border-dashed transition-colors flex items-center justify-center gap-2"
+                            >
+                                <i className="fa-solid fa-plus"></i> 부위 추가
+                            </button>
                         )}
 
                         {/* Animation Frame List */}
@@ -506,7 +556,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                 onMouseMove={handleMouseMove}
                                 onMouseUp={handleMouseUp}
                                 onMouseLeave={handleMouseUp}
-                                className="bg-[#18181b] shadow-2xl border border-zinc-800 cursor-crosshair"
+                                className={`bg-[#18181b] shadow-2xl border border-zinc-800 ${tool === 'eraser' ? 'cursor-cell' : 'cursor-crosshair'}`}
                                 style={{ width: 512, height: 512, maxWidth: '90%', maxHeight: '90%' }} // Responsive View
                             />
                         ) : (
@@ -576,16 +626,24 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                             다음 단계로 <i className="fa-solid fa-arrow-right"></i>
                         </button>
                     ) : (
-                        <button
-                            onClick={handleFinalApply}
-                            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2"
-                        >
-                            <i className="fa-solid fa-check"></i> 적용 완료
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setStep('setup')}
+                                className="px-4 py-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                <i className="fa-solid fa-arrow-left"></i> 뒤로
+                            </button>
+                            <button
+                                onClick={handleFinalApply}
+                                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2"
+                            >
+                                <i className="fa-solid fa-check"></i> 적용 완료
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

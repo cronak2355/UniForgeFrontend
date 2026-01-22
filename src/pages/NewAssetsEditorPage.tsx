@@ -307,18 +307,19 @@ const NewAssetsEditorPage: React.FC = () => {
         setCurrentFrame(newFrame);
     };
 
-    // Add new frame
+    // Add new frame (Copy previous)
     const handleAddFrame = () => {
         if (frames.length >= 32) {
             alert("최대 32프레임까지만 생성 가능합니다.");
             return;
         }
-        setFrames([...frames, null]); // Add empty frame at end
-        // Option: Duplicate current frame?
-        // setFrames([...frames, frames[currentFrame]]); 
 
-        // Let's just switch to the new frame immediately? 
-        // No, let user choose.
+        // Copy the last frame
+        const lastFrame = frames[frames.length - 1];
+        setFrames([...frames, lastFrame]);
+
+        // Switch to the new frame? Optional, but usually good UX.
+        setCurrentFrame(frames.length);
     };
 
     // Delete current frame
@@ -618,30 +619,12 @@ const NewAssetsEditorPage: React.FC = () => {
             // We assume background is connected to (0,0)
             // If (0,0) is transparent, maybe it's already done, but we check anyway.
 
-            const queue: number[] = [0, 0]; // x, y
-            const visited = new Uint8Array(w * h); // 0: unvisited, 1: visited
-
-            // Check if top-left is actually the background (if it's not transparent)
+            // Global Color Replacement (Scan all pixels)
+            // Removes "islands" like gaps between arms/legs
             if (bgA !== 0) {
-                while (queue.length > 0) {
-                    const y = queue.pop()!;
-                    const x = queue.pop()!;
-
-                    const idx = (y * w + x) * 4;
-                    const visitIdx = y * w + x;
-
-                    if (visited[visitIdx]) continue;
-                    visited[visitIdx] = 1;
-
-                    if (isMatch(idx)) {
-                        // Make transparent
-                        data[idx + 3] = 0;
-
-                        // Add neighbors
-                        if (x > 0) { queue.push(x - 1, y); }
-                        if (x < w - 1) { queue.push(x + 1, y); }
-                        if (y > 0) { queue.push(x, y - 1); }
-                        if (y < h - 1) { queue.push(x, y + 1); }
+                for (let i = 0; i < data.length; i += 4) {
+                    if (isMatch(i)) {
+                        data[i + 3] = 0; // Make transparent
                     }
                 }
             }
@@ -919,19 +902,20 @@ const NewAssetsEditorPage: React.FC = () => {
                                         <i className="fa-solid fa-wand-magic-sparkles"></i>
                                         <span className="hidden sm:inline">프리셋</span>
                                     </button>
-                                    <div className="absolute top-full left-0 mt-1 w-32 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block z-50">
-                                        <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            😮‍💨 숨쉬기
-                                        </button>
-                                        <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            🦘 점프
-                                        </button>
-                                        <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                            🫨 흔들림
-                                        </button>
+                                    <div className="absolute top-full left-0 pt-1 w-32 hidden group-hover:block z-50">
+                                        <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                                            <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                😮‍💨 숨쉬기
+                                            </button>
+                                            <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                🦘 점프
+                                            </button>
+                                            <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                🫨 흔들림
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-
                                 {/* Frame Actions */}
                                 {/* Rigging Button */}
                                 <button
