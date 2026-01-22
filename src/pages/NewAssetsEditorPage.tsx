@@ -913,89 +913,6 @@ const NewAssetsEditorPage: React.FC = () => {
                             </button>
                         ) : (
                             <>
-                                {/* Playback Controls */}
-                                <div className="flex items-center gap-2 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1 mr-2">
-                                    <button
-                                        onClick={() => setIsPlaying(!isPlaying)}
-                                        className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${isPlaying ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
-                                        title={isPlaying ? "정지" : "재생"}
-                                    >
-                                        <i className={`fa-solid ${isPlaying ? 'fa-stop' : 'fa-play'}`}></i>
-                                    </button>
-                                    <div className="flex items-center gap-1 px-1">
-                                        <span className="text-[10px] text-zinc-500 font-mono">FPS</span>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="60"
-                                            value={fps}
-                                            onChange={(e) => setFps(Number(e.target.value))}
-                                            className="w-8 h-5 bg-zinc-900 border border-zinc-700 rounded text-[10px] text-center text-zinc-300 focus:outline-none focus:border-indigo-500"
-                                        />
-                                    </div>
-                                </div>
-
-
-
-                                {/* Presets Button Group */}
-                                <div className="relative group">
-                                    <button className="h-9 px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded-lg flex items-center gap-2 border border-indigo-500/30">
-                                        <i className="fa-solid fa-wand-magic-sparkles"></i>
-                                        <span className="hidden sm:inline">프리셋</span>
-                                    </button>
-                                    <div className="absolute top-full left-0 pt-1 w-32 hidden group-hover:block z-50">
-                                        <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
-                                            <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                😮‍💨 숨쉬기
-                                            </button>
-                                            <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                🦘 점프
-                                            </button>
-                                            <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                🫨 흔들림
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* Frame Actions */}
-                                {/* Rigging Button */}
-                                <button
-                                    onClick={() => {
-                                        // 1. Ensure current frame has data
-                                        const canvas = canvasRef.current?.getCanvas();
-                                        if (!canvas) return;
-                                        const ctx = canvas.getContext('2d');
-                                        if (!ctx) return;
-
-                                        // Capture current rendering to update frames state
-                                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                        const newFrames = [...frames];
-                                        newFrames[currentFrame] = imageData;
-                                        setFrames(newFrames);
-
-                                        setIsRiggingModalOpen(true);
-                                    }}
-                                    className="h-9 px-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-500 hover:text-amber-400 text-xs rounded-lg flex items-center gap-2 border border-amber-500/30"
-                                >
-                                    <i className="fa-solid fa-bone"></i>
-                                    <span className="hidden sm:inline">리깅</span>
-                                </button>
-
-                                <button
-                                    onClick={handleCopyFrame}
-                                    className="h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg"
-                                    title="프레임 복사"
-                                >
-                                    <i className="fa-regular fa-copy"></i>
-                                </button>
-                                <button
-                                    onClick={handlePasteFrame}
-                                    disabled={!copiedFrame}
-                                    className={`h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg ${!copiedFrame ? 'opacity-50' : ''}`}
-                                    title="프레임 붙여넣기"
-                                >
-                                    <i className="fa-regular fa-clipboard"></i>
-                                </button>
                                 <button
                                     onClick={handleSaveSpriteSheet}
                                     className="h-9 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg shadow-lg flex items-center gap-2"
@@ -1191,50 +1108,165 @@ const NewAssetsEditorPage: React.FC = () => {
 
                     {/* Timeline (Sprite Mode Only) */}
                     {isSpriteMode && (
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-xl p-3 flex items-center gap-3 shadow-2xl z-30 animate-in slide-in-from-bottom-10 fade-in duration-300">
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl flex flex-col gap-2 z-30 animate-in slide-in-from-bottom-10 fade-in duration-300">
 
-                            {/* Frame List (Scrollable) */}
-                            <div className="flex-1 overflow-x-auto flex items-center gap-2 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-1">
-                                {frames.map((_, index) => (
-                                    <div key={index} className="relative group/frame shrink-0">
+                            {/* NEW: Timeline Control Bar */}
+                            <div className="bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-xl p-2 flex justify-between items-center shadow-lg">
+
+                                {/* Left: Playback & Settings */}
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-1 bg-zinc-950/50 rounded-lg border border-zinc-800 p-1">
                                         <button
-                                            onClick={() => handleFrameSwitch(index)}
-                                            className={`w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 transition-all ${currentFrame === index
-                                                ? 'bg-zinc-800 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                                                : 'bg-zinc-950/50 border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800'
-                                                }`}
+                                            onClick={() => setIsPlaying(!isPlaying)}
+                                            className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${isPlaying ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
+                                            title={isPlaying ? "정지" : "재생"}
                                         >
-                                            <span className={`text-xs font-bold ${currentFrame === index ? 'text-amber-500' : 'text-zinc-500'}`}>
-                                                {index + 1}
-                                            </span>
-                                            {/* Preview Placeholder? Real preview needs canvas toDataURL which is expensive to do reactive. 
-                                                Maybe just show "Frame N" nicely. */}
-                                            <div className="w-8 h-8 mt-1 rounded bg-zinc-800/50 flex items-center justify-center">
-                                                <i className="fa-solid fa-image text-zinc-600 text-[10px]"></i>
-                                            </div>
+                                            <i className={`fa-solid ${isPlaying ? 'fa-stop' : 'fa-play'}`}></i>
                                         </button>
-
-                                        {/* Delete Button */}
-                                        {frames.length > 1 && (
-                                            <button
-                                                onClick={(e) => handleDeleteFrame(index, e)}
-                                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/frame:opacity-100 transition-all shadow-md hover:scale-110 z-10"
-                                                title="프레임 삭제"
-                                            >
-                                                <i className="fa-solid fa-xmark"></i>
-                                            </button>
-                                        )}
+                                        <div className="flex items-center gap-1 px-1 border-l border-zinc-800 pl-2">
+                                            <span className="text-[10px] text-zinc-500 font-mono">FPS</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="60"
+                                                value={fps}
+                                                onChange={(e) => setFps(Number(e.target.value))}
+                                                className="w-8 h-5 bg-zinc-900 border border-zinc-700 rounded text-[10px] text-center text-zinc-300 focus:outline-none focus:border-indigo-500"
+                                            />
+                                        </div>
                                     </div>
-                                ))}
+                                </div>
 
-                                {/* Add Frame Button */}
-                                <button
-                                    onClick={handleAddFrame}
-                                    className="w-16 h-16 shrink-0 flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-600 hover:text-zinc-400 transition-all"
-                                    title="프레임 추가"
-                                >
-                                    <i className="fa-solid fa-plus text-xl"></i>
-                                </button>
+                                {/* Right: Actions */}
+                                <div className="flex items-center gap-2">
+                                    {/* Presets Button Group */}
+                                    <div className="relative group">
+                                        <button className="h-8 px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded-lg flex items-center gap-2 border border-indigo-500/30">
+                                            <i className="fa-solid fa-wand-magic-sparkles"></i>
+                                            <span className="hidden sm:inline">프리셋</span>
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-1 w-32 hidden group-hover:block z-50">
+                                            <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                                                <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                    😮‍💨 숨쉬기
+                                                </button>
+                                                <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                    🦘 점프
+                                                </button>
+                                                <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                    🫨 흔들림
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-4 w-[1px] bg-zinc-700 mx-1"></div>
+
+                                    {/* Copy/Paste */}
+                                    <button
+                                        onClick={handleCopyFrame}
+                                        className="h-8 w-8 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg flex items-center justify-center border border-zinc-700"
+                                        title="프레임 복사"
+                                    >
+                                        <i className="fa-regular fa-copy"></i>
+                                    </button>
+                                    <button
+                                        onClick={handlePasteFrame}
+                                        disabled={!copiedFrame}
+                                        className={`h-8 w-8 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg flex items-center justify-center border border-zinc-700 ${!copiedFrame ? 'opacity-50' : ''}`}
+                                        title="프레임 붙여넣기"
+                                    >
+                                        <i className="fa-regular fa-clipboard"></i>
+                                    </button>
+
+                                    <div className="h-4 w-[1px] bg-zinc-700 mx-1"></div>
+
+                                    {/* Sheet Import */}
+                                    <label className="h-8 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg flex items-center gap-2 cursor-pointer border border-zinc-700 hover:border-zinc-500 transition-all" title="스프라이트 시트 가져오기">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) {
+                                                    setSheetFile(e.target.files[0]);
+                                                    setIsSheetImportModalOpen(true);
+                                                    e.target.value = ''; // Reset
+                                                }
+                                            }}
+                                        />
+                                        <i className="fa-solid fa-table-cells"></i>
+                                        <span className="hidden sm:inline">시트 가져오기</span>
+                                    </label>
+
+                                    {/* Rigging Button */}
+                                    <button
+                                        onClick={() => {
+                                            // 1. Ensure current frame has data
+                                            const canvas = canvasRef.current?.getCanvas();
+                                            if (!canvas) return;
+                                            const ctx = canvas.getContext('2d');
+                                            if (!ctx) return;
+
+                                            // Capture current rendering to update frames state
+                                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                            const newFrames = [...frames];
+                                            newFrames[currentFrame] = imageData;
+                                            setFrames(newFrames);
+
+                                            setIsRiggingModalOpen(true);
+                                        }}
+                                        className="h-8 px-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-500 hover:text-amber-400 text-xs rounded-lg flex items-center gap-2 border border-amber-500/30"
+                                    >
+                                        <i className="fa-solid fa-bone"></i>
+                                        <span className="hidden sm:inline">리깅</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Existing Frame List Container */}
+                            <div className="bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-xl p-3 flex items-center gap-3 shadow-2xl">
+                                {/* Frame List (Scrollable) */}
+                                <div className="flex-1 overflow-x-auto flex items-center gap-2 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-1">
+                                    {frames.map((_, index) => (
+                                        <div key={index} className="relative group/frame shrink-0">
+                                            <button
+                                                onClick={() => handleFrameSwitch(index)}
+                                                className={`w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 transition-all ${currentFrame === index
+                                                    ? 'bg-zinc-800 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                                    : 'bg-zinc-950/50 border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800'
+                                                    }`}
+                                            >
+                                                <span className={`text-xs font-bold ${currentFrame === index ? 'text-amber-500' : 'text-zinc-500'}`}>
+                                                    {index + 1}
+                                                </span>
+                                                <div className="w-8 h-8 mt-1 rounded bg-zinc-800/50 flex items-center justify-center">
+                                                    <i className="fa-solid fa-image text-zinc-600 text-[10px]"></i>
+                                                </div>
+                                            </button>
+
+                                            {/* Delete Button */}
+                                            {frames.length > 1 && (
+                                                <button
+                                                    onClick={(e) => handleDeleteFrame(index, e)}
+                                                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/frame:opacity-100 transition-all shadow-md hover:scale-110 z-10"
+                                                    title="프레임 삭제"
+                                                >
+                                                    <i className="fa-solid fa-xmark"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {/* Add Frame Button */}
+                                    <button
+                                        onClick={handleAddFrame}
+                                        className="w-16 h-16 shrink-0 flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-600 hover:text-zinc-400 transition-all"
+                                        title="프레임 추가"
+                                    >
+                                        <i className="fa-solid fa-plus text-xl"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1396,21 +1428,31 @@ const NewAssetsEditorPage: React.FC = () => {
                 canvasSize={canvasSize}
                 onClose={() => setIsSheetImportModalOpen(false)}
                 onImport={(newFrames) => {
-                    // Append new frames to existing frames
-                    // If current frames has only 1 frame and it's empty/default, maybe replace it?
-                    // For now, let's just append.
-                    setFrames(prev => [...prev, ...newFrames]);
-                    // Switch to the first imported frame
-                    setCurrentFrame(frames.length); // Index of first new frame
+                    if (newFrames.length === 0) return;
 
-                    // Draw first new frame to canvas immediately
-                    if (newFrames.length > 0) {
-                        const canvas = canvasRef.current?.getCanvas();
-                        const ctx = canvas?.getContext('2d');
-                        if (canvas && ctx) {
-                            ctx.putImageData(newFrames[0], 0, 0);
+                    setFrames(prev => {
+                        const updated = [...prev];
+                        // 1. Replace current frame with the first imported frame
+                        updated[currentFrame] = newFrames[0];
+
+                        // 2. Insert the rest of the frames after the current frame
+                        if (newFrames.length > 1) {
+                            const remaining = newFrames.slice(1);
+                            updated.splice(currentFrame + 1, 0, ...remaining);
                         }
+                        return updated;
+                    });
+
+                    // Update canvas immediately with the first imported frame (which is now current)
+                    const canvas = canvasRef.current?.getCanvas();
+                    const ctx = canvas?.getContext('2d');
+                    if (canvas && ctx) {
+                        ctx.putImageData(newFrames[0], 0, 0);
                     }
+
+                    // Optional: If you want to move selection to the last imported frame?
+                    // Or keep it at the start? User didn't specify, but keeping at current (start of import) or moving to end is common.
+                    // Let's keep the focus on the current frame (the first one imported) as they said "make current frame the 1st frame"
                 }}
             />
 
