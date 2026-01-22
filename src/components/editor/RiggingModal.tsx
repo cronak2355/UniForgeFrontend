@@ -202,6 +202,39 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
         }));
     };
 
+    const handleFlip = () => {
+        if (!activePartId || !baseImageData) return;
+
+        setParts(prev => prev.map(part => {
+            if (part.id === activePartId && part.maskData) {
+                const w = baseImageData.width;
+                const h = baseImageData.height;
+
+                const c = document.createElement('canvas');
+                c.width = w;
+                c.height = h;
+                const ctx = c.getContext('2d')!;
+
+                // Draw existing mask
+                ctx.putImageData(part.maskData, 0, 0);
+
+                // Create flip buffer
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tempCtx = tempC.getContext('2d')!;
+
+                // Flip horizontally
+                tempCtx.translate(w, 0);
+                tempCtx.scale(-1, 1);
+                tempCtx.drawImage(c, 0, 0);
+
+                return { ...part, maskData: tempCtx.getImageData(0, 0, w, h) };
+            }
+            return part;
+        }));
+    };
+
     // Background Bitmap (Base image minus parts)
     const [bgBitmap, setBgBitmap] = useState<ImageBitmap | null>(null);
 
@@ -529,6 +562,15 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                             className={`flex-1 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-2 ${tool === 'eraser' ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-750'}`}
                                         >
                                             <i className="fa-solid fa-eraser"></i> 지우개
+                                        </button>
+                                    </div>
+                                    <div className="mt-2">
+                                        <button
+                                            onClick={handleFlip}
+                                            className="w-full py-1.5 rounded text-xs font-medium flex items-center justify-center gap-2 bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-750 hover:text-white"
+                                            title="선택된 영역 좌우 반전"
+                                        >
+                                            <i className="fa-solid fa-repeat"></i> 선택 영역 좌우 반전
                                         </button>
                                     </div>
                                 </div>
