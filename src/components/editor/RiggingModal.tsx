@@ -553,7 +553,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                     onDragOver={(e) => handleDragOver(e, index)}
                                     onDragEnd={handleDragEnd}
                                     onClick={() => setActivePartId(part.id)}
-                                    className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors border relative ${activePartId === part.id
+                                    className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors border relative group ${activePartId === part.id
                                         ? 'bg-zinc-800 border-amber-500/50'
                                         : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
                                         } ${dragPartIndex === index ? 'opacity-50 border-dashed border-amber-500' : ''}`}
