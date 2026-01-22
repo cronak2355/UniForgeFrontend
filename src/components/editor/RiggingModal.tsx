@@ -75,6 +75,40 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
         setDragPartIndex(null);
     };
 
+    // Rename & Delete State
+    const [editingPartId, setEditingPartId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
+
+    const startEditing = (part: RiggingPart, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingPartId(part.id);
+        setEditName(part.name);
+    };
+
+    const saveEditing = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!editingPartId) return;
+
+        setParts(prev => prev.map(p =>
+            p.id === editingPartId ? { ...p, name: editName || p.name } : p
+        ));
+        setEditingPartId(null);
+    };
+
+    const cancelEditing = () => {
+        setEditingPartId(null);
+    };
+
+    const handleDeletePart = (partId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("정말 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다)")) return;
+
+        setParts(prev => prev.filter(p => p.id !== partId));
+        if (activePartId === partId) {
+            setActivePartId(null);
+        }
+    };
+
 
     // Init Parts when opening
     useEffect(() => {
@@ -524,12 +558,46 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                         : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
                                         } ${dragPartIndex === index ? 'opacity-50 border-dashed border-amber-500' : ''}`}
                                 >
-                                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: part.color }}></div>
-                                    <span className={`text-sm font-medium ${activePartId === part.id ? 'text-white' : 'text-zinc-400'}`}>
-                                        {part.name}
-                                    </span>
-                                    {/* Handle Icon */}
-                                    <i className="fa-solid fa-grip-lines text-zinc-600 absolute right-3 opacity-0 group-hover:opacity-100"></i>
+                                    {editingPartId === part.id ? (
+                                        <form onSubmit={saveEditing} className="flex-1 flex gap-2" onClick={e => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                onBlur={() => saveEditing()}
+                                                autoFocus
+                                                className="flex-1 bg-zinc-950 border border-amber-500 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
+                                            />
+                                        </form>
+                                    ) : (
+                                        <>
+                                            <div className="w-4 h-4 rounded-full shadow-sm shrink-0" style={{ backgroundColor: part.color }}></div>
+                                            <span className={`text-sm font-medium flex-1 ${activePartId === part.id ? 'text-white' : 'text-zinc-400'}`}>
+                                                {part.name}
+                                            </span>
+
+                                            {/* Action Buttons (Visible on Hover or Active) */}
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={(e) => startEditing(part, e)}
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-700"
+                                                    title="이름 수정"
+                                                >
+                                                    <i className="fa-solid fa-pen text-xs"></i>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDeletePart(part.id, e)}
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-zinc-700"
+                                                    title="삭제"
+                                                >
+                                                    <i className="fa-solid fa-trash text-xs"></i>
+                                                </button>
+                                                <div className="w-6 h-6 flex items-center justify-center cursor-move text-zinc-600">
+                                                    <i className="fa-solid fa-grip-lines"></i>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </button>
                             ))}
                         </div>
