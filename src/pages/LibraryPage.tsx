@@ -131,14 +131,13 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                         return {
                             id: asset.id,
                             libraryItemId: entry.id,
-                            title: asset.name,
+                            title: asset.name || "Untitled Asset",
                             type: 'asset' as const,
                             assetType: asset.assetType || 'Unknown',
                             thumbnail: getCloudFrontUrl(asset.imageUrl) || DEFAULT_ASSET_THUMBNAIL,
                             author: authorName,
-                            purchaseDate: new Date(asset.createdAt).toLocaleDateString(),
-                            collectionId: entry.collectionId || undefined,
-                            metadata: asset.genre ? { genre: asset.genre } : undefined
+                            purchaseDate: new Date(entry.createdAt).toLocaleDateString(),
+                            collectionId: entry.collectionId || undefined
                         };
                     });
                     setMyAssets(mappedAssets);

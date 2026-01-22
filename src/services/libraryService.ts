@@ -2,20 +2,18 @@ import { apiClient } from './apiClient';
 
 export interface LibraryAssetSummary {
     id: string;
-    name: string;
-    authorId: string;
+    name?: string | null;
+    authorId?: string | null;
     authorName?: string | null;
     imageUrl?: string | null;
-    createdAt: string;
-    genre?: string | null;
     assetType?: string | null;
 }
 
 export interface LibraryItem {
     id: string;
     userId: string;
-    refId: string;
-    itemType: string;
+    refId?: string | null;
+    itemType?: string | null;
     collectionId?: string | null;
     createdAt: string;
     asset?: LibraryAssetSummary | null;
