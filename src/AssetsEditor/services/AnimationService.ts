@@ -228,11 +228,7 @@ export async function generateBaseFrame(
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
   const translatedDesc = await translatePromptAsync(characterDescription);
-<<<<<<< Updated upstream
   const prompt = `(long shot:1.4), (zoom out:1.3), (full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedDesc}, standing pose, neutral stance, front view, full body, centered, (game asset sprite:1.2), pixel art, game asset, single character, (white background:1.3), simple background`;
-=======
-  const prompt = `${translatedDesc}, standing pose, neutral stance, front view, full body, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
->>>>>>> Stashed changes
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
@@ -311,23 +307,14 @@ export async function generateAnimationFromBase(
 /**
  * 단일 이미지 생성 (애니메이션 아닌 일반 생성) (SageMaker)
  */
-<<<<<<< Updated upstream
-
-
-=======
->>>>>>> Stashed changes
 export async function generateSingleImage(
   prompt: string,
   canvasSize: number,
   assetType: 'character' | 'object' | 'tile' | 'effect' = 'character'
 ): Promise<string> {
-<<<<<<< Updated upstream
   console.log(`[AnimationService] Original Prompt: "${prompt}"`);
   const translatedPrompt = await translatePromptAsync(prompt);
   console.log(`[AnimationService] Translated Prompt: "${translatedPrompt}"`);
-=======
-  const translatedPrompt = await translatePromptAsync(prompt);
->>>>>>> Stashed changes
 
   // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
   // FULL BODY, VISIBLE FEET, GROUND + ZOOM OUT (Scale Down subject)
