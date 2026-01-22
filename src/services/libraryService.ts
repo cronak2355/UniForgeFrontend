@@ -1,5 +1,16 @@
 import { apiClient } from './apiClient';
 
+export interface LibraryAssetSummary {
+    id: string;
+    name: string;
+    authorId: string;
+    authorName?: string | null;
+    imageUrl?: string | null;
+    createdAt: string;
+    genre?: string | null;
+    assetType?: string | null;
+}
+
 export interface LibraryItem {
     id: string;
     userId: string;
@@ -7,6 +18,7 @@ export interface LibraryItem {
     itemType: string;
     collectionId?: string | null;
     createdAt: string;
+    asset?: LibraryAssetSummary | null;
 }
 
 class LibraryService {

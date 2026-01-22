@@ -6,6 +6,7 @@ import TopBar from '../components/common/TopBar';
 import AssetCard from '../components/common/AssetCard';
 import FilterSidebar, { CategoryItem } from '../components/common/FilterSidebar';
 import { getCloudFrontUrl } from '../utils/imageUtils';
+import type { LibraryItem } from '../services/libraryService';
 
 // --- Types ---
 interface UILibraryItem {
@@ -39,6 +40,8 @@ interface Props {
     isModal?: boolean;
     hideGamesTab?: boolean;
 }
+
+type LibraryAssetEntry = LibraryItem & { asset: NonNullable<LibraryItem['asset']> };
 
 const DEFAULT_ASSET_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/a855f7?text=Asset';
 const DEFAULT_GAME_THUMBNAIL = 'https://placehold.co/400x300/1a1a2e/3b82f6?text=Game';
@@ -78,48 +81,36 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
         const loadData = async () => {
             setLoading(true);
             try {
-                // Dynamic imports
                 const { libraryService } = await import('../services/libraryService');
-                const { marketplaceService } = await import('../services/marketplaceService');
                 const { userService } = await import('../services/userService');
 
-                // 1. Fetch Collections
-                const fetchedCollections = await libraryService.getCollections();
+                const [fetchedCollections, games, libraryItems] = await Promise.all([
+                    libraryService.getCollections(),
+                    fetchMyGames(user.id),
+                    libraryService.getLibrary()
+                ]);
+
                 setCollections(fetchedCollections.map((c: any) => ({
                     id: c.id,
                     name: c.name,
                     icon: c.icon || 'fa-folder'
                 })));
 
-                // 2. Fetch Games & Assets (Raw Data)
-                const [games, libraryItems] = await Promise.all([
-                    fetchMyGames(user.id),
-                    libraryService.getLibrary()
-                ]);
+                const assetEntries = libraryItems.filter(
+                    (item): item is LibraryAssetEntry => item.itemType === 'ASSET' && Boolean(item.asset)
+                );
 
-                // 3. Process Assets
-                const assetItems = libraryItems.filter(item => item.itemType === 'ASSET');
-                let assetDetails: any[] = [];
-                if (assetItems.length > 0) {
-                    assetDetails = await Promise.all(
-                        assetItems.map(item => marketplaceService.getAssetById(item.refId).catch(() => null))
-                    );
-                }
+                // Only fetch user info for game authors (assets now include authorName from backend)
+                const gameAuthorIds = new Set<string>();
+                games.forEach(g => gameAuthorIds.add(g.authorId));
 
-                // 4. Collect Author IDs to fetch names
-                const authorIds = new Set<string>();
-                games.forEach(g => authorIds.add(g.authorId));
-                assetDetails.forEach(d => { if (d) authorIds.add(d.authorId); });
-
-                // 5. Fetch User Names
-                const userMap = await userService.getUsersByIds(Array.from(authorIds));
-
-                // Optimistic override for current user
+                const userMap = gameAuthorIds.size > 0
+                    ? await userService.getUsersByIds(Array.from(gameAuthorIds))
+                    : new Map();
                 if (user && user.id) {
                     userMap.set(user.id, { id: user.id, name: user.name, email: user.email, profileImage: user.profileImage } as any);
                 }
 
-                // 6. Map to UI
                 setMyGames(games.map(game => {
                     const authorName = userMap.get(game.authorId)?.name || "Unknown User";
                     return {
@@ -132,24 +123,24 @@ export default function LibraryPage({ onClose, onSelect, isModal = false, hideGa
                     };
                 }));
 
-                if (assetItems.length > 0) {
-                    const mappedAssets = assetDetails
-                        .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
-                        .map(detail => {
-                            const libItem = libraryItems.find(li => li.refId === detail.id);
-                            const authorName = userMap.get(detail.authorId)?.name || detail.author || "Unknown User";
-                            return {
-                                id: detail.id,
-                                libraryItemId: libItem?.id,
-                                title: detail.name,
-                                type: 'asset' as const,
-                                assetType: detail.genre || 'Unknown',
-                                thumbnail: getCloudFrontUrl(detail.imageUrl || detail.image) || DEFAULT_ASSET_THUMBNAIL,
-                                author: authorName,
-                                purchaseDate: new Date(detail.createdAt).toLocaleDateString(),
-                                collectionId: libItem?.collectionId || undefined
-                            };
-                        });
+                if (assetEntries.length > 0) {
+                    const mappedAssets = assetEntries.map(entry => {
+                        const asset = entry.asset;
+                        // Use authorName from backend directly (performance optimization)
+                        const authorName = asset.authorName || "Unknown User";
+                        return {
+                            id: asset.id,
+                            libraryItemId: entry.id,
+                            title: asset.name,
+                            type: 'asset' as const,
+                            assetType: asset.assetType || 'Unknown',
+                            thumbnail: getCloudFrontUrl(asset.imageUrl) || DEFAULT_ASSET_THUMBNAIL,
+                            author: authorName,
+                            purchaseDate: new Date(asset.createdAt).toLocaleDateString(),
+                            collectionId: entry.collectionId || undefined,
+                            metadata: asset.genre ? { genre: asset.genre } : undefined
+                        };
+                    });
                     setMyAssets(mappedAssets);
                 } else {
                     setMyAssets([]);
