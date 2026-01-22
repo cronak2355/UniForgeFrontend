@@ -15,7 +15,7 @@ export interface RiggingPart {
 }
 
 export interface FrameTransform {
-    [partId: string]: { x: number, y: number, rotate: number, scale: number }
+    [partId: string]: { x: number, y: number, rotate: number, scale: number, scaleX: number }
 }
 
 interface RiggingModalProps {
@@ -73,6 +73,40 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
 
     const handleDragEnd = () => {
         setDragPartIndex(null);
+    };
+
+    // Rename & Delete State
+    const [editingPartId, setEditingPartId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
+
+    const startEditing = (part: RiggingPart, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingPartId(part.id);
+        setEditName(part.name);
+    };
+
+    const saveEditing = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!editingPartId) return;
+
+        setParts(prev => prev.map(p =>
+            p.id === editingPartId ? { ...p, name: editName || p.name } : p
+        ));
+        setEditingPartId(null);
+    };
+
+    const cancelEditing = () => {
+        setEditingPartId(null);
+    };
+
+    const handleDeletePart = (partId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("정말 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다)")) return;
+
+        setParts(prev => prev.filter(p => p.id !== partId));
+        if (activePartId === partId) {
+            setActivePartId(null);
+        }
     };
 
 
@@ -202,38 +236,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
         }));
     };
 
-    const handleFlip = () => {
-        if (!activePartId || !baseImageData) return;
 
-        setParts(prev => prev.map(part => {
-            if (part.id === activePartId && part.maskData) {
-                const w = baseImageData.width;
-                const h = baseImageData.height;
-
-                const c = document.createElement('canvas');
-                c.width = w;
-                c.height = h;
-                const ctx = c.getContext('2d')!;
-
-                // Draw existing mask
-                ctx.putImageData(part.maskData, 0, 0);
-
-                // Create flip buffer
-                const tempC = document.createElement('canvas');
-                tempC.width = w;
-                tempC.height = h;
-                const tempCtx = tempC.getContext('2d')!;
-
-                // Flip horizontally
-                tempCtx.translate(w, 0);
-                tempCtx.scale(-1, 1);
-                tempCtx.drawImage(c, 0, 0);
-
-                return { ...part, maskData: tempCtx.getImageData(0, 0, w, h) };
-            }
-            return part;
-        }));
-    };
 
     // Background Bitmap (Base image minus parts)
     const [bgBitmap, setBgBitmap] = useState<ImageBitmap | null>(null);
@@ -331,21 +334,21 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
 
         parts.slice().reverse().forEach(part => {
             if (part.imageBitmap && part.isVisible) {
-                const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1 };
+                const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1, scaleX: 1 };
 
                 ctx.save();
-                // Translate to center (origin)
                 const originX = part.origin?.x || 256;
                 const originY = part.origin?.y || 256;
 
-                // Total transform = Origin + Translation
                 const finalX = originX + t.x;
                 const finalY = originY + t.y;
 
                 ctx.translate(finalX, finalY);
                 ctx.rotate((t.rotate * Math.PI) / 180);
 
-                // Draw Offset by origin
+                // Scale (Flip Horizontal if scaleX is -1)
+                ctx.scale(t.scaleX, 1);
+
                 ctx.drawImage(part.imageBitmap, -originX, -originY);
                 ctx.restore();
             }
@@ -463,7 +466,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
             const frameData = transforms[i] || {};
             parts.slice().reverse().forEach(part => {
                 if (part.imageBitmap && part.isVisible) {
-                    const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1 };
+                    const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1, scaleX: 1 };
 
                     ctx.save();
                     const originX = part.origin?.x || 256;
@@ -475,6 +478,9 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                     ctx.translate(finalX, finalY);
                     ctx.rotate((t.rotate * Math.PI) / 180);
 
+                    // Apply ScaleX
+                    ctx.scale(t.scaleX, 1);
+
                     ctx.drawImage(part.imageBitmap, -originX, -originY);
                     ctx.restore();
                 }
@@ -484,6 +490,23 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
         }
 
         onApply(finalFrames);
+    };
+
+    const handleAnimFlip = () => {
+        if (!activePartId || step !== 'animation') return;
+
+        setTransforms(prev => {
+            const newTransforms = [...prev];
+            const currentFrameData = { ...(newTransforms[currentAnimFrame] || {}) };
+            const partData = currentFrameData[activePartId] || { x: 0, y: 0, rotate: 0, scale: 1, scaleX: 1 };
+
+            // Toggle scaleX
+            const newScaleX = partData.scaleX === 1 ? -1 : 1;
+
+            currentFrameData[activePartId] = { ...partData, scaleX: newScaleX };
+            newTransforms[currentAnimFrame] = currentFrameData;
+            return newTransforms;
+        });
     };
 
 
@@ -535,12 +558,46 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                         : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
                                         } ${dragPartIndex === index ? 'opacity-50 border-dashed border-amber-500' : ''}`}
                                 >
-                                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: part.color }}></div>
-                                    <span className={`text-sm font-medium ${activePartId === part.id ? 'text-white' : 'text-zinc-400'}`}>
-                                        {part.name}
-                                    </span>
-                                    {/* Handle Icon */}
-                                    <i className="fa-solid fa-grip-lines text-zinc-600 absolute right-3 opacity-0 group-hover:opacity-100"></i>
+                                    {editingPartId === part.id ? (
+                                        <form onSubmit={saveEditing} className="flex-1 flex gap-2" onClick={e => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                onBlur={() => saveEditing()}
+                                                autoFocus
+                                                className="flex-1 bg-zinc-950 border border-amber-500 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
+                                            />
+                                        </form>
+                                    ) : (
+                                        <>
+                                            <div className="w-4 h-4 rounded-full shadow-sm shrink-0" style={{ backgroundColor: part.color }}></div>
+                                            <span className={`text-sm font-medium flex-1 ${activePartId === part.id ? 'text-white' : 'text-zinc-400'}`}>
+                                                {part.name}
+                                            </span>
+
+                                            {/* Action Buttons (Visible on Hover or Active) */}
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={(e) => startEditing(part, e)}
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-700"
+                                                    title="이름 수정"
+                                                >
+                                                    <i className="fa-solid fa-pen text-xs"></i>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDeletePart(part.id, e)}
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-zinc-700"
+                                                    title="삭제"
+                                                >
+                                                    <i className="fa-solid fa-trash text-xs"></i>
+                                                </button>
+                                                <div className="w-6 h-6 flex items-center justify-center cursor-move text-zinc-600">
+                                                    <i className="fa-solid fa-grip-lines"></i>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -564,15 +621,7 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                                             <i className="fa-solid fa-eraser"></i> 지우개
                                         </button>
                                     </div>
-                                    <div className="mt-2">
-                                        <button
-                                            onClick={handleFlip}
-                                            className="w-full py-1.5 rounded text-xs font-medium flex items-center justify-center gap-2 bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-750 hover:text-white"
-                                            title="선택된 영역 좌우 반전"
-                                        >
-                                            <i className="fa-solid fa-repeat"></i> 선택 영역 좌우 반전
-                                        </button>
-                                    </div>
+
                                 </div>
 
                                 <div>
@@ -612,16 +661,24 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
 
                         {/* Animation Frame List */}
                         {step === 'animation' && (
-                            <div className="space-y-1">
-                                {[0, 1, 2, 3].map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => setCurrentAnimFrame(f)}
-                                        className={`w-full py-2 text-xs font-mono rounded ${currentAnimFrame === f ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}
-                                    >
-                                        Frame {f + 1}
-                                    </button>
-                                ))}
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    {[0, 1, 2, 3].map(f => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setCurrentAnimFrame(f)}
+                                            className={`w-full py-2 text-xs font-mono rounded ${currentAnimFrame === f ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                                        >
+                                            Frame {f + 1}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleAnimFlip}
+                                    className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-sm font-medium border border-zinc-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <i className="fa-solid fa-repeat"></i> 선택 부위 좌우 반전
+                                </button>
                             </div>
                         )}
                     </div>
