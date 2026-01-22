@@ -48,6 +48,34 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
 
     // --- Setup Phase Logic ---
 
+    // Drag & Drop State
+    const [dragPartIndex, setDragPartIndex] = useState<number | null>(null);
+
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        setDragPartIndex(index);
+        e.dataTransfer.effectAllowed = "move"; // Indicate move operation
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault(); // Necessary to allow dropping
+        if (dragPartIndex === null || dragPartIndex === index) return;
+
+        // Perform reordering on hover (or can do on drop)
+        // Doing on hover gives real-time feedback
+        const newParts = [...parts];
+        const draggedItem = newParts[dragPartIndex];
+        newParts.splice(dragPartIndex, 1);
+        newParts.splice(index, 0, draggedItem);
+
+        setParts(newParts);
+        setDragPartIndex(index);
+    };
+
+    const handleDragEnd = () => {
+        setDragPartIndex(null);
+    };
+
+
     // Init Parts when opening
     useEffect(() => {
         if (isOpen && parts.length === 0) {
@@ -81,8 +109,14 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
         ctx.drawImage(temp, 0, 0, canvas.width, canvas.height);
         ctx.globalAlpha = 1.0;
 
-        // 2. Draw Masks
-        parts.forEach(part => {
+        // 2. Draw Masks (Reverse order: List Top = Layer Top = Drawn Last)
+        // We iterate backward through the list to draw bottom-most first
+        // Wait, if List Index 0 is "Top", it should be drawn LAST.
+        // So we should iterate from End to Start? 
+        // No, standard painting: Index 0 (Top) -> Drawn 4th (Last). 
+        // Index 3 (Bottom) -> Drawn 1st (First).
+        // So we need to reverse the *iteration* for drawing.
+        parts.slice().reverse().forEach(part => {
             if (part.maskData && part.isVisible) {
                 const maskCanvas = document.createElement('canvas');
                 maskCanvas.width = baseImageData.width;
@@ -259,11 +293,10 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // Draw Parts with Transform
+        // Draw Parts with Transform (Reverse order for correct Z-index)
         const frameData = transforms[currentAnimFrame] || {};
 
-        // Sorting? Z-index needed. For now render in order.
-        parts.forEach(part => {
+        parts.slice().reverse().forEach(part => {
             if (part.imageBitmap && part.isVisible) {
                 const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1 };
 
@@ -393,9 +426,9 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
             // 1. Draw Background
             ctx.drawImage(bgBitmap, 0, 0);
 
-            // 2. Draw Parts
+            // 2. Draw Parts (Reverse order!)
             const frameData = transforms[i] || {};
-            parts.forEach(part => {
+            parts.slice().reverse().forEach(part => {
                 if (part.imageBitmap && part.isVisible) {
                     const t = frameData[part.id] || { x: 0, y: 0, rotate: 0, scale: 1 };
 
@@ -451,24 +484,30 @@ const RiggingModal: React.FC<RiggingModalProps> = ({ isOpen, onClose, onApply, b
                     {/* Left: Tools Pane */}
                     <div className="w-64 bg-zinc-950/50 border-r border-zinc-800 p-4 flex flex-col gap-4">
                         <div className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-2">
-                            {step === 'setup' ? '부위 목록 (Parts)' : '애니메이션 제어'}
+                            {step === 'setup' ? '부위 목록 (드래그하여 순서 변경)' : '애니메이션 제어'}
                         </div>
 
                         {/* Part List */}
                         <div className="flex-1 overflow-y-auto space-y-2">
-                            {parts.map(part => (
+                            {parts.map((part, index) => (
                                 <button
                                     key={part.id}
+                                    draggable={step === 'setup'} // Only draggable in setup? Or both? Setup makes sense to define hierarchy.
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => setActivePartId(part.id)}
-                                    className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors border ${activePartId === part.id
+                                    className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors border relative ${activePartId === part.id
                                         ? 'bg-zinc-800 border-amber-500/50'
                                         : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
-                                        }`}
+                                        } ${dragPartIndex === index ? 'opacity-50 border-dashed border-amber-500' : ''}`}
                                 >
                                     <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: part.color }}></div>
                                     <span className={`text-sm font-medium ${activePartId === part.id ? 'text-white' : 'text-zinc-400'}`}>
                                         {part.name}
                                     </span>
+                                    {/* Handle Icon */}
+                                    <i className="fa-solid fa-grip-lines text-zinc-600 absolute right-3 opacity-0 group-hover:opacity-100"></i>
                                 </button>
                             ))}
                         </div>
