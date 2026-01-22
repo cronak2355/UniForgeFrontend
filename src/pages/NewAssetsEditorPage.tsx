@@ -17,6 +17,7 @@ const NewAssetsEditorPage: React.FC = () => {
         pen: 'fa-solid fa-paintbrush',
         eraser: 'fa-solid fa-eraser',
         bucket: 'fa-solid fa-fill-drip',
+        eyedropper: 'fa-solid fa-eye-dropper',
     };
 
     const toolNames: Record<string, string> = {
@@ -24,6 +25,7 @@ const NewAssetsEditorPage: React.FC = () => {
         pen: '브러쉬',
         eraser: '지우개',
         bucket: '채우기',
+        eyedropper: '스포이드',
     };
 
     const handleExit = () => {
@@ -1093,6 +1095,10 @@ const NewAssetsEditorPage: React.FC = () => {
                                     selectedTool={selectedTool === 'move' ? 'none' : selectedTool}
                                     brushColor={brushColor}
                                     brushSize={brushSize}
+                                    onColorPick={(color) => {
+                                        setBrushColor(color);
+                                        setSelectedTool('pen'); // 색상 추출 후 자동으로 브러시 도구로 전환
+                                    }}
                                 />
 
                                 {/* Imported Image Overlay */}

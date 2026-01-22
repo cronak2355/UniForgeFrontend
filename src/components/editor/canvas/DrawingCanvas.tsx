@@ -16,6 +16,7 @@ interface DrawingCanvasProps {
     brushColor: string;
     brushSize: number;
     selectedTool: string;
+    onColorPick?: (color: string) => void;
 }
 
 const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(({
@@ -23,7 +24,8 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(({
     height,
     brushColor,
     brushSize,
-    selectedTool
+    selectedTool,
+    onColorPick
 }, ref) => {
     const mainCanvasRef = useRef<HTMLCanvasElement>(null);
     const tempCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -223,6 +225,26 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(({
 
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
+
+        // Eyedropper tool - pick color from canvas
+        if (selectedTool === 'eyedropper') {
+            const canvas = mainCanvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const pixelX = Math.floor(x);
+            const pixelY = Math.floor(y);
+            const imageData = ctx.getImageData(pixelX, pixelY, 1, 1);
+            const [r, g, b, a] = imageData.data;
+
+            // Convert to hex color
+            if (a > 0) {
+                const hex = '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
+                onColorPick?.(hex);
+            }
+            return;
+        }
 
         if (selectedTool === 'bucket') {
             floodFill(Math.floor(x), Math.floor(y), brushColor);
