@@ -117,6 +117,26 @@ export class ModuleRuntime {
       eventData,
     };
     this.instances.push(instance);
+
+    // [FIX] Sync initialVariables overrides to Entity variables
+    // ONLY if the variable doesn't already exist in Entity (first-time initialization)
+    // This prevents repeated RunModule calls from resetting values modified by the module.
+    if (initialVariables) {
+      for (const [name, value] of Object.entries(initialVariables)) {
+        // Check if this variable already exists in Entity (from previous runs or other sources)
+        const existingEntityVar = entity?.variables?.find(v => v.name === name);
+
+        if (existingEntityVar === undefined) {
+          // Variable doesn't exist in Entity yet - initialize it
+          this.hooks.setVar(entityId, name, value as ModuleLiteral);
+          instance.moduleVariables.set(name, value as ModuleLiteral);
+        } else {
+          // Variable already exists - use the current value, don't overwrite
+          instance.moduleVariables.set(name, existingEntityVar.value as ModuleLiteral);
+        }
+      }
+    }
+
     return instance;
   }
 
@@ -259,13 +279,17 @@ export class ModuleRuntime {
         const rawValue = this.resolveValueInput(instance, node.id, "value", node.params.value ?? null);
         const value = this.resolveValue(ctx, rawValue);
 
-
         const entity = this.hooks.getEntity(instance.entityId);
         const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === target));
 
         // [FIX] Priority: Entity (Global) > Module (Local) to ensure external updates are reflected
         if (hasEntityVar) {
           this.hooks.setVar(instance.entityId, target, value);
+          // [FIX] Also update moduleVariables to keep ctx.scope in sync
+          // This prevents stale reads when resolveValue checks scope first
+          if (instance.moduleVariables.has(target)) {
+            instance.moduleVariables.set(target, value);
+          }
         } else if (instance.moduleVariables.has(target)) {
           this.setModuleVariable(instance, target, value);
         } else {
@@ -291,19 +315,25 @@ export class ModuleRuntime {
             const rawOp1 = this.resolveValueInput(instance, node.id, "operand1", params.operand1 ?? null);
             const rawOp2 = this.resolveValueInput(instance, node.id, "operand2", params.operand2 ?? null);
 
-            const val1 = this.resolveValue(ctx, rawOp1) ?? 0;
-            const val2 = this.resolveValue(ctx, rawOp2) ?? 0;
+            // [FIX] Don't use ?? 0 to preserve boolean values (false would become 0)
+            const val1 = this.resolveValue(ctx, rawOp1);
+            const val2 = this.resolveValue(ctx, rawOp2);
 
-            const v1 = Number(val1);
-            const v2 = Number(val2);
+            // [FIX] For Set operation, preserve original type (don't convert to number)
+            if (op === "Set" || !op) {
+              result = val1;
+            } else {
+              // Only convert to number for math operations
+              const v1 = Number(val1 ?? 0);
+              const v2 = Number(val2 ?? 0);
 
-            // Simple Math Implementation (Parallels DefaultActions.ts)
-            switch (op) {
-              case "Add": result = v1 + v2; break;
-              case "Sub": result = v1 - v2; break;
-              case "Multiply": result = v1 * v2; break;
-              case "Divide": result = v1 / (v2 !== 0 ? v2 : 1); break;
-              case "Set": default: result = val1; break;
+              switch (op) {
+                case "Add": result = v1 + v2; break;
+                case "Sub": result = v1 - v2; break;
+                case "Multiply": result = v1 * v2; break;
+                case "Divide": result = v1 / (v2 !== 0 ? v2 : 1); break;
+                default: result = val1; break;
+              }
             }
           } else {
             // Simple Mode
@@ -317,11 +347,13 @@ export class ModuleRuntime {
             const entity = this.hooks.getEntity(instance.entityId);
             const hasEntityVar = Boolean(entity?.variables?.some((v) => v.name === name));
 
-            console.log(`[ModuleRuntime] SetVar Action: name='${name}' result=`, result, "hasEntityVar:", hasEntityVar);
-
             // [FIX] Priority: Entity (Global) > Module (Local)
             if (hasEntityVar) {
               this.hooks.setVar(instance.entityId, name, result);
+              // [FIX] Also update moduleVariables to keep ctx.scope in sync
+              if (instance.moduleVariables.has(name)) {
+                instance.moduleVariables.set(name, result);
+              }
               return true;
             }
             if (instance.moduleVariables.has(name)) {
@@ -544,29 +576,22 @@ export class ModuleRuntime {
         // If triggered by event, ctx.eventData should be populated.
         const eventData = ctx.eventData as any;
 
-        console.log(`[ModuleRuntime] CompareTag Check: Target='${targetTag}' EventData=`, eventData);
-
         if (eventData) {
           if (eventData.tag === targetTag) {
-            console.log(`[ModuleRuntime] Matched 'tag' property.`);
             return true;
           }
           if (eventData.otherTag === targetTag) {
-            console.log(`[ModuleRuntime] Matched 'otherTag' property.`);
             return true;
           }
           // Also check explicit tagA/tagB if available (EntityA vs EntityB)
           const myId = instance.entityId;
           if (eventData.entityA === myId && eventData.tagB === targetTag) {
-            console.log(`[ModuleRuntime] Matched tagB (I am A)`);
             return true;
           }
           if (eventData.entityB === myId && eventData.tagA === targetTag) {
-            console.log(`[ModuleRuntime] Matched tagA (I am B)`);
             return true;
           }
         }
-        console.log(`[ModuleRuntime] CompareTag Failed.`);
         return false;
       }
 
@@ -654,16 +679,15 @@ export class ModuleRuntime {
     // This allows "Live" updates from Entity variables to be seen by the module
     const entity = this.hooks.getEntity(instance.entityId);
     const variable = entity?.variables?.find((v) => v.name === name);
+
     if (variable) {
       return (variable.value as ModuleLiteral) ?? null;
     }
 
     if (instance.moduleVariables.has(name)) {
-      // console.log(`[ModuleRuntime] Resolved '${name}' from Module:`, instance.moduleVariables.get(name));
       return instance.moduleVariables.get(name) ?? null;
     }
 
-    console.warn(`[ModuleRuntime] Failed to resolve variable: '${name}'`);
     return null;
   }
 
