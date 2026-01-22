@@ -95,7 +95,23 @@ class PhaserRenderScene extends Phaser.Scene {
 
 
     create() {
-
+        // [FIX] 브라우저 오디오 자동재생 정책 우회
+        // 첫 사용자 상호작용(클릭/터치/키보드) 시 오디오 컨텍스트 활성화
+        const unlockAudio = () => {
+            if (this.sound && this.sound.locked) {
+                this.sound.unlock();
+            }
+            // Web Audio API context resume (fallback)
+            const webAudio = (this.sound as any)?.context;
+            if (webAudio && webAudio.state === 'suspended') {
+                webAudio.resume().catch(() => { });
+            }
+            // 한 번만 실행
+            this.input.off('pointerdown', unlockAudio);
+            this.input.keyboard?.off('keydown', unlockAudio);
+        };
+        this.input.on('pointerdown', unlockAudio);
+        this.input.keyboard?.on('keydown', unlockAudio);
 
         // 파티클 시스템 초기화 (텍스처 먼저 로드해야 함)
         initParticleTextures(this);
