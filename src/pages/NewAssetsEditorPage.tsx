@@ -4,6 +4,7 @@ import { saveAs } from 'file-saver';
 
 import { authService } from '../services/authService';
 import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
+import { removeBackground as removeBgApi } from '../AssetsEditor/services/AnimationService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
 import RiggingModal from '../components/editor/RiggingModal';
@@ -577,71 +578,43 @@ const NewAssetsEditorPage: React.FC = () => {
         const canvas = canvasRef.current?.getCanvas();
         if (!canvas) return;
 
+        if (!confirm("AI를 사용하여 배경을 제거하시겠습니까? (서버 처리)")) return;
+
         setIsLoading(true);
 
-        // Client-side Background Removal (Flood Fill from Top-Left)
-        // This is robust, instant, and free.
         try {
-            const w = canvas.width;
-            const h = canvas.height;
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = w;
-            tempCanvas.height = h;
-            const ctx = tempCanvas.getContext('2d', { willReadFrequently: true });
+            // Get Base64
+            const dataUrl = canvas.toDataURL('image/png');
+            const base64 = dataUrl.split(',')[1]; // Remove header
 
-            if (!ctx) throw new Error("Could not get canvas context");
+            // Call API
+            const resultBase64 = await removeBgApi(base64);
 
-            ctx.drawImage(canvas, 0, 0);
-            const imageData = ctx.getImageData(0, 0, w, h);
-            const data = imageData.data;
+            // Draw result
+            const img = new Image();
+            img.onload = () => {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
 
-            // Get background color from (0,0)
-            const bgR = data[0];
-            const bgG = data[1];
-            const bgB = data[2];
-            const bgA = data[3];
-
-            // Helper: Color distance check
-            const isMatch = (idx: number) => {
-                const r = data[idx];
-                const g = data[idx + 1];
-                const b = data[idx + 2];
-                const a = data[idx + 3];
-                // Strict matching for pixel art, or slight tolerance
-                const tolerance = 10;
-                return Math.abs(r - bgR) < tolerance &&
-                    Math.abs(g - bgG) < tolerance &&
-                    Math.abs(b - bgB) < tolerance &&
-                    Math.abs(a - bgA) < tolerance;
-            };
-
-            // BFS Flood Fill to remove background
-            // We assume background is connected to (0,0)
-            // If (0,0) is transparent, maybe it's already done, but we check anyway.
-
-            // Global Color Replacement (Scan all pixels)
-            // Removes "islands" like gaps between arms/legs
-            if (bgA !== 0) {
-                for (let i = 0; i < data.length; i += 4) {
-                    if (isMatch(i)) {
-                        data[i + 3] = 0; // Make transparent
-                    }
+                    // Update current frame state if needed
+                    const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const newFrames = [...frames];
+                    newFrames[currentFrame] = newImageData;
+                    setFrames(newFrames);
                 }
-            }
-
-            ctx.putImageData(imageData, 0, 0);
-
-            // Update Main Canvas
-            const finalImg = new Image();
-            finalImg.onload = () => {
-                canvasRef.current?.setImage(finalImg);
                 setIsLoading(false);
             };
-            finalImg.src = tempCanvas.toDataURL();
+            img.onerror = () => {
+                alert("이미지 처리 결과 로드 실패");
+                setIsLoading(false);
+            };
+            img.src = `data:image/png;base64,${resultBase64}`;
 
-        } catch (error) {
-            console.error(error);
-            alert("배경 제거 오류: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+        } catch (e) {
+            console.error(e);
+            alert("배경 제거 실패 (AI): " + (e instanceof Error ? e.message : String(e)));
             setIsLoading(false);
         }
     };
@@ -1031,6 +1004,16 @@ const NewAssetsEditorPage: React.FC = () => {
                         />
                         <i className="fa-regular fa-image"></i>
                     </label>
+
+                    {/* AI Background Removal */}
+                    <button
+                        onClick={handleRemoveBackground}
+                        disabled={isLoading}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-colors ${isLoading ? 'text-zinc-600 cursor-wait' : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'}`}
+                        title="AI 배경 제거 (캔버스 캐릭터 감지)"
+                    >
+                        {isLoading ? <i className="fa-solid fa-spinner fa-spin text-sm"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
+                    </button>
                 </aside>
 
                 {/* 2.2 Center: Canvas */}
