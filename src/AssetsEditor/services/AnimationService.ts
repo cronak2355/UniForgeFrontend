@@ -35,12 +35,18 @@ function getAuthHeaders() {
   };
 }
 
+<<<<<<< Updated upstream
 // Extended Korean-to-English translation map
 const TRANSLATION_MAP: Record<string, string> = {
   "해골기사": "Skeleton Knight",
   "전설의 기사": "Legendary Knight", // Add specific compound
   "전설의": "legendary",
   "전설": "legend",
+=======
+// Basic Korean-to-English translation map (Support map)
+const TRANSLATION_MAP: Record<string, string> = {
+  "해골기사": "Skeleton Knight",
+>>>>>>> Stashed changes
   "픽셀 아트": "pixel art",
   "호러": "horror",
   "웅장한": "epic, grand",
@@ -57,15 +63,21 @@ const TRANSLATION_MAP: Record<string, string> = {
   "드래곤": "dragon"
 };
 
+<<<<<<< Updated upstream
 function hasKorean(text: string): boolean {
   return /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
 }
 
+=======
+>>>>>>> Stashed changes
 /**
  * Translates prompt via Backend API (AWS Translate) with fallback to local map
  */
 async function translatePromptAsync(text: string): Promise<string> {
+<<<<<<< Updated upstream
   // 1. Try API Translation
+=======
+>>>>>>> Stashed changes
   try {
     const response = await fetch('/api/ai/translate', {
       method: 'POST',
@@ -76,6 +88,7 @@ async function translatePromptAsync(text: string): Promise<string> {
       })
     });
 
+<<<<<<< Updated upstream
     if (response.ok) {
       const data = await response.json();
       const translated = data.translatedText || text;
@@ -103,6 +116,29 @@ function applyFallbackMap(text: string): string {
     translated = translated.replace(new RegExp(ko, 'g'), en);
   });
   return translated;
+=======
+    if (!response.ok) {
+      console.warn(`Translation failed [${response.status}], using fallback map.`);
+      // Fallback to local map
+      let translated = text;
+      Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+        translated = translated.replace(new RegExp(ko, 'g'), en);
+      });
+      return translated;
+    }
+
+    const data = await response.json();
+    return data.translatedText || text;
+  } catch (e) {
+    console.error("Translation API error:", e);
+    // Fallback to local map
+    let translated = text;
+    Object.entries(TRANSLATION_MAP).forEach(([ko, en]) => {
+      translated = translated.replace(new RegExp(ko, 'g'), en);
+    });
+    return translated;
+  }
+>>>>>>> Stashed changes
 }
 
 /**
@@ -228,7 +264,11 @@ export async function generateBaseFrame(
 ): Promise<{ image: string; seed: number }> {
   // 강제 프롬프트 유지
   const translatedDesc = await translatePromptAsync(characterDescription);
+<<<<<<< Updated upstream
   const prompt = `(long shot:1.4), (zoom out:1.3), (full body shot:1.5), (wide angle view:1.3), (showing entire character from head to feet), (visible feet:1.3), (standing on ground:1.3), ${translatedDesc}, standing pose, neutral stance, front view, full body, centered, (game asset sprite:1.2), pixel art, game asset, single character, (white background:1.3), simple background`;
+=======
+  const prompt = `${translatedDesc}, standing pose, neutral stance, front view, full body, centered, pixel art, game asset, single character, (white background:1.3), simple background`;
+>>>>>>> Stashed changes
 
   const response = await SagemakerService.generateAsset({
     prompt: prompt,
@@ -307,16 +347,23 @@ export async function generateAnimationFromBase(
 /**
  * 단일 이미지 생성 (애니메이션 아닌 일반 생성) (SageMaker)
  */
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
 export async function generateSingleImage(
   prompt: string,
   canvasSize: number,
   assetType: 'character' | 'object' | 'tile' | 'effect' = 'character'
 ): Promise<string> {
+<<<<<<< Updated upstream
   console.log(`[AnimationService] Original Prompt: "${prompt}"`);
   const translatedPrompt = await translatePromptAsync(prompt);
   console.log(`[AnimationService] Translated Prompt: "${translatedPrompt}"`);
+=======
+  const translatedPrompt = await translatePromptAsync(prompt);
+>>>>>>> Stashed changes
 
   // 강제 키워드 추가 (사용자 요청: 전신, 중앙 배치 등)
   // FULL BODY, VISIBLE FEET, GROUND + ZOOM OUT (Scale Down subject)
