@@ -674,13 +674,37 @@ const NewAssetsEditorPage: React.FC = () => {
         setIsPanning(false);
     };
 
-    const handleWheel = (e: React.WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
+    // Mouse wheel zoom with useEffect for non-passive listener
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container || !canvasSize) return;
+
+        const handleWheel = (e: WheelEvent) => {
             e.preventDefault();
+
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Calculate mouse position relative to the canvas (accounting for current pan and zoom)
+            const canvasMouseX = (mouseX - pan.x) / zoom;
+            const canvasMouseY = (mouseY - pan.y) / zoom;
+
+            // Calculate new zoom
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            setZoom(prev => Math.min(Math.max(prev * delta, 0.1), 10));
-        }
-    };
+            const newZoom = Math.min(Math.max(zoom * delta, 0.1), 10);
+
+            // Adjust pan so that the mouse stays over the same canvas pixel
+            const newPanX = mouseX - canvasMouseX * newZoom;
+            const newPanY = mouseY - canvasMouseY * newZoom;
+
+            setZoom(newZoom);
+            setPan({ x: newPanX, y: newPanY });
+        };
+
+        container.addEventListener('wheel', handleWheel, { passive: false });
+        return () => container.removeEventListener('wheel', handleWheel);
+    }, [canvasSize, pan, zoom]);
 
     const handleImageUpload = (file: File) => {
         if (!canvasSize) return;
@@ -1039,7 +1063,6 @@ const NewAssetsEditorPage: React.FC = () => {
                         ref={containerRef}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
-                        onWheel={handleWheel}
                     >
                         {/* Canvas Container */}
                         <div

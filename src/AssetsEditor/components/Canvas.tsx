@@ -24,6 +24,19 @@ export function Canvas() {
   const lastPanPos = useRef({ x: 0, y: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  // Refs to hold latest values for wheel handler (closure fix)
+  const zoomRef = useRef(zoom);
+  const panOffsetRef = useRef(panOffset);
+
+  // Keep refs in sync
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset;
+  }, [panOffset]);
+
   // Floating Image Interaction State
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isResizingImage, setIsResizingImage] = useState<string | null>(null); // 'tl', 'tr', 'bl', 'br'
@@ -100,24 +113,31 @@ export function Canvas() {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
 
+      const currentZoom = zoomRef.current;
+      const currentPanOffset = panOffsetRef.current;
+
       const factor = 0.1;
       const delta = e.deltaY > 0 ? -factor : factor;
-      const newZoom = Math.max(0.1, Math.min(20, zoom * (1 + delta)));
-      if (newZoom === zoom) return;
+      const newZoom = Math.max(0.1, Math.min(20, currentZoom * (1 + delta)));
+      if (newZoom === currentZoom) return;
 
       const rect = wrapper.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      const canvasMouseX = mouseX - panOffset.x;
-      const canvasMouseY = mouseY - panOffset.y;
+      // Calculate position relative to canvas origin
+      const canvasMouseX = mouseX - currentPanOffset.x;
+      const canvasMouseY = mouseY - currentPanOffset.y;
 
-      const pixelX = canvasMouseX / zoom;
-      const pixelY = canvasMouseY / zoom;
+      // Convert to pixel space (before zoom)
+      const pixelX = canvasMouseX / currentZoom;
+      const pixelY = canvasMouseY / currentZoom;
 
+      // Calculate new canvas position after zoom
       const newCanvasMouseX = pixelX * newZoom;
       const newCanvasMouseY = pixelY * newZoom;
 
+      // Adjust pan offset so mouse stays over the same pixel
       setPanOffset({
         x: mouseX - newCanvasMouseX,
         y: mouseY - newCanvasMouseY,
@@ -128,7 +148,7 @@ export function Canvas() {
 
     wrapper.addEventListener('wheel', handleWheel, { passive: false });
     return () => wrapper.removeEventListener('wheel', handleWheel);
-  }, [zoom, panOffset, setZoom]);
+  }, [setZoom]);
 
   // Wrapper Pan Start
   const handleWrapperPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
