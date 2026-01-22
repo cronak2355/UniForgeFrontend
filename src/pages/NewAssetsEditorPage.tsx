@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
 import RiggingModal from '../components/editor/RiggingModal';
 import ExportModal from '../components/editor/ExportModal';
+import SpriteSheetImportModal from '../components/editor/SpriteSheetImportModal';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -66,6 +67,8 @@ const NewAssetsEditorPage: React.FC = () => {
     // Rigging State
     const [isRiggingModalOpen, setIsRiggingModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isSheetImportModalOpen, setIsSheetImportModalOpen] = useState(false);
+    const [sheetFile, setSheetFile] = useState<File | null>(null);
 
     // Image Import State
     const [importedImage, setImportedImage] = useState<string | null>(null);
@@ -1000,6 +1003,25 @@ const NewAssetsEditorPage: React.FC = () => {
                                     <i className="fa-solid fa-download"></i>
                                     <span className="hidden sm:inline">스프라이트 저장</span>
                                 </button>
+
+                                {/* Sheet Import Button */}
+                                <label className="h-9 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg flex items-center gap-2 cursor-pointer border border-zinc-700 hover:border-zinc-500 transition-all" title="스프라이트 시트 가져오기">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files?.[0]) {
+                                                setSheetFile(e.target.files[0]);
+                                                setIsSheetImportModalOpen(true);
+                                                e.target.value = ''; // Reset
+                                            }
+                                        }}
+                                    />
+                                    <i className="fa-solid fa-table-cells"></i>
+                                    <span className="hidden sm:inline">시트 가져오기</span>
+                                </label>
+
                                 <button
                                     onClick={handleExitSpriteMode}
                                     className="h-9 px-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs rounded-lg"
@@ -1365,6 +1387,31 @@ const NewAssetsEditorPage: React.FC = () => {
                         resolve(null);
                     }
                 })}
+            />
+
+            {/* Sheet Import Modal */}
+            <SpriteSheetImportModal
+                isOpen={isSheetImportModalOpen}
+                file={sheetFile}
+                canvasSize={canvasSize}
+                onClose={() => setIsSheetImportModalOpen(false)}
+                onImport={(newFrames) => {
+                    // Append new frames to existing frames
+                    // If current frames has only 1 frame and it's empty/default, maybe replace it?
+                    // For now, let's just append.
+                    setFrames(prev => [...prev, ...newFrames]);
+                    // Switch to the first imported frame
+                    setCurrentFrame(frames.length); // Index of first new frame
+
+                    // Draw first new frame to canvas immediately
+                    if (newFrames.length > 0) {
+                        const canvas = canvasRef.current?.getCanvas();
+                        const ctx = canvas?.getContext('2d');
+                        if (canvas && ctx) {
+                            ctx.putImageData(newFrames[0], 0, 0);
+                        }
+                    }
+                }}
             />
 
         </div>
