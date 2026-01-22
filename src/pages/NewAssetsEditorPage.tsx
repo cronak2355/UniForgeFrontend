@@ -7,6 +7,7 @@ import { SagemakerService } from '../AssetsEditor/services/SagemakerService';
 import { useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
 import RiggingModal from '../components/editor/RiggingModal';
+import ExportModal from '../components/editor/ExportModal';
 
 const NewAssetsEditorPage: React.FC = () => {
     const navigate = useNavigate();
@@ -64,6 +65,7 @@ const NewAssetsEditorPage: React.FC = () => {
 
     // Rigging State
     const [isRiggingModalOpen, setIsRiggingModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     // Image Import State
     const [importedImage, setImportedImage] = useState<string | null>(null);
@@ -876,6 +878,16 @@ const NewAssetsEditorPage: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* Export Button */}
+                    <button
+                        onClick={() => setIsExportModalOpen(true)}
+                        className="h-9 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium rounded-lg border border-zinc-700 transition-all flex items-center gap-2"
+                        title="내보내기 (마켓플레이스/프로젝트)"
+                    >
+                        <i className="fa-solid fa-share-from-square"></i>
+                        <span className="hidden sm:inline">내보내기</span>
+                    </button>
+
                     {/* AI & Sprite Buttons */}
                     <div className="flex items-center gap-2">
                         <button
@@ -1275,31 +1287,7 @@ const NewAssetsEditorPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Layers Section (Visual Only) */}
-                        <div className="p-4">
-                            <div className="flex justify-between items-center mb-3">
-                                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Layers</h2>
-                                <button className="text-zinc-500 hover:text-violet-400 transition-colors">
-                                    <i className="fa-solid fa-plus"></i>
-                                </button>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="p-2 bg-zinc-800 rounded border border-violet-500/50 flex items-center gap-3">
-                                    <div className="w-4 text-center"><i className="fa-regular fa-eye text-zinc-400 text-xs"></i></div>
-                                    <div className="w-8 h-8 bg-white border border-zinc-600 rounded-sm"></div>
-                                    <span className="text-xs text-zinc-200">Layer 1</span>
-                                </div>
-                                {importedImage && (
-                                    <div className="p-2 bg-zinc-900/50 hover:bg-zinc-800 rounded border border-transparent hover:border-zinc-700 flex items-center gap-3 transition-colors cursor-pointer">
-                                        <div className="w-4 text-center"><i className="fa-regular fa-eye text-zinc-400 text-xs"></i></div>
-                                        <div className="w-8 h-8 bg-zinc-800 border border-zinc-700 rounded-sm overflow-hidden relative">
-                                            <img src={importedImage} className="w-full h-full object-cover" />
-                                        </div>
-                                        <span className="text-xs text-zinc-400 italic">Imported Image</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+
                     </div>
                 </aside>
             </div>
@@ -1364,6 +1352,20 @@ const NewAssetsEditorPage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Export Modal */}
+            <ExportModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                getCanvasBlob={() => new Promise<Blob | null>((resolve) => {
+                    const canvas = canvasRef.current?.getCanvas();
+                    if (canvas) {
+                        canvas.toBlob(resolve, 'image/png');
+                    } else {
+                        resolve(null);
+                    }
+                })}
+            />
 
         </div>
     );
