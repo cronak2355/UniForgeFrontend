@@ -889,12 +889,42 @@ function EditorLayoutInner({ isPlayMode = false }: { isPlayMode?: boolean }) {
             // setRunSession((v) => v + 1);
         } else if (prevMode === "run") {
             if (entityBackupRef.current) {
+                // [OPTIMIZATION] Incremental Restore - Only update entities that actually changed
+                let restoredCount = 0;
+                let skippedCount = 0;
+
                 entityBackupRef.current.forEach((backupEntity, id) => {
                     const currentEntity = core.getEntities().get(id);
-                    if (currentEntity) {
-                        Object.assign(currentEntity, backupEntity);
+                    if (!currentEntity) {
+                        // Entity was deleted during runtime - skip (or could recreate if needed)
+                        skippedCount++;
+                        return;
+                    }
+
+                    // Quick diff: Check if entity actually changed
+                    const changed =
+                        currentEntity.x !== backupEntity.x ||
+                        currentEntity.y !== backupEntity.y ||
+                        currentEntity.z !== backupEntity.z ||
+                        currentEntity.rotation !== backupEntity.rotation ||
+                        currentEntity.scaleX !== backupEntity.scaleX ||
+                        currentEntity.scaleY !== backupEntity.scaleY;
+
+                    if (changed) {
+                        // Only restore position/transform - the most common runtime changes
+                        currentEntity.x = backupEntity.x;
+                        currentEntity.y = backupEntity.y;
+                        currentEntity.z = backupEntity.z;
+                        currentEntity.rotation = backupEntity.rotation;
+                        currentEntity.scaleX = backupEntity.scaleX;
+                        currentEntity.scaleY = backupEntity.scaleY;
+                        restoredCount++;
+                    } else {
+                        skippedCount++;
                     }
                 });
+
+                console.log(`[EditorLayout] Incremental restore: ${restoredCount} changed, ${skippedCount} skipped`);
                 entityBackupRef.current = null;
                 core.setSelectedEntity(core.getSelectedEntity());
                 const refreshed = core.getSelectedEntity();

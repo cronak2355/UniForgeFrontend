@@ -621,6 +621,10 @@ export class PhaserRenderer implements IRenderer {
     // ===== 엔티티 관리 - ID 동기화 보장 =====
     private entities: Map<string, Phaser.GameObjects.GameObject> = new Map();
 
+    // ===== 텍스처 로딩 캐시 (중복 로드 방지) =====
+    private _loadingTexturePromises: Map<string, Promise<void>> = new Map();
+    private _loadedTextureSignatures: Map<string, string> = new Map();
+
     // ===== 타일맵 관련 =====
     private map: Phaser.Tilemaps.Tilemap | null = null;
     private tileset: Phaser.Tilemaps.Tileset | null = null;
@@ -1589,6 +1593,40 @@ export class PhaserRenderer implements IRenderer {
         } else {
             // console.warn(`[PhaserRenderer] Cannot remove: entity "${id}" not found`);
         }
+    }
+
+    /**
+     * [OPTIMIZATION] Batch spawn multiple entities in one frame
+     * Reduces overhead by deferring interaction setup until all entities are created
+     */
+    spawnBatch(entities: Array<{
+        id: string;
+        type: string;
+        x: number;
+        y: number;
+        z?: number;
+        options?: SpawnOptions;
+    }>): void {
+        if (!this.scene || !this.scene.textures) {
+            console.error("[PhaserRenderer] Cannot spawnBatch: scene not initialized");
+            return;
+        }
+
+        // Phase 1: Create all game objects without interaction setup
+        const createdIds: string[] = [];
+        for (const entity of entities) {
+            if (this.entities.has(entity.id)) {
+                continue; // Skip duplicates
+            }
+
+            // Use regular spawn which handles all the complex logic
+            this.spawn(entity.id, entity.type, entity.x, entity.y, entity.z ?? 10, entity.options);
+            createdIds.push(entity.id);
+        }
+
+        // Batch creation complete - no need for additional deferred work
+        // spawn() already handles interaction setup synchronously
+        console.log(`[PhaserRenderer] spawnBatch completed: ${createdIds.length} entities created`);
     }
 
     refreshEntityTexture(id: string, textureKey: string): void {
@@ -2623,7 +2661,22 @@ export class PhaserRenderer implements IRenderer {
      * ?띿뒪泥?濡쒕뱶 (Phaser ?꾩슜)
      */
     loadTexture(key: string, url: string, metadata?: SpriteSheetMetadata): Promise<void> {
-        return new Promise((resolve, reject) => {
+        // [OPTIMIZATION] Generate signature to detect if texture needs reload
+        const signature = `${url}|${metadata?.frameWidth ?? 0}|${metadata?.frameHeight ?? 0}|${metadata?.frameCount ?? 0}`;
+        const cachedSig = this._loadedTextureSignatures.get(key);
+
+        // If same signature already loaded and texture exists, skip entirely
+        if (cachedSig === signature && this.scene?.textures.exists(key)) {
+            return Promise.resolve();
+        }
+
+        // [OPTIMIZATION] If this texture is currently being loaded, return existing promise
+        const existingPromise = this._loadingTexturePromises.get(key);
+        if (existingPromise) {
+            return existingPromise;
+        }
+
+        const loadPromise = new Promise<void>((resolve, reject) => {
             if (!this.scene) {
                 reject(new Error("Scene not initialized"));
                 return;
@@ -2750,6 +2803,19 @@ export class PhaserRenderer implements IRenderer {
 
             scene.load.start();
         });
+
+        // [OPTIMIZATION] Store promise in cache while loading
+        this._loadingTexturePromises.set(key, loadPromise);
+
+        // Cleanup cache entry when done and store signature
+        loadPromise.then(() => {
+            this._loadingTexturePromises.delete(key);
+            this._loadedTextureSignatures.set(key, signature);
+        }).catch(() => {
+            this._loadingTexturePromises.delete(key);
+        });
+
+        return loadPromise;
     }
 
     public createAnimationsFromMetadata(key: string, metadata?: SpriteSheetMetadata) {

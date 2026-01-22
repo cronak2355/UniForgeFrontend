@@ -234,15 +234,17 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
             const currentTiles = tilesRef.current;
             const currentEntities = entitiesRef.current;
 
-            for (const asset of currentAssets) {
-                if (asset.tag === "Tile") continue;
-                try {
-                    await renderer.loadTexture(asset.name, asset.url, asset.metadata);
-                } catch (error) {
-                    console.warn(`[EditorCanvas] Failed to load texture: ${asset.name}`, error);
-                    // 개별 텍스처 실패는 무시하고 계속 진행
-                }
-            }
+            // [OPTIMIZATION] Load textures in parallel instead of sequentially
+            const textureLoadPromises = currentAssets
+                .filter(asset => asset.tag !== "Tile")
+                .map(asset =>
+                    renderer.loadTexture(asset.name, asset.url, asset.metadata)
+                        .catch(error => {
+                            console.warn(`[EditorCanvas] Failed to load texture: ${asset.name}`, error);
+                            // 개별 텍스처 실패는 무시하고 계속 진행
+                        })
+                );
+            await Promise.all(textureLoadPromises);
 
             const tilesetCanvas = await buildTilesetCanvas(currentAssets);
             if (tilesetCanvas) {
@@ -640,11 +642,13 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
         let cancelled = false;
 
         (async () => {
-            for (const asset of nextNonTileAssets) {
-                // Allow renderer to decide if reload is needed (e.g. metadata change)
-                await renderer.loadTexture(asset.name, asset.url, asset.metadata);
-                if (cancelled) return;
-            }
+            // [OPTIMIZATION] Load all textures in parallel
+            await Promise.all(
+                nextNonTileAssets.map(asset =>
+                    renderer.loadTexture(asset.name, asset.url, asset.metadata).catch(() => { })
+                )
+            );
+            if (cancelled) return;
 
             if (nextSignature !== tileSignatureRef.current) {
                 const tilesetCanvas = await buildTilesetCanvas(assets);
@@ -659,27 +663,42 @@ export function EditorCanvas({ assets, selected_asset, addEntity, draggedAsset, 
                 prevTilesRef.current = indexTiles(tiles);
             }
 
-            // Refresh entity textures after asset loading
+            // [OPTIMIZATION] Batch texture loading for entities that need it
+            const entitiesToLoadTextures: Array<{ key: string; url: string; metadata?: any }> = [];
+
             for (const ent of entities) {
                 const textureKey = ent.texture ?? ent.name;
                 if (!textureKey) continue;
 
                 const asset = assetLookup.get(textureKey);
                 if (asset) {
-                    // [FIX] Only load texture if not already properly loaded
-                    // This prevents reload during drag operations
                     const scene = renderer.getScene();
                     const textureExists = scene?.textures.exists(textureKey);
                     const texture = textureExists ? scene?.textures.get(textureKey) : null;
                     const hasFrames = texture && (texture.frameTotal > 1 || texture.getFrameNames().length > 1);
 
-                    // Only load if texture doesn't exist or has no frames yet
                     if (!textureExists || !hasFrames) {
-                        await renderer.loadTexture(textureKey, asset.url, asset.metadata);
-                        if (cancelled) return;
+                        entitiesToLoadTextures.push({ key: textureKey, url: asset.url, metadata: asset.metadata });
                     }
                 }
-                renderer.refreshEntityTexture(ent.id, textureKey);
+            }
+
+            // Load missing textures in parallel
+            if (entitiesToLoadTextures.length > 0) {
+                await Promise.all(
+                    entitiesToLoadTextures.map(t =>
+                        renderer.loadTexture(t.key, t.url, t.metadata).catch(() => { })
+                    )
+                );
+                if (cancelled) return;
+            }
+
+            // Refresh all entity textures
+            for (const ent of entities) {
+                const textureKey = ent.texture ?? ent.name;
+                if (textureKey) {
+                    renderer.refreshEntityTexture(ent.id, textureKey);
+                }
             }
         })();
 
