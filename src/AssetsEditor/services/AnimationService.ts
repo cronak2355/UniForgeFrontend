@@ -307,8 +307,6 @@ export async function generateAnimationFromBase(
 /**
  * 단일 이미지 생성 (애니메이션 아닌 일반 생성) (SageMaker)
  */
-
-
 export async function generateSingleImage(
   prompt: string,
   canvasSize: number,
