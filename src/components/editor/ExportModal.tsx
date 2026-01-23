@@ -72,7 +72,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, getCanvasBlo
                 mpTags || 'General', // Default tag
                 null, // Token is handled by apiClient
                 metadata,
-                true // isPublic
+                false // isPublic
             );
 
             alert("마켓플레이스에 업로드되었습니다!");
