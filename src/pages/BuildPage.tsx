@@ -170,7 +170,20 @@ function UnityBuildPanel({ sceneJson }: { sceneJson: any }) {
                     <li>Unity에서 MetamongProtocol이 실행 중이어야 합니다.</li>
                     <li>기본 수신 주소는 <strong>http://localhost:7777/import</strong> 입니다.</li>
                     <li>전송 시 프로젝트 데이터가 Unity 프로젝트로 변환/적용됩니다.</li>
+                    <li>MetamongProtocol은 Unity에서 로컬 HTTP 수신을 열어 데이터를 받아 적용합니다.</li>
                 </ul>
+                <div style={{ marginTop: 10, color: '#9aa7d0' }}>
+                    MetamongProtocol은 씬/에셋 데이터를 자동으로 매핑해 Unity 프로젝트에 반영하는 브릿지입니다.
+                </div>
+                <div style={{ marginTop: 10, color: '#9aa7d0' }}>
+                    실행 방법 (Unity Package Manager):
+                    <ul style={{ margin: '6px 0 0 0', paddingLeft: 18 }}>
+                        <li>Unity에서 Window → Package Manager로 이동하세요.</li>
+                        <li>패키지 목록에서 MetamongProtocol을 검색해 설치하세요.</li>
+                        <li>검색이 안 되면 Git URL로 추가: <strong>https://github.com/tanhwanYT/MetamongProtocolPackage-MPP-</strong></li>
+                        <li>설치 후 Unity를 다시 시작해 동작을 확인하세요.</li>
+                    </ul>
+                </div>
             </div>
 
             <button style={styles.buildButton} onClick={handleSend}>
