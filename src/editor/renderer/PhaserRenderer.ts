@@ -2757,6 +2757,17 @@ export class PhaserRenderer implements IRenderer {
             }
 
             // console.log(`[PhaserRenderer] Loading texture: ${key}`, metadata);
+            // [FIX] Ensure we skip audio files if they accidentally reach here
+            const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+            const isAudio = ext && ["mp3", "wav", "ogg", "m4a"].includes(ext);
+
+            // Audio assets should ONLY be loaded via preload() or direct load.audio calls.
+            // loadTexture is for visual assets.
+            if (isAudio) {
+                console.warn(`[PhaserRenderer] loadTexture called for likely audio asset '${key}'. Skipping to prevent image load error.`);
+                resolve();
+                return;
+            }
 
             if (metadata && metadata.frameWidth > 0 && metadata.frameHeight > 0) {
                 scene.load.spritesheet(key, url, {

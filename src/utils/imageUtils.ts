@@ -81,7 +81,8 @@ export function resolveAudioUrl(url: string | undefined | null, assetId?: string
         // For now, we need to fetch the actual S3 key from the asset metadata
         // As a workaround, return the proxy URL and let the browser handle it
         // This requires the backend to set proper CORS headers for audio
-        return url;
+        // [FIX] Append dummy .mp3 extension so Phaser Loader checks it as Audio
+        return url.includes('?') ? `${url}&dummy=.mp3` : `${url}?dummy=.mp3`;
     }
 
     // If it's an S3 URL, convert to CloudFront
