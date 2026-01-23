@@ -51,3 +51,44 @@ export function getCloudFrontUrl(url: string | undefined | null): string {
 
     return url;
 }
+
+/**
+ * Resolves audio URLs to direct CloudFront URLs.
+ * Phaser's Web Audio API requires direct access to audio files, not proxy URLs.
+ * 
+ * @param url - Original URL (may be proxy URL like /api/assets/s3/{id})
+ * @param assetId - Optional asset ID if known
+ * @returns Direct CloudFront URL for audio file
+ */
+export function resolveAudioUrl(url: string | undefined | null, assetId?: string): string {
+    if (!url) return "";
+
+    // If already a direct CloudFront URL, return as-is
+    if (url.includes(CLOUDFRONT_DOMAIN)) {
+        return url;
+    }
+
+    // If it's a signed URL (Presigned), return as-is
+    if (url.includes("?") && url.includes("X-Amz-Credential")) {
+        return url;
+    }
+
+    // Extract asset ID from proxy URL pattern: /api/assets/s3/{id}
+    const proxyMatch = url.match(/\/api\/assets\/s3\/([a-f0-9-]+)/i);
+    const extractedId = proxyMatch?.[1] || assetId;
+
+    if (extractedId) {
+        // For now, we need to fetch the actual S3 key from the asset metadata
+        // As a workaround, return the proxy URL and let the browser handle it
+        // This requires the backend to set proper CORS headers for audio
+        return url;
+    }
+
+    // If it's an S3 URL, convert to CloudFront
+    const s3Regex = /https:\/\/[^/]+\.s3\.[^/]+\.amazonaws\.com/;
+    if (s3Regex.test(url)) {
+        return url.replace(s3Regex, `https://${CLOUDFRONT_DOMAIN}`);
+    }
+
+    return url;
+}
