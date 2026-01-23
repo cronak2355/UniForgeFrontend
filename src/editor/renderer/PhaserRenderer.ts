@@ -1,5 +1,6 @@
 ﻿import Phaser from "phaser";
 import type { IRenderer, Vector3, ScreenCoord, SpawnOptions } from "./IRenderer";
+import { resolveAudioUrl } from "../../utils/imageUtils";
 // EAC ?쒖뒪??import
 import { EventBus, ActionRegistry, ConditionRegistry, type EventHandler } from "../core/events";
 import { splitLogicItems } from "../types/Logic";
@@ -77,17 +78,29 @@ class PhaserRenderScene extends Phaser.Scene {
                 asset.tag === "Sound" || asset.tag === "Audio" || asset.tag === "BGM" || asset.tag === "SFX" ||
                 asset.tag === "sound" || asset.tag === "audio" || asset.tag === "bgm" || asset.tag === "sfx"
             ) {
-                // [NEW] Load Audio Assets
-                this.load.audio(asset.name, asset.url);
+                // [NEW] Resolve URL for Audio to ensure direct access/correct headers
+                const audioUrl = resolveAudioUrl(asset.url, asset.id);
+                this.load.audio(asset.name, audioUrl);
                 if (asset.id !== asset.name) {
-                    this.load.audio(asset.id, asset.url);
+                    this.load.audio(asset.id, audioUrl);
                 }
             } else {
-                // Load as regular image
-                this.load.image(asset.name, asset.url);
+                // [FIX] Fallback: Check extension if tag is not explicit audio
+                const ext = asset.url.split('?')[0].split('.').pop()?.toLowerCase();
+                if (ext && ["mp3", "wav", "ogg", "m4a"].includes(ext)) {
+                    console.warn(`[PhaserRenderer] Asset '${asset.name}' (Tag: ${asset.tag}) has audio extension. Loading as audio.`);
+                    const audioUrl = resolveAudioUrl(asset.url, asset.id);
+                    this.load.audio(asset.name, audioUrl);
+                    if (asset.id !== asset.name) {
+                        this.load.audio(asset.id, audioUrl);
+                    }
+                } else {
+                    // Load as regular image
+                    this.load.image(asset.name, asset.url);
 
-                if (asset.id !== asset.name) {
-                    this.load.image(asset.id, asset.url);
+                    if (asset.id !== asset.name) {
+                        this.load.image(asset.id, asset.url);
+                    }
                 }
             }
         }
