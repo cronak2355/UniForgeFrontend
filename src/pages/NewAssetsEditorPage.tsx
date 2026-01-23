@@ -69,6 +69,8 @@ const NewAssetsEditorPage: React.FC = () => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isSheetImportModalOpen, setIsSheetImportModalOpen] = useState(false);
     const [sheetFile, setSheetFile] = useState<File | null>(null);
+    const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false);
+    const presetMenuRef = useRef<HTMLDivElement>(null);
 
     // Image Import State
     const [importedImage, setImportedImage] = useState<string | null>(null);
@@ -185,6 +187,23 @@ const NewAssetsEditorPage: React.FC = () => {
     // Refs
     const canvasRef = useRef<DrawingCanvasRef>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Close preset menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (presetMenuRef.current && !presetMenuRef.current.contains(e.target as Node)) {
+                setIsPresetMenuOpen(false);
+            }
+        };
+
+        if (isPresetMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isPresetMenuOpen]);
 
     // Undo/Redo Shortcuts
     useEffect(() => {
@@ -370,18 +389,15 @@ const NewAssetsEditorPage: React.FC = () => {
 
     // Playback Loop
     useEffect(() => {
-        let intervalId: any;
+        let intervalId: ReturnType<typeof setInterval>;
 
-        if (isPlaying) {
+        if (isPlaying && frames.length > 0) {
+            const safeFps = Math.max(1, fps); // Ensure minimum 1 fps
+            const intervalMs = Math.floor(1000 / safeFps);
+
             intervalId = setInterval(() => {
-                setCurrentFrame(prev => {
-                    const next = (prev + 1) % frames.length;
-                    // Load frame logic here inside the loop effectively requires effect on currentFrame change
-                    // But we can't easily trigger loadFrameToCanvas from state update callback.
-                    // So we rely on effect below.
-                    return next;
-                });
-            }, 1000 / fps);
+                setCurrentFrame(prev => (prev + 1) % frames.length);
+            }, intervalMs);
         }
 
         return () => {
@@ -404,7 +420,7 @@ const NewAssetsEditorPage: React.FC = () => {
             const targetFrame = frames[currentFrame];
             loadFrameToCanvas(targetFrame);
         }
-    }, [currentFrame, isPlaying]);
+    }, [currentFrame, isPlaying, frames]);
 
     // Copy current frame to clipboard (internal)
 
@@ -530,7 +546,9 @@ const NewAssetsEditorPage: React.FC = () => {
             ctx.putImageData(newFrames[currentFrame]!, 0, 0);
         }
 
-        alert(`⚡ '${type}' 프리셋이 적용되었습니다! F1~F4 탭을 눌러 확인해보세요.`);
+        // Auto-play after applying preset
+        setCurrentFrame(0);
+        setIsPlaying(true);
     };
 
 
@@ -1140,24 +1158,30 @@ const NewAssetsEditorPage: React.FC = () => {
                                 {/* Right: Actions */}
                                 <div className="flex items-center gap-2">
                                     {/* Presets Button Group */}
-                                    <div className="relative group">
-                                        <button className="h-8 px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded-lg flex items-center gap-2 border border-indigo-500/30">
+                                    <div className="relative" ref={presetMenuRef}>
+                                        <button
+                                            onClick={() => setIsPresetMenuOpen(!isPresetMenuOpen)}
+                                            className={`h-8 px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded-lg flex items-center gap-2 border border-indigo-500/30 ${isPresetMenuOpen ? 'bg-indigo-600/40' : ''}`}
+                                        >
                                             <i className="fa-solid fa-wand-magic-sparkles"></i>
                                             <span className="hidden sm:inline">프리셋</span>
+                                            <i className={`fa-solid fa-chevron-${isPresetMenuOpen ? 'up' : 'down'} text-[8px] ml-1`}></i>
                                         </button>
-                                        <div className="absolute bottom-full right-0 mb-1 w-32 hidden group-hover:block z-50">
-                                            <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
-                                                <button onClick={() => handleApplyPreset('breathing')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                    😮‍💨 숨쉬기
-                                                </button>
-                                                <button onClick={() => handleApplyPreset('jump')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                    🦘 점프
-                                                </button>
-                                                <button onClick={() => handleApplyPreset('shake')} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                                                    🫨 흔들림
-                                                </button>
+                                        {isPresetMenuOpen && (
+                                            <div className="absolute bottom-full right-0 mb-1 w-32 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                                <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                                                    <button onClick={() => { handleApplyPreset('breathing'); setIsPresetMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                        😮‍💨 숨쉬기
+                                                    </button>
+                                                    <button onClick={() => { handleApplyPreset('jump'); setIsPresetMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                        🦘 점프
+                                                    </button>
+                                                    <button onClick={() => { handleApplyPreset('shake'); setIsPresetMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                                                        🫨 흔들림
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
 
                                     <div className="h-4 w-[1px] bg-zinc-700 mx-1"></div>
